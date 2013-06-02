@@ -25,7 +25,7 @@ $ tar zxvf fte_relay-VERSION.PLATFORM.ARCH.tar.gz
 2. Enter the extracted directory:  
 $ cd fte_relay-VERSION.PLATFORM.ARCH
 
-3. Start a SOCKS proxy on PROXY\_IP:PROXY\_PORT. We like: http://www.inet.no/dante/.  A SSH tunnel will also work.
+3. Start a SOCKS proxy on PROXY\_IP:PROXY\_PORT. We like: http://www.inet.no/dante/.  Using OpenSSH's SOCKS proxy will also work.
 
 4. On the server, start the FTE relay:  
 $ ./bin/fte\_relay --mode server --server\_ip SERVER\_IP --server\_port SERVER\_PORT --proxy\_ip PROXY\_IP --proxy\_port PROXY\_PORT
