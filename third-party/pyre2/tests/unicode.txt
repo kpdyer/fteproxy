@@ -1,0 +1,69 @@
+Here are some tests to make sure that utf-8 works
+=================================================
+
+    >>> import re2 as re
+    >>> a = u'\u6211\u5f88\u597d'
+    >>> c = re.compile(a[0])
+    >>> c.search(a).group()
+    u'\u6211'
+
+Test unicode stickyness
+
+    >>> re.sub(r'x', u'y', 'x')
+    u'y'
+    >>> re.sub(r'x', 'y', u'x')
+    u'y'
+    >>> re.sub(ur'x', 'y', 'x')
+    'y'
+    >>> re.findall(ur'.', 'x')
+    ['x']
+    >>> re.findall(ur'.', u'x')
+    [u'x']
+    >>> re.split(ur',', '1,2,3')
+    ['1', '2', '3']
+    >>> re.split(ur',', u'1,2,3')
+    [u'1', u'2', u'3']
+    >>> re.search(ur'(\d)', '1').group(1)
+    '1'
+    >>> re.search(ur'(\d)', u'1').group(1)
+    u'1'
+
+Test unicode character groups
+
+    >>> re.search(r'\d', u'\u0661', re.UNICODE).group(0)
+    u'\u0661'
+    >>> int(re.search(r'\d', u'\u0661', re.UNICODE).group(0))
+    1
+    >>> re.search(r'\w', u'\u0401')
+    >>> re.search(r'\w', u'\u0401', re.UNICODE).group(0)
+    u'\u0401'
+    >>> re.search(r'\s', u'\u1680', re.UNICODE).group(0)
+    u'\u1680'
+    >>> re.findall(r'[\s\d\w]', 'hey 123', re.UNICODE)
+    ['h', 'e', 'y', ' ', '1', '2', '3']
+    >>> re.search(r'\D', u'\u0661x', re.UNICODE).group(0)
+    u'x'
+    >>> re.search(r'\W', u'\u0401!', re.UNICODE).group(0)
+    u'!'
+    >>> re.search(r'\S', u'\u1680x', re.UNICODE).group(0)
+    u'x'
+    >>> re.search(r'[\D]', u'\u0661x', re.UNICODE).group(0)
+    u'x'
+    >>> re.search(r'[\W]', u'\u0401!', re.UNICODE).group(0)
+    u'!'
+    >>> re.search(r'[\S]', u'\u1680x', re.UNICODE).group(0)
+    u'x'
+
+
+Group positions need to be fixed with unicode
+
+    >>> re.search(r' (.)', u'\U0001d200xxx\u1234 x').span(1) 
+    (6, 7)
+    >>> re.search(r' (.)', u'\U0001d200xxx\u1234 x'.encode('utf-8')).span(1) 
+    (11, 12)
+
+Pos and endpos also need to be corrected
+
+    >>> re.compile(r'x').findall(u'\u1234x', 1, 2)
+    [u'x']
+

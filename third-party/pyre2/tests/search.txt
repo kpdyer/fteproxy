@@ -1,0 +1,22 @@
+These are simple tests of the ``search`` function
+=================================================
+
+    >>> import re2 as re
+    >>> re.search("((?:[01]?\d{1,2}|2[0-4]\d|25[0-5])\.){3}(?:[01]?\d{1,2}|2[0-4]\d|25[0-5])", "hello 28.224.2.1 test").group()
+    '28.224.2.1'
+
+    >>> re.search("(\d{3})\D?(\d{3})\D?(\d{4})", "800-555-1212").groups()
+    ('800', '555', '1212')
+
+    >>> input = 'a' * 999
+    >>> len(re.search('(?:a{1000})?a{999}', input).group())
+    999
+
+    >>> re.search(r'\n#hdr-editions(.*?)\n', open("cnn_homepage.dat").read()).groups()
+    (' a { text-decoration:none; }',)
+
+Verify some sanity checks
+
+    >>> re.compile(r'x').search('x', 2000)
+    >>> re.compile(r'x').search('x', 1, -300)
+

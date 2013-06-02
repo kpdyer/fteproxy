@@ -1,0 +1,9 @@
+Split tests
+===========
+
+This one tests to make sure that utf8 data is parsed correctly.
+
+    >>> import re2 as re
+    >>> a = '我很好, 你呢?'.decode('utf8')
+    >>> print re.split(' ', a)
+    [u'\u6211\u5f88\u597d,', u'\u4f60\u5462?']

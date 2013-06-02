@@ -1,0 +1,14 @@
+Simple tests for the ``finditer`` function.
+===========================================
+
+    >>> import re2 as re
+
+    >>> len(list(re.finditer(r'\w+', open("cnn_homepage.dat").read())))
+    14230
+
+    >>> [m.group(1) for m in re.finditer(r'\n#hdr-editions(.*?)\n', open("cnn_homepage.dat").read())]
+    [' a { text-decoration:none; }', ' li { padding:0 10px; }', ' ul li.no-pad-left span { font-size:12px; }']
+
+    >>> [m.group(1) for m in re.finditer(r'^#hdr-editions(.*?)$', open("cnn_homepage.dat").read(), re.M)]
+    [' a { text-decoration:none; }', ' li { padding:0 10px; }', ' ul li.no-pad-left span { font-size:12px; }']
+

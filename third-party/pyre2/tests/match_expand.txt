@@ -1,0 +1,17 @@
+Match Expand Tests
+==================
+
+Match objects have an .expand() method which allows them to
+expand templates as if the .sub() method was called on the pattern.
+
+    >>> import re2 as re
+    >>> m = re.match(r"(\w+) (\w+)\W+(?P<title>\w+)", "Isaac Newton, physicist")
+    >>> m.expand(r"\2, \1")
+    'Newton, Isaac'
+    >>> m.expand(r"\1 \g<title>")
+    'Isaac physicist'
+    >>> m.expand(r"\0 \1 \2")
+    '\x00 Isaac Newton'
+    >>> m.expand(r"\3")
+    'physicist'
+

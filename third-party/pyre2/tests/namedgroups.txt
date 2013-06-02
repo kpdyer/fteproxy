@@ -1,0 +1,32 @@
+Testing some aspects of named groups
+=================================================
+
+    >>> import re2 as re
+
+    >>> m = re.match(r"(?P<first_name>\w+) (?P<last_name>\w+)", "Malcolm Reynolds")
+    >>> m.start("first_name")
+    0
+    >>> m.start("last_name")
+    8
+
+    >>> m.span("last_name")
+    (8, 16)
+    >>> m.regs
+    ((0, 16), (0, 7), (8, 16))
+
+Make sure positions are converted properly for unicode 
+
+    >>> m = re.match(r"(?P<first_name>\w+) (?P<last_name>\w+)", u'\u05d9\u05e9\u05e8\u05d0\u05dc \u05e6\u05d3\u05d5\u05e7', re.UNICODE)
+    >>> m.start("first_name")
+    0
+    >>> m.start("last_name")
+    6
+    >>> m.end("last_name")
+    10
+    >>> m.regs
+    ((0, 10), (0, 5), (6, 10))
+    >>> m.span(2)
+    (6, 10)
+    >>> m.span("last_name")
+    (6, 10)
+

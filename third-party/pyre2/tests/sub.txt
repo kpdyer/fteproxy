@@ -1,0 +1,13 @@
+Tests of substitution
+=====================
+
+This first test is just looking to replace things between parentheses
+with an empty string.
+
+
+    >>> import re2 as re
+    >>> import hashlib
+    >>> import gzip
+    >>> data = gzip.open('wikipages.xml.gz').read()
+    >>> print hashlib.md5(re.sub('\(.*?\)', '', data)).hexdigest()
+    b7a469f55ab76cd5887c81dbb0cfe6d3

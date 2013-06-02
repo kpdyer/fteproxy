@@ -1,0 +1,92 @@
+intersection-http-request unrank 0.000313639640808 806 2.83998479666
+intersection-http-request rank 0.000290696620941 806 3.06412853593
+intersection-http-request encode 0.0012011218071 262144 208.138757054
+intersection-http-request decode 0.000596041679382 262144 419.43375547
+intersection-http-response unrank 0.000244770050049 766 3.48320735604
+intersection-http-response rank 0.000259282588959 766 3.28824562533
+intersection-http-response encode 0.00112951993942 262144 221.332967462
+intersection-http-response decode 0.000569994449615 262144 438.60076211
+intersection-ssh-request unrank 6.45756721497e-05 831 14.1628207495
+intersection-ssh-request rank 4.41694259644e-05 831 20.706034762
+intersection-ssh-request encode 0.000941829681396 262144 265.440774418
+intersection-ssh-request decode 0.00037134885788 262144 673.221405412
+intersection-ssh-response unrank 6.86097145081e-05 828 13.2883900337
+intersection-ssh-response rank 4.82797622681e-05 828 18.8839506173
+intersection-ssh-response encode 0.000946033000946 262144 264.261394423
+intersection-ssh-response decode 0.000374095439911 262144 668.278661883
+intersection-smb-request unrank 7.62009620667e-05 810 11.7393072807
+intersection-smb-request rank 5.85675239563e-05 810 15.2737634846
+intersection-smb-request encode 0.000962779521942 262144 259.664849846
+intersection-smb-request decode 0.00038961648941 262144 641.656620792
+intersection-smb-response unrank 8.02707672119e-05 810 11.1441131044
+intersection-smb-response rank 6.25467300415e-05 810 14.3020507738
+intersection-smb-response encode 0.000953183174133 262144 262.279073723
+intersection-smb-response decode 0.000393102169037 262144 635.966981847
+manual-http-request unrank 0.000154111385345 532 4.08422159996
+manual-http-request rank 0.000153787136078 532 4.09283289149
+manual-http-request encode 0.000191810131073 532 2.64508831463
+manual-http-request decode 0.00019154548645 532 2.64874284292
+manual-http-response unrank 6.75106048584e-05 614 10.4817064557
+manual-http-response rank 5.31077384949e-05 614 13.3243546577
+manual-http-response encode 0.000946912765503 262144 264.015872536
+manual-http-response decode 0.000379798412323 262144 658.243931224
+manual-ssh-request unrank 5.18441200256e-05 608 13.538744539
+manual-ssh-request rank 3.57961654663e-05 608 19.6083655255
+manual-ssh-request encode 0.000919377803802 262144 271.92303204
+manual-ssh-request decode 0.000363276004791 262144 688.181979274
+manual-ssh-response unrank 5.26690483093e-05 608 13.3266941288
+manual-ssh-response rank 3.64422798157e-05 608 19.2607131174
+manual-ssh-response encode 0.000916728973389 262144 272.70873645
+manual-ssh-response decode 0.000360326766968 262144 693.814678559
+manual-smb-request unrank 6.54101371765e-05 793 13.4281027884
+manual-smb-request rank 4.69541549683e-05 793 18.7062049355
+manual-smb-request encode 0.000932450294495 262144 268.110805987
+manual-smb-request decode 0.000374109745026 262144 668.25310841
+manual-smb-response unrank 6.70051574707e-05 793 13.1084543126
+manual-smb-response rank 4.78529930115e-05 793 18.3548403169
+manual-smb-response encode 0.000936698913574 262144 266.894726125
+manual-smb-response decode 0.000380651950836 262144 656.767946285
+scott-http-request unrank 0.000416610240936 1256 3.1681536463
+scott-http-request rank 0.00042699098587 1256 3.09113142334
+scott-http-request encode 0.000471999645233 1256 2.53774542736
+scott-http-request decode 0.000480003356934 1256 2.49543034253
+scott-http-response unrank 0.000399961471558 1952 4.95958415794
+scott-http-response rank 0.000368099212646 1952 5.38888025286
+scott-http-response encode 0.000457744598389 1952 4.06683611817
+scott-http-response decode 0.000422937870026 1952 4.40152655404
+scott-ssh-request unrank 6.8621635437e-05 728 11.8963240914
+scott-ssh-request rank 5.09786605835e-05 728 16.0134692732
+scott-ssh-request encode 0.0010115647316 262144 247.1418706
+scott-ssh-request decode 0.000438888072968 262144 569.621312126
+scott-ssh-response unrank 6.99639320374e-05 736 11.7771340944
+scott-ssh-response rank 5.1703453064e-05 736 15.9365489256
+scott-ssh-response encode 0.000979387760162 262144 255.261511496
+scott-ssh-response decode 0.000434803962708 262144 574.971760706
+scott-smb-request unrank 0.000104167461395 937 9.75029182211
+scott-smb-request rank 8.26239585876e-05 937 12.2925984706
+scott-smb-request encode 0.000139935016632 937 6.38577002368
+scott-smb-request decode 0.000119245052338 937 7.49375187444
+scott-smb-response unrank 0.000108060836792 1160 11.3670461566
+scott-smb-response rank 8.26025009155e-05 1160 14.8704035098
+scott-smb-response encode 0.000142540931702 1160 7.76101428428
+scott-smb-response decode 0.000118069648743 1160 9.36957311902
+intersection-http-request negotiate 0.000474507808685
+intersection-http-request negotiate_ack 0.0055606341362
+intersection-ssh-request negotiate 0.0002370262146
+intersection-ssh-request negotiate_ack 0.00322896957397
+intersection-smb-request negotiate 0.00024471282959
+intersection-smb-request negotiate_ack 0.00205229759216
+manual-http-request negotiate 0.000313565731049
+manual-http-request negotiate_ack 0.00292715787888
+manual-ssh-request negotiate 0.000202360153198
+manual-ssh-request negotiate_ack 0.000501437187195
+manual-smb-request negotiate 0.000232634544373
+manual-smb-request negotiate_ack 0.00258133888245
+scott-http-request negotiate 0.000748312473297
+scott-http-request negotiate_ack 0.00428938388824
+scott-ssh-request negotiate 0.000246260166168
+scott-ssh-request negotiate_ack 0.00374280691147
+scott-smb-request negotiate 0.000289161205292
+scott-smb-request negotiate_ack 0.00248240470886
+encrypt 0.00285091876984 2097152 701.528230534
+decrypt 0.00357988834381 2097152 558.676642376

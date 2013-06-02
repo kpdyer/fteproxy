@@ -1,0 +1,1 @@
+^((GET|HEAD|POST|CONNECT|OPTIONS|DELETE|TRACE|PUT)\ [\-a-zA-Z0-9\._]*/?[\-a-zA-Z0-9_:@&\?=\+,\.!/\~\*'%\$]*(\.html)?)\C*$

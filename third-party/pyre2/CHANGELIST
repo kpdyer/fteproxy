@@ -1,0 +1,27 @@
+0.2.12)
+    - Fixed pyre2 to work with latest version of re2 (axiak) (issue #3)
+
+0.2.10) 2010-12-08
+    - Added .flags to pattern to make that transparent (axiak)
+    - Added Python re unit tests (itsadok)
+    - Fixed error compatibility (axiak)
+    - Fixed group spans to be translated to their decoded positions (itsadok)
+    - Fixed test_bug_1140 in unit test (itsadok)
+    - Handle \n in replace manually (itsadok)
+    - Return an interator from finditer (itsadok)
+    - Have re.compile() accept SRE objects (moreati, itsadok)
+    - Fixed findall to use group(1) if available (itsadok)
+    - Fixed a mistaken use of verbose (itsadok)
+    - Fixed a memory leak in replacement (itsadok)
+    - Match delete[] to new[] calls to fix more memory leaks (itsadok)
+    - Change split to handle empty matches to be more compatible with sre.c (itsadok)
+    - Added group property to match re (itsadok)
+    - Added the ability to fallback to old re in case of back references (itsadok)
+    - Allow multiple arguments to group() (itsadok)
+    - Fixed infinite loop in pathological case of findall(".*", "foo")
+
+0.2.8) 2010-07-27
+    - Added .expand() to group objects (axiak)
+    - Input patterns are now kept for Python compatibility (alec)
+    - Fixed 64-bit support (alec)
+    - Fixed findall to support python symantics (alec)
