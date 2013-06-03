@@ -15,7 +15,7 @@ SERVER\_PORT - The TCP port the server will listen on
 PROXY\_IP - The IP address of the socks proxy  
 PROXY\_PORT - The TCP port of the socks proxy  
 
-PROXY\_CLIENT <-> CLIENT\_IP:CLIENT\_PORT <-> SERVER\_IP:SERVER\_PORT <-> PROXY\_IP:PROXY\_PORT <-> ||INTERNET||
+PROXY\_CLIENT <-> CLIENT\_IP:CLIENT\_PORT <-> ||CENSOR|| <-> SERVER\_IP:SERVER\_PORT <-> PROXY\_IP:PROXY\_PORT <-> ||INTERNET||
 
 Typically we will have the FTE client and server running on different systems. However, for testing purposes it is acceptable for CLIENT\_IP == SERVER\_IP.
 
@@ -63,8 +63,11 @@ $ ./bin/fte\_relay --mode server --server\_ip SERVER\_IP --client\_port SERVER\_
 Request that the background FTE server process terminates cleanly:  
 $ ./bin/fte\_relay --mode server --stop
 
+TOR BUNDLES
+-----------
+Currently, we have made pre-configured Tor browser bundles available for 32- and 64-bit Linux, as well as Mac OSX.  These have been tested on the respective target system and are set to connect to our FTE-enabled bridge, located at the University of Wisconsin-Madison.  By default, the Tor bundles use the intersection-http language, but may be changed to use any of the above languages.  Based on our testing, the intersection-http language provides the best balance between overall speed and ability to circumvent just about all protocol identification systems.
 
-Security Considerations
+SECURITY CONSIDERATIONS
 ------------------------------------------------
 The FTE software has several unit tests and the underlying encryption scheme has been checked for correctness and security.  In addition, the software has passed all stress tests and has been running constantly for over a month on one of our test systems.  There are, however, several features that have not been implemented yet:  
 
@@ -72,4 +75,4 @@ The FTE software has several unit tests and the underlying encryption scheme has
 2. Code to convert custom regular expressions into DFAs that are input into FTE has not been added yet, but is available upon request.
 3. There has not been extensive testing again malicious inputs for buffer overflows or other memory corruption attacks.
 
-While we believe this software is safe for most current uses, please keep these issues in mind when applying the software in your particular environment.
+While we believe this software is safe for most current uses, please keep these issues in mind when applying the software in your particular environment.  Overall, we believe the current FTE release is at least as secure as obfs2 and obfs3 protocols in the ObfsProxy pluggable transport.
