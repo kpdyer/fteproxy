@@ -65,7 +65,9 @@ $ ./bin/fte\_relay --mode server --stop
 
 TOR BUNDLES
 -----------
-Currently, we have made pre-configured Tor browser bundles available for 32- and 64-bit Linux, as well as Mac OSX.  These have been tested on the respective target system and are set to connect to our FTE-enabled bridge, located at the University of Wisconsin-Madison.  By default, the Tor bundles use the intersection-http language, but may be changed to use any of the above languages.  Based on our testing, the intersection-http language provides the best balance between overall speed and ability to circumvent just about all protocol identification systems.
+Currently, we have made pre-configured Tor browser bundles available for 32- and 64-bit Linux, as well as Mac OSX.  These have been tested on the respective target system and are set to connect to our FTE-enabled bridge, located at the University of Wisconsin-Madison.  By default, the Tor bundles use the intersection-http language, but may be changed to use any of the above languages.  Based on our testing, the intersection-http language provides the best balance between overall speed and ability to circumvent just about all protocol identification systems.  
+
+FTE-enabled TorBundles can be found [here] (https://github.com/redjack/FTE/tree/master/TorBundles)
 
 SECURITY CONSIDERATIONS
 ------------------------------------------------
