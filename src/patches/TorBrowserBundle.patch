@@ -1,0 +1,24 @@
+--- TorBrowserBundle	2013-07-05 16:02:35.685083939 -0700
++++ TorBrowserBundle	2013-07-05 16:07:39.883142441 -0700
+@@ -51,15 +51,21 @@
+ 
+ if [ "$DEBUG_TBB" -eq 1 ]; then
+ 	printf "\nStarting Vidalia now\n"
++        cd "${HOME}/Contents/MacOS/FTE_Relay"
++        ./bin/fte_relay --mode client --server_ip 128.105.214.241 --server_port 8080 &
+ 	cd "${HOME}"
+ 	printf "\nLaunching Vidalia from: `pwd`\n"
+ 	./Contents/MacOS/Vidalia.app/Contents/MacOS/Vidalia --loglevel debug --logfile vidalia-debug-log \
+ 	--datadir ./Contents/Resources/Data/Vidalia/
+ 	printf "\nVidalia exited with the following return code: $?\n"
++        ./bin/fte_relay --mode client --stop
+ 	exit
+ fi
+ 
+ # not in debug mode, run proceed normally
+ printf "\nLaunching Tor Browser Bundle for OS X in ${HOME}\n"
++cd "${HOME}/Contents/MacOS/FTE_Relay"
++./bin/fte_relay --mode client --server_ip 128.105.214.241 --server_port 8080 &
+ cd "${HOME}"
+ open "$HOME/Contents/MacOS/Vidalia.app"
++./bin/fte_relay --mode client --stop

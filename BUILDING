@@ -1,0 +1,9 @@
+==== Ubuntu
+$ sudo apt-get install libmpc-dev libmpfr-dev build-essential m4 python-dev python libboost-python-dev libboost-system-dev python-crypto python-gmpy python-scipy
+
+then
+
+$ make && make test
+
+===== OSX
+$ sudo port install boost
