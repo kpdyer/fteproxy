@@ -8,16 +8,16 @@ QUICKSTART
 
 We have the following six variables that define the FTE network configuration.  
   
-CLIENT\_IP - The IP address of the FTE client  
-CLIENT\_PORT - The TCP port the client will listen on  
-SERVER\_IP - The IP address of the FTE server  
-SERVER\_PORT - The TCP port the server will listen on  
-PROXY\_IP - The IP address of the socks proxy  
-PROXY\_PORT - The TCP port of the socks proxy  
+CLIENT_IP - The IP address of the FTE client  
+CLIENT_PORT - The TCP port the client will listen on  
+SERVER_IP - The IP address of the FTE server  
+SERVER_PORT - The TCP port the server will listen on  
+PROXY_IP - The IP address of the socks proxy  
+PROXY_PORT - The TCP port of the socks proxy  
 
-PROXY\_CLIENT <-> CLIENT\_IP:CLIENT\_PORT <-> ||CENSOR|| <-> SERVER\_IP:SERVER\_PORT <-> PROXY\_IP:PROXY\_PORT <-> ||INTERNET||
+PROXY_CLIENT <-> CLIENT_IP:CLIENT_PORT <-> ||CENSOR|| <-> SERVER_IP:SERVER_PORT <-> PROXY_IP:PROXY_PORT <-> ||INTERNET||
 
-Typically we will have the FTE client and server running on different systems. However, for testing purposes it is acceptable for CLIENT\_IP == SERVER\_IP.
+Typically we will have the FTE client and server running on different systems. However, for testing purposes it is acceptable for CLIENT_IP == SERVER_IP.
 
 1. Extract the correct tar file for your arch:  
 $ tar zxvf fte_relay-VERSION.PLATFORM.ARCH.tar.gz
@@ -25,16 +25,16 @@ $ tar zxvf fte_relay-VERSION.PLATFORM.ARCH.tar.gz
 2. Enter the extracted directory:  
 $ cd fte_relay-VERSION.PLATFORM.ARCH
 
-3. Start a SOCKS proxy on PROXY\_IP:PROXY\_PORT. We like: http://www.inet.no/dante/.  Using OpenSSH's SOCKS proxy will also work, or use the Tor client's proxy.
+3. Start a SOCKS proxy on PROXY_IP:PROXY_PORT. We like: http://www.inet.no/dante/.  Using OpenSSH's SOCKS proxy will also work, or use the Tor client's proxy.
 
 4. On the server, start the FTE relay:  
-$ ./bin/fte\_relay --mode server --server\_ip SERVER\_IP --server\_port SERVER\_PORT --proxy\_ip PROXY\_IP --proxy\_port PROXY\_PORT
+$ ./bin/fte_relay --mode server --server_ip SERVER_IP --server_port SERVER_PORT --proxy_ip PROXY_IP --proxy_port PROXY_PORT
 
 5. On the client, start the FTE relay:  
-$ ./bin/fte\_relay --mode client --client\_ip CLIENT\_IP --client\_port CLIENT\_PORT --server\_ip SERVER\_IP --server\_port SERVER\_PORT
+$ ./bin/fte_relay --mode client --client_ip CLIENT_IP --client_port CLIENT_PORT --server_ip SERVER_IP --server_port SERVER_PORT
 
 6. On the client, test that everything works:  
-$ curl --socks5 CLIENT\_IP:CLIENT\_PORT google.com
+$ curl --socks5 CLIENT_IP:CLIENT_PORT google.com
 
 CHANGING FORMATS
 -----------------------------
@@ -52,16 +52,16 @@ In order to change the format used by the FTE system, use the "--upstream-format
 EXAMPLE USAGES
 -------------------------
 Start the FTE client as a background process:  
-$ ./bin/fte\_relay --mode client --client\_ip CLIENT\_IP --client\_port CLIENT\_PORT  --server\_ip SERVER\_IP --server\_port SERVER\_PORT &
+$ ./bin/fte_relay --mode client --client_ip CLIENT_IP --client_port CLIENT_PORT  --server_ip SERVER_IP --server_port SERVER_PORT &
 
 Request that the background FTE client process terminates cleanly:  
-$ ./bin/fte\_relay --mode client --stop
+$ ./bin/fte_relay --mode client --stop
 
 Start the FTE server as a background process:  
-$ ./bin/fte\_relay --mode server --server\_ip SERVER\_IP --client\_port SERVER\_PORT --proxy\_ip PROXY\_IP --proxy\_port PROXY\_PORT &
+$ ./bin/fte_relay --mode server --server_ip SERVER_IP --client_port SERVER_PORT --proxy_ip PROXY_IP --proxy_port PROXY_PORT &
 
 Request that the background FTE server process terminates cleanly:  
-$ ./bin/fte\_relay --mode server --stop
+$ ./bin/fte_relay --mode server --stop
 
 TOR BUNDLES
 -----------

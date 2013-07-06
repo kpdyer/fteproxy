@@ -1024,9 +1024,8 @@ def doTor():
 
     TBB_FILENAME_TARGZ = LATEST_TBB.split('/')[-1]
     TBB_FILENAME_TAR = '.'.join(TBB_FILENAME_TARGZ.split('.')[:-1])
-    TBB_FTE_FILENAME_TAR = TBB_FILENAME_TAR.split('-')
-    TBB_FTE_FILENAME_TAR.insert(1,'fte')
-    TBB_FTE_FILENAME_TAR = '-'.join(TBB_FTE_FILENAME_TAR)
+    TBB_FILENAME_ROOT = '.'.join(TBB_FILENAME_TARGZ.split('.')[:-2])
+    TBB_FTE_FILENAME_TAR = TBB_FILENAME_ROOT+'+[fte_relay-'+VERSION+'].tar'
 
     u = urllib2.urlopen(LATEST_TBB)
     with open('dist/'+TBB_FILENAME_TARGZ,'w') as f:
