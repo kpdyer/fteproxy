@@ -1,42 +1,38 @@
-#!/usr/bin/env python
+#-----------------------------------------------------------------------------
+# Copyright (c) 2013, PyInstaller Development Team.
 #
-# Automatically build spec files containing a description of the project
+# Distributed under the terms of the GNU General Public License with exception
+# for distributing bootloader.
 #
-# Copyright (C) 2005, Giovanni Bajo
-# Based on previous work under copyright (c) 2002 McMillan Enterprises, Inc.
-#
-# This program is free software; you can redistribute it and/or
-# modify it under the terms of the GNU General Public License
-# as published by the Free Software Foundation; either version 2
-# of the License, or (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+# The full license is in the file COPYING.txt, distributed with this software.
+#-----------------------------------------------------------------------------
 
-import sys, os
 
-from PyInstaller import HOMEPATH
-from PyInstaller import is_win, is_cygwin, is_darwin
+"""
+Automatically build spec files containing a description of the project
+"""
+
+
+import os
+
+
+from PyInstaller import HOMEPATH, DEFAULT_SPECPATH
+from PyInstaller.compat import expand_path, is_win, is_cygwin, is_darwin
 
 
 onefiletmplt = """# -*- mode: python -*-
 a = Analysis(%(scripts)s,
              pathex=%(pathex)s,
              hiddenimports=%(hiddenimports)r,
-             hookspath=%(hookspath)r)
+             hookspath=%(hookspath)r,
+             runtime_hooks=%(runtime_hooks)r)
 pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts,
           a.binaries,
           a.zipfiles,
           a.datas,
-          name=os.path.join(%(distdir)s, '%(exename)s'),
+          name='%(exename)s',
           debug=%(debug)s,
           strip=%(strip)s,
           upx=%(upx)s,
@@ -47,12 +43,13 @@ onedirtmplt = """# -*- mode: python -*-
 a = Analysis(%(scripts)s,
              pathex=%(pathex)s,
              hiddenimports=%(hiddenimports)r,
-             hookspath=%(hookspath)r)
+             hookspath=%(hookspath)r,
+             runtime_hooks=%(runtime_hooks)r)
 pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts,
-          exclude_binaries=1,
-          name=os.path.join(%(builddir)s, '%(exename)s'),
+          exclude_binaries=True,
+          name='%(exename)s',
           debug=%(debug)s,
           strip=%(strip)s,
           upx=%(upx)s,
@@ -63,27 +60,28 @@ coll = COLLECT(exe,
                a.datas,
                strip=%(strip)s,
                upx=%(upx)s,
-               name=os.path.join(%(distdir)s, '%(name)s'))
+               name='%(name)s')
 """
 
 comsrvrtmplt = """# -*- mode: python -*-
 a = Analysis(%(scripts)s,
              pathex=%(pathex)s,
              hiddenimports=%(hiddenimports)r,
-             hookspath=%(hookspath)r)
+             hookspath=%(hookspath)r,
+             runtime_hooks=%(runtime_hooks)r)
 pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts,
-          exclude_binaries=1,
-          name=os.path.join(%(builddir)s, '%(exename)s'),
+          exclude_binaries=True,
+          name='%(exename)s',
           debug=%(debug)s,
           strip=%(strip)s,
           upx=%(upx)s,
           console=%(console)s %(exe_options)s)
 dll = DLL(pyz,
           a.scripts,
-          exclude_binaries=1,
-          name=os.path.join(%(builddir)s, '%(dllname)s'),
+          exclude_binaries=True,
+          name='%(dllname)s',
           debug=%(debug)s)
 coll = COLLECT(exe, dll,
                a.binaries,
@@ -91,21 +89,22 @@ coll = COLLECT(exe, dll,
                a.datas,
                strip=%(strip)s,
                upx=%(upx)s,
-               name=os.path.join(%(distdir)s, '%(name)s'))
+               name='%(name)s')
 """
 
 bundleexetmplt = """app = BUNDLE(exe,
-             name=os.path.join(%(distdir)s, '%(exename)s.app'))
+             name='%(exename)s.app')
 """
 
 bundletmplt = """app = BUNDLE(coll,
-             name=os.path.join(%(distdir)s, '%(name)s.app'))
+             name='%(name)s.app')
 """
 
 
-def quote_win_filepath( path ):
+def quote_win_filepath(path):
     # quote all \ with another \ after using normpath to clean up the path
     return os.path.normpath(path).replace('\\', '\\\\')
+
 
 # Support for trying to avoid hard-coded paths in the .spec files.
 # Eg, all files rooted in the Installer directory tree will be
@@ -116,9 +115,10 @@ path_conversions = (
     (HOMEPATH, "HOMEPATH"),
     )
 
-def make_variable_path(filename, conversions = path_conversions):
+
+def make_variable_path(filename, conversions=path_conversions):
     for (from_path, to_name) in conversions:
-        assert os.path.abspath(from_path)==from_path, (
+        assert os.path.abspath(from_path) == from_path, (
             "path '%s' should already be absolute" % from_path)
         if filename[:len(from_path)] == from_path:
             rest = filename[len(from_path):]
@@ -127,18 +127,21 @@ def make_variable_path(filename, conversions = path_conversions):
             return to_name, rest
     return None, filename
 
+
 # An object used in place of a "path string" which knows how to repr()
 # itself using variable names instead of hard-coded paths.
 class Path:
     def __init__(self, *parts):
         self.path = apply(os.path.join, parts)
         self.variable_prefix = self.filename_suffix = None
+
     def __repr__(self):
         if self.filename_suffix is None:
             self.variable_prefix, self.filename_suffix = make_variable_path(self.path)
         if self.variable_prefix is None:
             return repr(self.path)
         return "os.path.join(" + self.variable_prefix + "," + repr(self.filename_suffix) + ")"
+
 
 def __add_options(parser):
     """
@@ -152,8 +155,7 @@ def __add_options(parser):
     g.add_option("-D", "--onedir", dest="onefile",
                  action="store_false",
                  help="create a single directory deployment (default)")
-    g.add_option("-o", "--out",
-                 dest="workdir", metavar="DIR",
+    g.add_option("--specpath", metavar="DIR", default=None,
                  help="generate the spec file in the specified directory "
                       "(default: current directory)")
     g.add_option("-n", "--name",
@@ -174,7 +176,13 @@ def __add_options(parser):
                  'be used multiple times.')
     g.add_option("--additional-hooks-dir", action="append", dest="hookspath",
                  help="additional path to search for hooks "
-                      "(may be given several times)")    
+                      "(may be given several times)")
+    g.add_option('--runtime-hook', action='append', dest='runtime_hooks',
+            help='path to a file with custom runtime hook. Runtime hook '
+            'contains code that is bundled with the frozen executable and its code '
+            'is executed before other code or module. This is handy for any tricky '
+            'setup of the frozen code or modules. '
+            '(may be given several times)')
 
     g = parser.add_option_group('How to generate')
     g.add_option("-d", "--debug", action="store_true", default=False,
@@ -187,8 +195,6 @@ def __add_options(parser):
     g.add_option("--noupx", action="store_true", default=False,
                  help="do not use UPX even if available (works differently "
                       "between Windows and *nix)")
-    #p.add_option("-Y", "--crypt", metavar="FILE",
-    #             help="encrypt pyc/pyo files")
 
     g = parser.add_option_group('Windows and Mac OS X specific options')
     g.add_option("-c", "--console", "--nowindowed", dest="console",
@@ -231,28 +237,34 @@ def __add_options(parser):
                       "multiple times.")
 
 
-def main(scripts, name=None, onefile=0,
-         console=True, debug=False, strip=0, noupx=0, comserver=0,
-         workdir=None, pathex=[], version_file=None,
-         icon_file=None, manifest=None, resources=[], crypt=None,
-         hiddenimports=None, hookspath=None, **kwargs):
+def main(scripts, name=None, onefile=False,
+         console=True, debug=False, strip=False, noupx=False, comserver=False,
+         pathex=[], version_file=None, specpath=DEFAULT_SPECPATH,
+         icon_file=None, manifest=None, resources=[],
+         hiddenimports=None, hookspath=None, runtime_hooks=[], **kwargs):
 
-    if not name:
+    # If appname is not specified - use the basename of the main script as name.
+    if name is None:
         name = os.path.splitext(os.path.basename(scripts[0]))[0]
 
-    distdir = "dist"
-    builddir = os.path.join('build', 'pyi.' + sys.platform, name)
-
-    pathex = pathex[:]
-    if workdir is None:
-        workdir = os.getcwd()
-        pathex.append(workdir)
+    # If specpath not specified - use default value - current working directory.
+    if specpath is None:
+        specpath = DEFAULT_SPECPATH
     else:
-        pathex.append(os.getcwd())
-    if workdir == HOMEPATH:
-        workdir = os.path.join(HOMEPATH, name)
-    if not os.path.exists(workdir):
-        os.makedirs(workdir)
+        # Expand tilde to user's home directory.
+        specpath = expand_path(specpath)
+    # If cwd is the root directory of PyInstaller then generate .spec file
+    # subdirectory ./appname/.
+    if specpath == HOMEPATH:
+        specpath = os.path.join(HOMEPATH, name)
+    # Create directory tree if missing.
+    if not os.path.exists(specpath):
+        os.makedirs(specpath)
+
+    # Append specpath to PYTHONPATH - where to look for additional Python modules.
+    pathex = pathex[:]
+    pathex.append(specpath)
+
     exe_options = ''
     if version_file:
         exe_options = "%s, version='%s'" % (exe_options, quote_win_filepath(version_file))
@@ -272,46 +284,43 @@ def main(scripts, name=None, onefile=0,
     hiddenimports = hiddenimports or []
     scripts = map(Path, scripts)
 
-    d = {'scripts':scripts,
-         'pathex' :pathex,
-         'hiddenimports': hiddenimports,
-         'hookspath': hookspath,
-         #'exename': '',
-         'name': name,
-         'distdir': repr(distdir),
-         'builddir': repr(builddir),
-         'debug': debug,
-         'strip': strip,
-         'upx' : not noupx,
-         'crypt' : repr(crypt),
-         'crypted': crypt is not None,
-         'console': console or debug,
-         'exe_options': exe_options}
+    d = {'scripts': scripts,
+        'pathex': pathex,
+        'hiddenimports': hiddenimports,
+        'name': name,
+        'debug': debug,
+        'strip': strip,
+        'upx': not noupx,
+        'exe_options': exe_options,
+        # Directory with additional custom import hooks.
+        'hookspath': hookspath,
+        # List with custom runtime hook files.
+        'runtime_hooks': runtime_hooks,
+        # only Windows and Mac OS X distinguish windowed and console apps
+        'console': console,
+    }
 
     if is_win or is_cygwin:
-        d['exename'] = name+'.exe'
-        d['dllname'] = name+'.dll'
+        d['exename'] = name + '.exe'
+        d['dllname'] = name + '.dll'
     else:
         d['exename'] = name
 
-    # only Windows and Mac OS X distinguish windowed and console apps
-    if not is_win and not is_darwin:
-        d['console'] = True
-
-    specfnm = os.path.join(workdir, name+'.spec')
+    # Write down .spec file to filesystem.
+    specfnm = os.path.join(specpath, name + '.spec')
     specfile = open(specfnm, 'w')
-    if onefile:
-        specfile.write(onefiletmplt % d)
-        if not console:
-            specfile.write(bundleexetmplt % d)
-    elif comserver:
+    if comserver:
         specfile.write(comsrvrtmplt % d)
-        if not console:
-            specfile.write(bundletmplt % d)
+    elif onefile:
+        specfile.write(onefiletmplt % d)
+        # For OSX create .app bundle.
+        if is_darwin and not console:
+            specfile.write(bundleexetmplt % d)
     else:
         specfile.write(onedirtmplt % d)
-        if not console:
+        # For OSX create .app bundle.
+        if is_darwin and not console:
             specfile.write(bundletmplt % d)
     specfile.close()
-    return specfnm
 
+    return specfnm
