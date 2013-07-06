@@ -1048,10 +1048,6 @@ def doTor():
     executeCommand('cd dist && gzip -9 '+TBB_FTE_FILENAME_TAR)
 
 def main():
-    doDist()
-    doTor()
-    sys.exit(1)
-
     localBuildDir = os.path.abspath('./../third-party/opt')
 
     executeCommand('cd ../third-party/gmp-5.1.1 && chmod 755 configure && ./configure --enable-cxx --prefix='+localBuildDir+' && make -j8 && make install')
@@ -1079,6 +1075,7 @@ def main():
     # verifyArtifacts([os.path.join(fte.conf.getValue('general.doc_dir'),
     # 'index.html')])
     doDist()
+    doTor()
 
 if __name__ == '__main__':
     main()
