@@ -1,0 +1,44 @@
+OpenFst - Release 1.3
+
+OpenFst is a library for constructing, combining, optimizing, and
+searching weighted finite-state transducers (FSTs).
+
+REQUIREMENTS:
+  This version is known to work under Linux, MacOS, and Solaris using 
+  g++ (>= 4.1). Expected to work wherever adequate POSIX (dlopen, ssize_t, 
+  basename), c99 (snprintf, strtoll, <stdint.h>), and tr1 (<tr1/ordered_set>, 
+  <tr1/ordered_map>) support are available.
+  	
+INSTALLATION:
+  Follow the generic GNU build system instructions in ./INSTALL.  We
+  recommend configuring with --enable-static=no for faster
+  compiles. 
+
+  Optional features:
+  --enable-bin             Build fst::script and command-line binaries (def: yes)
+  --enable-compact-fsts    Enable all CompactFst classes (def: no)
+  --enable-const-fsts      Enable all ConstFst classes (def: no)
+  --enable-far		   Enable FAR (FST Archive) extension (def: no)
+  --enable-lookahead-fsts  Enable LookAheadFst classes (def: no)
+  --enable-ngram-fsts      Enable NGramFst classes (def: no)
+  --enable-pdt             Experimental push-down transducer extensions (def: no)
+
+  Configuring with --enable-bin=no gives very fast compiles, but
+  excludes the command line utilities.
+
+  Compiling with '-Wall -Wno-sign-compare' under g++ should give no
+  warnings from this library.
+
+USAGE:
+  Assuming you've installed under the default /usr/local, the FST
+  binaries are found on /usr/local/bin. To use in your own program,
+  include <fst/fstlib.h> and compile with '-I /usr/local/include'. 
+  Link against /usr/local/lib/libfst.so and -ldl. Set your
+  LD_LIBRARY_PATH (or equivalent) to contain /usr/local/lib. The
+  linking is, by default, dynamic so that the Fst and Arc type DSO
+  extensions can be used correctly if desired. Any extensions will
+  be found under /usr/local/include/fst/extensions and /usr/local/lib/fst.
+
+DOCUMENTATION: 
+  See www.openfst.org for general documentation.
+  See ./NEWS for updates since the last release.
