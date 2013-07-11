@@ -868,10 +868,10 @@ class FTEMain(object):
                 print 'Invalid key length: '+str(len(args.key))+', should be 64'
                 sys.exit(1)
             try:
-                binary_key = arg.keys.decode('hex')
+                binary_key = args.key.decode('hex')
             except:
-			    print 'Invalid key format, must contain only 0-9a-fA-F'
-			    sys.exit(1)
+                print 'Invalid key format, must contain only 0-9a-fA-F'
+                sys.exit(1)
             fte.conf.setValue('runtime.fte.encrypter.key', binary_key)
         if args.debug:
             print 'Controller process (pid=' + str(os.getpid()) + ')'
@@ -905,7 +905,10 @@ class FTEMain(object):
                 mm_decoder = fte.markov.MarkovModel(decoder_lang, False)
             else:
                 raise Exception('unknown language')
-            encrypter = fte.encrypter.Encrypter()
+                
+            K1 = fte.conf.getValue('runtime.fte.encrypter.key')[:16]
+            K2 = fte.conf.getValue('runtime.fte.encrypter.key')[16:32]
+            encrypter = fte.encrypter.Encrypter(K1, K2)
             if fte.conf.getValue('runtime.http_proxy.enable'):
                 remote_ip = fte.conf.getValue('runtime.http_proxy.ip')
                 remote_port = \
@@ -955,7 +958,9 @@ class FTEMain(object):
                                             worker_ports)
                 asyncore.loop()
         elif fte.conf.getValue('runtime.mode') == 'server':
-            encrypter = fte.encrypter.Encrypter()
+            K1 = fte.conf.getValue('runtime.fte.encrypter.key')[:16]
+            K2 = fte.conf.getValue('runtime.fte.encrypter.key')[16:32]
+            encrypter = fte.encrypter.Encrypter(K1, K2)
             mm_encoder = fte.markov.MarkovModel('request-response')
             mm_decoder = fte.markov.MarkovModel('request-response')
             if fte.conf.getValue('runtime.server.workers') == 1:
