@@ -806,7 +806,7 @@ class RegexEncoderObject(Encoder):
         if not os.path.exists(DFA_FILE):
             raise LanguageDoesntExistException('DFA doesn\'t exist: '
                                                + DFA_FILE)
-        fte.cRegex.loadLanguage(self.regex_name, self.mtu)
+        fte.cRegex.loadLanguage(dfa_dir, self.regex_name, self.mtu)
         self.num_words = self.getNumWords()
         if self.num_words == 0:
             fte.cRegex.releaseLanguage(self.regex_name)

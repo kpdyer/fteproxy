@@ -1595,7 +1595,7 @@ void releaseLanguage(std::string DFA_ID){
     _sigma_reverse.erase(DFA_ID);
 }
 
-void loadLanguage(std::string DFA_ID, uint32_t MAX_WORD_LEN){
+void loadLanguage(std::string DFA_DIR, std::string DFA_ID, uint32_t MAX_WORD_LEN){
   if (_delta.count(DFA_ID) == 1){
     return;
   }
@@ -1604,7 +1604,7 @@ void loadLanguage(std::string DFA_ID, uint32_t MAX_WORD_LEN){
   boost::unordered_set<uint32_t> statesTmp;
   boost::unordered_set<uint32_t> final_statesTmp;
 
-  string DFA_FILE = "languages/regexs/"+DFA_ID+".dfa";
+  string DFA_FILE = DFA_DIR+"/"+DFA_ID+".dfa";
   string line;
 
 //std::cout << "Performing initial state count...";

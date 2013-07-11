@@ -693,7 +693,7 @@ def setValue(key, value):
 
 conf = {}
 conf['modules.regex.enable'] = True
-conf['general.base_dir'] = '.'
+conf['general.base_dir'] = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..'))
 conf['general.pid_dir'] = getValue('general.base_dir')
 conf['general.python_path'] = '/usr/bin'
 conf['general.fte_dir'] = os.path.join(getValue('general.base_dir'))

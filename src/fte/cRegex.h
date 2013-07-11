@@ -701,7 +701,7 @@ void cRegexinit();
 inline static std::string unrank( std::string DFA_ID, PyObject * c );
 inline static void rank( std::string DFA_ID, PyObject * c, std::string X );
 void releaseLanguage(std::string DFA_ID);
-void loadLanguage(std::string DFA_ID, uint32_t MAX_WORD_LEN);
+void loadLanguage(std::string DFA_DIR, std::string DFA_ID, uint32_t MAX_WORD_LEN);
 inline static void getT( std::string DFA_ID, PyObject * c, uint32_t q, uint32_t i );
 inline static uint32_t getSizeOfT( std::string DFA_ID );
 inline static uint32_t delta( std::string DFA_ID, uint32_t q, uint32_t c );
