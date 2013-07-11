@@ -1033,7 +1033,7 @@ def doTor():
         TBB_FTE_FILENAME_TAR = TBB_FILENAME_ROOT+'+[fte_relay-'+VERSION+'].tar'
 
     u = urllib2.urlopen(LATEST_TBB)
-    with open('dist/'+TBB_FILENAME_TARGZ,'w') as f:
+    with oen('dist/'+TBB_FILENAME_TARGZ,'w') as f:
         f.write(u.read())
     
     executeCommand('cd dist && tar zxvf '+TBB_FILENAME_TARGZ)
@@ -1069,10 +1069,6 @@ def doTor():
         executeCommand('cd dist && gzip -9 '+TBB_FTE_FILENAME_TAR)
 
 def main():
-    doDist()
-    doTor()
-    sys.exit(1)
-
     localBuildDir = os.path.abspath('./../third-party/opt')
 
     executeCommand('cd ../third-party/gmp-5.1.1 && chmod 755 configure && ./configure --enable-cxx --prefix='+localBuildDir+' && make -j8 && make install')

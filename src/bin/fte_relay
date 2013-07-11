@@ -804,6 +804,10 @@ class FTEMain(object):
                             help='Forwarding-proxy (SOCKS) listening port',
                             default=fte.conf.getValue('runtime.socks.port'
                                                       ))
+        parser.add_argument('--key',
+                            help='Cryptographic key, hex, must be exactly 64 characters',
+                            default=fte.conf.getValue('runtime.fte.encrypter.key'
+                                                      ))
         args = parser.parse_args(sys.argv[1:])
         if args.debug:
             print args
@@ -859,6 +863,16 @@ class FTEMain(object):
         if args.upstream_format:
             fte.conf.setValue('runtime.state.upstream_language',
                               args.upstream_format)
+        if args.key:
+            if len(args.key)!=64:
+                print 'Invalid key length: '+str(len(args.key))+', should be 64'
+                sys.exit(1)
+            try:
+                binary_key = arg.keys.decode('hex')
+            except:
+			    print 'Invalid key format, must contain only 0-9a-fA-F'
+			    sys.exit(1)
+            fte.conf.setValue('runtime.fte.encrypter.key', binary_key)
         if args.debug:
             print 'Controller process (pid=' + str(os.getpid()) + ')'
         pid_file = os.path.join(fte.conf.getValue('general.pid_dir'),

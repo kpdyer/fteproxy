@@ -1,12 +1,11 @@
-FTE
-===
-
 Format-Transforming Encryption (FTE)
+url: https://kpdyer.com/fte
+github: https://github.com/redjack/FTE
 
 QUICKSTART  
 ----------
 
-We have the following six variables that define the FTE network configuration.  
+We have the following six variables that define a typical FTE network configuration.  
   
 CLIENT_IP - The IP address of the FTE client  
 CLIENT_PORT - The TCP port the client will listen on  
@@ -15,7 +14,7 @@ SERVER_PORT - The TCP port the server will listen on
 PROXY_IP - The IP address of the socks proxy  
 PROXY_PORT - The TCP port of the socks proxy  
 
-PROXY_CLIENT <-> CLIENT_IP:CLIENT_PORT <-> ||CENSOR|| <-> SERVER_IP:SERVER_PORT <-> PROXY_IP:PROXY_PORT <-> ||INTERNET||
+PROXY_CLIENT <-> CLIENT_IP:CLIENT_PORT <-> ||NETWORK|| <-> SERVER_IP:SERVER_PORT <-> PROXY_IP:PROXY_PORT <-> ||INTERNET||
 
 Typically we will have the FTE client and server running on different systems. However, for testing purposes it is acceptable for CLIENT_IP == SERVER_IP.
 
@@ -25,7 +24,7 @@ $ tar zxvf fte_relay-VERSION.PLATFORM.ARCH.tar.gz
 2. Enter the extracted directory:  
 $ cd fte_relay-VERSION.PLATFORM.ARCH
 
-3. Start a SOCKS proxy on PROXY_IP:PROXY_PORT. We like: http://www.inet.no/dante/.  Using OpenSSH's SOCKS proxy will also work, or use the Tor client's proxy.
+3. Start a SOCKS proxy on PROXY_IP:PROXY_PORT. We like: http://www.inet.no/dante/. For a quicker start, use "ssh -D PROXY_IP:PROXY_PORT user@localhost" on the server.
 
 4. On the server, start the FTE relay:  
 $ ./bin/fte_relay --mode server --server_ip SERVER_IP --server_port SERVER_PORT --proxy_ip PROXY_IP --proxy_port PROXY_PORT
@@ -36,18 +35,11 @@ $ ./bin/fte_relay --mode client --client_ip CLIENT_IP --client_port CLIENT_PORT 
 6. On the client, test that everything works:  
 $ curl --socks5 CLIENT_IP:CLIENT_PORT google.com
 
-CHANGING FORMATS
+FTE FORMATS
 -----------------------------
-The FTE software ships with a range of formats, specified in the form:  source-protocol-direction.
-
-source = {bro,yaf,l7,intersection,learned_ag}  
-protocol = {http,ssh}  
-direction = {request,response}  
-
-The default languages are insersection-http-request/intersection-http-response. The intersection-http-request language was created by taking the intersection of the bro, yaf, and l7 http-request languages. The intersection-http-response language was created similarly for the opposite direction.
+See [1] for more information on FTE formats.
 
 In order to change the format used by the FTE system, use the "--upstream-format" and "--downstream-format" command-line arguments when starting the client. For a list of available formats, invoke the "--help" argument.
-
 
 EXAMPLE USAGES
 -------------------------
@@ -65,16 +57,19 @@ $ ./bin/fte_relay --mode server --stop
 
 TOR BUNDLES
 -----------
-Currently, we have made pre-configured Tor browser bundles available for 32- and 64-bit Linux, as well as Mac OSX.  These have been tested on the respective target system and are set to connect to our FTE-enabled bridge, located at the University of Wisconsin-Madison.  By default, the Tor bundles use the intersection-http language, but may be changed to use any of the above languages.  Based on our testing, the intersection-http language provides the best balance between overall speed and ability to circumvent just about all protocol identification systems.  
+Tor browser bundles are available for 32- and 64-bit Linux, as well as Mac OSX.  These have been tested on the respective target system and are set to connect to our FTE-enabled bridge, located at the University of Wisconsin-Madison.  By default, the Tor bundles use the intersection-http language, but may be changed to use any of the above languages.  Based on our testing, the intersection-http language provides the best balance between overall speed and ability to circumvent just about all protocol identification systems.  
 
-FTE-enabled TorBundles can be found [here] (https://github.com/redjack/FTE/tree/master/TorBundles)
+FTE-enabled TorBundles can be found at: https://kpdyer.com/fte
 
 SECURITY CONSIDERATIONS
 ------------------------------------------------
 The FTE software has several unit tests and the underlying encryption scheme has been checked for correctness and security.  In addition, the software has passed all stress tests and has been running constantly for over a month on one of our test systems.  There are, however, several features that have not been implemented yet:  
 
-1. The software uses a single hard-coded encryption key.  In the future, we hope to implement session keys and a secure key exchange protocol.
-2. Code to convert custom regular expressions into DFAs that are input into FTE has not been added yet, but is available upon request.
-3. There has not been extensive testing again malicious inputs for buffer overflows or other memory corruption attacks.
+1. Authentication, to prevent man-in-the-middle attacks, relies on sharing cryptographic keys out-of-band. However, cryptographic keys are currently specified per-server. Hence, anyone that can connect to the server can intercept and recover the FTE-encapsulated datastream.
+2. There has not been extensive testing again malicious inputs for buffer overflows or other memory corruption attacks.
 
-While we believe this software is safe for most current uses, please keep these issues in mind when applying the software in your particular environment.  Overall, we believe the current FTE release is at least as secure as obfs2 and obfs3 protocols in the ObfsProxy pluggable transport.
+While we believe this software is safe for most uses, please keep these issues in mind when applying the software in your particular environment.
+
+REFERENCES
+------------------------------------------------
+[1] http://eprint.iacr.org/2012/494.pdf

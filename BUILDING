@@ -1,13 +1,36 @@
+Requirements
+----------------------------------
+
+* Python 2.7
+* PyCrypto: https://www.dlitz.net/software/pycrypto/
+* GCC: http://gcc.gnu.org/
+* Boost Python: http://www.boost.org/doc/libs/1_54_0/libs/python/doc/index.html
+* Boost System: http://www.boost.org/doc/libs/1_54_0/libs/system/doc/index.html
+* gmpy: https://code.google.com/p/gmpy/
+* openfst: http://www.openfst.org/
+
+
+OS-specific hints:
+----------------------------------
+
 ==== Ubuntu 12.04/12.10/13.04
+
 $ sudo apt-get install libmpc-dev libmpfr-dev build-essential m4 python-dev python libboost-python-dev libboost-system-dev python-crypto python-gmpy python-scipy
-
-then
-
 $ cd src && make && make test
 
 ===== OSX 10.6+
-$ sudo port install boost
+* Install MacPorts: http://www.macports.org/
+* Install XCode: https://developer.apple.com/xcode/
 
-then 
+!! It is possible to build boost manually and use the OSX python.
+!! However, it is much easier to use MacPorts to install all dependencies.
 
+$ sudo port install py27
+$ sudo port install boost -no_single
+$ sudo port install py27-scipy
+$ sudo port install py27-pip
+$ sudo pip-2.7 install pycrypto
+$ sudo pip-2.7 install gmpy
+
+$ sudo pip install pycrypto
 $ cd src && make && make test
