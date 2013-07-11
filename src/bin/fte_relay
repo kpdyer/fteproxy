@@ -743,15 +743,6 @@ class FTEWorker:
                         + str(self.forwarding_port))
 
 
-EXAMPLE_USAGE = \
-    """
-Example usage:
-  ./bin/fte_server
-  ./bin/fte_relay --server
-  ./bin/fte_relay --client -client
-"""
-
-
 class FTEMain(object):
 
     def run(self):
@@ -771,7 +762,7 @@ class FTEMain(object):
         parser.add_argument('--debug', action='store_true',
                             help='Print information to the console')
         parser.add_argument('--perf-log', action='store_true',
-                            help='Save performance infor to log')
+                            help='Save performance information to log')
         parser.add_argument('--upstream-format',
                             help='Client-to-server language format',
                             default=fte.conf.getValue('runtime.state.upstream_language'

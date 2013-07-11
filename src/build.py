@@ -1033,7 +1033,7 @@ def doTor():
         TBB_FTE_FILENAME_TAR = TBB_FILENAME_ROOT+'+[fte_relay-'+VERSION+'].tar'
 
     u = urllib2.urlopen(LATEST_TBB)
-    with oen('dist/'+TBB_FILENAME_TARGZ,'w') as f:
+    with open('dist/'+TBB_FILENAME_TARGZ,'w') as f:
         f.write(u.read())
     
     executeCommand('cd dist && tar zxvf '+TBB_FILENAME_TARGZ)
@@ -1068,6 +1068,9 @@ def doTor():
         executeCommand('cd dist && tar cvf '+TBB_FTE_FILENAME_TAR+' '+TOR_DIR)
         executeCommand('cd dist && gzip -9 '+TBB_FTE_FILENAME_TAR)
 
+    executeCommand('cd dist && rm -rfv '+TOR_DIR)
+    executeCommand('cd dist && rm -rfv fte_relay-'+RELEASE_NAME)
+
 def main():
     localBuildDir = os.path.abspath('./../third-party/opt')
 
@@ -1085,16 +1088,13 @@ def main():
                     'fte', 'cRegex.so')])
 
 
-    # compileRE2DFA()
-    # verifyArtifacts([os.path.join(fte.conf.getValue('general.fte_dir'), 'bin', 're2dfa'),
-    #                os.path.join(fte.conf.getValue('build.re2_dir'), 'obj', 'libre2.a'),
-    #               ])
+    compileRE2DFA()
+    verifyArtifacts([os.path.join(fte.conf.getValue('general.fte_dir'), 'bin', 're2dfa'),
+                     os.path.join(fte.conf.getValue('build.re2_dir'), 'obj', 'libre2.a'),
+                    ])
 
-    # compileDFAs()
+    compileDFAs()
 
-    # buildDocs()
-    # verifyArtifacts([os.path.join(fte.conf.getValue('general.doc_dir'),
-    # 'index.html')])
     doDist()
     doTor()
 

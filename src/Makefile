@@ -3,3 +3,9 @@ default:
 
 test:
 	python unit_tests.py
+
+clean:
+	python clean.py
+
+install:
+	@echo "Nothing to do for make install"
