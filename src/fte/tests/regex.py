@@ -679,6 +679,7 @@ import unittest
 import sys
 import time
 import random
+
 import fte.encoder
 
 

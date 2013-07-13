@@ -1,13 +1,19 @@
 Requirements
 ----------------------------------
 
-* Python 2.7
+* Python 2.7: http://www.python.org/
 * PyCrypto: https://www.dlitz.net/software/pycrypto/
-* GCC: http://gcc.gnu.org/
-* Boost Python: http://www.boost.org/doc/libs/1_54_0/libs/python/doc/index.html
-* Boost System: http://www.boost.org/doc/libs/1_54_0/libs/system/doc/index.html
-* gmpy: https://code.google.com/p/gmpy/
-* openfst: http://www.openfst.org/
+* GCC/G++: http://gcc.gnu.org/
+* Boost: http://www.boost.org/
+
+Included with FTE
+* openfst (not in repos): http://www.openfst.org/
+* gmpy (need source, specific version): https://code.google.com/p/gmpy/
+* re2 (patched): ...
+* gmp (older versions in many repos):
+
+For pckaging
+* pyinstaller
 
 
 OS-specific hints:
@@ -19,18 +25,14 @@ $ sudo apt-get install libmpc-dev libmpfr-dev build-essential m4 python-dev pyth
 $ cd src && make && make test
 
 ===== OSX 10.6+
-* Install MacPorts: http://www.macports.org/
 * Install XCode: https://developer.apple.com/xcode/
 
 !! It is possible to build boost manually and use the OSX python.
-!! However, it is much easier to use MacPorts to install all dependencies.
+!! However, it is much easier to use Homebrew to install all dependencies.
 
-$ sudo port install py27
-$ sudo port install boost -no_single
-$ sudo port install py27-scipy
-$ sudo port install py27-pip
-$ sudo pip-2.7 install pycrypto
-$ sudo pip-2.7 install gmpy
-
-$ sudo pip install pycrypto
+* Install Homebrew: http://mxcl.github.io/homebrew/
+$ brew install boost
+$ brew install python
+$ pip install pycrypto
+$ pip install gmpy
 $ cd src && make && make test

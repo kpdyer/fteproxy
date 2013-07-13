@@ -678,9 +678,11 @@
 import os
 import sys
 import multiprocessing
+import platform
 import fte.logger
 PYTHON_VERSION = str(sys.version_info[0]) + '.' \
     + str(sys.version_info[1])
+PLATFORM = platform.system().lower()
 
 
 def getValue(key):
@@ -742,8 +744,12 @@ conf['build.gmpy_include'] = \
     os.path.join(getValue('build.third_party_dir'), 'gmpy-2.0.0b4/src')
 conf['build.python_lib'] = 'python' + PYTHON_VERSION
 conf['build.python_bin'] = 'python'
-conf['build.boost_python'] = 'boost_python'
-conf['build.boost_system'] = 'boost_system'
+if PLATFORM == 'darwin':
+    conf['build.boost_python'] = 'boost_python-mt'
+    conf['build.boost_system'] = 'boost_system-mt'
+else:
+    conf['build.boost_python'] = 'boost_python'
+    conf['build.boost_system'] = 'boost_system'
 conf['runtime.mode'] = None
 conf['runtime.console.debug'] = False
 conf['runtime.performance.debug'] = False

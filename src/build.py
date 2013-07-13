@@ -701,186 +701,6 @@ def executeCommand(cmd):
     os.system(cmd)
 
 
-def compileFormat(format_file):
-    for langauge in ['C']:
-        cmd = 'java -cp '
-        cmd += fte.conf.getValue('build.antlr_jar')
-        cmd += ' org.antlr.Tool'
-        cmd += ' -make'
-
-        # cmd += ' -Xgrtree'
-        # cmd += ' -Xnoprune'
-        # cmd += ' -Xnocollapse'
-        # cmd += ' -Xmultithreaded'
-
-        cmd += ' -language ' + langauge
-        cmd += ' ' + format_file
-        executeCommand(cmd)
-
-
-def compileFormats():
-    for format in fte.conf.getValue('languages.cfg'):
-        compileFormat(os.path.join(fte.conf.getValue('general.cfg_dir'
-                                                     ), format + '.g'))
-        executeCommand('mv *.tokens '
-                       + os.path.join(fte.conf.getValue('general.cfg_dir'
-                                                        )))
-
-
-def makeLogic(funcCall):
-    CPP_TEMPLATE = ''
-
-    for format in fte.conf.getValue('languages.cfg'):
-        CPP_TEMPLATE += """
-
-        if ( lang_name == \"""" + format \
-            + """\" ) {
-            input  = antlr3StringStreamNew             ((pANTLR3_UINT8)FILE_CONTENTS.c_str(),
-                                                        ANTLR3_ENC_UTF8,
-                                                        strlen(FILE_CONTENTS.c_str()),
-                                                        (pANTLR3_UINT8)\"""" \
-            + format + """\");
-
-            p""" + format \
-            + """Lexer                     lex;
-            p""" \
-            + format \
-            + """Parser                    parser;
-
-            ANTLR3_UINT32 start = 0;
-            ANTLR3_UINT32 end = 0;
-
-            lex    = """ \
-            + format \
-            + """LexerNew(input);
-            tokens = antlr3CommonTokenStreamSourceNew(ANTLR3_SIZE_HINT, TOKENSOURCE(lex));
-            parser = """ \
-            + format + """ParserNew(tokens);
-
-            """ + format \
-            + """Parser_""" + format \
-            + """_return psrReturn = parser  ->""" + format \
-            + """(parser);
-
-            if ( !bail_on_se || parser->pParser->rec->getNumberOfSyntaxErrors(parser->pParser->rec)==0 ) {
-                doExtractDictionaries(retval, dicts, tokens, psrReturn.tree, start, end, include_formatting, ignore);
-            } else {
-                lex      ->free(lex);
-                parser   ->free(parser);
-                tokens ->free(tokens);
-                input  ->close(input);
-                throw syntax_error_exception;
-            }
-            lex      ->free(lex);
-            parser   ->free(parser);
-            tokens ->free(tokens);
-            input  ->close(input);
-        }"""
-    return CPP_TEMPLATE
-
-
-def compileCFGso():
-    formats = fte.conf.getValue('languages.cfg')
-    formats.sort()
-
-    for format in formats:
-        cmd = fte.conf.getValue('build.c_compiler')
-        cmd += ' -fPIC ' + ARCH
-        cmd += ' ' + fte.conf.getValue('build.c_flags')
-        cmd += ' -c'
-        cmd += ' -I' + fte.conf.getValue('build.antlr_include')
-        cmd += ' -I' + fte.conf.getValue('build.antlrc_include')
-        cmd += ' -o ' + os.path.join(fte.conf.getValue('general.cfg_dir'
-                                                       ), format + 'Parser.o')
-        cmd += ' ' + os.path.join(fte.conf.getValue('general.cfg_dir'),
-                                  format + 'Parser.c')
-        executeCommand(cmd)
-
-        cmd = fte.conf.getValue('build.c_compiler')
-        cmd += ' -fPIC ' + ARCH
-        cmd += ' ' + fte.conf.getValue('build.c_flags')
-        cmd += ' -c'
-        cmd += ' -I' + fte.conf.getValue('build.antlr_include')
-        cmd += ' -I' + fte.conf.getValue('build.antlrc_include')
-        cmd += ' -o ' + os.path.join(fte.conf.getValue('general.cfg_dir'
-                                                       ), format + 'Lexer.o')
-        cmd += ' ' + os.path.join(fte.conf.getValue('general.cfg_dir'),
-                                  format + 'Lexer.c')
-        executeCommand(cmd)
-
-    f = open('fte/cCfg.template.cc')
-    contents = f.read()
-    f.close()
-
-    INCLUDE = []
-    for format in formats:
-        INCLUDE.append('#include <' + os.path.join(format + 'Lexer.h')
-                       + '>')
-        INCLUDE.append('#include <' + os.path.join(format + 'Parser.h')
-                       + '>')
-
-    contents = string.replace(contents, '/* INCLUDES PLACEHOLDER */',
-                              '\n'.join(INCLUDE))
-    contents = string.replace(contents,
-                              '/* FTE DICTIONARY LOGIC PLACEHOLDER */',
-                              makeLogic('doExtractDictionaries'))
-
-    # contents = string.replace(contents, '/* FTE TEMPLATE LOGIC PLACEHOLDER
-    # */', makeLogic('doExtractTemplate'))
-
-    f = open('fte/cCfg.cc', 'w')
-    f.write(contents)
-    f.close()
-
-    format_objs = []
-    for format in formats:
-        format_objs.append(os.path.join(fte.conf.getValue('general.cfg_dir'
-                                                          ), format + 'Parser.o'))
-        format_objs.append(os.path.join(fte.conf.getValue('general.cfg_dir'
-                                                          ), format + 'Lexer.o'))
-
-    cmd = fte.conf.getValue('build.cpp_compiler')
-    cmd += ' ' + fte.conf.getValue('build.cpp_flags')
-    cmd += ' -shared ' \
-        + os.path.join(fte.conf.getValue('general.fte_dir'), 'fte',
-                       'cCfg.cc')
-    cmd += ' ' + ' '.join(format_objs)
-    cmd += ' -I' + fte.conf.getValue('general.cfg_dir')
-    cmd += ' -I' + fte.conf.getValue('build.antlr_include')
-    cmd += ' -I' + fte.conf.getValue('build.antlrc_include')
-    cmd += ' -I' + fte.conf.getValue('build.python_include')
-
-    # cmd += " -L" + fte.conf.getValue('build.antlr_lib')
-    # cmd += " -L /opt/local/lib"
-
-    cmd += ' -l' + fte.conf.getValue('build.python_lib')
-    cmd += ' -l' + fte.conf.getValue('build.boost_python')
-    cmd += ' -lantlr3c'
-    cmd += ' -o ' + os.path.join(fte.conf.getValue('general.fte_dir'),
-                                 'fte', 'cCfg.so')
-    executeCommand(cmd)
-
-
-def compileCFGXMLso():
-    cmd = fte.conf.getValue('build.cpp_compiler')
-    cmd += ' ' + fte.conf.getValue('build.cpp_flags')
-    cmd += ' -shared ' \
-        + os.path.join(fte.conf.getValue('general.fte_dir'), 'fte',
-                       'cCfg.lxml.cc')
-    cmd += ' -I' + fte.conf.getValue('general.cfg_dir')
-    cmd += ' -I' + fte.conf.getValue('build.python_include')
-    cmd += ' -l' + fte.conf.getValue('build.python_lib')
-    cmd += ' -l' + fte.conf.getValue('build.boost_python')
-    cmd += ' -lhtmlcxx'
-
-    # cmd += " -L../third-party/htmlcxx-0.84/"
-
-    cmd += ' -lantlr3c'
-    cmd += ' -o ' + os.path.join(fte.conf.getValue('general.fte_dir'),
-                                 'fte', 'cCfglxml.so')
-    executeCommand(cmd)
-
-
 def compileRegexso():
     cmd = fte.conf.getValue('build.cpp_compiler')
     cmd += ' ' + fte.conf.getValue('build.cpp_flags')
@@ -897,20 +717,14 @@ def compileRegexso():
     cmd += ' -I' + fte.conf.getValue('build.gmpy_include')
     cmd += ' -I/opt/local/include'
     cmd += ' -DPYTHON_MODULE'
-    cmd += ' -l' + fte.conf.getValue('build.python_lib')
+    #cmd += ' -l' + fte.conf.getValue('build.python_lib')
     executeCommand(cmd)
 
     cmd = fte.conf.getValue('build.cpp_compiler')
     cmd += ' -shared'
-    cmd += ' ' + os.path.join(fte.conf.getValue('general.fte_dir'),
-                              'fte', 'cRegex.o')
-
-    # cmd += " -L" + fte.conf.getValue('build.gmp_lib')
-
-    cmd += ' -L /opt/local/lib'
-
-    # cmd += " -L /home/kdyer/Downloads/Python-2.7.3"
-
+    cmd += ' ' + os.path.join(fte.conf.getValue('general.fte_dir'),'fte', 'cRegex.o')
+    cmd += ' -L/usr/local/lib'
+    cmd += ' -L/usr/local/Cellar/python/2.7.5/Frameworks/Python.framework/Versions/2.7/lib'
     cmd += ' -l' + fte.conf.getValue('build.python_lib')
     cmd += ' -lgmp'
     cmd += ' -l' + fte.conf.getValue('build.boost_python')
@@ -958,11 +772,6 @@ def compileDFAs():
     executeCommand(fte.conf.getValue('build.python_bin') + ' '
                    + os.path.join(fte.conf.getValue('general.scripts_dir'
                                                     ), 'intersect.py'))
-
-
-def buildDocs():
-    executeCommand('epydoc --show-imports --show-private --name FTE --check --html . --graph all -o '
-                   + fte.conf.getValue('general.doc_dir'))
 
 
 def verifyArtifacts(artifacts):
@@ -1076,12 +885,6 @@ def main():
 
     executeCommand('cd ../third-party/gmp-5.1.1 && chmod 755 configure && ./configure --enable-cxx --prefix='+localBuildDir+' && make -j8 && make install')
     executeCommand('cd ../third-party/openfst-1.3.3 && chmod 755 configure && ./configure --prefix='+localBuildDir+' && make -j8 && make install')
-
-    # compileFormats()
-    # compileCFGXMLso()
-    # compileCFGso()
-    # verifyArtifacts([os.path.join(fte.conf.getValue('general.fte_dir'),
-    # 'fte', 'cCfg.so')])
 
     compileRegexso()
     verifyArtifacts([os.path.join(fte.conf.getValue('general.fte_dir'),
