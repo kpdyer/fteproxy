@@ -35,10 +35,10 @@ $ cd fte_relay-VERSION.PLATFORM.ARCH
 3. Start a SOCKS proxy on PROXY_IP:PROXY_PORT. We like: http://www.inet.no/dante/. For a quicker start, use "ssh -D PROXY_IP:PROXY_PORT user@localhost" on the server.
 
 4. On the server, start the FTE relay:  
-$ ./bin/fte_relay --mode server --server_ip SERVER_IP --server_port SERVER_PORT --proxy_ip PROXY_IP --proxy_port PROXY_PORT
+$ fte_relay --mode server --server_ip SERVER_IP --server_port SERVER_PORT --proxy_ip PROXY_IP --proxy_port PROXY_PORT
 
 5. On the client, start the FTE relay:  
-$ ./bin/fte_relay --mode client --client_ip CLIENT_IP --client_port CLIENT_PORT --server_ip SERVER_IP --server_port SERVER_PORT
+$ fte_relay --mode client --client_ip CLIENT_IP --client_port CLIENT_PORT --server_ip SERVER_IP --server_port SERVER_PORT
 
 6. On the client, test that everything works:  
 $ curl --socks5 CLIENT_IP:CLIENT_PORT google.com
@@ -52,16 +52,16 @@ In order to change the format used by the FTE system, use the "--upstream-format
 EXAMPLE USAGES
 -------------------------
 Start the FTE client as a background process:  
-$ ./bin/fte_relay --mode client --client_ip CLIENT_IP --client_port CLIENT_PORT  --server_ip SERVER_IP --server_port SERVER_PORT &
+$ fte_relay --mode client --client_ip CLIENT_IP --client_port CLIENT_PORT  --server_ip SERVER_IP --server_port SERVER_PORT &
 
 Request that the background FTE client process terminates cleanly:  
-$ ./bin/fte_relay --mode client --stop
+$ fte_relay --mode client --stop
 
 Start the FTE server as a background process:  
-$ ./bin/fte_relay --mode server --server_ip SERVER_IP --client_port SERVER_PORT --proxy_ip PROXY_IP --proxy_port PROXY_PORT &
+$ fte_relay --mode server --server_ip SERVER_IP --client_port SERVER_PORT --proxy_ip PROXY_IP --proxy_port PROXY_PORT &
 
 Request that the background FTE server process terminates cleanly:  
-$ ./bin/fte_relay --mode server --stop
+$ fte_relay --mode server --stop
 
 TOR BUNDLES
 -----------
