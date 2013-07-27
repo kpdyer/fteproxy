@@ -5,7 +5,7 @@
  if [ "$DEBUG_TBB" -eq 1 ]; then
  	printf "\nStarting Vidalia now\n"
 +        cd "${HOME}/Contents/MacOS/fte_relay"
-+        ./bin/fte_relay --mode client --server_ip 128.105.214.241 --server_port 8080 &
++        ./bin/fte_relay --mode client &
  	cd "${HOME}"
  	printf "\nLaunching Vidalia from: `pwd`\n"
  	./Contents/MacOS/Vidalia.app/Contents/MacOS/Vidalia --loglevel debug --logfile vidalia-debug-log \
@@ -18,7 +18,7 @@
  # not in debug mode, run proceed normally
  printf "\nLaunching Tor Browser Bundle for OS X in ${HOME}\n"
 +cd "${HOME}/Contents/MacOS/fte_relay"
-+./bin/fte_relay --mode client --server_ip 128.105.214.241 --server_port 8080 &
++./bin/fte_relay --mode client &
  cd "${HOME}"
  open "$HOME/Contents/MacOS/Vidalia.app"
 +./bin/fte_relay --mode client --stop

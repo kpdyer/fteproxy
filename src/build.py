@@ -858,7 +858,7 @@ def doTor():
     with open(TORRC) as f:
         contents = f.read()
 
-    contents += '\nSocks5Proxy 127.0.0.1:8079'
+    contents += '\nSocks5Proxy 127.0.0.1:8080'
     with open(TORRC,'w') as f:
         f.write(contents)
 

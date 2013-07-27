@@ -5,7 +5,7 @@
  
  if [ "$debug" -eq 1 ]; then
 +        cd "${HOME}/App/fte_relay"
-+        ./bin/fte_relay --mode client --server_ip 128.105.214.241 --server_port 8080 &
++        ./bin/fte_relay --mode client &
  	printf "\nStarting Vidalia now\n"
  	cd "${HOME}"
  	printf "\nLaunching Vidalia from: `pwd`\n"
@@ -21,7 +21,7 @@
  # not in debug mode, run proceed normally
  printf "\nLaunching Tor Browser Bundle for Linux in ${HOME}\n"
 +cd "${HOME}/App/fte_relay"
-+./bin/fte_relay --mode client --server_ip 128.105.214.241 --server_port 8080 &
++./bin/fte_relay --mode client &
  cd "${HOME}"
  # XXX Someday we should pass whatever command-line arguments we got
  # (probably filenames or URLs) to Firefox.
