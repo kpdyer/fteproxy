@@ -10,38 +10,34 @@ Intuitively, a regular-language based FTE proxy is well positioned to resist reg
 
 For technical information about FTE, please see our paper [1].
 
-QUICKSTART  
+QUICKSTART - Tor Bundle
 ----------
 
-We have the following six variables that define a typical FTE network configuration.  
-  
-CLIENT_IP - The IP address of the FTE client  
-CLIENT_PORT - The TCP port the client will listen on  
-SERVER_IP - The IP address of the FTE server  
-SERVER_PORT - The TCP port the server will listen on  
-PROXY_IP - The IP address of the socks proxy  
-PROXY_PORT - The TCP port of the socks proxy  
+Obtain the correct Tor bundle for your system from: https://kpdyer.com/fte/
 
-PROXY_CLIENT <-> CLIENT_IP:CLIENT_PORT <-> ||NETWORK|| <-> SERVER_IP:SERVER_PORT <-> PROXY_IP:PROXY_PORT <-> ||INTERNET||
+1. Extract the tar file
+$ tar zxvf tor-browser-gnu-PLATFORM-ARCH-TOR_VERSION+[fte_relay-VERSION].tar.gz
 
-Typically we will have the FTE client and server running on different systems. However, for testing purposes it is acceptable for CLIENT_IP == SERVER_IP.
+2. Start the Tor browser bundle
+$ cd tor-browser_LOCAL && ./start-tor-browser 
 
-1. Extract the correct tar file for your arch:  
+
+QUICKSTART - fte_relay 
+----------
+
+Obtain the correct binary for your system from: https://kpdyer.com/fte/
+
+1. Extract the tar file:
 $ tar zxvf fte_relay-VERSION.PLATFORM.ARCH.tar.gz
 
 2. Enter the extracted directory:  
 $ cd fte_relay-VERSION.PLATFORM.ARCH
 
-3. Start a SOCKS proxy on PROXY_IP:PROXY_PORT. We like: http://www.inet.no/dante/. For a quicker start, use "ssh -D PROXY_IP:PROXY_PORT user@localhost" on the server.
+3. On the client, start the FTE relay:  
+$ fte_relay --mode client
 
-4. On the server, start the FTE relay:  
-$ fte_relay --mode server --server_ip SERVER_IP --server_port SERVER_PORT --proxy_ip PROXY_IP --proxy_port PROXY_PORT
-
-5. On the client, start the FTE relay:  
-$ fte_relay --mode client --client_ip CLIENT_IP --client_port CLIENT_PORT --server_ip SERVER_IP --server_port SERVER_PORT
-
-6. On the client, test that everything works:  
-$ curl --socks5 CLIENT_IP:CLIENT_PORT google.com
+4. On the client, test that everything works:  
+$ curl --socks5 127.0.0.1:8080 google.com
 
 FTE FORMATS
 -----------------------------
