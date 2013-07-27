@@ -806,7 +806,7 @@ def doDist():
     executeCommand('cp -rfv languages dist/fte_relay-'+RELEASE_NAME+'/')
     executeCommand('cp -rfv formats dist/fte_relay-'+RELEASE_NAME+'/')
 
-    executeCommand('tar cvf dist/fte_relay-'+RELEASE_NAME+'.tar dist/fte_relay-'+RELEASE_NAME)
+    executeCommand('cd dist && tar cvf fte_relay-'+RELEASE_NAME+'.tar fte_relay-'+RELEASE_NAME)
     executeCommand('gzip -9 dist/fte_relay-'+RELEASE_NAME+'.tar')
 
 def doTor():
