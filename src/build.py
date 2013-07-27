@@ -680,6 +680,7 @@ import platform
 import sys
 import string
 import urllib2
+import multiprocessing
 
 sys.path.append('.')
 
@@ -737,7 +738,7 @@ def compileRegexso():
 def compileRE2DFA():
     localBuildDir = os.path.abspath('./../third-party/opt')
     cmd = 'cd ' + fte.conf.getValue('build.re2_dir') \
-        + ' && make -j8 obj/libre2.a && make install'
+        + ' && make -j'+str(multiprocessing.cpu_count())+' obj/libre2.a && make install'
     executeCommand(cmd)
 
     cmd = fte.conf.getValue('build.cpp_compiler')
@@ -883,8 +884,8 @@ def doTor():
 def main():
     localBuildDir = os.path.abspath('./../third-party/opt')
 
-    executeCommand('cd ../third-party/gmp-5.1.1 && chmod 755 configure && ./configure --enable-cxx --prefix='+localBuildDir+' && make -j8 && make install')
-    executeCommand('cd ../third-party/openfst-1.3.3 && chmod 755 configure && ./configure --prefix='+localBuildDir+' && make -j8 && make install')
+    executeCommand('cd ../third-party/gmp-5.1.1 && chmod 755 configure && ./configure --enable-cxx --prefix='+localBuildDir+' && make -j'+str(multiprocessing.cpu_count())+' && make install')
+    executeCommand('cd ../third-party/openfst-1.3.3 && chmod 755 configure && ./configure --prefix='+localBuildDir+' && make -j'+str(multiprocessing.cpu_count())+' && make install')
 
     compileRegexso()
     verifyArtifacts([os.path.join(fte.conf.getValue('general.fte_dir'),
