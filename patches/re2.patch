@@ -1,0 +1,79 @@
+diff -urBNs re2/re2/dfa.cc re2/re2/dfa.cc
+--- re2/re2/dfa.cc	2013-01-15 05:00:09.000000000 -0500
++++ re2/re2/dfa.cc	2013-10-14 17:32:04.561857499 -0400
+@@ -21,13 +21,15 @@
+ //
+ // See http://swtch.com/~rsc/regexp/ for a very bare-bones equivalent.
+ 
++#include <iostream>
++
+ #include "re2/prog.h"
+ #include "re2/stringpiece.h"
+ #include "util/atomicops.h"
+ #include "util/flags.h"
+ #include "util/sparse_set.h"
+ 
+-DEFINE_bool(re2_dfa_bail_when_slow, true,
++DEFINE_bool(re2_dfa_bail_when_slow, false,
+             "Whether the RE2 DFA should bail out early "
+             "if the NFA would be faster (for testing).");
+ 
+@@ -1939,7 +1941,9 @@
+   // at beginning of text.
+   RWLocker l(&cache_mutex_);
+   SearchParams params(NULL, NULL, &l);
+-  params.anchored = false;
++  params.anchored = true;
++  params.want_earliest_match = true;
++  params.run_forward = true;
+   if (!AnalyzeSearch(&params) || params.start <= SpecialStateMax)
+     return 0;
+ 
+@@ -1958,6 +1962,12 @@
+         queued.insert(ns);
+         q.push_back(ns);
+       }
++      if (ns!=DeadState) {
++        std::cout << s << " " << ns << " " << c+1 << " " << c+1 << std::endl;
++      }
++      if (ns!=DeadState && (ns == FullMatchState||ns->IsMatch())) {
++        std::cout << s << std::endl;
++      }
+     }
+   }
+ 
+diff -urBNs re2/re2/re2.cc re2/re2/re2.cc
+--- re2/re2/re2.cc	2012-11-27 05:00:16.000000000 -0500
++++ re2/re2/re2.cc	2013-10-14 17:32:04.565857499 -0400
+@@ -33,7 +33,7 @@
+ 
+ // This will trigger LNK2005 error in MSVC.
+ #ifndef COMPILER_MSVC
+-const int RE2::Options::kDefaultMaxMem;  // initialized in re2.h
++const int64_t RE2::Options::kDefaultMaxMem;  // initialized in re2.h
+ #endif  // COMPILER_MSVC
+ 
+ RE2::Options::Options(RE2::CannedOptions opt)
+diff -urBNs re2/re2/re2.h re2/re2/re2.h
+--- re2/re2/re2.h	2012-10-21 09:15:03.000000000 -0400
++++ re2/re2/re2.h	2013-10-14 17:32:04.565857499 -0400
+@@ -552,7 +552,7 @@
+     // If this happens too often, RE2 falls back on the NFA implementation.
+ 
+     // For now, make the default budget something close to Code Search.
+-    static const int kDefaultMaxMem = 8<<20;
++    static const int64_t kDefaultMaxMem = ((int64_t)1)<<40;
+ 
+     enum Encoding {
+       EncodingUTF8 = 1,
+@@ -599,8 +599,8 @@
+     bool log_errors() const { return log_errors_; }
+     void set_log_errors(bool b) { log_errors_ = b; }
+ 
+-    int max_mem() const { return max_mem_; }
+-    void set_max_mem(int m) { max_mem_ = m; }
++    int64_t max_mem() const { return max_mem_; }
++    void set_max_mem(int64_t m) { max_mem_ = m; }
+ 
+     bool literal() const { return literal_; }
+     void set_literal(bool b) { literal_ = b; }
