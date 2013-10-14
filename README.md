@@ -24,7 +24,8 @@ $ cd my-working-dir
 $ git clone https://github.com/redjack/FTE.git
 $ cd FTE
 $ python build.py
-$ ls dist
-fte_relay-0.1.2-alpha.linux.i686.tar.gz
-tor-browser-gnu-linux-i686-2.3.25-10-dev-en-US+[fte_relay-0.1.2-alpha].tar.gz
+```
+
+```
+python unit_tests.py
 ```
