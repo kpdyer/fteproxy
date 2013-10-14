@@ -389,7 +389,6 @@ void loadLanguage(std::string DFA_DIR, std::string DFA_ID, uint32_t MAX_WORD_LEN
 
 }
 
-#ifdef PYTHON_MODULE
 BOOST_PYTHON_MODULE(cRegex)
 {
     def("unrank", unrank);
@@ -402,4 +401,3 @@ BOOST_PYTHON_MODULE(cRegex)
     def("getNumStates", getNumStates);
     def("getSizeOfT",getSizeOfT);
 }
-#endif
