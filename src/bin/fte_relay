@@ -683,7 +683,8 @@ import glob
 import asyncore
 import argparse
 import multiprocessing
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')))
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')))
 import fte.conf
 import fte.logger
 import fte.relay
@@ -942,7 +943,7 @@ class FTEMain(object):
                 tw = \
                     fte.tcp.relay.forwarder(fte.conf.getValue('runtime.client.ip'
                                                               ), fte.conf.getValue(
-                                                                  'runtime.client.port'),
+                                            'runtime.client.port'),
                                             fte.conf.getValue(
                                                 'runtime.client.ip'),
                                             worker_ports)
@@ -989,7 +990,7 @@ class FTEMain(object):
                 tw = \
                     fte.tcp.relay.forwarder(fte.conf.getValue('runtime.server.ip'
                                                               ), fte.conf.getValue(
-                                                                  'runtime.server.port'),
+                                            'runtime.server.port'),
                                             fte.conf.getValue(
                                                 'runtime.server.ip'),
                                             worker_ports)

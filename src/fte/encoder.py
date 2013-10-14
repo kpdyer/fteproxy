@@ -784,14 +784,19 @@ class DummyEncoder(Encoder):
 # information such as buildTable. Hence, RegexEncoder is a facde that caches the RegexEncoderObject
 # such that we only have one object per language.
 _instance = {}
+
+
 class RegexEncoder(object):
+
     def __new__(self, regex_name):
         global _instance
         if not _instance.get(regex_name):
             _instance[regex_name] = RegexEncoderObject(regex_name)
         return _instance[regex_name]
 
+
 class RegexEncoderObject(Encoder):
+
     def __init__(self, regex_name):
         self.compound = False
         self.format_package = None

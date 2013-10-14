@@ -696,6 +696,7 @@ def setValue(key, value):
 def we_are_frozen():
     return hasattr(sys, "frozen")
 
+
 def module_path():
     encoding = sys.getfilesystemencoding()
     if we_are_frozen():
@@ -705,7 +706,7 @@ def module_path():
 
 conf = {}
 conf['modules.regex.enable'] = True
-conf['general.base_dir'] = os.path.abspath(os.path.join(module_path(),'..'))
+conf['general.base_dir'] = os.path.abspath(os.path.join(module_path(), '..'))
 conf['general.pid_dir'] = getValue('general.base_dir')
 conf['general.python_path'] = '/usr/bin'
 conf['general.fte_dir'] = os.path.join(getValue('general.base_dir'))
