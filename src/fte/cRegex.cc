@@ -16,7 +16,6 @@
 #include <cRegex.h>
 #include <stdio.h>
 #include <stdlib.h>
-//#include <boost/filesystem.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -27,13 +26,11 @@ using namespace std;
 
 #include <boost/python/module.hpp>
 #include <boost/python/def.hpp>
-//#include <boost/python/suite/indexing/vector_indexing_suite.hpp>
 #include <boost/algorithm/string.hpp>
 
 using namespace boost::python;
 
 using namespace boost::assign;
-//namespace fs = boost::filesystem;
 
 static std::map< std::string, uint32_t > _q0;
 static std::map< std::string, std::map<uint32_t, char> > _sigma;
@@ -134,8 +131,6 @@ inline static void doRank(std::string DFA_ID,
         }
         q = delta[q][X[i-1]];
 
-        // exit on dead state
-        //std::cout << q << " " << delta.size() << std::endl;
         if (q == (delta.size()-1)) {
             mpz_set_si( c, -1 );
             return;
@@ -161,7 +156,6 @@ inline static void doUnrank(std::string DFA_ID,
                             const_array_type_uint32_t1 delta_dense,
                             const_array_type_mpz_t2 T) {
 
-    //   std::cout << "hopa" << std::endl;
     uint32_t q = q0;
     uint32_t n = 1;
     uint32_t i;
@@ -169,14 +163,11 @@ inline static void doUnrank(std::string DFA_ID,
     const uint32_t *j;
     mpz_t cTmp;
     mpz_t jTmp;
-    // std::cout << "hopa" << std::endl;
 
     mpz_init(jTmp);
     mpz_init_set(cTmp,c);
-    //std::cout << "hopa" << std::endl;
 
     while ( mpz_cmp(cTmp, T[q0][n].get_mpz_t()) >= 0 ) {
-        //std::cout << "hopa " << mpz_get_str(NULL, 10, cTmp) << " " << n << std::endl;
         mpz_sub( cTmp, cTmp, T[q0][n].get_mpz_t() );
         n++;
     }
@@ -190,7 +181,6 @@ inline static void doUnrank(std::string DFA_ID,
         // i go to the same state j. Hence, T[q][i] is the same for all values i.
         if (ENABLE_LINEAR && delta_dense[q] == 1) {
             q = delta[q][0];
-            //std::cout << "hopa" << mpz_get_str(NULL, 10, jTmp) << " " << mpz_get_str(NULL, 10, cTmp) << " " << mpz_get_str(NULL, 10, T[q][idx].get_mpz_t()) << std::endl;
             if ( mpz_cmp_ui( T[q][idx].get_mpz_t(), 0 ) != 0 ) {
                 mpz_fdiv_qr( jTmp, cTmp, cTmp, T[q][idx].get_mpz_t() );
                 X[i-1] = mpz_get_ui(jTmp);
@@ -199,8 +189,6 @@ inline static void doUnrank(std::string DFA_ID,
             }
         } else {
             j = &delta[q][0];
-            //std::cout << "mpz_cmp " << q << " " << delta[q][0] << std::endl;
-            //std::cout << "mpz_cmp " << *j << " " << idx << std::endl;
             while (mpz_cmp( cTmp, T[*j][idx].get_mpz_t() ) >= 0) {
                 mpz_sub( cTmp, cTmp, T[*j][idx].get_mpz_t() );
                 j += 1;
@@ -220,11 +208,6 @@ inline static void doUnrank(std::string DFA_ID,
 }
 
 inline static std::string unrank( std::string DFA_ID, PyObject * c ) {
-    /*if (delta.count(DFA_ID) == 0){
-      std::cout << DFA_ID << std::endl;
-      throw ex_lang_id;
-    }*/
-
     array_type_uint32_t1 tmp;
     doUnrank( DFA_ID, tmp, Pympz_AS_MPZ(c), _q0[DFA_ID], _delta[DFA_ID], _delta_dense[DFA_ID], _T[DFA_ID] );
 
@@ -238,11 +221,6 @@ inline static std::string unrank( std::string DFA_ID, PyObject * c ) {
 }
 
 inline static void rank( std::string DFA_ID, PyObject * c, std::string X ) {
-    /*if (delta.count(DFA_ID) == 0){
-      std::cout << DFA_ID << std::endl;
-      throw ex_lang_id;
-    }*/
-
     uint32_t i;
     array_type_uint32_t1 tmp(boost::extents[X.size()]);
     for (i=0; i<X.size(); i++) {
@@ -272,7 +250,6 @@ void loadLanguage(std::string DFA_DIR, std::string DFA_ID, uint32_t MAX_WORD_LEN
     string DFA_FILE = DFA_DIR+"/"+DFA_ID+".dfa";
     string line;
 
-//std::cout << "Performing initial state count...";
     {
         ifstream myfile (DFA_FILE.c_str());
         if (myfile.is_open())
@@ -281,7 +258,6 @@ void loadLanguage(std::string DFA_DIR, std::string DFA_ID, uint32_t MAX_WORD_LEN
             {
                 getline (myfile,line);
                 if (line.empty()) break;
-                //cout << line << endl;
 
                 typedef vector< std::string > split_vector_type;
                 split_vector_type SplitVec;
@@ -293,7 +269,6 @@ void loadLanguage(std::string DFA_DIR, std::string DFA_ID, uint32_t MAX_WORD_LEN
                     uint32_t symbol = strtol(SplitVec[2].c_str(),NULL,10);
                     if (statesTmp.count(current_state)==0) {
                         statesTmp.insert( current_state );
-                        //std::cout << "CURRENT " << current_state << std::endl;
                     }
 
                     if (find(symbolsTmp.begin(), symbolsTmp.end(), symbol)==symbolsTmp.end()) {
@@ -302,15 +277,12 @@ void loadLanguage(std::string DFA_DIR, std::string DFA_ID, uint32_t MAX_WORD_LEN
 
                     if (_q0.count(DFA_ID)==0) {
                         _q0[DFA_ID] = current_state;
-                        //std::cout << "START " << _q0[DFA_ID] << std::endl;
                     }
                 } else if (SplitVec.size()==1 || SplitVec.size()==2) {
                     uint32_t final_state = strtol(SplitVec[0].c_str(),NULL,10);
                     if (statesTmp.count(final_state)==0) {
                         statesTmp.insert( final_state );
-                        //std::cout << "FINAL " << final_state << std::endl;
                     }
-                    //std::cout << "FINAL " << SplitVec[0] << " -- " << final_state << std::endl;
                     final_statesTmp.insert( final_state );
                 }
             }
@@ -324,7 +296,6 @@ void loadLanguage(std::string DFA_DIR, std::string DFA_ID, uint32_t MAX_WORD_LEN
 
         statesTmp.insert( statesTmp.size() );
     }
-//std::cout << "done!" << std::endl;
 
     uint32_t j, k;
 
@@ -336,7 +307,6 @@ void loadLanguage(std::string DFA_DIR, std::string DFA_ID, uint32_t MAX_WORD_LEN
 
     array_type_uint32_t2 deltaTmp(boost::extents[NUM_STATES][NUM_SYMBOLS]);
 
-//std::cout << "Iniitializing delta...";
     {
         std::map<uint32_t, char> sigmaTmp;
         std::map<char,uint32_t> sigmaReverseTmp;
@@ -353,9 +323,7 @@ void loadLanguage(std::string DFA_DIR, std::string DFA_ID, uint32_t MAX_WORD_LEN
             }
         }
     }
-//std::cout << "done!" << std::endl;
 
-//std::cout << "Constructing delta...";
     {
         ifstream myfile2 (DFA_FILE.c_str());
         typedef vector< std::string > split_vector_type;
@@ -365,7 +333,6 @@ void loadLanguage(std::string DFA_DIR, std::string DFA_ID, uint32_t MAX_WORD_LEN
             {
                 getline (myfile2,line);
 
-                //std::cout << "AHHH-A \"" << line << "\"" << std::endl;
                 split_vector_type SplitVec;
                 boost::split( SplitVec, line, boost::is_any_of("\t") );
                 std::string bits = SplitVec[SplitVec.size()-1];
@@ -385,15 +352,12 @@ void loadLanguage(std::string DFA_DIR, std::string DFA_ID, uint32_t MAX_WORD_LEN
                     uint32_t new_state = strtol(SplitVec[1].c_str(),NULL,10);
 
                     deltaTmp[current_state][symbol] = new_state;
-                    //std::cout << "DELTER " << current_state << " " << symbol << " " << new_state << std::endl;
                 }
             }
             myfile2.close();
         }
     }
-//std::cout << "done!" << std::endl;
 
-//std::cout << "Running buildTable...";
     {
         _delta[DFA_ID].resize(boost::extents[NUM_STATES][NUM_SYMBOLS]);
         _delta[DFA_ID] = deltaTmp;
@@ -415,7 +379,6 @@ void loadLanguage(std::string DFA_DIR, std::string DFA_ID, uint32_t MAX_WORD_LEN
         _T[DFA_ID].resize(boost::extents[NUM_STATES][MAX_WORD_LEN+1]);
         _T[DFA_ID] = TTmp;
     }
-//std::cout << "done!" << std::endl;
 
 }
 

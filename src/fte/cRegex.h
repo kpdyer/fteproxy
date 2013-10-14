@@ -18,16 +18,11 @@
 #include <gmpxx.h>
 #include <map>
 
-//#include <boost/assert.hpp>
 #include <boost/assign/std/vector.hpp>
 #include <boost/multi_array.hpp>
 #include <boost/unordered_set.hpp>
 
-//#include <boost/numeric/ublas/vector_sparse.hpp>
-//#include <boost/numeric/ublas/io.hpp>
-
 typedef boost::multi_array<char, 1> array_type_char_t1;
-//typedef boost::multi_array<uint8_t, 1> array_type_uint8_t1;
 typedef boost::multi_array<uint32_t, 1> array_type_uint32_t1;
 typedef boost::multi_array<uint32_t, 2> array_type_uint32_t2;
 typedef boost::multi_array<mpz_class, 2> array_type_mpz_t2;
