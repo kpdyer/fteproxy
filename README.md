@@ -1,8 +1,9 @@
 Format-Transforming Encryption (FTE)
-url: https://kpdyer.com/fte
-github: https://github.com/redjack/FTE
+-----
+* url: https://kpdyer.com/fte
+* github: https://github.com/redjack/FTE
 
-Quickstart
+Quickstart - Debian 7.1.0 i386
 ----------
 
 ```
@@ -25,10 +26,10 @@ cd /vagrant
 git clone https://github.com/redjack/FTE.git
 cd FTE/src
 python build.py
-python unit_tests.py
 ```
 
 ```
-dist/fte_relay-0.1.2-alpha.linux.i686.tar.gz
-dist/tor-browser-gnu-linux-i686-2.3.25-10-dev-en-US+[fte_relay-0.1.2-alpha].tar.gz
+$ ls dist
+fte_relay-0.1.2-alpha.linux.i686.tar.gz
+tor-browser-gnu-linux-i686-2.3.25-10-dev-en-US+[fte_relay-0.1.2-alpha].tar.gz
 ```
