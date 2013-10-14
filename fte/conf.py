@@ -78,7 +78,7 @@ conf['build.antlr_include'] = \
 conf['build.antlrc_include'] = \
     os.path.join(getValue('build.third_party_dir'),
                  'libantlr3c-3.4/include')
-conf['build.re2_dir'] = './third-party/re2-20130115'
+conf['build.re2_dir'] = './third-party/re2'
 conf['build.c_flags'] = '-O3'
 conf['build.c_compiler'] = 'gcc'
 conf['build.cpp_compiler'] = 'g++'

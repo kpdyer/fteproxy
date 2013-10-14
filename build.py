@@ -77,6 +77,17 @@ def compileRegexso():
 
 def compileRE2DFA():
     localBuildDir = os.path.abspath('./third-party/opt')
+    cmd = 'mkdir -p ' + fte.conf.getValue('build.re2_dir') \
+    executeCommand(cmd)
+    cmd = 'cd ' + fte.conf.getValue('build.re2_dir') \
+        + ' && wget https://re2.googlecode.com/files/re2-20130115.tgz'
+    executeCommand(cmd)
+    cmd = 'cd ' + fte.conf.getValue('build.re2_dir') \
+        + ' && tar zxvf re2-20130115.tgz'
+    executeCommand(cmd)
+    cmd = 'cd ' + fte.conf.getValue('build.re2_dir') \
+        + ' && patch --verbose -p0 -i ../patches/re2.patch'
+    executeCommand(cmd)
     cmd = 'cd ' + fte.conf.getValue('build.re2_dir') \
         + ' && make -j' + \
         str(multiprocessing.cpu_count()) + ' obj/libre2.a && make install'

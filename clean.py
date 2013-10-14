@@ -46,7 +46,7 @@ def main():
     os.system('rm -rf dist')
     os.system('cd third-party/openfst-1.3.3 && make clean')
     os.system('cd third-party/gmp-5.1.1 && make clean')
-    os.system('cd third-party/re2-20130115 && make clean')
+    os.system('cd third-party/re2 && make clean')
 
 if __name__ == '__main__':
     main()
