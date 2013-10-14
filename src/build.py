@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
-#!/usr/bin/python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import os
 import platform
@@ -240,11 +240,6 @@ def doTor():
 
 def main():
     localBuildDir = os.path.abspath('./../third-party/opt')
-
-    executeCommand('cd ../third-party/gmp-5.1.1 && chmod 755 configure && ./configure --enable-cxx --prefix=' +
-                   localBuildDir + ' && make -j' + str(multiprocessing.cpu_count()) + ' && make install')
-    executeCommand('cd ../third-party/openfst-1.3.3 && chmod 755 configure && ./configure --prefix=' +
-                   localBuildDir + ' && make -j' + str(multiprocessing.cpu_count()) + ' && make install')
 
     compileRegexso()
     verifyArtifacts([os.path.join(fte.conf.getValue('general.fte_dir'),

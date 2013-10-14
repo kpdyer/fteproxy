@@ -20,16 +20,24 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-using namespace std;
-
-#include <gmpy.h>
 
 #include <boost/python/module.hpp>
 #include <boost/python/def.hpp>
 #include <boost/algorithm/string.hpp>
 
-using namespace boost::python;
+//
+typedef long Py_hash_t;
+typedef struct {
+    PyObject_HEAD
+    mpz_t z;
+    Py_hash_t hash_cache;
+} PympzObject;
 
+#define Pympz_AS_MPZ(obj) (((PympzObject *)(obj))->z)
+//
+
+using namespace std;
+using namespace boost::python;
 using namespace boost::assign;
 
 static std::map< std::string, uint32_t > _q0;
@@ -54,7 +62,6 @@ inline static void __buildTable(array_type_mpz_t2 & T,
                                 const uint32_t n,
                                 boost::unordered_set<uint32_t> final_states) {
     uint32_t i, q, a;
-
     boost::unordered_set<uint32_t>::iterator it;
     for (it=final_states.begin(); it!=final_states.end(); it++) {
         T[*it][0] = 1;
