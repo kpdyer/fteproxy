@@ -26,7 +26,6 @@ if fte.conf.getValue('modules.regex.enable'):
 import fte.tests.encrypter
 import fte.tests.record_layer
 import fte.tests.bit_ops
-import fte.tests.markov
 import fte.tests.relay
 if fte.conf.getValue('modules.regex.enable'):
     suite_regex = \
@@ -42,15 +41,12 @@ suite_relay = \
     unittest.TestLoader().loadTestsFromTestCase(fte.tests.relay.TestRelay)
 suite_bit_ops = \
     unittest.TestLoader().loadTestsFromTestCase(fte.tests.bit_ops.TestEncoders)
-suite_markov = \
-    unittest.TestLoader().loadTestsFromTestCase(fte.tests.markov.TestEncoders)
 suites = [
     suite_bit_ops,
     suite_regex,
     suite_encrypter,
     suite_relay,
     suite_record_layer,
-    suite_markov,
 ]
 alltests = unittest.TestSuite(suites)
 unittest.TextTestRunner(verbosity=2, failfast=True).run(alltests)

@@ -45,8 +45,6 @@ class FTEWorker:
         encrypter,
         encoder,
         decoder,
-        mm_encoder,
-        mm_decoder,
     ):
         self.listener_ip = listener_ip
         self.listener_port = listener_port
@@ -55,8 +53,6 @@ class FTEWorker:
         self.encrypter = encrypter
         self.encoder = encoder
         self.decoder = decoder
-        self.mm_encoder = mm_encoder
-        self.mm_decoder = mm_decoder
 
     def stop(self):
         self.forwarder.stop()
@@ -70,8 +66,6 @@ class FTEWorker:
             self.encrypter,
             self.encoder,
             self.decoder,
-            self.mm_encoder,
-            self.mm_decoder,
             fte.conf.getValue('runtime.mode'),
         )
         log_level = fte.conf.getValue('loglevel.bin.fte_'
@@ -219,21 +213,16 @@ class FTEMain(object):
                 fte.conf.getValue('runtime.state.upstream_language')
             if encoder_lang in fte.conf.getValue('languages.regex'):
                 encoder = fte.encoder.RegexEncoder(encoder_lang)
-                mm_encoder = fte.markov.MarkovModel('request-response')
             elif encoder_lang in fte.conf.getValue('languages.cfg'):
                 encoder = fte.encoder.CFGEncoder(encoder_lang)
-                mm_encoder = fte.markov.MarkovModel(encoder_lang)
             else:
                 raise Exception('unknown language')
             decoder_lang = \
                 fte.conf.getValue('runtime.state.downstream_language')
             if decoder_lang in fte.conf.getValue('languages.regex'):
                 decoder = fte.encoder.RegexEncoder(decoder_lang)
-                mm_decoder = fte.markov.MarkovModel('request-response',
-                                                    False)
             elif decoder_lang in fte.conf.getValue('languages.cfg'):
                 decoder = fte.encoder.CFGEncoder(decoder_lang)
-                mm_decoder = fte.markov.MarkovModel(decoder_lang, False)
             else:
                 raise Exception('unknown language')
 
@@ -256,8 +245,6 @@ class FTEMain(object):
                     encrypter,
                     encoder,
                     decoder,
-                    mm_encoder,
-                    mm_decoder,
                 )
                 fw.run()
             else:
@@ -274,8 +261,6 @@ class FTEMain(object):
                         encrypter,
                         encoder,
                         decoder,
-                        mm_encoder,
-                        mm_decoder,
                     )
                     fw.run()
                     worker_ports.append(worker_port)
@@ -292,8 +277,6 @@ class FTEMain(object):
             K1 = fte.conf.getValue('runtime.fte.encrypter.key')[:16]
             K2 = fte.conf.getValue('runtime.fte.encrypter.key')[16:32]
             encrypter = fte.encrypter.Encrypter(K1, K2)
-            mm_encoder = fte.markov.MarkovModel('request-response')
-            mm_decoder = fte.markov.MarkovModel('request-response')
             if fte.conf.getValue('runtime.server.workers') == 1:
                 fw = FTEWorker(
                     fte.conf.getValue('runtime.server.ip'),
@@ -303,8 +286,6 @@ class FTEMain(object):
                     encrypter,
                     None,
                     None,
-                    mm_encoder,
-                    mm_decoder,
                 )
                 fw.run()
             else:
@@ -321,8 +302,6 @@ class FTEMain(object):
                         encrypter,
                         None,
                         None,
-                        mm_encoder,
-                        mm_decoder,
                     )
                     fw.run()
                     worker_ports.append(worker_port)

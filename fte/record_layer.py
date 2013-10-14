@@ -51,7 +51,6 @@ class RecordLayerEncoder:
         lock,
         encrypter,
         encoder,
-        model,
     ):
         self.stream_id = stream_id
         self.lock = lock
@@ -62,7 +61,6 @@ class RecordLayerEncoder:
         self.last_pushed = time.time()
         self.encrypter = encrypter
         self.encoder = encoder
-        self.model = model
         self.noop_mode = False
         self.to_send = ''
         self.stream_index = 0
@@ -91,9 +89,8 @@ class RecordLayerEncoder:
 
     def pop(self):
         try:
-            partition = self.model.transition()
             covertext_payload_len = \
-                self.encoder.getNextTemplateCapacity(partition)
+                self.encoder.getNextTemplateCapacity(None)
             if fte.conf.getValue('runtime.http_proxy.enable'):
                 covertext_payload_len -= \
                     self.encrypter.COVERTEXT_HEADER_ENC_LENGTH * 4
@@ -151,7 +148,7 @@ class RecordLayerEncoder:
                                                         << padding_length) - 1)
                     self.outgoing_bits += padding_length
                 retval = self.encoder.encode(self.outgoing_bits,
-                                             self.outgoing, partition)
+                                             self.outgoing, None)
                 covertext_payload_len = retval[1]
             fte.logger.debug(LOG_LEVEL, (self.stream_id, 'ENCODED',
                              [retval[0]]))
@@ -181,7 +178,6 @@ class RecordLayerDecoder:
         lock,
         encrypter,
         encoder,
-        model,
     ):
         self.stream_id = stream_id
         self.lock = lock
@@ -189,7 +185,6 @@ class RecordLayerDecoder:
         self.to_send = ''
         self.encrypter = encrypter
         self.encoder = encoder
-        self.model = model
         self.outgoing_bits = 0
         self.bytes_pushed = 0
         self.last_pushed = time.time()

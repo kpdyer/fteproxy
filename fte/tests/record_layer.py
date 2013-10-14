@@ -23,7 +23,6 @@ import copy
 import fte.encoder
 import fte.encrypter
 import fte.record_layer
-import fte.markov
 START = 0
 ITERATIONS = 2048
 STEP = 64
@@ -41,13 +40,11 @@ class TestEncoders(unittest.TestCase):
         self.record_layers_incoming = []
         for languageA in fte.conf.getValue('languages.regex'):
             cfgse = fte.encoder.RegexEncoder(languageA)
-            mm = fte.markov.MarkovModel('request-response',
-                                        exceptionOnDeath=False)
             lock = threading.RLock()
             encoder = fte.record_layer.RecordLayerEncoder(0, lock,
-                                                          encrypter, cfgse, copy.deepcopy(mm))
+                                                          encrypter, cfgse)
             decoder = fte.record_layer.RecordLayerDecoder(0, lock,
-                                                          encrypter, cfgse, copy.deepcopy(mm))
+                                                          encrypter, cfgse)
             self.recoder_layers_info.append(languageA)
             self.record_layers_outgoing.append(encoder)
             self.record_layers_incoming.append(decoder)
@@ -62,13 +59,10 @@ class TestEncoders(unittest.TestCase):
                 P = 'X' * j + 'Y'
                 record_layer_outgoing.push(P)
                 while True:
-                    try:
-                        retval = record_layer_outgoing.pop()
-                        record_layer_incoming.push(retval[0])
-                        if retval[1] == False:
-                            break
-                    except fte.markov.DeadStateException:
-                        record_layer_outgoing.model.reset()
+                    retval = record_layer_outgoing.pop()
+                    record_layer_incoming.push(retval[0])
+                    if retval[1] == False:
+                        break
                 Y = ''
                 while True:
                     try:

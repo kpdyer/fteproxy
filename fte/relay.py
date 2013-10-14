@@ -27,7 +27,6 @@ import struct
 import socket
 import fte.conf
 import fte.encrypter
-import fte.markov
 import fte.record_layer
 
 LOGGING_ENABLED = False
@@ -694,8 +693,6 @@ class FTEDispatcher(multiprocessing.Process):
         encrypter,
         encoder,
         decoder,
-        mm_encoder,
-        mm_decoder,
         mode,
     ):
         multiprocessing.Process.__init__(self)
@@ -706,8 +703,6 @@ class FTEDispatcher(multiprocessing.Process):
         self.encrypter = encrypter
         self.encoder = encoder
         self.decoder = decoder
-        self.mm_encoder = mm_encoder
-        self.mm_decoder = mm_decoder
         self.mode = mode
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         if mode == 'server':
@@ -758,8 +753,6 @@ class FTEDispatcher(multiprocessing.Process):
                     self.encrypter,
                     self.encoder,
                     self.decoder,
-                    self.mm_encoder,
-                    self.mm_decoder,
                 )
                 if self.mode == 'server':
                     muxer = ServerDemuxer(incoming_socket, address,
@@ -815,8 +808,6 @@ class FTEStreamFactory(object):
         encrypter,
         encoder,
         decoder,
-        mm_encoder,
-        mm_decoder,
     ):
         self.fwd_ip = fwd_ip
         self.fwd_port = fwd_port
@@ -827,13 +818,12 @@ class FTEStreamFactory(object):
         self.decoder = None
         if decoder:
             self.decoder = cheap_copy(decoder)
-        self.mm_encoder = copy.deepcopy(mm_encoder)
 
     def createStream(self, stream_id):
         rl_encoder = fte.record_layer.RecordLayerEncoder(stream_id,
-                                                         None, self.encrypter, self.encoder, self.mm_encoder)
+                                                         None, self.encrypter, self.encoder)
         rl_decoder = fte.record_layer.RecordLayerDecoder(stream_id,
-                                                         None, self.encrypter, self.decoder, self.mm_encoder)
+                                                         None, self.encrypter, self.decoder)
         fte_stream = FTEStream(stream_id, self.fwd_ip, self.fwd_port,
                                rl_encoder, rl_decoder)
         return fte_stream
@@ -916,8 +906,6 @@ class forwarder(object):
         encrypter,
         encoder,
         decoder,
-        mm_encoder,
-        mm_decoder,
         mode,
     ):
         self.dispatcher = FTEDispatcher(
@@ -928,8 +916,6 @@ class forwarder(object):
             encrypter,
             encoder,
             decoder,
-            mm_encoder,
-            mm_decoder,
             mode,
         )
         self.dispatcher.start()
