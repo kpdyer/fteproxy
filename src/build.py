@@ -127,117 +127,6 @@ def verifyArtifacts(artifacts):
     return True
 
 
-def doDist():
-    with open('VERSION') as f:
-        VERSION = f.read().strip()
-    PLATFORM = platform.system().lower()
-    ARCH = os.uname()[4]
-    RELEASE_NAME = VERSION + '.' + PLATFORM + '.' + ARCH
-
-    LD_LIBRARY_PATH = os.path.join(
-        os.path.abspath('..'), 'third-party', 'opt', 'lib')
-
-    executeCommand('rm -rfv dist')
-    os.makedirs('dist')
-    os.makedirs('dist/fte_relay-' + RELEASE_NAME)
-    os.makedirs('dist/fte_relay-' + RELEASE_NAME + '/bin')
-
-    executeCommand('LD_LIBRARY_PATH=' + LD_LIBRARY_PATH +
-                   ':$LD_LIBRARY_PATH python ../third-party/pyinstaller-2.0/pyinstaller.py -F ./bin/fte_relay')
-
-    executeCommand(
-        'mv -v dist/fte_relay dist/fte_relay-' + RELEASE_NAME + '/bin/')
-    executeCommand('cp -v ../README dist/fte_relay-' + RELEASE_NAME + '/')
-    executeCommand('cp -v ../COPYING dist/fte_relay-' + RELEASE_NAME + '/')
-    executeCommand('cp -rfv languages dist/fte_relay-' + RELEASE_NAME + '/')
-    executeCommand('cp -rfv formats dist/fte_relay-' + RELEASE_NAME + '/')
-
-    executeCommand('cd dist && tar cvf fte_relay-' +
-                   RELEASE_NAME + '.tar fte_relay-' + RELEASE_NAME)
-    executeCommand('gzip -9 dist/fte_relay-' + RELEASE_NAME + '.tar')
-
-
-def doTor():
-    with open('VERSION') as f:
-        VERSION = f.read().strip()
-    PLATFORM = platform.system().lower()
-    ARCH = os.uname()[4]
-    RELEASE_NAME = VERSION + '.' + PLATFORM + '.' + ARCH
-
-    LATEST_TBB = None
-    if PLATFORM == 'linux':
-        if ARCH == 'i686':
-            LATEST_TBB = 'https://www.torproject.org/dist/torbrowser/linux/tor-browser-gnu-linux-i686-2.3.25-10-dev-en-US.tar.gz'
-        elif ARCH == 'x86_64':
-            LATEST_TBB = 'https://www.torproject.org/dist/torbrowser/linux/tor-browser-gnu-linux-x86_64-2.3.25-10-dev-en-US.tar.gz'
-    elif PLATFORM == 'darwin':
-        if ARCH == 'i686':
-            LATEST_TBB = 'https://www.torproject.org/dist/torbrowser/osx/TorBrowser-2.3.25-10-osx-i386-en-US.zip'
-        elif ARCH == 'x86_64':
-            LATEST_TBB = 'https://www.torproject.org/dist/torbrowser/osx/TorBrowser-2.3.25-10-osx-x86_64-en-US.zip'
-
-    if not LATEST_TBB:
-        print "Unsupported platform"
-        sys.exit(0)
-
-    TBB_FILENAME_TARGZ = LATEST_TBB.split('/')[-1]
-    if PLATFORM == 'darwin':
-        TBB_FILENAME_TAR = TBB_FILENAME_TARGZ
-        TBB_FILENAME_ROOT = '.'.join(TBB_FILENAME_TARGZ.split('.')[:-1])
-        TBB_FTE_FILENAME_TAR = TBB_FILENAME_ROOT + \
-            '+[fte_relay-' + VERSION + '].zip'
-    elif PLATFORM == 'linux':
-        TBB_FILENAME_TAR = '.'.join(TBB_FILENAME_TARGZ.split('.')[:-1])
-        TBB_FILENAME_ROOT = '.'.join(TBB_FILENAME_TARGZ.split('.')[:-2])
-        TBB_FTE_FILENAME_TAR = TBB_FILENAME_ROOT + \
-            '+[fte_relay-' + VERSION + '].tar'
-
-    u = urllib2.urlopen(LATEST_TBB)
-    with open('dist/' + TBB_FILENAME_TARGZ, 'w') as f:
-        f.write(u.read())
-
-    executeCommand('cd dist && tar zxvf ' + TBB_FILENAME_TARGZ)
-
-    if PLATFORM == 'darwin':
-        TOR_DIR = 'TorBrowser_en-US.app'
-        TORRC = 'dist/' + TOR_DIR + '/Library/Vidalia/torrc'
-    elif PLATFORM == 'linux':
-        TOR_DIR = 'tor-browser_en-US'
-        TORRC = 'dist/' + TOR_DIR + '/Data/Tor/torrc'
-
-    with open(TORRC) as f:
-        contents = f.read()
-
-    contents += '\nSocks5Proxy 127.0.0.1:8080'
-    with open(TORRC, 'w') as f:
-        f.write(contents)
-
-    if PLATFORM == 'darwin':
-        executeCommand(
-            'patch dist/' + TOR_DIR + '/Contents/MacOS/TorBrowserBundle < patches/TorBrowserBundle.patch')
-    elif PLATFORM == 'linux':
-        executeCommand(
-            'patch dist/' + TOR_DIR + '/start-tor-browser < patches/start-tor-browser.patch')
-    #executeCommand('rm dist/'+TBB_FILENAME_TARGZ)
-    if PLATFORM == 'darwin':
-        executeCommand('cd dist && cp -rfv fte_relay-' +
-                       RELEASE_NAME + ' ' + TOR_DIR + '/Contents/MacOS/fte_relay')
-    elif PLATFORM == 'linux':
-        executeCommand('cd dist && cp -rfv fte_relay-' +
-                       RELEASE_NAME + ' ' + TOR_DIR + '/App/fte_relay')
-    executeCommand('rm dist/' + TBB_FILENAME_TARGZ)
-    if PLATFORM == 'darwin':
-        executeCommand(
-            'cd dist && zip -r ' + TBB_FTE_FILENAME_TAR + ' ' + TOR_DIR)
-    elif PLATFORM == 'linux':
-        executeCommand(
-            'cd dist && tar cvf ' + TBB_FTE_FILENAME_TAR + ' ' + TOR_DIR)
-        executeCommand('cd dist && gzip -9 ' + TBB_FTE_FILENAME_TAR)
-
-    executeCommand('cd dist && rm -rfv ' + TOR_DIR)
-    executeCommand('cd dist && rm -rfv fte_relay-' + RELEASE_NAME)
-
-
 def main():
     localBuildDir = os.path.abspath('./../third-party/opt')
 
@@ -254,9 +143,6 @@ def main():
                     ])
 
     compileDFAs()
-
-    doDist()
-    doTor()
 
 if __name__ == '__main__':
     main()
