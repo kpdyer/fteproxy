@@ -69,7 +69,7 @@ conf['general.dfa_dir'] = conf['general.re_dir']
 conf['build.third_party_dir'] = os.path.join(getValue('general.base_dir'
                                                       ), '../third-party')
 conf['build.openfst_path'] = \
-    os.path.join(getValue('build.third_party_dir'), 'opt', 'bin')
+    os.path.join(getValue('/usr/local/bin')
 conf['build.antlr_jar'] = os.path.join(getValue('build.third_party_dir'
                                                 ), 'antlr/antlr-3.4.jar')
 conf['build.antlr_lib'] = os.path.join(getValue('build.third_party_dir'
