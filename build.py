@@ -75,56 +75,6 @@ def compileRegexso():
     executeCommand(cmd)
 
 
-def compileRE2DFA():
-    localBuildDir = os.path.abspath('./third-party/opt')
-    cmd = 'cd ' + fte.conf.getValue('build.third_party_dir') \
-        + ' && wget https://re2.googlecode.com/files/re2-20130115.tgz'
-    executeCommand(cmd)
-    cmd = 'cd ' + fte.conf.getValue('build.third_party_dir') \
-        + ' && tar zxvf re2-20130115.tgz'
-    executeCommand(cmd)
-    cmd = 'cd ' + fte.conf.getValue('build.third_party_dir') \
-        + ' && patch --verbose -p0 -i ../patches/re2.patch'
-    executeCommand(cmd)
-    cmd = 'cd ' + fte.conf.getValue('build.re2_dir') \
-        + ' && make -j' + \
-        str(multiprocessing.cpu_count()) + ' obj/libre2.a && make install'
-    executeCommand(cmd)
-
-    cmd = fte.conf.getValue('build.cpp_compiler')
-    cmd += ' ' + fte.conf.getValue('build.cpp_flags')
-    cmd += ' -fPIC ' + ARCH
-    cmd += ' -I' + fte.conf.getValue('build.re2_dir')
-    cmd += ' -c'
-    cmd += ' ' + os.path.join(fte.conf.getValue('general.fte_dir'),
-                              'fte', 're2dfa.cc')
-    cmd += ' -pthread'
-    cmd += ' -I/opt/local/include'
-    cmd += ' -o ' + os.path.join(fte.conf.getValue('general.fte_dir'),
-                                 'fte', 're2dfa.o')
-    executeCommand(cmd)
-
-    cmd = fte.conf.getValue('build.cpp_compiler')
-    cmd += ' ' + fte.conf.getValue('build.cpp_flags')
-    cmd += ' -o ' + os.path.join(fte.conf.getValue('general.bin_dir'),
-                                 're2dfa')
-    cmd += ' ' + os.path.join(fte.conf.getValue('general.fte_dir'),
-                              'fte', 're2dfa.o')
-    cmd += ' ' + os.path.join(fte.conf.getValue(
-        'build.re2_dir'), 'obj', 'libre2.a')
-    cmd += ' -pthread'
-    executeCommand(cmd)
-
-
-def compileDFAs():
-    executeCommand(fte.conf.getValue('build.python_bin') + ' '
-                   + os.path.join(fte.conf.getValue('general.scripts_dir'
-                                                    ), 'regex2dfa.py'))
-    executeCommand(fte.conf.getValue('build.python_bin') + ' '
-                   + os.path.join(fte.conf.getValue('general.scripts_dir'
-                                                    ), 'intersect.py'))
-
-
 def verifyArtifacts(artifacts):
     for artifact in artifacts:
         if not os.path.exists(artifact):
@@ -141,16 +91,6 @@ def main():
     compileRegexso()
     verifyArtifacts([os.path.join(fte.conf.getValue('general.fte_dir'),
                     'fte', 'cRegex.so')])
-
-    compileRE2DFA()
-    verifyArtifacts(
-        [os.path.join(fte.conf.getValue('general.fte_dir'), 'bin', 're2dfa'),
-         os.path.join(
-             fte.conf.getValue(
-        'build.re2_dir'), 'obj', 'libre2.a'),
-                    ])
-
-    compileDFAs()
 
 if __name__ == '__main__':
     main()
