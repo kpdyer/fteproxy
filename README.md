@@ -8,14 +8,14 @@ Quickstart - Debian 7.1.0 i386
 
 ```
 $ sudo apt-get update
-$ sudo apt-get install git
-$ sudo apt-get install python-dev
-$ sudo apt-get install python-gmpy
-$ sudo apt-get install python-crypto
-$ sudo apt-get install m4
-$ sudo apt-get install libboost-python-dev
-$ sudo apt-get install libboost-system-dev
-$ sudo apt-get install libgmp-dev
+$ sudo apt-get -y install git
+$ sudo apt-get -y install python-dev
+$ sudo apt-get -y install python-gmpy
+$ sudo apt-get -y install python-crypto
+$ sudo apt-get -y install m4
+$ sudo apt-get -y install libboost-python-dev
+$ sudo apt-get -y install libboost-system-dev
+$ sudo apt-get -y install libgmp-dev
 ```
 
 ```
