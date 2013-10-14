@@ -58,7 +58,6 @@ def compileRegexso():
     cmd += ' -I' + fte.conf.getValue('build.gmpy_include')
     cmd += ' -I/opt/local/include'
     cmd += ' -DPYTHON_MODULE'
-    #cmd += ' -l' + fte.conf.getValue('build.python_lib')
     executeCommand(cmd)
 
     cmd = fte.conf.getValue('build.cpp_compiler')
