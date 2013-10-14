@@ -27,5 +27,5 @@ $ python build.py
 ```
 
 ```
-python unit_tests.py
+$ python unit_tests.py
 ```
