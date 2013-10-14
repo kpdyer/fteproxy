@@ -76,7 +76,7 @@ def compileRegexso():
 
 
 def compileRE2DFA():
-    localBuildDir = os.path.abspath('./../third-party/opt')
+    localBuildDir = os.path.abspath('./third-party/opt')
     cmd = 'cd ' + fte.conf.getValue('build.re2_dir') \
         + ' && make -j' + \
         str(multiprocessing.cpu_count()) + ' obj/libre2.a && make install'
@@ -127,7 +127,7 @@ def verifyArtifacts(artifacts):
 
 
 def main():
-    localBuildDir = os.path.abspath('./../third-party/opt')
+    localBuildDir = os.path.abspath('./third-party/opt')
 
     compileRegexso()
     verifyArtifacts([os.path.join(fte.conf.getValue('general.fte_dir'),
