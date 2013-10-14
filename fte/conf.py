@@ -47,7 +47,7 @@ def module_path():
 
 conf = {}
 conf['modules.regex.enable'] = True
-conf['general.base_dir'] = os.path.abspath(os.path.join(module_path(), '..'))
+conf['general.base_dir'] = os.path.abspath(os.path.join(module_path()))
 conf['general.pid_dir'] = getValue('general.base_dir')
 conf['general.python_path'] = '/usr/bin'
 conf['general.fte_dir'] = os.path.join(getValue('general.base_dir'))
@@ -59,12 +59,8 @@ conf['general.scripts_dir'] = os.path.join(getValue('general.base_dir'
                                                     ), 'scripts')
 conf['general.formats_dir'] = os.path.join(getValue('general.fte_dir'),
                                            'formats')
-conf['general.languages_dir'] = os.path.join(getValue('general.fte_dir'
-                                                      ), 'languages')
-conf['general.cfg_dir'] = os.path.join(getValue('general.languages_dir'
-                                                ), 'cfgs')
-conf['general.re_dir'] = os.path.join(getValue('general.languages_dir'
-                                               ), 'regexs')
+conf['general.re_dir'] = os.path.join(getValue('general.fte_dir'
+                                               ), 'dfas')
 conf['general.fst_dir'] = conf['general.re_dir']
 conf['general.dfa_dir'] = conf['general.re_dir']
 conf['build.third_party_dir'] = os.path.join(getValue('general.base_dir'
