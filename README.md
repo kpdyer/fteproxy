@@ -22,7 +22,7 @@ $ sudo apt-get install libgmp-dev
 $ mkdir my-working-dir
 $ cd my-working-dir
 $ git clone https://github.com/redjack/FTE.git
-$ cd FTE/src
+$ cd FTE
 $ python build.py
 $ ls dist
 fte_relay-0.1.2-alpha.linux.i686.tar.gz
