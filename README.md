@@ -23,7 +23,7 @@ $ mkdir my-working-dir
 $ cd my-working-dir
 $ git clone https://github.com/redjack/FTE.git
 $ cd FTE
-$ python build.py
+$ python setup.py build
 ```
 
 ```
