@@ -20,7 +20,7 @@ import os
 import sys
 sys.path.append('.')
 import fte.conf
-OPENFST_BIN = '../third-party/opt/bin'
+OPENFST_BIN = '/usr/local/bin'
 
 
 def cleanDFA(dfa_file):
