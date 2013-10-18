@@ -66,7 +66,7 @@ class Encrypter(object):
 
     def encrypt(self, M, messageType=MSG_RELAY):
         ecb_enc = AES.new(self.K1, AES.MODE_ECB)
-        
+
         iv = fte.bit_ops.random_bytes(16)
         ctr_val = random.randint(0, (1 << 128) - 1)
         ctr = Counter.new(128, initial_value=ctr_val)
@@ -82,14 +82,14 @@ class Encrypter(object):
         L_plaintext += fte.bit_ops.long_to_bytes(len(Y), 8)
         L = ecb_enc.encrypt(L_plaintext)
         W = '\x01' + L + Y + Z + T
-        
+
         return W
 
     def decrypt(self, highestBit, W):
-        W  = fte.bit_ops.bytes_to_long(W)
-        
+        W = fte.bit_ops.bytes_to_long(W)
+
         ecb_enc = AES.new(self.K1, AES.MODE_ECB)
-        
+
         if not W:
             raise DecryptionFailureException('W is empty.')
         L = self.getMessageLen(highestBit, W)
@@ -124,12 +124,12 @@ class Encrypter(object):
             e = NegotiateAcknowledgeExecption()
             e.data = M[1:]
             raise e
-        
+
         return M[1:]
 
     def getMessageLen(self, highestBit, W):
         ecb_enc = AES.new(self.K1, AES.MODE_ECB)
-        
+
         if not W:
             raise DecryptionFailureException('W==0 or W==None or ...')
         if highestBit < 136:
@@ -143,7 +143,7 @@ class Encrypter(object):
         if L[-8:-4] != '\x00\x00\x00\x00':
             raise UnrecoverableDecryptionFailureException((
                 'Invalid ciphertext header.', hex(W), L[:8]))
-        
+
         return fte.bit_ops.bytes_to_long(L[-8:])
 
     def encryptCovertextFooter(self, M):

@@ -27,7 +27,6 @@ class PopFailedException(Exception):
     pass
 
 
-
 class Encoder:
 
     def __init__(
@@ -46,7 +45,7 @@ class Encoder:
         self._buffer = self._buffer[MAX_CELL_SIZE:]
         if outgoing_msg:
             retval = self._encrypter.encrypt(outgoing_msg)
-            
+
         return retval
 
 
@@ -66,8 +65,9 @@ class Decoder:
         retval = ''
         if self._buffer:
             frag = fte.bit_ops.bytes_to_long(self._buffer)
-            to_take = self._encrypter.getMessageLen(len(self._buffer)*8, frag) + 41
+            to_take = self._encrypter.getMessageLen(
+                len(self._buffer) * 8, frag) + 41
             to_decrypt = self._buffer[:to_take]
             self._buffer = self._buffer[to_take:]
-            retval = self._encrypter.decrypt(len(to_decrypt)*8, to_decrypt)
+            retval = self._encrypter.decrypt(len(to_decrypt) * 8, to_decrypt)
         return retval

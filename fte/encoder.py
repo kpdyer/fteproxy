@@ -89,6 +89,8 @@ class Encoder(object):
 # information such as buildTable. Hence, RegexEncoder is a facde that caches the RegexEncoderObject
 # such that we only have one object per language.
 _instance = {}
+
+
 class RegexEncoder(object):
 
     def __new__(self, regex_name):
@@ -190,7 +192,7 @@ class RegexEncoderObject(Encoder):
         X = fte.cRegex.unrank(self.regex_name, c)
         if X == '':
             raise UnrankFailureException('Rank failed.')
-        
+
         return str(X)
 
     def encode(
@@ -299,23 +301,21 @@ class RegexEncoderObject(Encoder):
 
 
 class FTESocketWrapper(object):
+
     def __init__(self, socket):
         self._socket = socket
-        
+
         self._encrypter = fte.encrypter.Encrypter()
         self._encoder = fte.record_layer.Encoder(encrypter=self._encrypter)
         self._decoder = fte.record_layer.Decoder(encrypter=self._encrypter)
-        
-        
+
     def fileno(self):
         return self._socket.fileno()
-
 
     def accept(self):
         conn, addr = self._socket.accept()
         conn = FTESocketWrapper(conn)
         return conn, addr
-
 
     def recv(self, bufsize):
         retval = ''
@@ -323,36 +323,33 @@ class FTESocketWrapper(object):
         self._decoder.push(data)
         while True:
             frag = self._decoder.pop()
-            if not frag: break
+            if not frag:
+                break
             retval += frag
-        if retval == '': raise socket.timeout
+        if retval == '':
+            raise socket.timeout
         return retval
-
 
     def send(self, data):
         self._encoder.push(data)
         while True:
             to_send = self._encoder.pop()
-            if not to_send: break
+            if not to_send:
+                break
             self._socket.sendall(to_send)
         return len(data)
-
 
     def gettimeout(self):
         return self._socket.gettimeout()
 
-
     def settimeout(self, val):
         return self._socket.settimeout(val)
-    
-    
+
     def shutdown(self, flags):
         return self._socket.shutdown(flags)
-    
-    
+
     def close(self):
         return self._socket.close()
-    
 
 
 def wrap_socket(socket):

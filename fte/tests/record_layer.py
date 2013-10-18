@@ -48,35 +48,35 @@ class TestEncoders(unittest.TestCase):
             self.record_layers_outgoing.append(encoder)
             self.record_layers_incoming.append(decoder)
 
-
     def testReclayer_basic(self):
         for i in range(len(self.record_layers_outgoing)):
             record_layer_outgoing = self.record_layers_outgoing[i]
             record_layer_incoming = self.record_layers_incoming[i]
-            #sys.stdout.write(str([self.recoder_layers_info[i]]))
-            #sys.stdout.flush()
+            # sys.stdout.write(str([self.recoder_layers_info[i]]))
+            # sys.stdout.flush()
             for j in range(START, ITERATIONS, STEP):
                 P = 'X' * j + 'Y'
                 record_layer_outgoing.push(P)
                 while True:
                     data = record_layer_outgoing.pop()
-                    if not data: break
+                    if not data:
+                        break
                     record_layer_incoming.push(data)
                 Y = ''
                 while True:
                     data = record_layer_incoming.pop()
-                    if not data: break
+                    if not data:
+                        break
                     Y += data
                 self.assertEquals(P, Y, (self.recoder_layers_info[i],
                                   P, Y))
-
 
     def testReclayer_concat(self):
         for i in range(len(self.record_layers_outgoing)):
             record_layer_outgoing = self.record_layers_outgoing[i]
             record_layer_incoming = self.record_layers_incoming[i]
-            #sys.stdout.write(str([self.recoder_layers_info[i]]))
-            #sys.stdout.flush()
+            # sys.stdout.write(str([self.recoder_layers_info[i]]))
+            # sys.stdout.flush()
             for j in range(START, ITERATIONS, STEP):
                 ptxt = ''
                 X = ''
@@ -85,13 +85,15 @@ class TestEncoders(unittest.TestCase):
                 record_layer_outgoing.push(P)
                 while True:
                     data = record_layer_outgoing.pop()
-                    if not data: break
+                    if not data:
+                        break
                     X += data
                 record_layer_incoming.push(X)
                 Y = ''
                 while True:
                     data = record_layer_incoming.pop()
-                    if not data: break
+                    if not data:
+                        break
                     Y += data
                 self.assertEquals(ptxt, Y, self.recoder_layers_info[i])
 

@@ -44,7 +44,6 @@ class TestEncoders(unittest.TestCase):
                 * 8
             for j in range(1):
                 self.assertEquals(P, self.encrypter.decrypt(lenC, C))
-                
 
     def testEncryptDecrypt_2(self):
         for i in range(1024):
@@ -57,7 +56,6 @@ class TestEncoders(unittest.TestCase):
             for j in range(1):
                 start = time.time()
                 self.assertEquals(P, self.encrypter.decrypt(lenC, C))
-
 
     def testEncryptDecryptCovertextFooter(self):
         for i in range(128):

@@ -26,12 +26,10 @@ import fte.encoder
 
 class TestEncoders(unittest.TestCase):
 
-
     def testRegexEncoderRequest(self):
         for language in fte.conf.getValue('languages.regex'):
             encoder = fte.encoder.RegexEncoder(language)
             self.doTestEncoder(language, encoder)
-
 
     def doTestEncoder(self, language, encoder):
         if 'learned' in language:
@@ -45,7 +43,7 @@ class TestEncoders(unittest.TestCase):
             _partition = encoder.determinePartition(X[0])
             start = time.time()
             D = encoder.decode(X[0], _partition)
-            
+
             self.assertEquals(C, D[1], language)
         for i in range(2 ** 7):
             if fte.conf.getValue('languages.regex.' + language
@@ -60,7 +58,6 @@ class TestEncoders(unittest.TestCase):
                 start = time.time()
                 D = encoder.decode(X[0], _partition)
                 self.assertEquals(C, D[1], language)
-
 
     def testIntersection(self):
         for protocol in ['http', 'ssh', 'smb']:

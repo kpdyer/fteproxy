@@ -2,7 +2,7 @@ import select
 import socket
 
 
-def sendall_to_socket(sock, msg, socket_timeout = 0.01):
+def sendall_to_socket(sock, msg, socket_timeout=0.01):
     totalsent = 0
     try:
         _incoming_timeout = sock.gettimeout()
@@ -21,7 +21,7 @@ def sendall_to_socket(sock, msg, socket_timeout = 0.01):
 
 
 def recvall_from_socket(sock,
-                        bufsize=2**12,
+                        bufsize=2 ** 12,
                         socket_timeout=0.001,
                         select_timeout=0.001):
     retval = ''
@@ -36,24 +36,24 @@ def recvall_from_socket(sock,
                 if _data:
                     retval += _data
                     success = True
-                    if len(retval)>=bufsize:
+                    if len(retval) >= bufsize:
                         break
                     else:
                         continue
                 else:
-                    success = (len(retval)>0)
+                    success = (len(retval) > 0)
                     break
         elif ready[2]:
-            success = (len(retval)>0)
+            success = (len(retval) > 0)
         else:
             # select.timeout
             success = True
     except socket.timeout:
         success = True
     except socket.error:
-        success = (len(retval)>0)
+        success = (len(retval) > 0)
     except select.error:
-        success = (len(retval)>0)
+        success = (len(retval) > 0)
     finally:
         sock.settimeout(_incoming_timeout)
 
