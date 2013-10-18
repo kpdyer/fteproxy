@@ -19,27 +19,14 @@
 import unittest
 import random
 import time
+
 import fte.encrypter
-KS_THRESHOLD = 0.01
-HEX_CHARS = [fte.bit_ops.long_to_bytes(i, 1) for i in range(256)]
-RV = []
-for i in range(2048):
-    RV.append(random.choice(HEX_CHARS))
 
 
 class TestEncoders(unittest.TestCase):
 
     def setUp(self):
         self.encrypter = fte.encrypter.Encrypter()
-
-    def testRandomnessNoOp(self):
-        myChars = ''
-        for i in range(128):
-            C = self.encrypter.encrypt('')
-            myChars += fte.bit_ops.long_to_bytes(C)
-        chars = []
-        for i in range(len(myChars)):
-            chars.append(myChars[i])
 
     def testEncryptNoOp(self):
         for i in range(1024):
@@ -49,7 +36,6 @@ class TestEncoders(unittest.TestCase):
                 self.assertEquals(self.encrypter.decrypt(lenC, C), '')
 
     def testEncryptDecrypt_1(self):
-        myChars = ''
         for i in range(1024):
             P = 'X' * i
             C = self.encrypter.encrypt(P)
@@ -58,10 +44,7 @@ class TestEncoders(unittest.TestCase):
                 * 8
             for j in range(1):
                 self.assertEquals(P, self.encrypter.decrypt(lenC, C))
-            myChars += fte.bit_ops.long_to_bytes(C)
-        chars = []
-        for i in range(len(myChars)):
-            chars.append(myChars[i])
+                
 
     def testEncryptDecrypt_2(self):
         for i in range(1024):
@@ -75,19 +58,15 @@ class TestEncoders(unittest.TestCase):
                 start = time.time()
                 self.assertEquals(P, self.encrypter.decrypt(lenC, C))
 
+
     def testEncryptDecryptCovertextFooter(self):
-        myChars = ''
         for i in range(128):
             for j in range(128):
                 M1 = random.randint(0, (1 << 128) - 1)
                 M1 = fte.bit_ops.long_to_bytes(M1, 16)
                 retval = self.encrypter.encryptCovertextFooter(M1)
-                myChars += retval
                 H_out = self.encrypter.decryptCovertextFooter(retval)
                 self.assertEquals(M1, H_out)
-        chars = []
-        for i in range(len(myChars)):
-            chars.append(myChars[i])
 
 
 if __name__ == '__main__':

@@ -17,13 +17,15 @@
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys
-import random
 import threading
 import unittest
-import copy
+
+
 import fte.encoder
 import fte.encrypter
 import fte.record_layer
+
+
 START = 0
 ITERATIONS = 2048
 STEP = 64
@@ -40,49 +42,41 @@ class TestEncoders(unittest.TestCase):
         self.record_layers_outgoing = []
         self.record_layers_incoming = []
         for languageA in fte.conf.getValue('languages.regex'):
-            cfgse = fte.encoder.RegexEncoder(languageA)
-            lock = threading.RLock()
-            encoder = fte.record_layer.RecordLayerEncoder(0, lock,
-                                                          encrypter, cfgse)
-            decoder = fte.record_layer.RecordLayerDecoder(0, lock,
-                                                          encrypter, cfgse)
+            encoder = fte.record_layer.Encoder(encrypter=encrypter)
+            decoder = fte.record_layer.Decoder(encrypter=encrypter)
             self.recoder_layers_info.append(languageA)
             self.record_layers_outgoing.append(encoder)
             self.record_layers_incoming.append(decoder)
+
 
     def testReclayer_basic(self):
         for i in range(len(self.record_layers_outgoing)):
             record_layer_outgoing = self.record_layers_outgoing[i]
             record_layer_incoming = self.record_layers_incoming[i]
-            sys.stdout.write(str([self.recoder_layers_info[i]]))
-            sys.stdout.flush()
+            #sys.stdout.write(str([self.recoder_layers_info[i]]))
+            #sys.stdout.flush()
             for j in range(START, ITERATIONS, STEP):
                 P = 'X' * j + 'Y'
                 record_layer_outgoing.push(P)
                 while True:
-                    retval = record_layer_outgoing.pop()
-                    record_layer_incoming.push(retval[0])
-                    if retval[1] == False:
-                        break
+                    data = record_layer_outgoing.pop()
+                    if not data: break
+                    record_layer_incoming.push(data)
                 Y = ''
                 while True:
-                    try:
-                        retval = record_layer_incoming.pop()
-                    except fte.record_layer.PopFailedException, e:
-                        print ('ppo', e.message)
-                        break
-                    Y += retval[0]
-                    if retval[1] == False:
-                        break
+                    data = record_layer_incoming.pop()
+                    if not data: break
+                    Y += data
                 self.assertEquals(P, Y, (self.recoder_layers_info[i],
                                   P, Y))
+
 
     def testReclayer_concat(self):
         for i in range(len(self.record_layers_outgoing)):
             record_layer_outgoing = self.record_layers_outgoing[i]
             record_layer_incoming = self.record_layers_incoming[i]
-            sys.stdout.write(str([self.recoder_layers_info[i]]))
-            sys.stdout.flush()
+            #sys.stdout.write(str([self.recoder_layers_info[i]]))
+            #sys.stdout.flush()
             for j in range(START, ITERATIONS, STEP):
                 ptxt = ''
                 X = ''
@@ -90,24 +84,15 @@ class TestEncoders(unittest.TestCase):
                 ptxt += P
                 record_layer_outgoing.push(P)
                 while True:
-                    try:
-                        retval = record_layer_outgoing.pop()
-                        X += retval[0]
-                        if retval[1] == False:
-                            break
-                    except fte.markov.DeadStateException:
-                        record_layer_outgoing.model.reset()
+                    data = record_layer_outgoing.pop()
+                    if not data: break
+                    X += data
                 record_layer_incoming.push(X)
                 Y = ''
                 while True:
-                    try:
-                        retval = record_layer_incoming.pop()
-                    except Exception, e:
-                        print e
-                        break
-                    Y += retval[0]
-                    if retval[1] == False:
-                        break
+                    data = record_layer_incoming.pop()
+                    if not data: break
+                    Y += data
                 self.assertEquals(ptxt, Y, self.recoder_layers_info[i])
 
 

@@ -50,4 +50,5 @@ def long_to_bytes(l, blocksize=0):
 
 
 def bytes_to_long(s):
-    return gmpy.mpz(str('\x00' + s)[::-1], 256)
+    s = '\x00' + s
+    return gmpy.mpz(str(s)[::-1], 256)

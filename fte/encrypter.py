@@ -17,11 +17,12 @@
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
 import random
+
 from Crypto.Cipher import AES
-from Crypto.Cipher import DES
 from Crypto.Hash import HMAC
 from Crypto.Hash import SHA512
 from Crypto.Util import Counter
+
 import fte.bit_ops
 
 
@@ -65,7 +66,7 @@ class Encrypter(object):
 
     def encrypt(self, M, messageType=MSG_RELAY):
         ecb_enc = AES.new(self.K1, AES.MODE_ECB)
-        fte.logger.performance('encrypt', 'start')
+        
         iv = fte.bit_ops.random_bytes(16)
         ctr_val = random.randint(0, (1 << 128) - 1)
         ctr = Counter.new(128, initial_value=ctr_val)
@@ -81,18 +82,18 @@ class Encrypter(object):
         L_plaintext += fte.bit_ops.long_to_bytes(len(Y), 8)
         L = ecb_enc.encrypt(L_plaintext)
         W = '\x01' + L + Y + Z + T
-        retval = fte.bit_ops.bytes_to_long(W)
-        fte.logger.performance('encrypt', 'stop')
-        return retval
+        
+        return W
 
     def decrypt(self, highestBit, W):
+        W  = fte.bit_ops.bytes_to_long(W)
+        
         ecb_enc = AES.new(self.K1, AES.MODE_ECB)
-        fte.logger.performance('decrypt', 'start')
+        
         if not W:
             raise DecryptionFailureException('W is empty.')
         L = self.getMessageLen(highestBit, W)
-        if L < 0 or highestBit < L * 8 + Encrypter.CTXT_EXPANSION_BITS \
-                - 8:
+        if L < 0 or highestBit < L * 8 + Encrypter.CTXT_EXPANSION_BITS - 8:
             raise DecryptionFailureException(('Not enough data.',
                                               highestBit, L * 8 +
                                               Encrypter.CTXT_EXPANSION_BITS
@@ -123,12 +124,12 @@ class Encrypter(object):
             e = NegotiateAcknowledgeExecption()
             e.data = M[1:]
             raise e
-        fte.logger.performance('decrypt', 'stop')
+        
         return M[1:]
 
     def getMessageLen(self, highestBit, W):
         ecb_enc = AES.new(self.K1, AES.MODE_ECB)
-        fte.logger.performance('getMessageLen', 'start')
+        
         if not W:
             raise DecryptionFailureException('W==0 or W==None or ...')
         if highestBit < 136:
@@ -142,19 +143,13 @@ class Encrypter(object):
         if L[-8:-4] != '\x00\x00\x00\x00':
             raise UnrecoverableDecryptionFailureException((
                 'Invalid ciphertext header.', hex(W), L[:8]))
-        fte.logger.performance('getMessageLen', 'stop')
+        
         return fte.bit_ops.bytes_to_long(L[-8:])
 
     def encryptCovertextFooter(self, M):
-        fte.logger.performance('encryptCovertextFooter', 'start')
         ecb_enc2 = AES.new(self.K2, AES.MODE_ECB)
-        W = ecb_enc2.encrypt(M)
-        fte.logger.performance('encryptCovertextFooter', 'stop')
-        return W
+        return ecb_enc2.encrypt(M)
 
     def decryptCovertextFooter(self, W):
-        fte.logger.performance('decryptCovertextFooter', 'start')
         ecb_enc2 = AES.new(self.K2, AES.MODE_ECB)
-        M = ecb_enc2.decrypt(W)
-        fte.logger.performance('decryptCovertextFooter', 'stop')
-        return M
+        return ecb_enc2.decrypt(W)

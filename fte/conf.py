@@ -51,6 +51,7 @@ conf['general.formats_dir'] = os.path.join(getValue('general.fte_dir'),
                                            'formats')
 conf['general.re_dir'] = os.path.join(getValue('general.fte_dir'
                                                ), 'dfas')
+conf['general.dfa_dir'] = conf['general.re_dir']
 conf['runtime.mode'] = None
 conf['runtime.fte.encrypter.key'] = 'FF' * 16 + '00' * 16
 conf['runtime.tcp.relay.backlog'] = 5
@@ -63,9 +64,7 @@ conf['runtime.socks.ip'] = '127.0.0.1'
 conf['runtime.socks.port'] = 8081
 conf['runtime.state.upstream_language'] = 'intersection-http-request'
 conf['runtime.state.downstream_language'] = 'intersection-http-response'
-conf['runtime.fte.relay.socket_timeout'] = 0.01
-#conf['runtime.fte.relay.clock_speed'] = 0.01
-#conf['runtime.fte.relay.select_speed'] = 0.001
+conf['runtime.fte.relay.socket_timeout'] = 0.001
 conf['runtime.fte.tcp.relay.block_size'] = 2 ** 12
 conf['runtime.fte.relay.encoder_block_size'] = 2 ** 12
 conf['runtime.fte.relay.decoder_block_size'] = 2 ** 12

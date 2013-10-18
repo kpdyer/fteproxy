@@ -41,11 +41,11 @@ suite_relay = \
 suite_bit_ops = \
     unittest.TestLoader().loadTestsFromTestCase(fte.tests.bit_ops.TestEncoders)
 suites = [
-#    suite_bit_ops,
+    suite_bit_ops,
 #    suite_regex,
-#    suite_encrypter,
+    suite_encrypter,
     suite_relay,
-#    suite_record_layer,
+    suite_record_layer,
 ]
 alltests = unittest.TestSuite(suites)
 unittest.TextTestRunner(verbosity=2, failfast=True).run(alltests)
