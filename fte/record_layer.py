@@ -19,7 +19,7 @@
 import random
 import time
 import fte.encrypter
-LOG_LEVEL = fte.conf.getValue('loglevel.fte.record_layer')
+
 MAX_CELL_SIZE = \
     fte.conf.getValue('runtime.fte.record_layer.max_cell_size')
 

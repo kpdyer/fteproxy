@@ -26,12 +26,7 @@ import gmpy
 import fte.conf
 import fte.encrypter
 import fte.bit_ops
-if fte.conf.getValue('modules.regex.enable'):
-    import fte.cRegex
-LOG_LEVEL = fte.conf.getValue('loglevel.fte.regex')
-sys.path.append('..')
-
-LOG_LEVEL = fte.conf.getValue('loglevel.fte.encoder')
+import fte.cRegex
 
 
 class UnrankFailureException(Exception):
@@ -88,36 +83,6 @@ class Encoder(object):
 
     def decode(self, X, partition):
         assert False
-
-
-class DummyEncoder(Encoder):
-
-    def __init__(self, language):
-        self.format_package = None
-        self.capacity = 2 ** 15
-
-    def getPartitions(self):
-        return ['000']
-
-    def getNextTemplateCapacity(self, partition, minCapacity=None):
-        return self.capacity
-
-    def determinePartition(self, msg):
-        return '000'
-
-    def encode(
-        self,
-        msb,
-        C,
-        partition,
-    ):
-        num_bytes = msb / 8
-        frag = fte.bit_ops.long_to_bytes(C, num_bytes)
-        assert len(frag) == msb / 8, (len(frag), msb / 8)
-        return [frag, msb, '']
-
-    def decode(self, X, partition):
-        return [len(X) * 8, fte.bit_ops.bytes_to_long(X), '']
 
 
 # We could just as welll deletc RegexEncoder and rename RegexEncoderObject to RegexEncoder.

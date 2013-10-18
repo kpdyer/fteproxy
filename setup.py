@@ -17,8 +17,9 @@ setup(name='Format-Transforming Encrypion (FTE)',
       author_email='kpdyer@gmail.com',
       url='https://github.com/redjack/FTE',
       packages=['fte',
+                'fte.dfas',
                 'fte.tcp'],
       scripts=['bin/fte_proxy'],
       ext_modules=[fte_cRegex],
-      package_data={'fte.dfas': ['*.dfa', 'fte/dfas/*.dfa']},
+      package_data={'fte.dfas': ['*.dfa','fte/dfas/*.dfa']}
       )

@@ -40,8 +40,6 @@ class TestEncoders(unittest.TestCase):
         chars = []
         for i in range(len(myChars)):
             chars.append(myChars[i])
-        #(D, p) = stats.ks_2samp(chars, RV)
-        #self.assertGreaterEqual(p, KS_THRESHOLD, p)
 
     def testEncryptNoOp(self):
         for i in range(1024):
@@ -64,22 +62,18 @@ class TestEncoders(unittest.TestCase):
         chars = []
         for i in range(len(myChars)):
             chars.append(myChars[i])
-        #(D, p) = stats.ks_2samp(chars, RV)
-        #self.assertGreaterEqual(p, KS_THRESHOLD, p)
 
     def testEncryptDecrypt_2(self):
         for i in range(1024):
             P = '\x01' * 2 ** 15
             start = time.time()
             C = self.encrypter.encrypt(P)
-            # print 'encrypt', time.time()-start
             self.assertNotEqual(C, P)
             lenC = fte.encrypter.Encrypter.CTXT_EXPANSION_BITS + len(P) \
                 * 8
             for j in range(1):
                 start = time.time()
                 self.assertEquals(P, self.encrypter.decrypt(lenC, C))
-                # print 'decrypt', time.time()-start
 
     def testEncryptDecryptCovertextFooter(self):
         myChars = ''
@@ -94,8 +88,6 @@ class TestEncoders(unittest.TestCase):
         chars = []
         for i in range(len(myChars)):
             chars.append(myChars[i])
-        #(D, p) = stats.ks_2samp(chars, RV)
-        #self.assertGreaterEqual(p, KS_THRESHOLD, p)
 
 
 if __name__ == '__main__':

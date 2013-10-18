@@ -22,16 +22,14 @@ import sys
 sys.path.append('.')
 sys.path.append('fte')
 import fte.conf
-if fte.conf.getValue('modules.regex.enable'):
-    import fte.tests.regex
+import fte.tests.regex
 import fte.tests.encrypter
 import fte.tests.record_layer
 import fte.tests.bit_ops
 import fte.tests.relay
-if fte.conf.getValue('modules.regex.enable'):
-    suite_regex = \
-        unittest.TestLoader().loadTestsFromTestCase(
-            fte.tests.regex.TestEncoders)
+suite_regex = \
+    unittest.TestLoader().loadTestsFromTestCase(
+        fte.tests.regex.TestEncoders)
 suite_encrypter = \
     unittest.TestLoader().loadTestsFromTestCase(
         fte.tests.encrypter.TestEncoders)
@@ -43,11 +41,11 @@ suite_relay = \
 suite_bit_ops = \
     unittest.TestLoader().loadTestsFromTestCase(fte.tests.bit_ops.TestEncoders)
 suites = [
-    suite_bit_ops,
-    suite_regex,
-    suite_encrypter,
+#    suite_bit_ops,
+#    suite_regex,
+#    suite_encrypter,
     suite_relay,
-    suite_record_layer,
+#    suite_record_layer,
 ]
 alltests = unittest.TestSuite(suites)
 unittest.TextTestRunner(verbosity=2, failfast=True).run(alltests)
