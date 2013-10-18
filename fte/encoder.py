@@ -175,27 +175,22 @@ class RegexEncoderObject(Encoder):
         return q_new
 
     def rank(self, X):
-        fte.logger.performance('rank', 'start')
         c = gmpy.mpz(0)
         fte.cRegex.rank(self.regex_name, c, X)
         if c == -1:
             raise RankFailureException(('Rank failed.', X))
         if self.fixed_slice:
-            # c = gmpy.sub(c, self.offset)
             c -= self.offset
-        fte.logger.performance('rank', 'stop')
         return c
 
     def unrank(self, c):
-        fte.logger.performance('unrank', 'start')
         c = gmpy.mpz(c)
         if self.fixed_slice:
-            # c = gmpy.add(self.offset, c)
-            c += self.offset  # gmpy.add(self.offset, c)
+            c += self.offset
         X = fte.cRegex.unrank(self.regex_name, c)
         if X == '':
             raise UnrankFailureException('Rank failed.')
-        fte.logger.performance('unrank', 'stop')
+        
         return str(X)
 
     def encode(

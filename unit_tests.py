@@ -42,7 +42,7 @@ suite_bit_ops = \
     unittest.TestLoader().loadTestsFromTestCase(fte.tests.bit_ops.TestEncoders)
 suites = [
     suite_bit_ops,
-#    suite_regex,
+    suite_regex,
     suite_encrypter,
     suite_relay,
     suite_record_layer,

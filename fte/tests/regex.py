@@ -26,12 +26,12 @@ import fte.encoder
 
 class TestEncoders(unittest.TestCase):
 
+
     def testRegexEncoderRequest(self):
         for language in fte.conf.getValue('languages.regex'):
-            sys.stdout.write(str([language]))
-            sys.stdout.flush()
             encoder = fte.encoder.RegexEncoder(language)
             self.doTestEncoder(language, encoder)
+
 
     def doTestEncoder(self, language, encoder):
         if 'learned' in language:
@@ -39,15 +39,13 @@ class TestEncoders(unittest.TestCase):
         for i in range(2 ** 7):
             partition = random.choice(encoder.getPartitions())
             N = encoder.getNextTemplateCapacity(partition, 0)
-            # N *= random.choice(range(10))
             C = random.randint(0, (1 << N) - 1)
             start = time.time()
             X = encoder.encode(N, C, partition)
-            # print [language,'encode',N,time.time()-start]
             _partition = encoder.determinePartition(X[0])
             start = time.time()
             D = encoder.decode(X[0], _partition)
-            # print [language,'decode',N,time.time()-start]
+            
             self.assertEquals(C, D[1], language)
         for i in range(2 ** 7):
             if fte.conf.getValue('languages.regex.' + language
@@ -58,12 +56,11 @@ class TestEncoders(unittest.TestCase):
                 C = random.randint(0, (1 << N) - 1)
                 start = time.time()
                 X = encoder.encode(N, C, partition)
-                #print [language, 'encode', N, time.time() - start]
                 _partition = encoder.determinePartition(X[0])
                 start = time.time()
                 D = encoder.decode(X[0], _partition)
-                #print [language, 'decode', N, time.time() - start]
                 self.assertEquals(C, D[1], language)
+
 
     def testIntersection(self):
         for protocol in ['http', 'ssh', 'smb']:
@@ -79,13 +76,9 @@ class TestEncoders(unittest.TestCase):
                     for i in range(32):
                         C = random.randint(0,
                                            intersection_encoder.getNumWords())
-                        # start = time.time()
                         X = intersection_encoder.unrank(C)
-                        # print 'unrank', time.time()-start
                         try:
-                            # start = time.time()
                             encoder.rank(X)
-                            # print 'rank', time.time()-start
                         except fte.encoder.RankFailureException, e:
                             assert False, (intersection_language,
                                            language, X)

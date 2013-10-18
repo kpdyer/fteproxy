@@ -64,8 +64,8 @@ class Decoder:
 
     def pop(self):
         retval = ''
-        frag = fte.bit_ops.bytes_to_long(self._buffer)
-        if frag:
+        if self._buffer:
+            frag = fte.bit_ops.bytes_to_long(self._buffer)
             to_take = self._encrypter.getMessageLen(len(self._buffer)*8, frag) + 41
             to_decrypt = self._buffer[:to_take]
             self._buffer = self._buffer[to_take:]
