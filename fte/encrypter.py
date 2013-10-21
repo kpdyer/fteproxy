@@ -81,16 +81,11 @@ class Encrypter(object):
         L_plaintext = iv[-8:]
         L_plaintext += fte.bit_ops.long_to_bytes(len(Y), 8)
         L = ecb_enc.encrypt(L_plaintext)
-        #print ['L-encrypt', L]
         W = '\x01' + L + Y + Z + T
-        
-        #print ['encrypt', W[:32]]
 
         return W
 
     def decrypt(self, highestBit, W):
-        #print ['decrypt', W[:32]]
-        
         W = fte.bit_ops.bytes_to_long(W)
 
         ecb_enc = AES.new(self.K1, AES.MODE_ECB)
@@ -133,8 +128,6 @@ class Encrypter(object):
         return M[1:]
 
     def getMessageLen(self, highestBit, W):
-        #print ['getMessageLen', fte.bit_ops.long_to_bytes(W)[:32]]
-        
         ecb_enc = AES.new(self.K1, AES.MODE_ECB)
 
         if not W:
@@ -146,7 +139,6 @@ class Encrypter(object):
         L = W >> highestBit - 136
         L &= 0x00FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
         L = fte.bit_ops.long_to_bytes(L, 16)
-        #print ['L-gml', L]
         L = ecb_enc.decrypt(L)
         if L[-8:-4] != '\x00\x00\x00\x00':
             raise UnrecoverableDecryptionFailureException((

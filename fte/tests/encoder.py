@@ -39,7 +39,7 @@ class TestEncoders(unittest.TestCase):
             #print [language, X[:64]]
             D = encoder.decode(X)
             self.assertEquals(C, D)
-            
+
     def doTestEncoderOversized(self, language, encoder):
         for i in range(2 ** 7):
             if fte.conf.getValue('languages.regex.' + language

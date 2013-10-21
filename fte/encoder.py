@@ -63,6 +63,8 @@ class LanguageIsEmptySetException(Exception):
 # information such as buildTable. Hence, RegexEncoder is a facde that caches the RegexEncoderObject
 # such that we only have one object per language.
 _instance = {}
+
+
 class RegexEncoder(object):
 
     def __new__(self, regex_name):
@@ -158,23 +160,24 @@ class RegexEncoderObject(object):
     def encode(self, X):
         COVERTEXT_HEADER_LEN = 4
         maximumBytesToRank = int(math.floor(self.capacity / 8.0))
-        
+
         msg_len = min(maximumBytesToRank - COVERTEXT_HEADER_LEN,
                       len(X))
 
         msg_len_header = fte.bit_ops.long_to_bytes(msg_len)
-        msg_len_header = '\xFF' + string.rjust(msg_len_header, COVERTEXT_HEADER_LEN-1, '\x00')
-        
-        unrank_payload = msg_len_header + X[:maximumBytesToRank-COVERTEXT_HEADER_LEN]
-        #print [unrank_payload]
+        msg_len_header = '\xFF' + \
+            string.rjust(msg_len_header, COVERTEXT_HEADER_LEN - 1, '\x00')
+
+        unrank_payload = msg_len_header + \
+            X[:maximumBytesToRank - COVERTEXT_HEADER_LEN]
         unrank_payload = fte.bit_ops.bytes_to_long(unrank_payload)
-        
+
         formatted_covertext_header = self.unrank(unrank_payload)
-        unformatted_covertext_body = X[maximumBytesToRank-COVERTEXT_HEADER_LEN:]
-        #print [unformatted_covertext_body]
-        
+        unformatted_covertext_body = X[
+            maximumBytesToRank - COVERTEXT_HEADER_LEN:]
+
         covertext = formatted_covertext_header + unformatted_covertext_body
-        
+
         return covertext
 
     def decode(self, covertext):
@@ -183,7 +186,6 @@ class RegexEncoderObject(object):
         X = fte.bit_ops.long_to_bytes(unrank_payload)
         msg_len = fte.bit_ops.bytes_to_long(X[1:4])
         X = X[-msg_len:]
-        #print [X[-msg_len:], covertext[self.mtu:]]
         X += covertext[self.mtu:]
         return X
 
@@ -194,7 +196,8 @@ class FTESocketWrapper(object):
         self._socket = socket
 
         self._encrypter = fte.encrypter.Encrypter()
-        self._regex_encoder = fte.encoder.RegexEncoder("intersection-http-request")
+        self._regex_encoder = fte.encoder.RegexEncoder(
+            "intersection-http-request")
         self._encoder = fte.record_layer.Encoder(encrypter=self._encrypter,
                                                  encoder=self._regex_encoder)
         self._decoder = fte.record_layer.Decoder(encrypter=self._encrypter,
