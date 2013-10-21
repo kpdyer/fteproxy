@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-c -Wall
+CFLAGS=-c -Wall -static
 LDFLAGS=
 SOURCES=src/re2dfa.cc
 OBJECTS=$(SOURCES:.cc=.o)
