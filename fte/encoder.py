@@ -58,39 +58,11 @@ class LanguageIsEmptySetException(Exception):
     pass
 
 
-class Encoder(object):
-
-    def __init__(self, language):
-        self.format_package = None
-
-    def getPartitions(self):
-        assert False
-
-    def getNextTemplateCapacity(self, partition, minCapacity=None):
-        assert False
-
-    def determinePartition(self, msg):
-        assert False
-
-    def encode(
-        self,
-        msb,
-        C,
-        partition,
-    ):
-        assert False
-
-    def decode(self, X, partition):
-        assert False
-
-
 # We could just as welll delet RegexEncoder and rename RegexEncoderObject to RegexEncoder.
 # However, each time a RegexEncoder is created we don't want to want to recompute language-specific
 # information such as buildTable. Hence, RegexEncoder is a facde that caches the RegexEncoderObject
 # such that we only have one object per language.
 _instance = {}
-
-
 class RegexEncoder(object):
 
     def __new__(self, regex_name):
@@ -100,7 +72,7 @@ class RegexEncoder(object):
         return _instance[regex_name]
 
 
-class RegexEncoderObject(Encoder):
+class RegexEncoderObject(object):
 
     def __init__(self, regex_name):
         self.compound = False
@@ -133,15 +105,6 @@ class RegexEncoderObject(Encoder):
         self.capacity += int(math.floor(math.log(self.num_words, 2)))
         self.offset = gmpy.mpz(self.offset)
 
-    def getPartitions(self):
-        return ['000']
-
-    def determinePartition(self, msg):
-        return self.regex_name
-
-    def getNextTemplateCapacity(self, partition, minCapacity=None):
-        return self.capacity
-
     def getT(self, q, a):
         c = gmpy.mpz(0)
         fte.cRegex.getT(self.regex_name, c, int(q), a)
@@ -149,9 +112,6 @@ class RegexEncoderObject(Encoder):
 
     def getNumStates(self):
         return fte.cRegex.getNumStates(self.regex_name)
-
-    def getSizeOfT(self):
-        return fte.cRegex.getSizeOfT(self.regex_name)
 
     def getNumWords(self, N=None):
         retval = 0
@@ -195,109 +155,37 @@ class RegexEncoderObject(Encoder):
 
         return str(X)
 
-    def encode(
-        self,
-        msb,
-        C,
-        partition,
-    ):
-        TAIL = fte.conf.getValue('languages.regex.' + self.regex_name
-                                 + '.allow_ae_bits')
-        if msb <= self.capacity:
-            TAIL = False
-            remainder = 0
-        else:
-            (C, remainder) = fte.bit_ops.peel_off(self.capacity, msb
-                                                  - self.capacity, C)
-        if TAIL:
-            covertext_ae_bytes = fte.bit_ops.long_to_bytes(remainder)
-        else:
-            covertext_ae_bytes = ''
-        if TAIL:
-            covertext_header = msb - self.capacity
-            covertext_header = \
-                fte.bit_ops.long_to_bytes(covertext_header)
-            covertext_header = string.rjust(covertext_header, 8, '\x00')
-            covertext_header = fte.bit_ops.random_bytes(8) + covertext_header
-        else:
-            covertext_header = '\x00\x00\x00\x00\x00\x00\x00\x00'
-            covertext_header = fte.bit_ops.random_bytes(8) + covertext_header
-        covertext_header = string.rjust(covertext_header, 16, '\x00')
-        if TAIL:
-            num_ae_bits = msb - self.capacity
-            num_ae_bytes = int(math.ceil(num_ae_bits / 8.0))
-            covertext_ae_bytes = string.rjust(covertext_ae_bytes,
-                                              num_ae_bytes, '\x00')
-        else:
-            num_ae_bits = 0
-            num_ae_bytes = 0
-        covertext_header = \
-            fte.encrypter.Encrypter().encryptCovertextFooter(covertext_header)
-        covertext_header = fte.bit_ops.bytes_to_long(covertext_header)
-        C += covertext_header << self.capacity
-        covertext = self.unrank(C)
-        if self.fixed_slice:
-            assert len(covertext) == self.mtu
-        if TAIL:
-            covertext += covertext_ae_bytes
-            bits_encoded = msb
-            remainder = 0
-        else:
-            bits_encoded = self.capacity
-        return [covertext, bits_encoded, remainder]
+    def encode(self, X):
+        COVERTEXT_HEADER_LEN = 4
+        maximumBytesToRank = int(math.floor(self.capacity / 8.0))
+        
+        msg_len = min(maximumBytesToRank - COVERTEXT_HEADER_LEN,
+                      len(X))
 
-    def getMsgLen(self, X, partition):
-        if len(X) < self.mtu:
-            raise DecodeFailureException()
-        try:
-            C = self.rank(X[:self.mtu])
-        except RankFailureException, e:
-            raise DecodeFailureException('rank')
-        (covertext_header, remainder) = fte.bit_ops.peel_off(128,
-                                                             self.capacity, C)
-        covertext_header = fte.bit_ops.long_to_bytes(covertext_header,
-                                                     16)
-        if len(covertext_header) != 16:
-            raise DecodeFailureException('header')
-        covertext_header = \
-            fte.encrypter.Encrypter().decryptCovertextFooter(covertext_header)
-        num_ae_bits = fte.bit_ops.bytes_to_long(covertext_header[-8:])
-        num_ae_bytes = int(math.ceil(num_ae_bits / 8.0))
-        if num_ae_bytes > fte.conf.getValue('runtime.fte.record_layer.max_cell_size'):
-            raise DecodeFailureException('header')
-        return (self.mtu + num_ae_bytes)
+        msg_len_header = fte.bit_ops.long_to_bytes(msg_len)
+        msg_len_header = '\xFF' + string.rjust(msg_len_header, COVERTEXT_HEADER_LEN-1, '\x00')
+        
+        unrank_payload = msg_len_header + X[:maximumBytesToRank-COVERTEXT_HEADER_LEN]
+        #print [unrank_payload]
+        unrank_payload = fte.bit_ops.bytes_to_long(unrank_payload)
+        
+        formatted_covertext_header = self.unrank(unrank_payload)
+        unformatted_covertext_body = X[maximumBytesToRank-COVERTEXT_HEADER_LEN:]
+        #print [unformatted_covertext_body]
+        
+        covertext = formatted_covertext_header + unformatted_covertext_body
+        
+        return covertext
 
-    def decode(self, X, partition):
-        if len(X) < self.mtu:
-            raise DecodeFailureException()
-        try:
-            C = self.rank(X[:self.mtu])
-        except RankFailureException, e:
-            raise DecodeFailureException('rank')
-        (covertext_header, remainder) = fte.bit_ops.peel_off(128,
-                                                             self.capacity, C)
-        covertext_header = fte.bit_ops.long_to_bytes(covertext_header,
-                                                     16)
-        if len(covertext_header) != 16:
-            raise DecodeFailureException('header')
-
-        covertext_header = \
-            fte.encrypter.Encrypter().decryptCovertextFooter(covertext_header)
-        num_ae_bits = fte.bit_ops.bytes_to_long(covertext_header[-8:])
-        num_ae_bytes = int(math.ceil(num_ae_bits / 8.0))
-        if num_ae_bytes > fte.conf.getValue('runtime.fte.record_layer.max_cell_size'):
-            raise DecodeFailureException('header')
-
-        if len(X) < (self.mtu + num_ae_bytes):
-            raise DecodeFailureException('ae bytes 2 : ' + str(len(X))
-                                         + ',' + str(self.mtu + num_ae_bytes))
-        retval = remainder
-        if num_ae_bits > 0:
-            retval <<= num_ae_bits
-            retval += fte.bit_ops.bytes_to_long(X[self.mtu:self.mtu
-                                                  + num_ae_bytes])
-        return [self.capacity + num_ae_bits, long(retval), X[self.mtu
-                + num_ae_bytes:]]
+    def decode(self, covertext):
+        assert len(covertext) >= self.mtu, (len(covertext), self.mtu)
+        unrank_payload = self.rank(covertext[:self.mtu])
+        X = fte.bit_ops.long_to_bytes(unrank_payload)
+        msg_len = fte.bit_ops.bytes_to_long(X[1:4])
+        X = X[-msg_len:]
+        #print [X[-msg_len:], covertext[self.mtu:]]
+        X += covertext[self.mtu:]
+        return X
 
 
 class FTESocketWrapper(object):
@@ -306,8 +194,11 @@ class FTESocketWrapper(object):
         self._socket = socket
 
         self._encrypter = fte.encrypter.Encrypter()
-        self._encoder = fte.record_layer.Encoder(encrypter=self._encrypter)
-        self._decoder = fte.record_layer.Decoder(encrypter=self._encrypter)
+        self._regex_encoder = fte.encoder.RegexEncoder("intersection-http-request")
+        self._encoder = fte.record_layer.Encoder(encrypter=self._encrypter,
+                                                 encoder=self._regex_encoder)
+        self._decoder = fte.record_layer.Decoder(encrypter=self._encrypter,
+                                                 encoder=self._regex_encoder)
 
     def fileno(self):
         return self._socket.fileno()

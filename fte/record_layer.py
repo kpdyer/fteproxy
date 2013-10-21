@@ -32,8 +32,10 @@ class Encoder:
     def __init__(
         self,
         encrypter,
+        encoder,
     ):
         self._encrypter = encrypter
+        self._encoder = encoder
         self._buffer = ''
 
     def push(self, data):
@@ -41,10 +43,12 @@ class Encoder:
 
     def pop(self):
         retval = ''
+        
         outgoing_msg = self._buffer[:MAX_CELL_SIZE]
         self._buffer = self._buffer[MAX_CELL_SIZE:]
         if outgoing_msg:
             retval = self._encrypter.encrypt(outgoing_msg)
+            retval = self._encoder.encode(retval)
 
         return retval
 
@@ -54,8 +58,10 @@ class Decoder:
     def __init__(
         self,
         encrypter,
+        encoder,
     ):
         self._encrypter = encrypter
+        self._encoder = encoder
         self._buffer = ''
 
     def push(self, data):
@@ -63,11 +69,25 @@ class Decoder:
 
     def pop(self):
         retval = ''
+        
         if self._buffer:
-            frag = fte.bit_ops.bytes_to_long(self._buffer)
-            to_take = self._encrypter.getMessageLen(
-                len(self._buffer) * 8, frag) + 41
-            to_decrypt = self._buffer[:to_take]
-            self._buffer = self._buffer[to_take:]
-            retval = self._encrypter.decrypt(len(to_decrypt) * 8, to_decrypt)
+            try:
+                incoming_msg = self._buffer
+                incoming_msg = self._encoder.decode(incoming_msg)
+                
+                #print ['incoming_message', incoming_msg]
+                frag = fte.bit_ops.bytes_to_long(incoming_msg)
+                #print ['frag',frag]
+                #print ['self._buffer', self._buffer]
+                to_take = self._encrypter.getMessageLen(
+                    len(incoming_msg) * 8, frag) + 41
+                to_decrypt = incoming_msg[:to_take]
+                #to_decrypt = self._encoder.decode(to_decrypt)
+                retval = self._encrypter.decrypt(len(to_decrypt) * 8, to_decrypt)
+                self._buffer = incoming_msg[to_take:]
+            except fte.encoder.DecodeFailureException:
+                pass
+            #except fte.encrypter.DecryptionFailureException:
+            #    pass
+            
         return retval

@@ -17,8 +17,6 @@
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
 import unittest
-import sys
-import time
 import random
 
 import fte.encoder
@@ -29,35 +27,31 @@ class TestEncoders(unittest.TestCase):
     def testRegexEncoderRequest(self):
         for language in fte.conf.getValue('languages.regex'):
             encoder = fte.encoder.RegexEncoder(language)
-            self.doTestEncoder(language, encoder)
+            self.doTestEncoderUndersized(language, encoder)
+            self.doTestEncoderOversized(language, encoder)
 
-    def doTestEncoder(self, language, encoder):
-        if 'learned' in language:
-            return
+    def doTestEncoderUndersized(self, language, encoder):
         for i in range(2 ** 7):
-            partition = random.choice(encoder.getPartitions())
-            N = encoder.getNextTemplateCapacity(partition, 0)
+            N = encoder.capacity
             C = random.randint(0, (1 << N) - 1)
-            start = time.time()
-            X = encoder.encode(N, C, partition)
-            _partition = encoder.determinePartition(X[0])
-            start = time.time()
-            D = encoder.decode(X[0], _partition)
-
-            self.assertEquals(C, D[1], language)
+            C = fte.bit_ops.long_to_bytes(C)
+            X = encoder.encode(C)
+            #print [language, X[:64]]
+            D = encoder.decode(X)
+            self.assertEquals(C, D)
+            
+    def doTestEncoderOversized(self, language, encoder):
         for i in range(2 ** 7):
             if fte.conf.getValue('languages.regex.' + language
                                  + '.allow_ae_bits'):
-                partition = random.choice(encoder.getPartitions())
                 N = fte.conf.getValue(
                     'runtime.fte.record_layer.max_cell_size') * 8
                 C = random.randint(0, (1 << N) - 1)
-                start = time.time()
-                X = encoder.encode(N, C, partition)
-                _partition = encoder.determinePartition(X[0])
-                start = time.time()
-                D = encoder.decode(X[0], _partition)
-                self.assertEquals(C, D[1], language)
+                C = fte.bit_ops.long_to_bytes(C)
+                X = encoder.encode(C)
+                #print [language, X[:64]]
+                D = encoder.decode(X)
+                self.assertEquals(C, D)
 
     def testIntersection(self):
         for protocol in ['http', 'ssh', 'smb']:

@@ -22,14 +22,14 @@ import sys
 sys.path.append('.')
 sys.path.append('fte')
 import fte.conf
-import fte.tests.regex
+import fte.tests.encoder
 import fte.tests.encrypter
 import fte.tests.record_layer
 import fte.tests.bit_ops
 import fte.tests.relay
-suite_regex = \
+suite_encoder = \
     unittest.TestLoader().loadTestsFromTestCase(
-        fte.tests.regex.TestEncoders)
+        fte.tests.encoder.TestEncoders)
 suite_encrypter = \
     unittest.TestLoader().loadTestsFromTestCase(
         fte.tests.encrypter.TestEncoders)
@@ -42,7 +42,7 @@ suite_bit_ops = \
     unittest.TestLoader().loadTestsFromTestCase(fte.tests.bit_ops.TestEncoders)
 suites = [
     suite_bit_ops,
-    suite_regex,
+    suite_encoder,
     suite_encrypter,
     suite_relay,
     suite_record_layer,

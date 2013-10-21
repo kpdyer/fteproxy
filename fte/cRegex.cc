@@ -32,7 +32,6 @@ typedef struct {
     mpz_t z;
     Py_hash_t hash_cache;
 } PympzObject;
-
 #define Pympz_AS_MPZ(obj) (((PympzObject *)(obj))->z)
 //
 
