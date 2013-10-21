@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
-#include <cRegex.h>
+#include <regex.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -388,7 +388,7 @@ void loadLanguage(std::string DFA_DIR, std::string DFA_ID, uint32_t MAX_WORD_LEN
 
 }
 
-BOOST_PYTHON_MODULE(cRegex)
+BOOST_PYTHON_MODULE(regex)
 {
     def("unrank", unrank);
     def("rank", rank);

@@ -29,13 +29,7 @@ def setValue(key, value):
     conf[key] = value
 
 
-def we_are_frozen():
-    return hasattr(sys, "frozen")
-
-
 def module_path():
-    if we_are_frozen():
-        return os.path.dirname(sys.executable)
     return os.path.dirname(__file__)
 
 
@@ -47,10 +41,10 @@ conf['general.bin_dir'] = os.path.join(getValue('general.base_dir'),
                                        'bin')
 conf['general.scripts_dir'] = os.path.join(getValue('general.base_dir'
                                                     ), 'scripts')
-conf['general.formats_dir'] = os.path.join(getValue('general.fte_dir'),
-                                           'formats')
-conf['general.re_dir'] = os.path.join(getValue('general.fte_dir'
-                                               ), 'dfas')
+#conf['general.formats_dir'] = os.path.join(getValue('general.fte_dir'),
+#                                           'formats')
+conf['general.re_dir'] = os.path.join(getValue('general.base_dir'
+                                               ), '..', 'dfas')
 conf['general.dfa_dir'] = conf['general.re_dir']
 conf['runtime.mode'] = None
 conf['runtime.fte.encrypter.key'] = 'FF' * 16 + '00' * 16
@@ -80,12 +74,3 @@ for lang in conf['languages.regex']:
     conf['languages.regex.' + lang + '.mtu'] = 128
     conf['languages.regex.' + lang + '.allow_ae_bits'] = True
     conf['languages.regex.' + lang + '.fixed_slice'] = True
-#conf['languages.regex.manual-http-request.allow_ae_bits'] = False
-#conf['languages.regex.manual-ssh-request.mtu'] = 99
-#conf['languages.regex.manual-ssh-response.mtu'] = 99
-#conf['languages.regex.zero-one.mtu'] = 32
-#conf['languages.regex.zero-one.fixed_slice'] = False
-#conf['languages.regex.zero-one.allow_ae_bits'] = True
-#conf['languages.regex.identity.mtu'] = 32
-#conf['languages.regex.identity.fixed_slice'] = False
-#conf['languages.regex.identity.allow_ae_bits'] = True

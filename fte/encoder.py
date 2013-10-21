@@ -25,7 +25,7 @@ import gmpy
 import fte.conf
 import fte.encrypter
 import fte.bit_ops
-import fte.cRegex
+import fte.regex
 
 
 class UnrankFailureException(Exception):
@@ -90,10 +90,10 @@ class RegexEncoderObject(object):
         if not os.path.exists(DFA_FILE):
             raise LanguageDoesntExistException('DFA doesn\'t exist: '
                                                + DFA_FILE)
-        fte.cRegex.loadLanguage(dfa_dir, self.regex_name, self.mtu)
+        fte.regex.loadLanguage(dfa_dir, self.regex_name, self.mtu)
         self.num_words = self.getNumWords()
         if self.num_words == 0:
-            fte.cRegex.releaseLanguage(self.regex_name)
+            fte.regex.releaseLanguage(self.regex_name)
             raise LanguageIsEmptySetException()
         if self.fixed_slice == False:
             self.offset = 0
@@ -109,38 +109,38 @@ class RegexEncoderObject(object):
 
     def getT(self, q, a):
         c = gmpy.mpz(0)
-        fte.cRegex.getT(self.regex_name, c, int(q), a)
+        fte.regex.getT(self.regex_name, c, int(q), a)
         return int(c)
 
     def getNumStates(self):
-        return fte.cRegex.getNumStates(self.regex_name)
+        return fte.regex.getNumStates(self.regex_name)
 
     def getNumWords(self, N=None):
         retval = 0
         if N == None:
             N = self.mtu
-        q0 = fte.cRegex.getStart(self.regex_name)
+        q0 = fte.regex.getStart(self.regex_name)
         if self.fixed_slice:
             retval = gmpy.mpz(0)
-            fte.cRegex.getT(self.regex_name, retval, q0, N)
+            fte.regex.getT(self.regex_name, retval, q0, N)
         else:
             for i in range(N + 1):
                 c = gmpy.mpz(0)
-                fte.cRegex.getT(self.regex_name, c, q0, i)
+                fte.regex.getT(self.regex_name, c, q0, i)
                 retval += c
         return int(retval)
 
     def getStart(self):
-        q0 = fte.cRegex.getStart(self.regex_name)
+        q0 = fte.regex.getStart(self.regex_name)
         return int(q0)
 
     def delta(self, q, c):
-        q_new = fte.cRegex.delta(self.regex_name, int(q), c)
+        q_new = fte.regex.delta(self.regex_name, int(q), c)
         return q_new
 
     def rank(self, X):
         c = gmpy.mpz(0)
-        fte.cRegex.rank(self.regex_name, c, X)
+        fte.regex.rank(self.regex_name, c, X)
         if c == -1:
             raise RankFailureException(('Rank failed.', X))
         if self.fixed_slice:
@@ -151,7 +151,7 @@ class RegexEncoderObject(object):
         c = gmpy.mpz(c)
         if self.fixed_slice:
             c += self.offset
-        X = fte.cRegex.unrank(self.regex_name, c)
+        X = fte.regex.unrank(self.regex_name, c)
         if X == '':
             raise UnrankFailureException('Rank failed.')
 

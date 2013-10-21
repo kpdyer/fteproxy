@@ -55,8 +55,6 @@ class TestEncoders(unittest.TestCase):
         for i in range(len(self.record_layers_outgoing)):
             record_layer_outgoing = self.record_layers_outgoing[i]
             record_layer_incoming = self.record_layers_incoming[i]
-            # sys.stdout.write(str([self.recoder_layers_info[i]]))
-            # sys.stdout.flush()
             for j in range(START, ITERATIONS, STEP):
                 P = 'X' * j + 'Y'
                 record_layer_outgoing.push(P)
@@ -78,8 +76,6 @@ class TestEncoders(unittest.TestCase):
         for i in range(len(self.record_layers_outgoing)):
             record_layer_outgoing = self.record_layers_outgoing[i]
             record_layer_incoming = self.record_layers_incoming[i]
-            # sys.stdout.write(str([self.recoder_layers_info[i]]))
-            # sys.stdout.flush()
             for j in range(START, ITERATIONS, STEP):
                 ptxt = ''
                 X = ''

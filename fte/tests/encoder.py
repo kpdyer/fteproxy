@@ -36,7 +36,6 @@ class TestEncoders(unittest.TestCase):
             C = random.randint(0, (1 << N) - 1)
             C = fte.bit_ops.long_to_bytes(C)
             X = encoder.encode(C)
-            #print [language, X[:64]]
             D = encoder.decode(X)
             self.assertEquals(C, D)
 
@@ -49,7 +48,6 @@ class TestEncoders(unittest.TestCase):
                 C = random.randint(0, (1 << N) - 1)
                 C = fte.bit_ops.long_to_bytes(C)
                 X = encoder.encode(C)
-                #print [language, X[:64]]
                 D = encoder.decode(X)
                 self.assertEquals(C, D)
 
@@ -70,7 +68,7 @@ class TestEncoders(unittest.TestCase):
                         X = intersection_encoder.unrank(C)
                         try:
                             encoder.rank(X)
-                        except fte.encoder.RankFailureException, e:
+                        except:
                             assert False, (intersection_language,
                                            language, X)
 

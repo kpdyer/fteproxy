@@ -31,7 +31,7 @@ typedef boost::const_multi_array_ref<uint32_t, 2> const_array_type_uint32_t2;
 typedef boost::const_multi_array_ref<mpz_class, 2> const_array_type_mpz_t2;
 typedef std::map< mpz_class, std::vector<uint32_t> > map_type_str_vec;
 
-void cRegexinit();
+void regexinit();
 
 inline static std::string unrank( std::string DFA_ID, PyObject * c );
 inline static void rank( std::string DFA_ID, PyObject * c, std::string X );

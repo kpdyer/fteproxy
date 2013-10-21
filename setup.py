@@ -3,12 +3,12 @@
 from distutils.core import setup
 from distutils.core import Extension
 
-fte_cRegex = Extension('fte.cRegex',
+fte_regex = Extension('fte.regex',
                        include_dirs=['fte'],
                        libraries=['gmp',
                                   'boost_python',
                                   'boost_system'],
-                       sources=['fte/cRegex.cc'])
+                       sources=['fte/regex.cc'])
 
 setup(name='Format-Transforming Encrypion (FTE)',
       version='0.2.0-alpha',
@@ -17,10 +17,12 @@ setup(name='Format-Transforming Encrypion (FTE)',
       author_email='kpdyer@gmail.com',
       url='https://github.com/redjack/FTE',
       packages=['fte',
-                'fte.dfas',
+                'dfas',
                 'fte.tests',
                 ],
-      scripts=['bin/fte_proxy'],
-      ext_modules=[fte_cRegex],
-      package_data={'fte.dfas': ['*.dfa', 'fte/dfas/*.dfa']}
+      scripts=['bin/fte_proxy',
+               'bin/dfa_intersect',
+               'bin/regex2dfa'],
+      ext_modules=[fte_regex],
+      package_data={'dfas': ['*.dfa', 'dfas/*.dfa']}
       )

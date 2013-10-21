@@ -17,18 +17,14 @@
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import platform
 import sys
-import string
-import urllib2
 import multiprocessing
 
 sys.path.append('.')
 
 import fte.conf
-import fte.logger
 
-LOG_LEVEL = fte.conf.getValue('loglevel.build')
+
 ARCH = ('-m64' if os.uname()[4] == 'x86_64' else '-m32')
 
 
@@ -39,12 +35,12 @@ class BuildFailedException(Exception):
 
 def executeCommand(cmd):
     print cmd
-    fte.logger.debug(LOG_LEVEL, cmd)
     os.system(cmd)
 
 
 def compileRE2DFA():
     localBuildDir = os.path.abspath('./third-party/opt')
+    
     cmd = 'cd ' + fte.conf.getValue('build.third_party_dir') \
         + ' && wget https://re2.googlecode.com/files/re2-20130115.tgz'
     executeCommand(cmd)

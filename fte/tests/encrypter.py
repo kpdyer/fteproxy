@@ -18,7 +18,6 @@
 
 import unittest
 import random
-import time
 
 import fte.encrypter
 
@@ -48,13 +47,11 @@ class TestEncoders(unittest.TestCase):
     def testEncryptDecrypt_2(self):
         for i in range(1024):
             P = '\x01' * 2 ** 15
-            start = time.time()
             C = self.encrypter.encrypt(P)
             self.assertNotEqual(C, P)
             lenC = fte.encrypter.Encrypter.CTXT_EXPANSION_BITS + len(P) \
                 * 8
             for j in range(1):
-                start = time.time()
                 self.assertEquals(P, self.encrypter.decrypt(lenC, C))
 
     def testEncryptDecryptCovertextFooter(self):
