@@ -41,8 +41,6 @@ conf['general.bin_dir'] = os.path.join(getValue('general.base_dir'),
                                        'bin')
 conf['general.scripts_dir'] = os.path.join(getValue('general.base_dir'
                                                     ), 'scripts')
-#conf['general.formats_dir'] = os.path.join(getValue('general.fte_dir'),
-#                                           'formats')
 conf['general.re_dir'] = os.path.join(getValue('general.base_dir'
                                                ), '..', 'dfas')
 conf['general.dfa_dir'] = conf['general.re_dir']

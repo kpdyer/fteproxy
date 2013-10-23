@@ -31,6 +31,7 @@ third-party/re2/obj/libre2.a:
 	cd $(RE2_DIR) && $(MAKE) obj/libre2.a
 
 clean:
+	rm -rvf build
 	rm -rvf third-party/re2
 	rm -vf third-party/*.tgz
 	rm -vf src/*.o
@@ -38,4 +39,13 @@ clean:
 	rm -vf bin/re2dfa
 
 test:
-	python test.py
+	./bin/fteproxy --mode test
+
+uninstall:
+	rm -rfv /usr/local/lib/python2.7/dist-packages/fte
+	rm -rfv /usr/local/lib/python2.7/dist-packages/dfas
+	rm -fv /usr/local/lib/python2.7/dist-packages/Format_Transforming_Encrypion_FTE_-0.2.0_alpha.egg-info
+
+doc: doc/build/html/index.html
+doc/build/html/index.html:
+	cd doc && make html

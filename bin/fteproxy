@@ -21,61 +21,12 @@ import sys
 import os
 import signal
 import glob
-import asyncore
 import argparse
-import multiprocessing
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')))
 import fte.conf
-import fte.logger
 import fte.relay
-import fte.encoder
-import fte.encrypter
-import fte.tcp.relay
 fte_workers = []
-
-
-class FTEWorker:
-
-    def __init__(
-        self,
-        listener_ip,
-        listener_port,
-        forwarding_ip,
-        forwarding_port,
-        encrypter,
-        encoder,
-        decoder,
-    ):
-        self.listener_ip = listener_ip
-        self.listener_port = listener_port
-        self.forwarding_ip = forwarding_ip
-        self.forwarding_port = forwarding_port
-        self.encrypter = encrypter
-        self.encoder = encoder
-        self.decoder = decoder
-
-    def stop(self):
-        self.forwarder.stop()
-
-    def run(self):
-        self.forwarder = fte.relay.forwarder(
-            self.listener_ip,
-            self.listener_port,
-            self.forwarding_ip,
-            self.forwarding_port,
-            self.encrypter,
-            self.encoder,
-            self.decoder,
-            fte.conf.getValue('runtime.mode'),
-        )
-        log_level = fte.conf.getValue('loglevel.bin.fte_'
-                                      + fte.conf.getValue('runtime.mode'))
-        fte.logger.debug(log_level, 'FTE-READY')
-        fte.logger.info(log_level, self.listener_ip + ':'
-                        + str(self.listener_port) + ' -> '
-                        + self.forwarding_ip + ':'
-                        + str(self.forwarding_port))
 
 
 class FTEMain(object):
@@ -89,15 +40,12 @@ class FTEMain(object):
                                          formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                          description='Available formats: '
                                          + ' '.join(fte.conf.getValue('languages.regex')))
-        parser.add_argument('--mode', required=True,
-                            metavar='(client|server)',
+        parser.add_argument('--mode',
+                            default='client',
+                            metavar='(client|server|test)',
                             help='Relay mode: client or server')
         parser.add_argument('--stop', action='store_true',
                             help='Shutdown daemon process')
-        parser.add_argument('--debug', action='store_true',
-                            help='Print information to the console')
-        parser.add_argument('--perf-log', action='store_true',
-                            help='Save performance information to log')
         parser.add_argument('--upstream-format',
                             help='Client-to-server language format',
                             default=fte.conf.getValue('runtime.state.upstream_language'
@@ -135,11 +83,9 @@ class FTEMain(object):
                             default=fte.conf.getValue('runtime.fte.encrypter.key'
                                                       ))
         args = parser.parse_args(sys.argv[1:])
-        if args.debug:
-            print args
-            fte.conf.setValue('runtime.console.debug', True)
-        if args.perf_log:
-            fte.conf.setValue('runtime.performance.debug', True)
+        if args.mode=='test':
+            test()
+            sys.exit(0)
         if args.stop:
             if not args.mode:
                 print '--mode keyword is required with --stop'
@@ -199,127 +145,33 @@ class FTEMain(object):
                 print 'Invalid key format, must contain only 0-9a-fA-F'
                 sys.exit(1)
             fte.conf.setValue('runtime.fte.encrypter.key', binary_key)
-        if args.debug:
-            print 'Controller process (pid=' + str(os.getpid()) + ')'
+
         pid_file = os.path.join(fte.conf.getValue('general.pid_dir'),
                                 '.' + fte.conf.getValue('runtime.mode')
                                 + '-' + str(os.getpid()) + '.pid')
         with open(pid_file, 'w') as f:
             f.write(str(os.getpid()))
         fte.conf.setValue('runtime.state.message_token', 'client')
-        LOG_LEVEL = fte.conf.getValue('loglevel.bin.fte_'
-                                      + fte.conf.getValue('runtime.mode'))
+
         if fte.conf.getValue('runtime.mode') == 'client':
-            encoder_lang = \
-                fte.conf.getValue('runtime.state.upstream_language')
-            if encoder_lang in fte.conf.getValue('languages.regex'):
-                encoder = fte.encoder.RegexEncoder(encoder_lang)
-            elif encoder_lang in fte.conf.getValue('languages.cfg'):
-                encoder = fte.encoder.CFGEncoder(encoder_lang)
-            else:
-                raise Exception('unknown language')
-            decoder_lang = \
-                fte.conf.getValue('runtime.state.downstream_language')
-            if decoder_lang in fte.conf.getValue('languages.regex'):
-                decoder = fte.encoder.RegexEncoder(decoder_lang)
-            elif decoder_lang in fte.conf.getValue('languages.cfg'):
-                decoder = fte.encoder.CFGEncoder(decoder_lang)
-            else:
-                raise Exception('unknown language')
-
-            K1 = fte.conf.getValue('runtime.fte.encrypter.key')[:16]
-            K2 = fte.conf.getValue('runtime.fte.encrypter.key')[16:32]
-            encrypter = fte.encrypter.Encrypter(K1, K2)
-            if fte.conf.getValue('runtime.http_proxy.enable'):
-                remote_ip = fte.conf.getValue('runtime.http_proxy.ip')
-                remote_port = \
-                    fte.conf.getValue('runtime.http_proxy.port')
-            else:
-                remote_ip = fte.conf.getValue('runtime.server.ip')
-                remote_port = fte.conf.getValue('runtime.server.port')
-            if fte.conf.getValue('runtime.client.workers') == 1:
-                fw = FTEWorker(
-                    fte.conf.getValue('runtime.client.ip'),
-                    fte.conf.getValue('runtime.client.port'),
-                    remote_ip,
-                    remote_port,
-                    encrypter,
-                    encoder,
-                    decoder,
-                )
-                fw.run()
-            else:
-                worker_ports = []
-                worker_port = \
-                    fte.conf.getValue('runtime.client.worker_port')
-                for i in \
-                        range(fte.conf.getValue('runtime.client.workers')):
-                    fw = FTEWorker(
-                        fte.conf.getValue('runtime.client.ip'),
-                        worker_port,
-                        remote_ip,
-                        remote_port,
-                        encrypter,
-                        encoder,
-                        decoder,
-                    )
-                    fw.run()
-                    worker_ports.append(worker_port)
-                    worker_port += 1
-                tw = \
-                    fte.tcp.relay.forwarder(fte.conf.getValue('runtime.client.ip'
-                                                              ), fte.conf.getValue(
-                                            'runtime.client.port'),
-                                            fte.conf.getValue(
-                                                'runtime.client.ip'),
-                                            worker_ports)
-                asyncore.loop()
+            local_ip = fte.conf.getValue('runtime.client.ip')
+            local_port = fte.conf.getValue('runtime.client.port')
+            remote_ip = fte.conf.getValue('runtime.server.ip')
+            remote_port = fte.conf.getValue('runtime.server.port')
+            client = fte.relay.server(local_ip, local_port,
+                                      remote_ip, remote_port)
+            client.start()
         elif fte.conf.getValue('runtime.mode') == 'server':
-            K1 = fte.conf.getValue('runtime.fte.encrypter.key')[:16]
-            K2 = fte.conf.getValue('runtime.fte.encrypter.key')[16:32]
-            encrypter = fte.encrypter.Encrypter(K1, K2)
-            if fte.conf.getValue('runtime.server.workers') == 1:
-                fw = FTEWorker(
-                    fte.conf.getValue('runtime.server.ip'),
-                    fte.conf.getValue('runtime.server.port'),
-                    fte.conf.getValue('runtime.socks.ip'),
-                    fte.conf.getValue('runtime.socks.port'),
-                    encrypter,
-                    None,
-                    None,
-                )
-                fw.run()
-            else:
-                worker_ports = []
-                worker_port = \
-                    fte.conf.getValue('runtime.server.worker_port')
-                for i in \
-                        range(fte.conf.getValue('runtime.server.workers')):
-                    fw = FTEWorker(
-                        fte.conf.getValue('runtime.server.ip'),
-                        worker_port,
-                        fte.conf.getValue('runtime.socks.ip'),
-                        fte.conf.getValue('runtime.socks.port'),
-                        encrypter,
-                        None,
-                        None,
-                    )
-                    fw.run()
-                    worker_ports.append(worker_port)
-                    worker_port += 1
-                tw = \
-                    fte.tcp.relay.forwarder(fte.conf.getValue('runtime.server.ip'
-                                                              ), fte.conf.getValue(
-                                            'runtime.server.port'),
-                                            fte.conf.getValue(
-                                                'runtime.server.ip'),
-                                            worker_ports)
-                asyncore.loop()
-        fte.logger.info(LOG_LEVEL, 'FTE Forwarder ('
-                        + fte.conf.getValue('runtime.mode') + ') Ready')
+            local_ip = fte.conf.getValue('runtime.server.ip')
+            local_port = fte.conf.getValue('runtime.server.port')
+            remote_ip = fte.conf.getValue('runtime.proxy.ip')
+            remote_port = fte.conf.getValue('runtime.proxy.port')
+            server = fte.relay.server(local_ip, local_port,
+                                      remote_ip, remote_port)
+            server.start()
 
-
-if __name__ == '__main__':
+def main():
+    
     try:
         main = FTEMain()
         main.run()
@@ -333,7 +185,35 @@ if __name__ == '__main__':
                                     + '-' + str(os.getpid()) + '.pid')
             if pid_file and os.path.exists(pid_file):
                 os.unlink(pid_file)
-                if fte.conf.getValue('runtime.console.debug'):
-                    print fte.conf.getValue('runtime.mode'), \
-                        'Controller (pid=' + str(os.getpid()) \
-                        + ') shut down cleanly'
+
+def test():
+    import unittest
+    
+    import fte.tests.encoder
+    import fte.tests.encrypter
+    import fte.tests.record_layer
+    import fte.tests.bit_ops
+    import fte.tests.relay
+    
+    suite_encoder = unittest.TestLoader().loadTestsFromTestCase(fte.tests.encoder.TestEncoders)
+    suite_encrypter = unittest.TestLoader().loadTestsFromTestCase(fte.tests.encrypter.TestEncoders)
+    suite_record_layer = unittest.TestLoader().loadTestsFromTestCase(fte.tests.record_layer.TestEncoders)
+    suite_relay = unittest.TestLoader().loadTestsFromTestCase(fte.tests.relay.TestRelay)
+    suite_bit_ops = unittest.TestLoader().loadTestsFromTestCase(fte.tests.bit_ops.TestEncoders)
+    suites = [
+        suite_bit_ops,
+        suite_encoder,
+        suite_encrypter,
+        suite_relay,
+        suite_record_layer,
+    ]
+    alltests = unittest.TestSuite(suites)
+    unittest.TextTestRunner(verbosity=2, failfast=True).run(alltests)
+
+if __name__ == '__main__':
+    def signal_handler(signal, frame):
+        print 'got it'
+        sys.exit(0)
+    signal.signal(signal.SIGINT, signal_handler)
+    
+    main()
