@@ -59,36 +59,31 @@ class LanguageIsEmptySetException(Exception):
 
 
 class RegexEncoder(object):
+    COVERTEXT_HEADER_LEN = 4
 
     def __init__(self, regex_name):
-        self.compound = False
-        self.format_package = None
+        self.regex_name = regex_name
         self.mtu = fte.conf.getValue('languages.regex.' + regex_name
                                      + '.mtu')
-        self.fixedLength = False
-        self.regex_name = regex_name
-        self.fixed_slice = fte.conf.getValue('languages.regex.'
-                                             + regex_name + '.fixed_slice')
         dfa_dir = fte.conf.getValue('general.dfa_dir')
         DFA_FILE = os.path.join(dfa_dir, regex_name + '.dfa')
         if not os.path.exists(DFA_FILE):
             raise LanguageDoesntExistException('DFA doesn\'t exist: '
                                                + DFA_FILE)
+        
         fte.regex.loadLanguage(dfa_dir, self.regex_name, self.mtu)
-        self.num_words = self.getNumWords()
-        if self.num_words == 0:
+        
+        self._words_in_language = self._getNumWordsInLanguage()
+        
+        if self._words_in_language == 0:
             fte.regex.releaseLanguage(self.regex_name)
             raise LanguageIsEmptySetException()
-        if self.fixed_slice == False:
-            self.offset = 0
-        else:
-            self.fixed_slice = False
-            self.offset = self.getNumWords()
-            self.fixed_slice = True
-            self.offset -= self.num_words
+        
+        self.offset = self._words_in_language - self._getNumWordsInSlice(self.mtu)
 
         self._capacity = -128
-        self._capacity += int(math.floor(math.log(self.num_words, 2)))
+        self._capacity += int(math.floor(math.log(self._words_in_language, 2)))
+        
         self.offset = gmpy.mpz(self.offset)
     
 
@@ -100,19 +95,20 @@ class RegexEncoder(object):
     def _getNumStates(self):
         return fte.regex.getNumStates(self.regex_name)
 
-    def _getNumWords(self, N=None):
+    def _getNumWordsInSlice(self, N):
         retval = 0
-        if N == None:
-            N = self.mtu
         q0 = fte.regex.getStart(self.regex_name)
-        if self.fixed_slice:
-            retval = gmpy.mpz(0)
-            fte.regex.getT(self.regex_name, retval, q0, N)
-        else:
-            for i in range(N + 1):
-                c = gmpy.mpz(0)
-                fte.regex.getT(self.regex_name, c, q0, i)
-                retval += c
+        retval = gmpy.mpz(0)
+        fte.regex.getT(self.regex_name, retval, q0, N)
+        return int(retval)
+
+    def _getNumWordsInLanguage(self):
+        retval = 0
+        q0 = fte.regex.getStart(self.regex_name)
+        for i in range(self.mtu + 1):
+            c = gmpy.mpz(0)
+            fte.regex.getT(self.regex_name, c, q0, i)
+            retval += c
         return int(retval)
 
     def _getStart(self):
@@ -128,14 +124,12 @@ class RegexEncoder(object):
         fte.regex.rank(self.regex_name, c, X)
         if c == -1:
             raise RankFailureException(('Rank failed.', X))
-        if self.fixed_slice:
-            c -= self.offset
+        c -= self.offset
         return c
 
     def _unrank(self, c):
         c = gmpy.mpz(c)
-        if self.fixed_slice:
-            c += self.offset
+        c += self.offset
         X = fte.regex.unrank(self.regex_name, c)
         if X == '':
             raise UnrankFailureException('Rank failed.')
@@ -146,33 +140,35 @@ class RegexEncoder(object):
         return self._capacity
 
     def encode(self, X):
-        COVERTEXT_HEADER_LEN = 4
-        maximumBytesToRank = int(math.floor(self.capacity / 8.0))
+        if not isinstance(X, str):
+            raise InvalidInputException('Input must be of type string.')
+            
+        maximumBytesToRank = int(math.floor(self._capacity / 8.0))
 
-        msg_len = min(maximumBytesToRank - COVERTEXT_HEADER_LEN,
-                      len(X))
+        msg_len = min(maximumBytesToRank - RegexEncoder.COVERTEXT_HEADER_LEN, len(X))
 
         msg_len_header = fte.bit_ops.long_to_bytes(msg_len)
-        msg_len_header = '\xFF' + \
-            string.rjust(msg_len_header, COVERTEXT_HEADER_LEN - 1, '\x00')
+        msg_len_header = '\xFF' + string.rjust(msg_len_header, RegexEncoder.COVERTEXT_HEADER_LEN - 1, '\x00')
 
-        unrank_payload = msg_len_header + \
-            X[:maximumBytesToRank - COVERTEXT_HEADER_LEN]
+        unrank_payload = msg_len_header + X[:maximumBytesToRank - RegexEncoder.COVERTEXT_HEADER_LEN]
         unrank_payload = fte.bit_ops.bytes_to_long(unrank_payload)
 
-        formatted_covertext_header = self.unrank(unrank_payload)
-        unformatted_covertext_body = X[
-            maximumBytesToRank - COVERTEXT_HEADER_LEN:]
+        formatted_covertext_header = self._unrank(unrank_payload)
+        unformatted_covertext_body = X[maximumBytesToRank - RegexEncoder.COVERTEXT_HEADER_LEN:]
 
         covertext = formatted_covertext_header + unformatted_covertext_body
 
         return covertext
 
     def decode(self, covertext):
+        if not isinstance(covertext, str):
+            raise InvalidInputException('Input must be of type string.')
+        
         assert len(covertext) >= self.mtu, (len(covertext), self.mtu)
-        unrank_payload = self.rank(covertext[:self.mtu])
+        
+        unrank_payload = self._rank(covertext[:self.mtu])
         X = fte.bit_ops.long_to_bytes(unrank_payload)
         msg_len = fte.bit_ops.bytes_to_long(X[1:4])
-        X = X[-msg_len:]
-        X += covertext[self.mtu:]
+        X = X[-msg_len:] + covertext[self.mtu:]
+        
         return X

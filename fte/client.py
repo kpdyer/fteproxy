@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
-import fte.relay
+import fte
 
 class listener(fte.relay.listener):
 
@@ -24,6 +24,8 @@ class listener(fte.relay.listener):
         return socket
 
     def onNewOutgoingConnection(self, socket):
-        socket = fte.encoder.wrap_socket(socket)
+        outgoing_regex = fte.conf.getValue('runtime.state.upstream_language')
+        incoming_regex = fte.conf.getValue('runtime.state.downstream_language')
+        socket = fte.wrap_socket(socket, outgoing_regex, incoming_regex)
         return socket
     

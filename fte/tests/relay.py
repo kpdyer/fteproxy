@@ -25,6 +25,8 @@ import traceback
 
 import fte.io
 import fte.relay
+import fte.client
+import fte.server
 
 
 LOCAL_INTERFACE = '127.0.0.1'
@@ -33,12 +35,12 @@ LOCAL_INTERFACE = '127.0.0.1'
 class TestRelay(unittest.TestCase):
 
     def setUp(self):
-        self._server = fte.relay.server(LOCAL_INTERFACE,
+        self._server = fte.server.listener(LOCAL_INTERFACE,
                                         fte.conf.getValue(
                                             'runtime.server.port'),
                                         LOCAL_INTERFACE,
                                         fte.conf.getValue('runtime.socks.port'))
-        self._client = fte.relay.client(LOCAL_INTERFACE,
+        self._client = fte.client.listener(LOCAL_INTERFACE,
                                         fte.conf.getValue(
                                             'runtime.client.port'),
                                         LOCAL_INTERFACE,

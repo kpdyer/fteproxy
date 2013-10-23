@@ -28,8 +28,8 @@ Contents:
    __init__.rst
     
 
-High-level Networking Logic
----------------------------
+High-level Client/Server Logic
+------------------------------
 
 Contents:
 
@@ -40,20 +40,21 @@ Contents:
    server.rst
    relay.rst
 
-Medium-level Logic
-------------------
+Encoding/Encryption
+-------------------
 
 Contents:
 
 .. toctree::
    :maxdepth: 2
    
+   record_layer.rst
    encoder.rst
-   encrypter.rst
    regex.rst
+   encrypter.rst
 
-Low-level Logic
----------------
+Low-level Data Logic
+--------------------
 
 Contents:
 
@@ -61,7 +62,6 @@ Contents:
    :maxdepth: 2
    
    io.rst
-   record_layer.rst
    bit_ops.rst
 
 

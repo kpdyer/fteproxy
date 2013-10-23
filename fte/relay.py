@@ -62,7 +62,8 @@ class listener(threading.Thread):
     """It's he responsibility of the listener class is to
     """
 
-    def __init__(self, local_ip, local_port, remote_ip, remote_port):
+    def __init__(self, local_ip, local_port,
+                 remote_ip, remote_port):
         threading.Thread.__init__(self)
 
         self._running = False

@@ -41,13 +41,13 @@ clean:
 	cd doc && make clean
 
 test:
-	./bin/fteproxy --mode test
+	@./bin/fteproxy --mode test
 
 uninstall:
-	rm -rfv /usr/local/lib/python2.7/dist-packages/fte
-	rm -rfv /usr/local/lib/python2.7/dist-packages/dfas
-	rm -fv /usr/local/lib/python2.7/dist-packages/Format_Transforming_Encrypion_FTE_-0.2.0_alpha.egg-info
+	@rm -rfv /usr/local/lib/python2.7/dist-packages/fte
+	@rm -rfv /usr/local/lib/python2.7/dist-packages/dfas
+	@rm -fv /usr/local/lib/python2.7/dist-packages/Format_Transforming_Encrypion_FTE_-0.2.0_alpha.egg-info
 
 doc: phantom
 phantom:
-	cd doc && make html
+	@cd doc && make html

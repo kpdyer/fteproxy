@@ -20,7 +20,7 @@ import unittest
 import random
 
 import fte.encoder
-
+import fte.bit_ops
 
 class TestEncoders(unittest.TestCase):
 
@@ -32,7 +32,7 @@ class TestEncoders(unittest.TestCase):
 
     def doTestEncoderUndersized(self, language, encoder):
         for i in range(2 ** 7):
-            N = encoder.capacity
+            N = encoder.getCapacity()
             C = random.randint(0, (1 << N) - 1)
             C = fte.bit_ops.long_to_bytes(C)
             X = encoder.encode(C)
@@ -63,11 +63,12 @@ class TestEncoders(unittest.TestCase):
                         + direction
                     encoder = fte.encoder.RegexEncoder(language)
                     for i in range(32):
-                        C = random.randint(0,
-                                           intersection_encoder.getNumWords())
-                        X = intersection_encoder.unrank(C)
+                        N = intersection_encoder.getCapacity()
+                        C = random.randint(0, (1 << N) - 1)
+                        C = fte.bit_ops.long_to_bytes(C)
+                        X = intersection_encoder.encode(C)
                         try:
-                            encoder.rank(X)
+                            encoder.decode(X)
                         except:
                             assert False, (intersection_language,
                                            language, X)

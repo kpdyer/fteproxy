@@ -21,26 +21,35 @@ import socket
 import fte.encrypter
 import fte.record_layer
 
+
 class _FTESocketWrapper(object):
 
-    def __init__(self, socket, regex):
+    def __init__(self, socket, outgoing_regex, incoming_regex, K1, K2):
         self._socket = socket
-        self._regex = regex
+        
+        self._outgoing_regex = outgoing_regex
+        self._incoming_regex = incoming_regex
+        
+        self._K1 = K1
+        self._K2 = K2
 
-        self._encrypter = fte.encrypter.Encrypter()
-        self._regex_encoder = fte.encoder.RegexEncoder(
-            "intersection-http-request")
+        self._encrypter = fte.encrypter.Encrypter(K1 = self._K1,
+                                                  K2 = self._K2)
+        
+        self._outgoing_encoder = fte.encoder.RegexEncoder(self._outgoing_regex)
+        self._incoming_decoder = fte.encoder.RegexEncoder(self._incoming_regex)
+        
         self._encoder = fte.record_layer.Encoder(encrypter=self._encrypter,
-                                                 encoder=self._regex_encoder)
+                                                 encoder=self._outgoing_encoder)
         self._decoder = fte.record_layer.Decoder(encrypter=self._encrypter,
-                                                 encoder=self._regex_encoder)
+                                                 encoder=self._incoming_decoder)
 
     def fileno(self):
         return self._socket.fileno()
 
     def accept(self):
         conn, addr = self._socket.accept()
-        conn = FTESocketWrapper(conn)
+        conn = _FTESocketWrapper(conn)
         return conn, addr
 
     def recv(self, bufsize):
@@ -78,8 +87,11 @@ class _FTESocketWrapper(object):
         return self._socket.close()
 
 
-def wrap_socket(socket, regex):
+def wrap_socket(socket,
+                outgoing_regex,
+                incoming_regex,
+                K1 = None, K2 = None):
     """TEST
     """
-    socket_wrapped = _FTESocketWrapper(socket, regex)
+    socket_wrapped = _FTESocketWrapper(socket, outgoing_regex, incoming_regex, K1, K2)
     return socket_wrapped
