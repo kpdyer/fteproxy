@@ -1,5 +1,5 @@
 :mod:`fte.relay` Module
----------------------
+-----------------------
 
 .. automodule:: fte.relay
     :members:

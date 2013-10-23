@@ -1,5 +1,5 @@
 :mod:`fte.io` Module
----------------------
+--------------------
 
 .. automodule:: fte.io
     :members:

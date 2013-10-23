@@ -1,5 +1,5 @@
 :mod:`fte.regex` Module
----------------------
+-----------------------
 
 .. automodule:: fte.regex
     :members:

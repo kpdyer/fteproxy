@@ -1,5 +1,5 @@
 :mod:`fte.encoder` Module
----------------------
+-------------------------
 
 .. automodule:: fte.encoder
     :members:
