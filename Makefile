@@ -37,6 +37,7 @@ clean:
 	rm -vf src/*.o
 	rm -vf fte/*.so
 	rm -vf bin/re2dfa
+	cd doc && make clean
 
 test:
 	./bin/fteproxy --mode test

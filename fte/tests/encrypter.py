@@ -30,38 +30,33 @@ class TestEncoders(unittest.TestCase):
     def testEncryptNoOp(self):
         for i in range(1024):
             C = self.encrypter.encrypt('')
-            lenC = fte.encrypter.Encrypter.CTXT_EXPANSION_BITS
             for j in range(10):
-                self.assertEquals(self.encrypter.decrypt(lenC, C), '')
+                self.assertEquals(self.encrypter.decrypt(C), '')
 
     def testEncryptDecrypt_1(self):
         for i in range(1024):
             P = 'X' * i
             C = self.encrypter.encrypt(P)
             self.assertNotEqual(C, P)
-            lenC = fte.encrypter.Encrypter.CTXT_EXPANSION_BITS + len(P) \
-                * 8
             for j in range(1):
-                self.assertEquals(P, self.encrypter.decrypt(lenC, C))
+                self.assertEquals(P, self.encrypter.decrypt(C))
 
     def testEncryptDecrypt_2(self):
         for i in range(1024):
             P = '\x01' * 2 ** 15
             C = self.encrypter.encrypt(P)
             self.assertNotEqual(C, P)
-            lenC = fte.encrypter.Encrypter.CTXT_EXPANSION_BITS + len(P) \
-                * 8
             for j in range(1):
-                self.assertEquals(P, self.encrypter.decrypt(lenC, C))
+                self.assertEquals(P, self.encrypter.decrypt(C))
 
-    def testEncryptDecryptCovertextFooter(self):
-        for i in range(128):
-            for j in range(128):
-                M1 = random.randint(0, (1 << 128) - 1)
-                M1 = fte.bit_ops.long_to_bytes(M1, 16)
-                retval = self.encrypter.encryptCovertextFooter(M1)
-                H_out = self.encrypter.decryptCovertextFooter(retval)
-                self.assertEquals(M1, H_out)
+#    def testEncryptDecryptCovertextFooter(self):
+#        for i in range(128):
+#            for j in range(128):
+#                M1 = random.randint(0, (1 << 128) - 1)
+#                M1 = fte.bit_ops.long_to_bytes(M1, 16)
+#                retval = self.encrypter.encryptCovertextFooter(M1)
+#                H_out = self.encrypter.decryptCovertextFooter(retval)
+#                self.assertEquals(M1, H_out)
 
 
 if __name__ == '__main__':
