@@ -58,23 +58,7 @@ class LanguageIsEmptySetException(Exception):
     pass
 
 
-# We could just as welll delet RegexEncoder and rename RegexEncoderObject to RegexEncoder.
-# However, each time a RegexEncoder is created we don't want to want to recompute language-specific
-# information such as buildTable. Hence, RegexEncoder is a facde that caches the RegexEncoderObject
-# such that we only have one object per language.
-_instance = {}
-
-
 class RegexEncoder(object):
-
-    def __new__(self, regex_name):
-        global _instance
-        if not _instance.get(regex_name):
-            _instance[regex_name] = RegexEncoderObject(regex_name)
-        return _instance[regex_name]
-
-
-class RegexEncoderObject(object):
 
     def __init__(self, regex_name):
         self.compound = False
@@ -103,19 +87,20 @@ class RegexEncoderObject(object):
             self.fixed_slice = True
             self.offset -= self.num_words
 
-        self.capacity = -128
-        self.capacity += int(math.floor(math.log(self.num_words, 2)))
+        self._capacity = -128
+        self._capacity += int(math.floor(math.log(self.num_words, 2)))
         self.offset = gmpy.mpz(self.offset)
+    
 
-    def getT(self, q, a):
+    def _getT(self, q, a):
         c = gmpy.mpz(0)
         fte.regex.getT(self.regex_name, c, int(q), a)
         return int(c)
 
-    def getNumStates(self):
+    def _getNumStates(self):
         return fte.regex.getNumStates(self.regex_name)
 
-    def getNumWords(self, N=None):
+    def _getNumWords(self, N=None):
         retval = 0
         if N == None:
             N = self.mtu
@@ -130,15 +115,15 @@ class RegexEncoderObject(object):
                 retval += c
         return int(retval)
 
-    def getStart(self):
+    def _getStart(self):
         q0 = fte.regex.getStart(self.regex_name)
         return int(q0)
 
-    def delta(self, q, c):
+    def _delta(self, q, c):
         q_new = fte.regex.delta(self.regex_name, int(q), c)
         return q_new
 
-    def rank(self, X):
+    def _rank(self, X):
         c = gmpy.mpz(0)
         fte.regex.rank(self.regex_name, c, X)
         if c == -1:
@@ -147,7 +132,7 @@ class RegexEncoderObject(object):
             c -= self.offset
         return c
 
-    def unrank(self, c):
+    def _unrank(self, c):
         c = gmpy.mpz(c)
         if self.fixed_slice:
             c += self.offset
@@ -156,6 +141,9 @@ class RegexEncoderObject(object):
             raise UnrankFailureException('Rank failed.')
 
         return str(X)
+
+    def getCapacity(self, ):
+        return self._capacity
 
     def encode(self, X):
         COVERTEXT_HEADER_LEN = 4
@@ -188,64 +176,3 @@ class RegexEncoderObject(object):
         X = X[-msg_len:]
         X += covertext[self.mtu:]
         return X
-
-
-class FTESocketWrapper(object):
-
-    def __init__(self, socket):
-        self._socket = socket
-
-        self._encrypter = fte.encrypter.Encrypter()
-        self._regex_encoder = fte.encoder.RegexEncoder(
-            "intersection-http-request")
-        self._encoder = fte.record_layer.Encoder(encrypter=self._encrypter,
-                                                 encoder=self._regex_encoder)
-        self._decoder = fte.record_layer.Decoder(encrypter=self._encrypter,
-                                                 encoder=self._regex_encoder)
-
-    def fileno(self):
-        return self._socket.fileno()
-
-    def accept(self):
-        conn, addr = self._socket.accept()
-        conn = FTESocketWrapper(conn)
-        return conn, addr
-
-    def recv(self, bufsize):
-        retval = ''
-        data = self._socket.recv(bufsize)
-        self._decoder.push(data)
-        while True:
-            frag = self._decoder.pop()
-            if not frag:
-                break
-            retval += frag
-        if retval == '':
-            raise socket.timeout
-        return retval
-
-    def send(self, data):
-        self._encoder.push(data)
-        while True:
-            to_send = self._encoder.pop()
-            if not to_send:
-                break
-            self._socket.sendall(to_send)
-        return len(data)
-
-    def gettimeout(self):
-        return self._socket.gettimeout()
-
-    def settimeout(self, val):
-        return self._socket.settimeout(val)
-
-    def shutdown(self, flags):
-        return self._socket.shutdown(flags)
-
-    def close(self):
-        return self._socket.close()
-
-
-def wrap_socket(socket):
-    socket_wrapped = FTESocketWrapper(socket)
-    return socket_wrapped

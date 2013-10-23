@@ -106,22 +106,3 @@ class listener(threading.Thread):
         fte.io.close_socket(self._sock,
                             lock=self._sock_lock)
 
-
-class server(listener):
-
-    def onNewIncomingConnection(self, socket):
-        socket = fte.encoder.wrap_socket(socket)
-        return socket
-
-    def onNewOutgoingConnection(self, socket):
-        return socket
-
-
-class client(listener):
-
-    def onNewIncomingConnection(self, socket):
-        return socket
-
-    def onNewOutgoingConnection(self, socket):
-        socket = fte.encoder.wrap_socket(socket)
-        return socket

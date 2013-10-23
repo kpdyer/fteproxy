@@ -1,5 +1,5 @@
-:mod:`fte.encoder` Module
-*************************
+:mod:`fte.client` Module
+************************
 
 Overview
 --------
@@ -7,7 +7,7 @@ Overview
 Interface
 ---------
 
-.. automodule:: fte.encoder
+.. automodule:: fte.client
     :members:
     :undoc-members:
     :show-inheritance:

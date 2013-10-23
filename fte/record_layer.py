@@ -23,10 +23,6 @@ import fte.conf
 MAX_CELL_SIZE = fte.conf.getValue('runtime.fte.record_layer.max_cell_size')
 
 
-class PopFailedException(Exception):
-    pass
-
-
 class Encoder:
 
     def __init__(

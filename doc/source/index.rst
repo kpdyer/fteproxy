@@ -1,23 +1,69 @@
-.. Format-Transforming Encryption (FTE) documentation master file, created by
-   sphinx-quickstart on Wed Oct 23 04:52:22 2013.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+FTE Proxy Documentation
+=======================
 
-Welcome to Format-Transforming Encryption (FTE)'s documentation!
-================================================================
+
+General overview of FTE and why it matters.
+
+
+Quickstart
+----------
+
+Detailed description.
+
+
+.. code-block:: python
+
+    import fte
+    
+    # create socket
+    fte.wrap_socket(socket, regex="...")
+    # use socket
+   
+   
+Contents:
+
+.. toctree::
+   :maxdepth: 2
+   
+   __init__.rst
+    
+
+High-level Networking Logic
+---------------------------
 
 Contents:
 
 .. toctree::
    :maxdepth: 2
+   
+   client.rst
+   server.rst
+   relay.rst
 
-   bit_ops.rst
+Medium-level Logic
+------------------
+
+Contents:
+
+.. toctree::
+   :maxdepth: 2
+   
    encoder.rst
    encrypter.rst
+   regex.rst
+
+Low-level Logic
+---------------
+
+Contents:
+
+.. toctree::
+   :maxdepth: 2
+   
    io.rst
    record_layer.rst
-   regex.rst
-   relay.rst
+   bit_ops.rst
+
 
 Indices and tables
 ==================

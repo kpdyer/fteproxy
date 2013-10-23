@@ -10,7 +10,7 @@ RE2_DIR=third-party/re2
 RE2_PATCHFILE=re2.patch
 INCLUDE_DIRS=-I$(RE2_DIR)
 
-all: third-party/re2/obj/libre2.a bin/re2dfa fte/regex.so
+all: third-party/re2/obj/libre2.a bin/re2dfa fte/regex.so doc
 
 install: all
 	python setup.py install
@@ -31,6 +31,7 @@ third-party/re2/obj/libre2.a:
 	cd $(RE2_DIR) && $(MAKE) obj/libre2.a
 
 clean:
+	find . -name "*.pyc" -exec rm {} \;
 	rm -rvf build
 	rm -rvf third-party/re2
 	rm -vf third-party/*.tgz
