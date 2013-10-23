@@ -21,7 +21,6 @@ import time
 import socket
 import random
 import unittest
-import threading
 import traceback
 
 import fte.io

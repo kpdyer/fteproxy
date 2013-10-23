@@ -47,6 +47,6 @@ uninstall:
 	rm -rfv /usr/local/lib/python2.7/dist-packages/dfas
 	rm -fv /usr/local/lib/python2.7/dist-packages/Format_Transforming_Encrypion_FTE_-0.2.0_alpha.egg-info
 
-doc: doc/build/html/index.html
-doc/build/html/index.html:
+doc: phantom
+phantom:
 	cd doc && make html

@@ -16,24 +16,9 @@
 # You should have received a copy of the GNU General Public License
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
-import math
 import gmpy
 import binascii
 import os
-
-
-def hiBit(c):
-    return gmpy.mpz(0 if c <= 0 else int(math.ceil(math.log(int(c), 2))))
-
-
-def peel_off(n, offset, C):
-    frag = gmpy.mpz(grab_slice(n, offset, C))
-    C = gmpy.mpz(((0x1 << offset) - 0x1) & C)
-    return (frag, C)
-
-
-def grab_slice(n, offset, C):
-    return gmpy.mpz(((0x1 << n) - 0x1) & C >> offset)
 
 
 def random_bytes(N):
