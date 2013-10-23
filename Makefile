@@ -1,33 +1,41 @@
 CC=gcc
-CFLAGS=-c -Wall -static
-LDFLAGS=
+CFLAGS=-c -Wall -static -O3
+LDFLAGS=-Lthird-party/re2/obj -lpthread -lgmp -lgmpxx -lre2
 SOURCES=src/re2dfa.cc
 OBJECTS=$(SOURCES:.cc=.o)
 EXECUTABLE=bin/re2dfa
-INCLUDE_DIR=third-party/re2
 
-all: re2 re2dfa fte
+THIRD_PARTY_DIR=third-party
+RE2_DIR=third-party/re2
+RE2_PATCHFILE=re2.patch
+INCLUDE_DIRS=-I$(RE2_DIR)
 
-install: fte
-	sudo python setup.py install
+all: third-party/re2/obj/libre2.a bin/re2dfa fte/regex.so
 
-re2dfa: $(OBJECTS) 
-	$(CC) $(LDFLAGS) $(OBJECTS) -Lthird-party/re2/obj -lpthread -lgmp -lgmpxx -lre2 -o $(EXECUTABLE)
+install: all
+	python setup.py install
+
+bin/re2dfa: $(OBJECTS) 
+	$(CC) $(LDFLAGS) $(OBJECTS) $(LDFLAGS) -o $(EXECUTABLE)
 
 .cc.o:
-	$(CC) $(CFLAGS) -I$(INCLUDE_DIR) $< -o $@
+	$(CC) $(CFLAGS) $(INCLUDE_DIRS) $< -o $@
 
-fte:
+fte/regex.so:
 	python setup.py build_ext --inplace
 
-re2:
-	cd third-party && wget https://re2.googlecode.com/files/re2-20130115.tgz
-	cd third-party && tar zxvf re2-20130115.tgz
-	cd third-party && patch --verbose -p0 -i re2.patch
-	cd third-party/re2 && make obj/libre2.a
+third-party/re2/obj/libre2.a:
+	cd $(THIRD_PARTY_DIR) && wget https://re2.googlecode.com/files/re2-20130115.tgz
+	cd $(THIRD_PARTY_DIR) && tar zxvf re2-20130115.tgz
+	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i $(RE2_PATCHFILE)
+	cd $(RE2_DIR) && $(MAKE) obj/libre2.a
 
 clean:
 	rm -rvf third-party/re2
-	rm -rvf third-party/*.tgz
-	rm src/*.o
-	rm fte/*.o
+	rm -vf third-party/*.tgz
+	rm -vf src/*.o
+	rm -vf fte/*.so
+	rm -vf bin/re2dfa
+
+test:
+	python test.py
