@@ -18,6 +18,7 @@
 
 import fte.relay
 
+
 class listener(fte.relay.listener):
 
     def onNewIncomingConnection(self, socket):
@@ -28,4 +29,3 @@ class listener(fte.relay.listener):
         incoming_regex = fte.conf.getValue('runtime.state.downstream_language')
         socket = fte.wrap_socket(socket, outgoing_regex, incoming_regex)
         return socket
-    

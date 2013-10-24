@@ -37,7 +37,8 @@ conf['general.base_dir'] = os.path.abspath(os.path.join(module_path()))
 conf['general.pid_dir'] = tempfile.gettempdir()
 conf['general.fte_dir'] = os.path.join(getValue('general.base_dir'))
 conf['general.bin_dir'] = os.path.join(getValue('general.base_dir'), 'bin')
-conf['general.scripts_dir'] = os.path.join(getValue('general.base_dir'), 'scripts')
+conf['general.scripts_dir'] = os.path.join(
+    getValue('general.base_dir'), 'scripts')
 conf['runtime.mode'] = None
 conf['runtime.tcp.relay.backlog'] = 5
 conf['runtime.fte.relay.backlog'] = 5

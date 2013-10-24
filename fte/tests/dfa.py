@@ -26,36 +26,36 @@ import fte.cDFA
 class TestDFA(unittest.TestCase):
 
     def testMakeDFA(self):
-        for i in range(1,6):
-            with open('fte/tests/dfas/test'+str(i)+'.regex') as fh:
+        for i in range(1, 6):
+            with open('fte/tests/dfas/test' + str(i) + '.regex') as fh:
                 regex = fh.read()
-            
-            with open('fte/tests/dfas/test'+str(i)+'.dfa') as fh:
+
+            with open('fte/tests/dfas/test' + str(i) + '.dfa') as fh:
                 expected_dfa = fh.read()
-                
+
             dfa = fte.cDFA.fromRegex(regex)
             dfa = fte.cDFA.minimize(dfa)
             dfa = dfa.strip()
-            
+
             self.assertEquals(dfa, expected_dfa)
 
     def testUnrank(self):
-        dfa = fte.dfa.from_regex('^\C+$',512)
-        
+        dfa = fte.dfa.from_regex('^\C+$', 512)
+
         C = dfa.unrank(0)
-        self.assertEquals(C, '\x00'*512)
+        self.assertEquals(C, '\x00' * 512)
 
     def testUnrank2(self):
-        dfa = fte.dfa.from_regex('^(A|B)+$',512)
-        
+        dfa = fte.dfa.from_regex('^(A|B)+$', 512)
+
         C = dfa.unrank(0)
-        self.assertEquals(C, 'A'*512)
+        self.assertEquals(C, 'A' * 512)
 
     def testRank(self):
-        dfa = fte.dfa.from_regex('^\C+$',512)
-        
-        P = dfa.rank('\x00'*512)
+        dfa = fte.dfa.from_regex('^\C+$', 512)
+
+        P = dfa.rank('\x00' * 512)
         self.assertEquals(P, 0)
-        
+
 if __name__ == '__main__':
     unittest.main()

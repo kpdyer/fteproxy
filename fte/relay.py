@@ -23,6 +23,7 @@ import fte.conf
 import fte.encoder
 import fte.io
 
+
 class worker(threading.Thread):
 
     """This class handles relaying data between two sockets. Given socket A and
@@ -106,4 +107,3 @@ class listener(threading.Thread):
         self._running = False
         fte.io.close_socket(self._sock,
                             lock=self._sock_lock)
-

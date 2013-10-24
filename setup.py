@@ -4,17 +4,17 @@ from distutils.core import setup
 from distutils.core import Extension
 
 fte_cDFA = Extension('fte.cDFA',
-                       include_dirs=['fte',
-                                     'third-party/re2'],
-                       library_dirs=['third-party/re2/obj'],
-                       extra_link_args=['-static'],
-                       libraries=['gmp', 'gmpxx',
-                                  're2',
-                                  'boost_python',
-                                  'boost_system',
-                                  'boost_filesystem',
-                                 ],
-                       sources=['fte/cDFA.cc'])
+                     include_dirs=['fte',
+                                   'third-party/re2'],
+                     library_dirs=['third-party/re2/obj'],
+                     extra_link_args=['-static'],
+                     libraries=['gmp', 'gmpxx',
+                                're2',
+                                'boost_python',
+                                'boost_system',
+                                'boost_filesystem',
+                                ],
+                     sources=['fte/cDFA.cc'])
 
 setup(name='Format-Transforming Encrypion (FTE)',
       version='0.2.0-alpha',

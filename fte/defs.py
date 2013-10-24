@@ -21,36 +21,37 @@ import json
 
 import fte.conf
 
+
 class InvalidRegexName(Exception):
     pass
 
 
 def load_definitions():
     def_dir = os.path.join(fte.conf.getValue('general.fte_dir'), '..', 'defs')
-    def_file = fte.conf.getValue('fte.defs.release')+'.json'
+    def_file = fte.conf.getValue('fte.defs.release') + '.json'
     def_abspath = os.path.join(def_dir, def_file)
-    
+
     with open(def_abspath) as fh:
         definitions = json.load(fh)
-    
+
     return definitions
 
-    
+
 def getRegex(format_name):
     definitions = load_definitions()
     try:
         regex = definitions[format_name]['regex']
     except KeyError:
         raise InvalidRegexName(format_name)
-    
+
     return regex
-    
-    
+
+
 def getMaxLen(format_name):
     definitions = load_definitions()
     try:
         max_len = definitions[format_name]['max_len']
     except KeyError:
         max_len = fte.conf.getValue('fte.default_max_len')
-        
+
     return max_len

@@ -36,15 +36,15 @@ class TestRelay(unittest.TestCase):
 
     def setUp(self):
         self._server = fte.server.listener(LOCAL_INTERFACE,
-                                        fte.conf.getValue(
-                                            'runtime.server.port'),
-                                        LOCAL_INTERFACE,
-                                        fte.conf.getValue('runtime.proxy.port'))
+                                           fte.conf.getValue(
+                                               'runtime.server.port'),
+                                           LOCAL_INTERFACE,
+                                           fte.conf.getValue('runtime.proxy.port'))
         self._client = fte.client.listener(LOCAL_INTERFACE,
-                                        fte.conf.getValue(
-                                            'runtime.client.port'),
-                                        LOCAL_INTERFACE,
-                                        fte.conf.getValue('runtime.server.port'))
+                                           fte.conf.getValue(
+                                               'runtime.client.port'),
+                                           LOCAL_INTERFACE,
+                                           fte.conf.getValue('runtime.server.port'))
 
         self._server.start()
         self._client.start()
@@ -70,7 +70,8 @@ class TestRelay(unittest.TestCase):
         try:
             proxy_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             proxy_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            proxy_socket.bind((LOCAL_INTERFACE, fte.conf.getValue('runtime.proxy.port')))
+            proxy_socket.bind(
+                (LOCAL_INTERFACE, fte.conf.getValue('runtime.proxy.port')))
             proxy_socket.listen(fte.conf.getValue('runtime.tcp.relay.backlog'))
 
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

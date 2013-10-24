@@ -35,6 +35,8 @@ class InvalidInputException(Exception):
 
 
 _instance = {}
+
+
 class RegexEncoder(object):
 
     def __new__(self, regex_name):
@@ -51,28 +53,31 @@ class RegexEncoderObject(object):
         self._regex = fte.defs.getRegex(regex_name)
         self._max_len = fte.defs.getMaxLen(regex_name)
         self._dfa = fte.dfa.from_regex(self._regex, self._max_len)
-        
-        
+
     def getCapacity(self, ):
         return self._dfa._capacity
-    
-    
+
     def encode(self, X):
         if not isinstance(X, str):
             raise InvalidInputException('Input must be of type string.')
-            
+
         maximumBytesToRank = int(math.floor(self.getCapacity() / 8.0))
 
-        msg_len = min(maximumBytesToRank - RegexEncoderObject.COVERTEXT_HEADER_LEN, len(X))
+        msg_len = min(
+            maximumBytesToRank - RegexEncoderObject.COVERTEXT_HEADER_LEN, len(X))
 
         msg_len_header = fte.bit_ops.long_to_bytes(msg_len)
-        msg_len_header = '\xFF' + string.rjust(msg_len_header, RegexEncoderObject.COVERTEXT_HEADER_LEN - 1, '\x00')
+        msg_len_header = '\xFF' + \
+            string.rjust(
+                msg_len_header, RegexEncoderObject.COVERTEXT_HEADER_LEN - 1, '\x00')
 
-        unrank_payload = msg_len_header + X[:maximumBytesToRank - RegexEncoderObject.COVERTEXT_HEADER_LEN]
+        unrank_payload = msg_len_header + \
+            X[:maximumBytesToRank - RegexEncoderObject.COVERTEXT_HEADER_LEN]
         unrank_payload = fte.bit_ops.bytes_to_long(unrank_payload)
 
         formatted_covertext_header = self._dfa.unrank(unrank_payload)
-        unformatted_covertext_body = X[maximumBytesToRank - RegexEncoderObject.COVERTEXT_HEADER_LEN:]
+        unformatted_covertext_body = X[
+            maximumBytesToRank - RegexEncoderObject.COVERTEXT_HEADER_LEN:]
 
         covertext = formatted_covertext_header + unformatted_covertext_body
 
@@ -81,12 +86,12 @@ class RegexEncoderObject(object):
     def decode(self, covertext):
         if not isinstance(covertext, str):
             raise InvalidInputException('Input must be of type string.')
-        
+
         assert len(covertext) >= self._max_len, (len(covertext), self._max_len)
-        
+
         unrank_payload = self._dfa.rank(covertext[:self._max_len])
         X = fte.bit_ops.long_to_bytes(unrank_payload)
         msg_len = fte.bit_ops.bytes_to_long(X[1:4])
         X = X[-msg_len:] + covertext[self._max_len:]
-        
+
         return X

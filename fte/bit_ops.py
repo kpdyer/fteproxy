@@ -33,21 +33,22 @@ def long_to_bytes(N, blocksize=1):
     If ``blocksize`` is greater than ``1`` then the output string will be right justified and then padded with zero-bytes,
     such that the return values length is a multiple of ``blocksize``.
     """
-    
+
     bytestring = gmpy.mpz(N).digits(16)
     bytestring = '0' + bytestring if (len(bytestring) % 2) != 0 else bytestring
     bytestring = binascii.unhexlify(bytestring)
-    
+
     if blocksize > 0 and len(bytestring) % blocksize != 0:
-        bytestring = '\x00' * (blocksize - len(bytestring) % blocksize) + bytestring
-    
+        bytestring = '\x00' * \
+            (blocksize - len(bytestring) % blocksize) + bytestring
+
     return bytestring
 
 
 def bytes_to_long(bytestring):
     """Given a ``bytestring`` returns its integer represenation ``N``.
     """
-    
+
     bytestring = '\x00' + bytestring
     N = gmpy.mpz(str(bytestring)[::-1], 256)
     return N

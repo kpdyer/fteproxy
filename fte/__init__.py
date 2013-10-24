@@ -26,19 +26,19 @@ class _FTESocketWrapper(object):
 
     def __init__(self, socket, outgoing_regex, incoming_regex, K1, K2):
         self._socket = socket
-        
+
         self._outgoing_regex = outgoing_regex
         self._incoming_regex = incoming_regex
-        
+
         self._K1 = K1
         self._K2 = K2
 
-        self._encrypter = fte.encrypter.Encrypter(K1 = self._K1,
-                                                  K2 = self._K2)
-        
+        self._encrypter = fte.encrypter.Encrypter(K1=self._K1,
+                                                  K2=self._K2)
+
         self._outgoing_encoder = fte.encoder.RegexEncoder(self._outgoing_regex)
         self._incoming_decoder = fte.encoder.RegexEncoder(self._incoming_regex)
-        
+
         self._encoder = fte.record_layer.Encoder(encrypter=self._encrypter,
                                                  encoder=self._outgoing_encoder)
         self._decoder = fte.record_layer.Decoder(encrypter=self._encrypter,
@@ -90,8 +90,9 @@ class _FTESocketWrapper(object):
 def wrap_socket(socket,
                 outgoing_regex,
                 incoming_regex,
-                K1 = None, K2 = None):
+                K1=None, K2=None):
     """TEST
     """
-    socket_wrapped = _FTESocketWrapper(socket, outgoing_regex, incoming_regex, K1, K2)
+    socket_wrapped = _FTESocketWrapper(
+        socket, outgoing_regex, incoming_regex, K1, K2)
     return socket_wrapped

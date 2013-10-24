@@ -23,6 +23,7 @@ import fte.encoder
 import fte.bit_ops
 import fte.defs
 
+
 class TestEncoders(unittest.TestCase):
 
     def testRegexEncoderRequest(self):
@@ -34,7 +35,7 @@ class TestEncoders(unittest.TestCase):
             self.doTestEncoder(encoder, 2)
             self.doTestEncoder(encoder, 4)
 
-    def doTestEncoder(self, encoder, factor = 1):
+    def doTestEncoder(self, encoder, factor=1):
         for i in range(2 ** 7):
             N = int(encoder.getCapacity() * factor)
             C = random.randint(0, (1 << N) - 1)
