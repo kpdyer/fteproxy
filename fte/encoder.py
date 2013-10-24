@@ -17,15 +17,13 @@
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
 import string
-import os
-import socket
 import math
 import gmpy
 
 import fte.conf
 import fte.encrypter
 import fte.bit_ops
-import fte.regex
+import fte.dfa
 
 
 class UnrankFailureException(Exception):
@@ -63,20 +61,14 @@ class RegexEncoder(object):
 
     def __init__(self, regex_name):
         self.regex_name = regex_name
-        self.mtu = fte.conf.getValue('languages.regex.' + regex_name
-                                     + '.mtu')
-        dfa_dir = fte.conf.getValue('general.dfa_dir')
-        DFA_FILE = os.path.join(dfa_dir, regex_name + '.dfa')
-        if not os.path.exists(DFA_FILE):
-            raise LanguageDoesntExistException('DFA doesn\'t exist: '
-                                               + DFA_FILE)
+        self.mtu = fte.conf.getValue('fte.default_mtu')
         
-        fte.regex.loadLanguage(dfa_dir, self.regex_name, self.mtu)
+        fte.dfa.loadLanguage(self.regex_name, self.mtu)
         
         self._words_in_language = self._getNumWordsInLanguage()
         
         if self._words_in_language == 0:
-            fte.regex.releaseLanguage(self.regex_name)
+            fte.dfa.releaseLanguage(self.regex_name)
             raise LanguageIsEmptySetException()
         
         self.offset = self._words_in_language - self._getNumWordsInSlice(self.mtu)
@@ -89,39 +81,39 @@ class RegexEncoder(object):
 
     def _getT(self, q, a):
         c = gmpy.mpz(0)
-        fte.regex.getT(self.regex_name, c, int(q), a)
+        fte.dfa.getT(self.regex_name, c, int(q), a)
         return int(c)
 
     def _getNumStates(self):
-        return fte.regex.getNumStates(self.regex_name)
+        return fte.dfa.getNumStates(self.regex_name)
 
     def _getNumWordsInSlice(self, N):
         retval = 0
-        q0 = fte.regex.getStart(self.regex_name)
+        q0 = fte.dfa.getStart(self.regex_name)
         retval = gmpy.mpz(0)
-        fte.regex.getT(self.regex_name, retval, q0, N)
+        fte.dfa.getT(self.regex_name, retval, q0, N)
         return int(retval)
 
     def _getNumWordsInLanguage(self):
         retval = 0
-        q0 = fte.regex.getStart(self.regex_name)
+        q0 = fte.dfa.getStart(self.regex_name)
         for i in range(self.mtu + 1):
             c = gmpy.mpz(0)
-            fte.regex.getT(self.regex_name, c, q0, i)
+            fte.dfa.getT(self.regex_name, c, q0, i)
             retval += c
         return int(retval)
 
     def _getStart(self):
-        q0 = fte.regex.getStart(self.regex_name)
+        q0 = fte.dfa.getStart(self.regex_name)
         return int(q0)
 
     def _delta(self, q, c):
-        q_new = fte.regex.delta(self.regex_name, int(q), c)
+        q_new = fte.dfa.delta(self.regex_name, int(q), c)
         return q_new
 
     def _rank(self, X):
         c = gmpy.mpz(0)
-        fte.regex.rank(self.regex_name, c, X)
+        fte.dfa.rank(self.regex_name, c, X)
         if c == -1:
             raise RankFailureException(('Rank failed.', X))
         c -= self.offset
@@ -130,7 +122,7 @@ class RegexEncoder(object):
     def _unrank(self, c):
         c = gmpy.mpz(c)
         c += self.offset
-        X = fte.regex.unrank(self.regex_name, c)
+        X = fte.dfa.unrank(self.regex_name, c)
         if X == '':
             raise UnrankFailureException('Rank failed.')
 

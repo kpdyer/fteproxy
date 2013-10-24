@@ -1,7 +1,6 @@
 CC=gcc
 CFLAGS=-c -Wall -static -O3
 LDFLAGS=-Lthird-party/re2/obj -lpthread -lgmp -lgmpxx -lre2
-SOURCES=src/re2dfa.cc
 OBJECTS=$(SOURCES:.cc=.o)
 EXECUTABLE=bin/re2dfa
 
@@ -10,18 +9,13 @@ RE2_DIR=third-party/re2
 RE2_PATCHFILE=re2.patch
 INCLUDE_DIRS=-I$(RE2_DIR)
 
-all: third-party/re2/obj/libre2.a bin/re2dfa fte/regex.so doc
+all: third-party/re2/obj/libre2.a fte/dfa.so doc
 
 install: all
+	cd $(RE2_DIR) && $(MAKE) install
 	python setup.py install
 
-bin/re2dfa: $(OBJECTS) 
-	$(CC) $(LDFLAGS) $(OBJECTS) $(LDFLAGS) -o $(EXECUTABLE)
-
-.cc.o:
-	$(CC) $(CFLAGS) $(INCLUDE_DIRS) $< -o $@
-
-fte/regex.so:
+fte/dfa.so:
 	python setup.py build_ext --inplace
 
 third-party/re2/obj/libre2.a:
@@ -37,8 +31,7 @@ clean:
 	rm -vf third-party/*.tgz
 	rm -vf src/*.o
 	rm -vf fte/*.so
-	rm -vf bin/re2dfa
-	cd doc && make clean
+	cd doc && $(MAKE) clean
 
 test:
 	@./bin/fteproxy --mode test
@@ -50,4 +43,4 @@ uninstall:
 
 doc: phantom
 phantom:
-	@cd doc && make html
+	@cd doc && $(MAKE) html

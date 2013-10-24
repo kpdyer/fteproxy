@@ -41,16 +41,13 @@ conf['general.bin_dir'] = os.path.join(getValue('general.base_dir'),
                                        'bin')
 conf['general.scripts_dir'] = os.path.join(getValue('general.base_dir'
                                                     ), 'scripts')
-conf['general.re_dir'] = os.path.join(getValue('general.base_dir'
-                                               ), '..', 'dfas')
-conf['general.dfa_dir'] = conf['general.re_dir']
 conf['runtime.mode'] = None
 conf['runtime.fte.encrypter.key'] = 'FF' * 16 + '00' * 16
 conf['runtime.tcp.relay.backlog'] = 5
 conf['runtime.fte.relay.backlog'] = 5
-conf['runtime.client.ip'] = '0.0.0.0'
+conf['runtime.client.ip'] = '127.0.0.1'
 conf['runtime.client.port'] = 8079
-conf['runtime.server.ip'] = '128.105.214.241'
+conf['runtime.server.ip'] = 'tor.fte-proxy.org'
 conf['runtime.server.port'] = 8080
 conf['runtime.socks.ip'] = '127.0.0.1'
 conf['runtime.socks.port'] = 8081
@@ -62,13 +59,4 @@ conf['runtime.fte.relay.encoder_block_size'] = 2 ** 12
 conf['runtime.fte.relay.decoder_block_size'] = 2 ** 12
 conf['runtime.fte.record_layer.max_cell_size'] = 2 ** 16
 
-conf['languages.regex'] = []
-for type in ['l7', 'yaf1', 'yaf2', 'appid', 'intersection', 'manual']:
-    for protocol in ['http', 'ssh', 'smb']:
-        for direction in ['request', 'response']:
-            conf['languages.regex'].append(type + '-' + protocol + '-'
-                                           + direction)
-for lang in conf['languages.regex']:
-    conf['languages.regex.' + lang + '.mtu'] = 128
-    conf['languages.regex.' + lang + '.allow_ae_bits'] = True
-    conf['languages.regex.' + lang + '.fixed_slice'] = True
+conf['fte.default_mtu'] = 512

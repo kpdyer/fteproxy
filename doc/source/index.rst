@@ -4,20 +4,6 @@ FTE Proxy Documentation
 
 General overview of FTE and why it matters.
 
-
-Quickstart
-----------
-
-Detailed description.
-
-
-.. code-block:: python
-
-    import fte
-    
-    # create socket
-    fte.wrap_socket(socket, regex="...")
-    # use socket
    
    
 Contents:
@@ -50,7 +36,7 @@ Contents:
    
    record_layer.rst
    encoder.rst
-   regex.rst
+   dfa.rst
    encrypter.rst
 
 Low-level Data Logic

@@ -37,9 +37,7 @@ class FTEMain(object):
     This is free software, and you are welcome to redistribute it under certain conditions.
 """
         parser = argparse.ArgumentParser(prog='fte_(client|server)',
-                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-                                         description='Available formats: '
-                                         + ' '.join(fte.conf.getValue('languages.regex')))
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
         parser.add_argument('--mode',
                             default='client',
                             metavar='(client|server|test)',
@@ -194,18 +192,21 @@ def test():
     import fte.tests.record_layer
     import fte.tests.bit_ops
     import fte.tests.relay
+    import fte.tests.dfa
     
     suite_encoder = unittest.TestLoader().loadTestsFromTestCase(fte.tests.encoder.TestEncoders)
     suite_encrypter = unittest.TestLoader().loadTestsFromTestCase(fte.tests.encrypter.TestEncoders)
     suite_record_layer = unittest.TestLoader().loadTestsFromTestCase(fte.tests.record_layer.TestEncoders)
     suite_relay = unittest.TestLoader().loadTestsFromTestCase(fte.tests.relay.TestRelay)
     suite_bit_ops = unittest.TestLoader().loadTestsFromTestCase(fte.tests.bit_ops.TestEncoders)
+    suite_dfa = unittest.TestLoader().loadTestsFromTestCase(fte.tests.dfa.TestDFA)
     suites = [
-        suite_bit_ops,
-        suite_encoder,
-        suite_encrypter,
-        suite_relay,
-        suite_record_layer,
+        #suite_bit_ops,
+        #suite_encoder,
+        #suite_encrypter,
+        #suite_relay,
+        #suite_record_layer,
+        suite_dfa,
     ]
     alltests = unittest.TestSuite(suites)
     unittest.TextTestRunner(verbosity=2, failfast=True).run(alltests)
