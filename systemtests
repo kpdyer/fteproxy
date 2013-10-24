@@ -3,7 +3,7 @@
 sudo pkill -9 -f fteproxy > /dev/null 2> /dev/null
 sudo pkill -9 -f socksproxy > /dev/null 2> /dev/null
 
-sleep 0.1
+sleep 1
 
 ./bin/fteproxy --mode client --client_ip 127.0.0.1 --client_port 8079 \
                              --server_ip 127.0.0.1 --server_port 8080 \

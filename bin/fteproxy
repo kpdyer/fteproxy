@@ -173,6 +173,7 @@ This is free software, and you are welcome to redistribute it under certain cond
                                       remote_ip, remote_port)
             self._client.daemon = True
             self._client.start()
+            self._client.join()
         elif fte.conf.getValue('runtime.mode') == 'server':
             local_ip = fte.conf.getValue('runtime.server.ip')
             local_port = fte.conf.getValue('runtime.server.port')
@@ -182,13 +183,13 @@ This is free software, and you are welcome to redistribute it under certain cond
                                       remote_ip, remote_port)
             self._server.daemon = True
             self._server.start()
+            self._server.join()
 
     def stop(self):
         if self._client is not None:
             self._client.stop()
         if self._server is not None:
             self._server.stop()
-        print 'Shutting down cleanly...done'
 
 def test():
     import unittest
