@@ -27,11 +27,14 @@ class TestDFA(unittest.TestCase):
 
     def testMakeDFA1(self):
         for i in range(1,8):
-            with open('fte/tests/dfas/test'+str(i)+'.regex') as fh: regex = fh.read()
-            with open('fte/tests/dfas/test'+str(i)+'.dfa') as fh: expected_dfa = fh.read()
-            actual_dfa = fte.dfa.fromRegex(regex)
-            minimized_dfa = fte.dfa.minimize(actual_dfa)
-            self.assertEquals(minimized_dfa.strip(), expected_dfa)
+            with open('fte/tests/dfas/test'+str(i)+'.regex') as fh:
+                regex = fh.read()
+            
+            with open('fte/tests/dfas/test'+str(i)+'.dfa') as fh:
+                expected_dfa = fh.read()
+                
+            dfa = fte.dfa.from_regex(regex, 512)
+            self.assertEquals(dfa.getDFAString(), expected_dfa)
 
     def testMakeDFA2(self):
         actual_dfa = fte.dfa.fromRegex('^\C+$')

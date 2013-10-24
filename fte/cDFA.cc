@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
-#include <dfa.h>
+#include <cDFA.h>
 #include <stdio.h>
 #include <stdlib.h>
 

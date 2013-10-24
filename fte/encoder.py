@@ -26,16 +26,6 @@ import fte.bit_ops
 import fte.dfa
 
 
-class UnrankFailureException(Exception):
-
-    pass
-
-
-class RankFailureException(Exception):
-
-    pass
-
-
 class DecodeFailureException(Exception):
 
     pass
@@ -46,90 +36,15 @@ class InvalidInputException(Exception):
     pass
 
 
-class LanguageDoesntExistException(Exception):
-
-    pass
-
-
-class LanguageIsEmptySetException(Exception):
-
-    pass
-
-
 class RegexEncoder(object):
     COVERTEXT_HEADER_LEN = 4
 
     def __init__(self, regex_name):
-        self.regex_name = regex_name
-        self.mtu = fte.conf.getValue('fte.default_mtu')
+        pass
         
-        fte.dfa.loadLanguage(self.regex_name, self.mtu)
-        
-        self._words_in_language = self._getNumWordsInLanguage()
-        
-        if self._words_in_language == 0:
-            fte.dfa.releaseLanguage(self.regex_name)
-            raise LanguageIsEmptySetException()
-        
-        self.offset = self._words_in_language - self._getNumWordsInSlice(self.mtu)
-
-        self._capacity = -128
-        self._capacity += int(math.floor(math.log(self._words_in_language, 2)))
-        
-        self.offset = gmpy.mpz(self.offset)
-    
-
-    def _getT(self, q, a):
-        c = gmpy.mpz(0)
-        fte.dfa.getT(self.regex_name, c, int(q), a)
-        return int(c)
-
-    def _getNumStates(self):
-        return fte.dfa.getNumStates(self.regex_name)
-
-    def _getNumWordsInSlice(self, N):
-        retval = 0
-        q0 = fte.dfa.getStart(self.regex_name)
-        retval = gmpy.mpz(0)
-        fte.dfa.getT(self.regex_name, retval, q0, N)
-        return int(retval)
-
-    def _getNumWordsInLanguage(self):
-        retval = 0
-        q0 = fte.dfa.getStart(self.regex_name)
-        for i in range(self.mtu + 1):
-            c = gmpy.mpz(0)
-            fte.dfa.getT(self.regex_name, c, q0, i)
-            retval += c
-        return int(retval)
-
-    def _getStart(self):
-        q0 = fte.dfa.getStart(self.regex_name)
-        return int(q0)
-
-    def _delta(self, q, c):
-        q_new = fte.dfa.delta(self.regex_name, int(q), c)
-        return q_new
-
-    def _rank(self, X):
-        c = gmpy.mpz(0)
-        fte.dfa.rank(self.regex_name, c, X)
-        if c == -1:
-            raise RankFailureException(('Rank failed.', X))
-        c -= self.offset
-        return c
-
-    def _unrank(self, c):
-        c = gmpy.mpz(c)
-        c += self.offset
-        X = fte.dfa.unrank(self.regex_name, c)
-        if X == '':
-            raise UnrankFailureException('Rank failed.')
-
-        return str(X)
-
     def getCapacity(self, ):
         return self._capacity
+    
 
     def encode(self, X):
         if not isinstance(X, str):
