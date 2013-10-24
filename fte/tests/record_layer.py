@@ -42,13 +42,15 @@ class TestEncoders(unittest.TestCase):
         self.record_layers_outgoing = []
         self.record_layers_incoming = []
         definitions = fte.defs.load_definitions()
-        for languageA in definitions.keys():
-            regex_encoder = fte.encoder.RegexEncoder(languageA)
+        for language in definitions.keys():
+            regex = fte.defs.getRegex(language)
+            max_len = fte.defs.getMaxLen(language)
+            regex_encoder = fte.encoder.RegexEncoder(regex, max_len)
             encoder = fte.record_layer.Encoder(
                 encrypter=encrypter, encoder=regex_encoder)
             decoder = fte.record_layer.Decoder(
                 encrypter=encrypter, encoder=regex_encoder)
-            self.recoder_layers_info.append(languageA)
+            self.recoder_layers_info.append(language)
             self.record_layers_outgoing.append(encoder)
             self.record_layers_incoming.append(decoder)
 

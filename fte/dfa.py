@@ -43,29 +43,29 @@ class RankFailureException(Exception):
 class DFA(object):
 
     def __init__(self, dfa_id, max_len):
-        self.dfa_id = dfa_id
+        self._dfa_id = dfa_id
         self.max_len = max_len
 
         self._words_in_language = self._getNumWordsInLanguage()
         self._words_in_slice = self._getNumWordsInSlice(self.max_len)
-        self.offset = self._words_in_language - self._words_in_slice
+        self._offset = self._words_in_language - self._words_in_slice
+        self._offset = gmpy.mpz(self._offset)
 
         if self._words_in_slice == 0:
-            fte.cDFA.releaseLanguage(self.dfa_id)
+            fte.cDFA.releaseLanguage(self._dfa_id)
             raise LanguageIsEmptySetException(dfa_id)
 
         self._capacity = -128
         self._capacity += int(math.floor(math.log(self._words_in_slice, 2)))
 
-        self.offset = gmpy.mpz(self.offset)
 
     def _getT(self, q, a):
         c = gmpy.mpz(0)
-        fte.cDFA.getT(self.dfa_id, c, int(q), a)
+        fte.cDFA.getT(self._dfa_id, c, int(q), a)
         return int(c)
 
     def _getStart(self):
-        q0 = fte.cDFA.getStart(self.dfa_id)
+        q0 = fte.cDFA.getStart(self._dfa_id)
         return int(q0)
 
     def _getNumWordsInSlice(self, N):
@@ -85,16 +85,17 @@ class DFA(object):
 
     def rank(self, X):
         c = gmpy.mpz(0)
-        fte.cDFA.rank(self.dfa_id, c, X)
+        fte.cDFA.rank(self._dfa_id, c, X)
+
         if c == -1:
             raise RankFailureException(('Rank failed.', X))
-        c -= self.offset
+        c -= self._offset
         return c
 
     def unrank(self, c):
         c = gmpy.mpz(c)
-        c += self.offset
-        X = fte.cDFA.unrank(self.dfa_id, c)
+        c += self._offset
+        X = fte.cDFA.unrank(self._dfa_id, c)
         if X == '':
             raise UnrankFailureException('Unank failed.')
 

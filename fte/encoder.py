@@ -39,19 +39,19 @@ _instance = {}
 
 class RegexEncoder(object):
 
-    def __new__(self, regex_name):
+    def __new__(self, regex, max_len):
         global _instance
-        if not _instance.get(regex_name):
-            _instance[regex_name] = RegexEncoderObject(regex_name)
-        return _instance[regex_name]
+        if not _instance.get((regex,max_len)):
+            _instance[(regex,max_len)] = RegexEncoderObject(regex, max_len)
+        return _instance[(regex,max_len)]
 
 
 class RegexEncoderObject(object):
     COVERTEXT_HEADER_LEN = 4
 
-    def __init__(self, regex_name):
-        self._regex = fte.defs.getRegex(regex_name)
-        self._max_len = fte.defs.getMaxLen(regex_name)
+    def __init__(self, regex, max_len):
+        self._regex = regex
+        self._max_len = max_len
         self._dfa = fte.dfa.from_regex(self._regex, self._max_len)
 
     def getCapacity(self, ):
@@ -89,8 +89,8 @@ class RegexEncoderObject(object):
 
         assert len(covertext) >= self._max_len, (len(covertext), self._max_len)
 
-        unrank_payload = self._dfa.rank(covertext[:self._max_len])
-        X = fte.bit_ops.long_to_bytes(unrank_payload)
+        rank_payload = self._dfa.rank(covertext[:self._max_len])
+        X = fte.bit_ops.long_to_bytes(rank_payload)
         msg_len = fte.bit_ops.bytes_to_long(X[1:4])
         X = X[-msg_len:] + covertext[self._max_len:]
 

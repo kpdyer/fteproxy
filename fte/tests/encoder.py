@@ -29,7 +29,9 @@ class TestEncoders(unittest.TestCase):
     def testRegexEncoderRequest(self):
         definitions = fte.defs.load_definitions()
         for language in definitions.keys():
-            encoder = fte.encoder.RegexEncoder(language)
+            regex = fte.defs.getRegex(language)
+            max_len = fte.defs.getMaxLen(language)
+            encoder = fte.encoder.RegexEncoder(regex, max_len)
             self.doTestEncoder(encoder, 0.5)
             self.doTestEncoder(encoder, 1)
             self.doTestEncoder(encoder, 2)

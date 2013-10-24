@@ -9,19 +9,21 @@ sleep 1
                              --server_ip 127.0.0.1 --server_port 8080 \
                              --quiet &
 
-sleep 1
-
 ./bin/fteproxy --mode server --server_ip 127.0.0.1 --server_port 8080 \
                              --proxy_ip 127.0.0.1  --proxy_port 8081 \
                              --quiet &
-
-sleep 1
 
 ./bin/socksproxy --ip 127.0.0.1 --port 8081 &
 
 sleep 1
 
-curl --socks4 127.0.0.1:8079 https://www.google.com/
+curl -s https://kpdyer.com/ > .no_fte.txt
+curl -s --socks4 127.0.0.1:8079 https://kpdyer.com/ > .yes_fte.txt
+
+diff -s .no_fte.txt .yes_fte.txt
+
+rm .no_fte.txt
+rm .yes_fte.txt
 
 sudo pkill -9 -f fteproxy > /dev/null 2> /dev/null
 sudo pkill -9 -f socksproxy > /dev/null 2> /dev/null

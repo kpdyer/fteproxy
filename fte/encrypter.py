@@ -143,12 +143,11 @@ class Encrypter(object):
 
         if not isinstance(ciphertext, str):
             raise CiphertextTypeError("Input ciphertext is not of type string")
-
+        
         plaintext_length = self.getPlaintextLen(ciphertext)
         ciphertext_length = self.getCiphertextLen(ciphertext)
         ciphertext_complete = (len(ciphertext) >= ciphertext_length)
         if ciphertext_complete is False:
-            print [ciphertext_length, len(ciphertext)]
             raise RecoverableDecryptionError('Incomplete ciphertext.')
 
         ciphertext = ciphertext[:ciphertext_length]
@@ -168,7 +167,6 @@ class Encrypter(object):
         mac = HMAC.new(self.K2, W1 + W2, SHA512)
         T_actual = mac.digest()[:Encrypter._MAC_LENGTH]
         if T_expected != T_actual:
-            print [T_expected, T_actual]
             raise UnrecoverableDecryptionError('Failed to verify MAC.')
 
         iv2_bytes = '\x02' + self._ecb_enc_K1.decrypt(W1)[1:8]
@@ -195,7 +193,7 @@ class Encrypter(object):
     def getPlaintextLen(self, ciphertext):
         """Given a ``ciphertext`` with a valid header, returns the length of the plaintext payload.
         """
-
+        
         completeCiphertextHeader = (len(ciphertext) >= 16)
         if completeCiphertextHeader is False:
             raise RecoverableDecryptionError('Incomplete ciphertext header.')
@@ -203,9 +201,11 @@ class Encrypter(object):
         ciphertext_header = ciphertext[:16]
         L = self._ecb_enc_K1.decrypt(ciphertext_header)
 
-        validPadding = (L[-8:-4] == '\x00\x00\x00\x00')
+        padding_expected = '\x00\x00\x00\x00'
+        padding_actual =L[-8:-4] 
+        validPadding = (padding_actual == padding_expected)
         if validPadding is False:
-            raise UnrecoverableDecryptionError('Invalid padding.')
+            raise UnrecoverableDecryptionError('Invalid padding: ' + padding_actual)
 
         message_length = fte.bit_ops.bytes_to_long(L[-8:])
 
