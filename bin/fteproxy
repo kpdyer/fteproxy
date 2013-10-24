@@ -22,6 +22,8 @@ import os
 import signal
 import glob
 import argparse
+import threading
+
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')))
 
@@ -30,9 +32,12 @@ import fte.client
 import fte.server
 
 
-class FTEMain(object):
+class FTEMain(threading.Thread):
 
     def run(self):
+        self._client = None
+        self._server = None
+        
         parser = argparse.ArgumentParser(prog='fteproxy',
                                          formatter_class=argparse.ArgumentDefaultsHelpFormatter)
         parser.add_argument('--mode',
@@ -110,7 +115,7 @@ This is free software, and you are welcome to redistribute it under certain cond
                         except OSError:
                             pass
                         os.unlink(pid_file)
-                sys.exit(1)
+                sys.exit(0)
         if args.mode == 'client':
             fte.conf.setValue('runtime.mode', 'client')
         elif args.mode == 'server':
@@ -153,8 +158,10 @@ This is free software, and you are welcome to redistribute it under certain cond
         pid_file = os.path.join(fte.conf.getValue('general.pid_dir'),
                                 '.' + fte.conf.getValue('runtime.mode')
                                 + '-' + str(os.getpid()) + '.pid')
+        
         with open(pid_file, 'w') as f:
             f.write(str(os.getpid()))
+        
         fte.conf.setValue('runtime.state.message_token', 'client')
 
         if fte.conf.getValue('runtime.mode') == 'client':
@@ -162,17 +169,26 @@ This is free software, and you are welcome to redistribute it under certain cond
             local_port = fte.conf.getValue('runtime.client.port')
             remote_ip = fte.conf.getValue('runtime.server.ip')
             remote_port = fte.conf.getValue('runtime.server.port')
-            client = fte.client.listener(local_ip, local_port,
+            self._client = fte.client.listener(local_ip, local_port,
                                       remote_ip, remote_port)
-            client.start()
+            self._client.daemon = True
+            self._client.start()
         elif fte.conf.getValue('runtime.mode') == 'server':
             local_ip = fte.conf.getValue('runtime.server.ip')
             local_port = fte.conf.getValue('runtime.server.port')
             remote_ip = fte.conf.getValue('runtime.proxy.ip')
             remote_port = fte.conf.getValue('runtime.proxy.port')
-            server = fte.server.listener(local_ip, local_port,
+            self._server = fte.server.listener(local_ip, local_port,
                                       remote_ip, remote_port)
-            server.start()
+            self._server.daemon = True
+            self._server.start()
+
+    def stop(self):
+        if self._client is not None:
+            self._client.stop()
+        if self._server is not None:
+            self._server.stop()
+        print 'Shutting down cleanly...done'
 
 def test():
     import unittest
@@ -202,9 +218,15 @@ def test():
     unittest.TextTestRunner(verbosity=2, failfast=True).run(alltests)
 
 def main():
+    global running
+    
     try:
         main = FTEMain()
-        main.run()
+        main.daemon = True
+        main.start()
+        while running and main.is_alive():
+            main.join(0.01)
+        main.stop()
     except KeyboardInterrupt:
         pass
     finally:
@@ -217,9 +239,10 @@ def main():
                 os.unlink(pid_file)
 
 if __name__ == '__main__':
+    running = True
     def signal_handler(signal, frame):
-        print 'got it'
-        sys.exit(0)
+        global running
+        running = False
     signal.signal(signal.SIGINT, signal_handler)
     
     main()

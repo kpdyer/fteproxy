@@ -1,13 +1,6 @@
-CC=gcc
-CFLAGS=-c -Wall -static -O3
-LDFLAGS=-Lthird-party/re2/obj -lpthread -lgmp -lgmpxx -lre2
-OBJECTS=$(SOURCES:.cc=.o)
-EXECUTABLE=bin/re2dfa
-
 THIRD_PARTY_DIR=third-party
 RE2_DIR=third-party/re2
 RE2_PATCHFILE=re2.patch
-INCLUDE_DIRS=-I$(RE2_DIR)
 
 all: third-party/re2/obj/libre2.a fte/dfa.so doc
 
@@ -24,16 +17,18 @@ third-party/re2/obj/libre2.a:
 	cd $(RE2_DIR) && $(MAKE) obj/libre2.a
 
 clean:
-	find . -name "*.pyc" -exec rm {} \;
-	rm -rvf build
-	rm -rvf third-party/re2
-	rm -vf third-party/*.tgz
-	rm -vf src/*.o
-	rm -vf fte/*.so
-	cd doc && $(MAKE) clean
+	@find . -name "*.pyc" -exec rm {} \;
+	@rm -rvf build
+	@rm -rvf third-party/re2
+	@rm -vf third-party/*.tgz
+	@rm -vf src/*.o
+	@rm -vf fte/*.so
+	@rm -vf socks.log
+	@cd doc && $(MAKE) clean
 
 test:
-	@./bin/fteproxy --mode test
+	@./unittests
+	@./systemtests
 
 uninstall:
 	@rm -rfv /usr/local/lib/python2.7/dist-packages/fte

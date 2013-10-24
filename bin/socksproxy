@@ -54,7 +54,6 @@ def main():
         proxy.run()
     finally:
         proxy.stop()
-        os.unlink(SOCKS_LOG)
 
 
 if __name__ == '__main__':
