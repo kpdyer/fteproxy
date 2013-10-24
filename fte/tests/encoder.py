@@ -21,57 +21,49 @@ import random
 
 import fte.encoder
 import fte.bit_ops
+import fte.defs
 
 class TestEncoders(unittest.TestCase):
 
     def testRegexEncoderRequest(self):
-        for language in fte.conf.getValue('languages.regex'):
+        definitions = fte.defs.load_definitions()
+        for language in definitions.keys():
             encoder = fte.encoder.RegexEncoder(language)
-            self.doTestEncoderUndersized(language, encoder)
-            self.doTestEncoderOversized(language, encoder)
+            self.doTestEncoder(encoder, 0.5)
+            self.doTestEncoder(encoder, 1)
+            self.doTestEncoder(encoder, 2)
+            self.doTestEncoder(encoder, 4)
 
-    def doTestEncoderUndersized(self, language, encoder):
+    def doTestEncoder(self, encoder, factor = 1):
         for i in range(2 ** 7):
-            N = encoder.getCapacity()
+            N = int(encoder.getCapacity() * factor)
             C = random.randint(0, (1 << N) - 1)
             C = fte.bit_ops.long_to_bytes(C)
             X = encoder.encode(C)
             D = encoder.decode(X)
             self.assertEquals(C, D)
 
-    def doTestEncoderOversized(self, language, encoder):
-        for i in range(2 ** 7):
-            if fte.conf.getValue('languages.regex.' + language
-                                 + '.allow_ae_bits'):
-                N = fte.conf.getValue(
-                    'runtime.fte.record_layer.max_cell_size') * 8
-                C = random.randint(0, (1 << N) - 1)
-                C = fte.bit_ops.long_to_bytes(C)
-                X = encoder.encode(C)
-                D = encoder.decode(X)
-                self.assertEquals(C, D)
-
-    def testIntersection(self):
-        for protocol in ['http', 'ssh', 'smb']:
-            for direction in ['request', 'response']:
-                intersection_language = 'intersection-' + protocol \
-                    + '-' + direction
-                intersection_encoder = \
-                    fte.encoder.RegexEncoder(intersection_language)
-                for classifier in ['appid', 'yaf1', 'yaf2', 'l7']:
-                    language = classifier + '-' + protocol + '-' \
-                        + direction
-                    encoder = fte.encoder.RegexEncoder(language)
-                    for i in range(32):
-                        N = intersection_encoder.getCapacity()
-                        C = random.randint(0, (1 << N) - 1)
-                        C = fte.bit_ops.long_to_bytes(C)
-                        X = intersection_encoder.encode(C)
-                        try:
-                            encoder.decode(X)
-                        except:
-                            assert False, (intersection_language,
-                                           language, X)
+    #def testIntersection(self):
+    #    for protocol in ['http', 'ssh', 'smb']:
+    #        for direction in ['request', 'response']:
+    #            intersection_language = 'intersection-' + protocol \
+    #                + '-' + direction
+    #            intersection_encoder = \
+    #                fte.encoder.RegexEncoder(intersection_language)
+    #            for classifier in ['appid', 'yaf1', 'yaf2', 'l7']:
+    #                language = classifier + '-' + protocol + '-' \
+    #                    + direction
+    #                encoder = fte.encoder.RegexEncoder(language)
+    #                for i in range(32):
+    #                    N = intersection_encoder.getCapacity()
+    #                    C = random.randint(0, (1 << N) - 1)
+    #                    C = fte.bit_ops.long_to_bytes(C)
+    #                    X = intersection_encoder.encode(C)
+    #                    try:
+    #                        encoder.decode(X)
+    #                    except:
+    #                        assert False, (intersection_language,
+    #                                       language, X)
 
 
 if __name__ == '__main__':

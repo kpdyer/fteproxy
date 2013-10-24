@@ -168,22 +168,6 @@ class FTEMain(object):
                                       remote_ip, remote_port)
             server.start()
 
-def main():
-    
-    try:
-        main = FTEMain()
-        main.run()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        if fte.conf.getValue('runtime.mode'):
-            pid_file = os.path.join(fte.conf.getValue('general.pid_dir'
-                                                      ), '.'
-                                    + fte.conf.getValue('runtime.mode')
-                                    + '-' + str(os.getpid()) + '.pid')
-            if pid_file and os.path.exists(pid_file):
-                os.unlink(pid_file)
-
 def test():
     import unittest
     
@@ -201,15 +185,30 @@ def test():
     suite_bit_ops = unittest.TestLoader().loadTestsFromTestCase(fte.tests.bit_ops.TestEncoders)
     suite_dfa = unittest.TestLoader().loadTestsFromTestCase(fte.tests.dfa.TestDFA)
     suites = [
-        #suite_bit_ops,
-        #suite_encoder,
-        #suite_encrypter,
-        #suite_relay,
-        #suite_record_layer,
+        suite_bit_ops,
+        suite_encoder,
+        suite_encrypter,
+        suite_relay,
+        suite_record_layer,
         suite_dfa,
     ]
     alltests = unittest.TestSuite(suites)
     unittest.TextTestRunner(verbosity=2, failfast=True).run(alltests)
+
+def main():
+    try:
+        main = FTEMain()
+        main.run()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if fte.conf.getValue('runtime.mode'):
+            pid_file = os.path.join(fte.conf.getValue('general.pid_dir'
+                                                      ), '.'
+                                    + fte.conf.getValue('runtime.mode')
+                                    + '-' + str(os.getpid()) + '.pid')
+            if pid_file and os.path.exists(pid_file):
+                os.unlink(pid_file)
 
 if __name__ == '__main__':
     def signal_handler(signal, frame):

@@ -41,7 +41,8 @@ class TestEncoders(unittest.TestCase):
         self.recoder_layers_info = []
         self.record_layers_outgoing = []
         self.record_layers_incoming = []
-        for languageA in fte.conf.getValue('languages.regex'):
+        definitions = fte.defs.load_definitions()
+        for languageA in definitions.keys():
             regex_encoder = fte.encoder.RegexEncoder(languageA)
             encoder = fte.record_layer.Encoder(
                 encrypter=encrypter, encoder=regex_encoder)
