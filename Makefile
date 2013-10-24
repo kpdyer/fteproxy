@@ -12,7 +12,6 @@ INCLUDE_DIRS=-I$(RE2_DIR)
 all: third-party/re2/obj/libre2.a fte/dfa.so doc
 
 install: all
-	cd $(RE2_DIR) && $(MAKE) install
 	python setup.py install
 
 fte/dfa.so:
@@ -40,6 +39,7 @@ uninstall:
 	@rm -rfv /usr/local/lib/python2.7/dist-packages/fte
 	@rm -rfv /usr/local/lib/python2.7/dist-packages/dfas
 	@rm -fv /usr/local/lib/python2.7/dist-packages/Format_Transforming_Encrypion_FTE_-0.2.0_alpha.egg-info
+	@rm -fv /usr/local/bin/fteproxy
 
 doc: phantom
 phantom:

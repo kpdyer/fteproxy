@@ -21,7 +21,7 @@ import threading
 
 import fte.conf
 import fte.encoder
-
+import fte.io
 
 class worker(threading.Thread):
 

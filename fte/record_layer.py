@@ -75,5 +75,7 @@ class Decoder:
                 self._buffer = incoming_msg[to_take:]
             except fte.encoder.DecodeFailureException:
                 pass
+            except fte.encrypter.RecoverableDecryptionError:
+                pass
 
         return retval

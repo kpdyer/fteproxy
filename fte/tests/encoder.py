@@ -42,29 +42,3 @@ class TestEncoders(unittest.TestCase):
             X = encoder.encode(C)
             D = encoder.decode(X)
             self.assertEquals(C, D)
-
-    #def testIntersection(self):
-    #    for protocol in ['http', 'ssh', 'smb']:
-    #        for direction in ['request', 'response']:
-    #            intersection_language = 'intersection-' + protocol \
-    #                + '-' + direction
-    #            intersection_encoder = \
-    #                fte.encoder.RegexEncoder(intersection_language)
-    #            for classifier in ['appid', 'yaf1', 'yaf2', 'l7']:
-    #                language = classifier + '-' + protocol + '-' \
-    #                    + direction
-    #                encoder = fte.encoder.RegexEncoder(language)
-    #                for i in range(32):
-    #                    N = intersection_encoder.getCapacity()
-    #                    C = random.randint(0, (1 << N) - 1)
-    #                    C = fte.bit_ops.long_to_bytes(C)
-    #                    X = intersection_encoder.encode(C)
-    #                    try:
-    #                        encoder.decode(X)
-    #                    except:
-    #                        assert False, (intersection_language,
-    #                                       language, X)
-
-
-if __name__ == '__main__':
-    unittest.main()

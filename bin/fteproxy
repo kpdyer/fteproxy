@@ -24,19 +24,16 @@ import glob
 import argparse
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')))
+
 import fte.conf
-import fte.relay
-fte_workers = []
+import fte.client
+import fte.server
 
 
 class FTEMain(object):
 
     def run(self):
-        print """FTE Copyright (C) 2012-2013 Kevin P. Dyer <kdyer@cs.pdx.edu>
-    This program comes with ABSOLUTELY NO WARRANTY.
-    This is free software, and you are welcome to redistribute it under certain conditions.
-"""
-        parser = argparse.ArgumentParser(prog='fte_(client|server)',
+        parser = argparse.ArgumentParser(prog='fteproxy',
                                          formatter_class=argparse.ArgumentDefaultsHelpFormatter)
         parser.add_argument('--mode',
                             default='client',
@@ -70,17 +67,26 @@ class FTEMain(object):
                                                       ))
         parser.add_argument('--proxy_ip',
                             help='Forwarding-proxy (SOCKS) listening IP',
-                            default=fte.conf.getValue('runtime.socks.ip'
+                            default=fte.conf.getValue('runtime.proxy.ip'
                                                       ))
         parser.add_argument('--proxy_port',
                             help='Forwarding-proxy (SOCKS) listening port',
-                            default=fte.conf.getValue('runtime.socks.port'
+                            default=fte.conf.getValue('runtime.proxy.port'
                                                       ))
+        parser.add_argument('--quiet', action='store_true',default=False)
         parser.add_argument('--key',
                             help='Cryptographic key, hex, must be exactly 64 characters',
                             default=fte.conf.getValue('runtime.fte.encrypter.key'
                                                       ))
         args = parser.parse_args(sys.argv[1:])
+        
+        
+        if not args.quiet:
+            print """FTE Copyright (C) 2012-2013 Kevin P. Dyer <kdyer@cs.pdx.edu>
+This program comes with ABSOLUTELY NO WARRANTY.
+This is free software, and you are welcome to redistribute it under certain conditions.
+"""
+        
         if args.mode=='test':
             test()
             sys.exit(0)
@@ -123,9 +129,9 @@ class FTEMain(object):
             fte.conf.setValue('runtime.server.port',
                               int(args.server_port))
         if args.proxy_ip:
-            fte.conf.setValue('runtime.socks.ip', args.proxy_ip)
+            fte.conf.setValue('runtime.proxy.ip', args.proxy_ip)
         if args.proxy_port:
-            fte.conf.setValue('runtime.socks.port',
+            fte.conf.setValue('runtime.proxy.port',
                               int(args.proxy_port))
         if args.downstream_format:
             fte.conf.setValue('runtime.state.downstream_language',
@@ -156,7 +162,7 @@ class FTEMain(object):
             local_port = fte.conf.getValue('runtime.client.port')
             remote_ip = fte.conf.getValue('runtime.server.ip')
             remote_port = fte.conf.getValue('runtime.server.port')
-            client = fte.relay.server(local_ip, local_port,
+            client = fte.client.listener(local_ip, local_port,
                                       remote_ip, remote_port)
             client.start()
         elif fte.conf.getValue('runtime.mode') == 'server':
@@ -164,7 +170,7 @@ class FTEMain(object):
             local_port = fte.conf.getValue('runtime.server.port')
             remote_ip = fte.conf.getValue('runtime.proxy.ip')
             remote_port = fte.conf.getValue('runtime.proxy.port')
-            server = fte.relay.server(local_ip, local_port,
+            server = fte.server.listener(local_ip, local_port,
                                       remote_ip, remote_port)
             server.start()
 

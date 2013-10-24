@@ -67,8 +67,7 @@ class Encrypter(object):
     _MAC_LENGTH = AES.block_size
     _IV_LENGTH = 7
     _MSG_COUNTER_LENGTH = 8
-    _CTXT_EXPANSION = 42
-
+    _CTXT_EXPANSION = 1 + _IV_LENGTH + _MSG_COUNTER_LENGTH + _MAC_LENGTH
 
     def __init__(self, K1=None, K2=None):
         
@@ -138,9 +137,13 @@ class Encrypter(object):
             raise CiphertextTypeError("Input ciphertext is not of type string")
         
         plaintext_length = self.getPlaintextLen(ciphertext)
-        ciphertext_complete = ((plaintext_length+Encrypter._CTXT_EXPANSION) >= len(ciphertext))
+        ciphertext_length = self.getCiphertextLen(ciphertext)
+        ciphertext_complete = (len(ciphertext) >= ciphertext_length)
         if ciphertext_complete is False:
+            print [ciphertext_length, len(ciphertext)]
             raise RecoverableDecryptionError('Incomplete ciphertext.')
+        
+        ciphertext = ciphertext[:ciphertext_length]
         
         W1_start = 0
         W1_end = AES.block_size
@@ -152,10 +155,12 @@ class Encrypter(object):
         
         T_start = AES.block_size + plaintext_length
         T_end = AES.block_size + plaintext_length + Encrypter._MAC_LENGTH
-        T = ciphertext[T_start:T_end]
+        T_expected = ciphertext[T_start:T_end]
         
         mac = HMAC.new(self.K2, W1 + W2, SHA512)
-        if T != mac.digest()[:Encrypter._MAC_LENGTH]:
+        T_actual = mac.digest()[:Encrypter._MAC_LENGTH]
+        if T_expected != T_actual:
+            print [T_expected, T_actual]
             raise UnrecoverableDecryptionError('Failed to verify MAC.')
         
         iv2_bytes = '\x02' + self._ecb_enc_K1.decrypt(W1)[1:8]
