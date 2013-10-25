@@ -41,5 +41,4 @@ $ sudo make install
 
 ```
 $ ./systemtests
-$ fteproxy --help
 ```
