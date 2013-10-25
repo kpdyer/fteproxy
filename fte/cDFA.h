@@ -38,8 +38,8 @@ void dfainit();
 
 class DFA {
 private:
-    uint32_t _max_len = 0;
-    int32_t _q0 = -1;
+    uint32_t _max_len;
+    int32_t _q0;
     std::map<uint32_t, char> _sigma;
     std::map<char, uint32_t> _sigma_reverse;
     array_type_uint32_t2 _delta;

@@ -193,9 +193,10 @@ void DFA::rank(PyObject * c, std::string X ) {
 }
 
 
-DFA::DFA(std::string DFA, uint32_t MAX_WORD_LEN) {
-    _max_len = MAX_WORD_LEN;
-    
+DFA::DFA(std::string DFA, uint32_t MAX_WORD_LEN)
+: _max_len(MAX_WORD_LEN),
+  _q0(-1)
+{
     std::vector<uint32_t> symbolsTmp;
     boost::unordered_set<uint32_t> statesTmp;
     boost::unordered_set<uint32_t> final_statesTmp;
