@@ -22,13 +22,15 @@ $ sudo apt-get -y install libgmp-dev
 ```
 
 ```
+$ cd ~
 $ mkdir my-working-dir
 $ cd my-working-dir
-$ git clone https://github.com/redjack/FTE.git
+$ git clone https://github.com/redjack/fte-proxy.git
 $ cd FTE
-$ python setup.py build
+$ make
+$ sudo make install
 ```
 
 ```
-$ python unit_tests.py
+$ ./unittests
 ```
