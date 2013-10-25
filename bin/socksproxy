@@ -1,0 +1,60 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# This file is part of FTE.
+#
+# FTE is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# FTE is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with FTE.  If not, see <http://www.gnu.org/licenses/>.
+
+import os
+import sys
+import argparse
+
+import twisted.protocols.socks
+
+SOCKS_LOG = "socks.log"
+
+class SocksProxy:
+
+    def __init__(self, proxyIP, proxyPort):
+        self._proxyIP = proxyIP
+        self._proxyPort = proxyPort
+
+    def run(self):
+        factory = twisted.protocols.socks.SOCKSv4Factory(SOCKS_LOG)
+        twisted.internet.reactor.listenTCP(
+            self._proxyPort, factory, interface=self._proxyIP)
+
+        twisted.internet.reactor.run()
+
+    def stop(self):
+        pass
+
+
+def main():
+    parser = argparse.ArgumentParser(prog='socksproxy',
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--ip',required=True)
+    parser.add_argument('--port',required=True)
+    args = parser.parse_args(sys.argv[1:])
+    
+    proxy = SocksProxy(str(args.ip),
+                       int(args.port))
+    try:
+        proxy.run()
+    finally:
+        proxy.stop()
+
+
+if __name__ == '__main__':
+    main()

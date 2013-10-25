@@ -16,38 +16,39 @@
 # You should have received a copy of the GNU General Public License
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
-import math
 import gmpy
 import binascii
 import os
 
 
-def hiBit(c):
-    return gmpy.mpz(0 if c <= 0 else int(math.ceil(math.log(int(c), 2))))
-
-
-def peel_off(n, offset, C):
-    frag = gmpy.mpz(grab_slice(n, offset, C))
-    C = gmpy.mpz(((0x1 << offset) - 0x1) & C)
-    return (frag, C)
-
-
-def grab_slice(n, offset, C):
-    return gmpy.mpz(((0x1 << n) - 0x1) & C >> offset)
-
-
 def random_bytes(N):
+    """Given an input integer ``N``, ``random_bytes`` returns a string of exactly ``N`` uniformly-random bytes.
+    Calls ``os.urandom`` to get the random bytes.
+    """
     return os.urandom(N)
 
 
-def long_to_bytes(l, blocksize=0):
-    retval = gmpy.mpz(l).digits(16)
-    retval = '0' + retval if (len(retval) % 2) != 0 else retval
-    retval = binascii.unhexlify(retval)
-    if blocksize > 0 and len(retval) % blocksize != 0:
-        retval = '\x00' * (blocksize - len(retval) % blocksize) + retval
-    return retval
+def long_to_bytes(N, blocksize=1):
+    """Given an input integer ``N``, ``long_to_bytes`` returns the representation of ``N`` in bytes.
+    If ``blocksize`` is greater than ``1`` then the output string will be right justified and then padded with zero-bytes,
+    such that the return values length is a multiple of ``blocksize``.
+    """
+
+    bytestring = gmpy.mpz(N).digits(16)
+    bytestring = '0' + bytestring if (len(bytestring) % 2) != 0 else bytestring
+    bytestring = binascii.unhexlify(bytestring)
+
+    if blocksize > 0 and len(bytestring) % blocksize != 0:
+        bytestring = '\x00' * \
+            (blocksize - len(bytestring) % blocksize) + bytestring
+
+    return bytestring
 
 
-def bytes_to_long(s):
-    return gmpy.mpz(str('\x00' + s)[::-1], 256)
+def bytes_to_long(bytestring):
+    """Given a ``bytestring`` returns its integer represenation ``N``.
+    """
+
+    bytestring = '\x00' + bytestring
+    N = gmpy.mpz(str(bytestring)[::-1], 256)
+    return N

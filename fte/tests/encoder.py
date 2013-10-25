@@ -18,34 +18,30 @@
 
 import unittest
 import random
-import sys
-import fte.conf
+
 import fte.encoder
-import fte.cCfg
-START = 0
-ITERATIONS = 1024
-STEP = 128
+import fte.bit_ops
+import fte.defs
 
 
-class TestCFGBase(unittest.TestCase):
+class TestEncoders(unittest.TestCase):
 
-    def testCFGEncoderRequest(self):
-        for language in ['pet-intersection-response']:
-            sys.stdout.write(str([language]))
-            sys.stdout.flush()
-            encoder = fte.encoder.Regexencoder(language)
-            self.doTestEncoder(language, encoder)
+    def testRegexEncoderRequest(self):
+        definitions = fte.defs.load_definitions()
+        for language in definitions.keys():
+            regex = fte.defs.getRegex(language)
+            max_len = fte.defs.getMaxLen(language)
+            encoder = fte.encoder.RegexEncoder(regex, max_len)
+            self.doTestEncoder(encoder, 0.5)
+            self.doTestEncoder(encoder, 1)
+            self.doTestEncoder(encoder, 2)
+            self.doTestEncoder(encoder, 4)
 
-    def doTestEncoder(self, language, encoder):
-        for i in range(1024):
-            partition = random.choice(encoder.getPartitions())
-            N = encoder.getNextTemplateCapacity(partition, 0)
+    def doTestEncoder(self, encoder, factor=1):
+        for i in range(2 ** 7):
+            N = int(encoder.getCapacity() * factor)
             C = random.randint(0, (1 << N) - 1)
-            X = encoder.encode(N, C, partition)
-            _partition = encoder.determinePartition(X[0])
-            D = encoder.decode(X[0], _partition)
-            self.assertEquals(C, D[1], language)
-
-
-if __name__ == '__main__':
-    unittest.main()
+            C = fte.bit_ops.long_to_bytes(C)
+            X = encoder.encode(C)
+            D = encoder.decode(X)
+            self.assertEquals(C, D)

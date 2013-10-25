@@ -1,0 +1,249 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# This file is part of FTE.
+#
+# FTE is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# FTE is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with FTE.  If not, see <http://www.gnu.org/licenses/>.
+
+
+import sys
+import os
+import signal
+import glob
+import argparse
+import threading
+
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')))
+
+import fte.conf
+import fte.client
+import fte.server
+
+
+class FTEMain(threading.Thread):
+
+    def run(self):
+        self._client = None
+        self._server = None
+        
+        parser = argparse.ArgumentParser(prog='fteproxy',
+                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser.add_argument('--mode',
+                            default='client',
+                            metavar='(client|server|test)',
+                            help='Relay mode: client or server')
+        parser.add_argument('--stop', action='store_true',
+                            help='Shutdown daemon process')
+        parser.add_argument('--upstream-format',
+                            help='Client-to-server language format',
+                            default=fte.conf.getValue('runtime.state.upstream_language'
+                                                      ))
+        parser.add_argument('--downstream-format',
+                            help='Server-to-client language format',
+                            default=fte.conf.getValue('runtime.state.downstream_language'
+                                                      ))
+        parser.add_argument('--client_ip',
+                            help='Client-side listening IP',
+                            default=fte.conf.getValue('runtime.client.ip'
+                                                      ))
+        parser.add_argument('--client_port',
+                            help='Client-side listening port',
+                            default=fte.conf.getValue('runtime.client.port'
+                                                      ))
+        parser.add_argument('--server_ip',
+                            help='Server-side listening IP',
+                            default=fte.conf.getValue('runtime.server.ip'
+                                                      ))
+        parser.add_argument('--server_port',
+                            help='Server-side listening port',
+                            default=fte.conf.getValue('runtime.server.port'
+                                                      ))
+        parser.add_argument('--proxy_ip',
+                            help='Forwarding-proxy (SOCKS) listening IP',
+                            default=fte.conf.getValue('runtime.proxy.ip'
+                                                      ))
+        parser.add_argument('--proxy_port',
+                            help='Forwarding-proxy (SOCKS) listening port',
+                            default=fte.conf.getValue('runtime.proxy.port'
+                                                      ))
+        parser.add_argument('--quiet', action='store_true',default=False)
+        parser.add_argument('--key',
+                            help='Cryptographic key, hex, must be exactly 64 characters',
+                            default=fte.conf.getValue('runtime.fte.encrypter.key'
+                                                      ))
+        args = parser.parse_args(sys.argv[1:])
+        
+        
+        if not args.quiet:
+            print """FTE Copyright (C) 2012-2013 Kevin P. Dyer <kdyer@cs.pdx.edu>
+This program comes with ABSOLUTELY NO WARRANTY.
+This is free software, and you are welcome to redistribute it under certain conditions.
+"""
+        
+        if args.mode=='test':
+            test()
+            sys.exit(0)
+        if args.stop:
+            if not args.mode:
+                print '--mode keyword is required with --stop'
+                parser.print_help()
+                sys.exit(1)
+            if args.mode in ['client', 'server']:
+                pid_files_path = \
+                    os.path.join(fte.conf.getValue('general.pid_dir'),
+                                 '.' + args.mode + '-*.pid')
+                pid_files = glob.glob(pid_files_path)
+                for pid_file in pid_files:
+                    with open(pid_file) as f:
+                        pid = int(f.read())
+                        if fte.conf.getValue('runtime.console.debug'):
+                            print 'Stopping pid=' + str(pid)
+                        try:
+                            os.kill(pid, signal.SIGKILL)
+                        except OSError:
+                            pass
+                        os.unlink(pid_file)
+                sys.exit(0)
+        if args.mode == 'client':
+            fte.conf.setValue('runtime.mode', 'client')
+        elif args.mode == 'server':
+            fte.conf.setValue('runtime.mode', 'server')
+        else:
+            parser.print_help()
+            sys.exit(1)
+        if args.client_ip:
+            fte.conf.setValue('runtime.client.ip', args.client_ip)
+        if args.client_port:
+            fte.conf.setValue('runtime.client.port',
+                              int(args.client_port))
+        if args.server_ip:
+            fte.conf.setValue('runtime.server.ip', args.server_ip)
+        if args.server_port:
+            fte.conf.setValue('runtime.server.port',
+                              int(args.server_port))
+        if args.proxy_ip:
+            fte.conf.setValue('runtime.proxy.ip', args.proxy_ip)
+        if args.proxy_port:
+            fte.conf.setValue('runtime.proxy.port',
+                              int(args.proxy_port))
+        if args.downstream_format:
+            fte.conf.setValue('runtime.state.downstream_language',
+                              args.downstream_format)
+        if args.upstream_format:
+            fte.conf.setValue('runtime.state.upstream_language',
+                              args.upstream_format)
+        if args.key:
+            if len(args.key) != 64:
+                print 'Invalid key length: ' + str(len(args.key)) + ', should be 64'
+                sys.exit(1)
+            try:
+                binary_key = args.key.decode('hex')
+            except:
+                print 'Invalid key format, must contain only 0-9a-fA-F'
+                sys.exit(1)
+            fte.conf.setValue('runtime.fte.encrypter.key', binary_key)
+
+        pid_file = os.path.join(fte.conf.getValue('general.pid_dir'),
+                                '.' + fte.conf.getValue('runtime.mode')
+                                + '-' + str(os.getpid()) + '.pid')
+        
+        with open(pid_file, 'w') as f:
+            f.write(str(os.getpid()))
+        
+        fte.conf.setValue('runtime.state.message_token', 'client')
+
+        if fte.conf.getValue('runtime.mode') == 'client':
+            local_ip = fte.conf.getValue('runtime.client.ip')
+            local_port = fte.conf.getValue('runtime.client.port')
+            remote_ip = fte.conf.getValue('runtime.server.ip')
+            remote_port = fte.conf.getValue('runtime.server.port')
+            self._client = fte.client.listener(local_ip, local_port,
+                                      remote_ip, remote_port)
+            self._client.daemon = True
+            self._client.start()
+            self._client.join()
+        elif fte.conf.getValue('runtime.mode') == 'server':
+            local_ip = fte.conf.getValue('runtime.server.ip')
+            local_port = fte.conf.getValue('runtime.server.port')
+            remote_ip = fte.conf.getValue('runtime.proxy.ip')
+            remote_port = fte.conf.getValue('runtime.proxy.port')
+            self._server = fte.server.listener(local_ip, local_port,
+                                      remote_ip, remote_port)
+            self._server.daemon = True
+            self._server.start()
+            self._server.join()
+
+    def stop(self):
+        if self._client is not None:
+            self._client.stop()
+        if self._server is not None:
+            self._server.stop()
+
+def test():
+    import unittest
+    
+    import fte.tests.encoder
+    import fte.tests.encrypter
+    import fte.tests.record_layer
+    import fte.tests.bit_ops
+    import fte.tests.relay
+    import fte.tests.dfa
+    
+    suite_encoder = unittest.TestLoader().loadTestsFromTestCase(fte.tests.encoder.TestEncoders)
+    suite_encrypter = unittest.TestLoader().loadTestsFromTestCase(fte.tests.encrypter.TestEncoders)
+    suite_record_layer = unittest.TestLoader().loadTestsFromTestCase(fte.tests.record_layer.TestEncoders)
+    suite_relay = unittest.TestLoader().loadTestsFromTestCase(fte.tests.relay.TestRelay)
+    suite_bit_ops = unittest.TestLoader().loadTestsFromTestCase(fte.tests.bit_ops.TestEncoders)
+    suite_dfa = unittest.TestLoader().loadTestsFromTestCase(fte.tests.dfa.TestDFA)
+    suites = [
+        suite_bit_ops,
+        suite_encoder,
+        suite_encrypter,
+        suite_relay,
+        suite_record_layer,
+        suite_dfa,
+    ]
+    alltests = unittest.TestSuite(suites)
+    unittest.TextTestRunner(verbosity=2, failfast=True).run(alltests)
+
+def main():
+    global running
+    
+    try:
+        main = FTEMain()
+        main.daemon = True
+        main.start()
+        while running and main.is_alive():
+            main.join(0.01)
+        main.stop()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if fte.conf.getValue('runtime.mode'):
+            pid_file = os.path.join(fte.conf.getValue('general.pid_dir'
+                                                      ), '.'
+                                    + fte.conf.getValue('runtime.mode')
+                                    + '-' + str(os.getpid()) + '.pid')
+            if pid_file and os.path.exists(pid_file):
+                os.unlink(pid_file)
+
+if __name__ == '__main__':
+    running = True
+    def signal_handler(signal, frame):
+        global running
+        running = False
+    signal.signal(signal.SIGINT, signal_handler)
+    
+    main()

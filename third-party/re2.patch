@@ -1,0 +1,177 @@
+diff -urBNs re2/re2/dfa.cc re2.fte/re2/dfa.cc
+--- re2/re2/dfa.cc	2013-01-15 10:00:09.000000000 +0000
++++ re2.fte/re2/dfa.cc	2013-10-24 05:53:02.220772889 +0000
+@@ -21,13 +21,16 @@
+ //
+ // See http://swtch.com/~rsc/regexp/ for a very bare-bones equivalent.
+ 
++#include <iostream>
++#include <stdlib.h>
++
+ #include "re2/prog.h"
+ #include "re2/stringpiece.h"
+ #include "util/atomicops.h"
+ #include "util/flags.h"
+ #include "util/sparse_set.h"
+ 
+-DEFINE_bool(re2_dfa_bail_when_slow, true,
++DEFINE_bool(re2_dfa_bail_when_slow, false,
+             "Whether the RE2 DFA should bail out early "
+             "if the NFA would be faster (for testing).");
+ 
+@@ -79,6 +82,7 @@
+   // Builds out all states for the entire DFA.  FOR TESTING ONLY
+   // Returns number of states.
+   int BuildAllStates();
++  std::string PrintAllStates();
+ 
+   // Computes min and max for matching strings.  Won't return strings
+   // bigger than maxlen.
+@@ -1939,7 +1943,9 @@
+   // at beginning of text.
+   RWLocker l(&cache_mutex_);
+   SearchParams params(NULL, NULL, &l);
+-  params.anchored = false;
++  params.anchored = true;
++  params.want_earliest_match = true;
++  params.run_forward = true;
+   if (!AnalyzeSearch(&params) || params.start <= SpecialStateMax)
+     return 0;
+ 
+@@ -1964,12 +1970,90 @@
+   return q.size();
+ }
+ 
++std::string DFA::PrintAllStates() {
++  if (!ok())
++    return 0;
++
++  std::string retval = "";
++    
++  // Pick out start state for unanchored search
++  // at beginning of text.
++  RWLocker l(&cache_mutex_);
++  SearchParams params(NULL, NULL, &l);
++  params.anchored = true;
++  params.want_earliest_match = true;
++  params.run_forward = true;
++  if (!AnalyzeSearch(&params) || params.start <= SpecialStateMax)
++    return 0;
++
++  // Add start state to work queue.
++  StateSet queued;
++  vector<State*> q;
++  queued.insert(params.start);
++  q.push_back(params.start);
++
++  // Flood to expand every state.
++  for (int i = 0; i < q.size(); i++) {
++    //if (i>5000) { retval = "ERROR: DFA has more than 5000 states."; break; }
++    State* s = q[i];
++    for (int c = 0; c < 257; c++) {
++      State* ns = RunStateOnByteUnlocked(s, c);
++      if (ns > SpecialStateMax && queued.find(ns) == queued.end()) {
++        queued.insert(ns);
++        q.push_back(ns);
++      }
++      if (ns!=DeadState) {
++          char c_str[100];
++          char s_addr_str[100];
++          char ns_addr_str[100];
++          unsigned int s_addr_int32;
++          unsigned int ns_addr_int32;
++          
++          snprintf(c_str, sizeof(c_str), "%d", c+1);
++          snprintf(s_addr_str, sizeof(s_addr_str), "%p", s);
++          snprintf(ns_addr_str, sizeof(ns_addr_str), "%p", ns);
++          
++          sscanf(s_addr_str, "%x", &s_addr_int32);
++          sscanf(ns_addr_str, "%x", &ns_addr_int32);
++          
++          snprintf(s_addr_str, sizeof(s_addr_str), "%u", s_addr_int32);
++          snprintf(ns_addr_str, sizeof(ns_addr_str), "%u", ns_addr_int32);
++                   
++          retval += std::string(s_addr_str);
++          retval += " " + std::string(ns_addr_str);
++          retval += " " + std::string(c_str);
++          retval += " " + std::string(c_str);
++          retval += "\n"; 
++      }
++      if (ns!=DeadState && (ns == FullMatchState||ns->IsMatch())) {
++        char s_addr_str[100];
++        unsigned int s_addr_int32;
++        
++        snprintf(s_addr_str, sizeof(s_addr_str), "%p", s);
++        sscanf(s_addr_str, "%x", &s_addr_int32);
++        snprintf(s_addr_str, sizeof(s_addr_str), "%u", s_addr_int32);
++        
++        retval += std::string(s_addr_str);
++        retval += "\n";
++      }
++    }
++  }
++
++  return retval;
++}
++
+ // Build out all states in DFA for kind.  Returns number of states.
+ int Prog::BuildEntireDFA(MatchKind kind) {
+   //LOG(ERROR) << "BuildEntireDFA is only for testing.";
+   return GetDFA(kind)->BuildAllStates();
+ }
+ 
++// Build out all states in DFA for kind.  Returns number of states.
++std::string Prog::PrintEntireDFA(MatchKind kind) {
++  //LOG(ERROR) << "BuildEntireDFA is only for testing.";
++  return GetDFA(kind)->PrintAllStates();
++}
++
+ // Computes min and max for matching string.
+ // Won't return strings bigger than maxlen.
+ bool DFA::PossibleMatchRange(string* min, string* max, int maxlen) {
+diff -urBNs re2/re2/prog.h re2.fte/re2/prog.h
+--- re2/re2/prog.h	2012-10-21 13:15:03.000000000 +0000
++++ re2.fte/re2/prog.h	2013-10-24 01:25:33.113488427 +0000
+@@ -279,6 +279,7 @@
+   // avoids lots of unnecessary work.  This function is useful only
+   // for testing purposes.  Returns number of states.
+   int BuildEntireDFA(MatchKind kind);
++  std::string PrintEntireDFA(MatchKind kind);
+ 
+   // Compute byte map.
+   void ComputeByteMap();
+diff -urBNs re2/re2/re2.cc re2.fte/re2/re2.cc
+--- re2/re2/re2.cc	2012-11-27 10:00:16.000000000 +0000
++++ re2.fte/re2/re2.cc	2013-10-24 00:49:42.889584294 +0000
+@@ -33,7 +33,7 @@
+ 
+ // This will trigger LNK2005 error in MSVC.
+ #ifndef COMPILER_MSVC
+-const int RE2::Options::kDefaultMaxMem;  // initialized in re2.h
++const int64_t RE2::Options::kDefaultMaxMem;  // initialized in re2.h
+ #endif  // COMPILER_MSVC
+ 
+ RE2::Options::Options(RE2::CannedOptions opt)
+diff -urBNs re2/re2/re2.h re2.fte/re2/re2.h
+--- re2/re2/re2.h	2012-10-21 13:15:03.000000000 +0000
++++ re2.fte/re2/re2.h	2013-10-24 00:49:42.901584293 +0000
+@@ -552,7 +552,7 @@
+     // If this happens too often, RE2 falls back on the NFA implementation.
+ 
+     // For now, make the default budget something close to Code Search.
+-    static const int kDefaultMaxMem = 8<<20;
++    static const int64_t kDefaultMaxMem = ((int64_t)1)<<40;
+ 
+     enum Encoding {
+       EncodingUTF8 = 1,
+@@ -599,8 +599,8 @@
+     bool log_errors() const { return log_errors_; }
+     void set_log_errors(bool b) { log_errors_ = b; }
+ 
+-    int max_mem() const { return max_mem_; }
+-    void set_max_mem(int m) { max_mem_ = m; }
++    int64_t max_mem() const { return max_mem_; }
++    void set_max_mem(int64_t m) { max_mem_ = m; }
+ 
+     bool literal() const { return literal_; }
+     void set_literal(bool b) { literal_ = b; }
