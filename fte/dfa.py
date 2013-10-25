@@ -19,8 +19,6 @@
 
 import gmpy
 import math
-import string
-import random
 
 import fte.cDFA
 
@@ -54,12 +52,12 @@ class DFA(object):
         self._capacity = int(math.floor(math.log(self._words_in_slice, 2)))
 
     def rank(self, X):
-        c = gmpy.mpz(0)
-        self._dfa.rank(c, X)
-
+        c = self._dfa.rank(X)
+        c = gmpy.mpz(c)
         if c == -1:
             raise RankFailureException(('Rank failed.', X))
         c -= self._offset
+        
         return c
 
     def unrank(self, c):

@@ -35,164 +35,6 @@
 #include "re2/testing/regexp_generator.h"
 #include "re2/testing/string_generator.h"
 
-void __buildTable(array_type_mpz_t2 & T,
-                  array_type_uint32_t2 delta,
-                  array_type_uint32_t1 delta_dense,
-                  const uint32_t n,
-                  boost::unordered_set<uint32_t> final_states) {
-    uint32_t i, q, a;
-    boost::unordered_set<uint32_t>::iterator it;
-    for (it=final_states.begin(); it!=final_states.end(); it++) {
-        T[*it][0] = 1;
-    }
-
-    mpz_t tmp;
-    mpz_init(tmp);
-    for (i=1; i<=n; i++) {
-        for (q=0; q<delta.size(); q++) {
-            for (a=0; a<delta[0].size(); a++) {
-                if ( mpz_cmp_ui( T[delta[q][a]][i-1].get_mpz_t(), 0 ) > 0 )
-                    T[q][i] += T[delta[q][a]][i-1];
-            }
-        }
-    }
-    mpz_clear(tmp);
-
-}
-
-uint32_t DFA::delta(uint32_t q, uint32_t c ) {
-    return _delta[q][c];
-}
-
-void DFA::doRank(mpz_t c,
-                 array_type_uint32_t1 X,
-                 const uint32_t q0,
-                 array_type_uint32_t2 delta,
-                 array_type_uint32_t1 delta_dense,
-                 array_type_mpz_t2 T) {
-    if (T[0].size() < X.size()) {
-        mpz_set_si( c, -1 );
-        return;
-    }
-
-
-    uint32_t q = q0;
-    uint32_t n = X.size();
-    uint32_t i, j;
-
-    mpz_t tmp;
-    mpz_init(tmp);
-
-    mpz_init_set_si( c, 0 );
-
-    for (i=1; i<=n; i++) {
-        if (delta_dense[q] == 1) {
-            mpz_mul_ui( tmp, T[delta[q][0]][n-i].get_mpz_t(), X[i-1] );
-            mpz_add( c, c, tmp );
-        } else {
-            for (j=1; j<=X[i-1]; j++) {
-                mpz_add( c, c, T[delta[q][j-1]][n-i].get_mpz_t() );
-            }
-        }
-        q = delta[q][X[i-1]];
-
-        if (q == (delta.size()-1)) {
-            mpz_set_si( c, -1 );
-            return;
-        }
-    }
-
-    mpz_clear(tmp);
-
-    if (_final_states.count(q)==0) {
-        mpz_set_si( c, -1 );
-        return;
-    }
-
-    for (i=0; i<n; i++)
-        mpz_add( c, c, T[q0][i].get_mpz_t() );
-}
-
-void DFA::doUnrank(array_type_uint32_t1 & X,
-                   const mpz_t c,
-                   const uint32_t q0,
-                   array_type_uint32_t2 delta,
-                   array_type_uint32_t1 delta_dense,
-                   array_type_mpz_t2 T) {
-
-    uint32_t q = q0;
-    uint32_t n = 1;
-    uint32_t i;
-    uint32_t idx;
-    const uint32_t *j;
-    mpz_t cTmp;
-    mpz_t jTmp;
-
-    mpz_init(jTmp);
-    mpz_init_set(cTmp,c);
-
-    while ( mpz_cmp(cTmp, T[q0][n].get_mpz_t()) >= 0 ) {
-        mpz_sub( cTmp, cTmp, T[q0][n].get_mpz_t() );
-        n++;
-    }
-
-    X.resize(boost::extents[n]);
-
-    for (i=1; i<=n; i++) {
-        idx = n-i;
-        if (delta_dense[q] == 1) {
-            q = delta[q][0];
-            if ( mpz_cmp_ui( T[q][idx].get_mpz_t(), 0 ) != 0 ) {
-                mpz_fdiv_qr( jTmp, cTmp, cTmp, T[q][idx].get_mpz_t() );
-                X[i-1] = mpz_get_ui(jTmp);
-            } else {
-                X[i-1] = 0;
-            }
-        } else {
-            j = &delta[q][0];
-            while (mpz_cmp( cTmp, T[*j][idx].get_mpz_t() ) >= 0) {
-                mpz_sub( cTmp, cTmp, T[*j][idx].get_mpz_t() );
-                j += 1;
-            }
-            X[i-1] = j - &delta[q][0];
-            q = *j;
-        }
-    }
-
-    mpz_clear(cTmp);
-    mpz_clear(jTmp);
-
-    if (_final_states.count(q)==0) {
-        X.resize(boost::extents[0]);
-        return;
-    }
-}
-
-std::string DFA::unrank(PyObject * c ) {
-    array_type_uint32_t1 tmp;
-    
-    DFA::doUnrank(tmp, Pympz_AS_MPZ(c), _q0, _delta, _delta_dense, _T );
-
-    uint32_t i;
-    std::string X;
-    for (i=0; i<tmp.size(); i++) {
-        X += _sigma[tmp[i]];
-    }
-
-    return X;
-}
-
-void DFA::rank(PyObject * c, std::string X ) {
-    uint32_t i;
-    
-    array_type_uint32_t1 tmpX(boost::extents[X.size()]);
-    for (i=0; i<X.size(); i++) {
-        tmpX[i] = _sigma_reverse[X.at(i)];
-    }
-
-    DFA::doRank(Pympz_AS_MPZ(c), tmpX, _q0, _delta, _delta_dense, _T  );
-}
-
 
 DFA::DFA(std::string DFA, uint32_t MAX_WORD_LEN)
 : _max_len(MAX_WORD_LEN),
@@ -309,9 +151,158 @@ DFA::DFA(std::string DFA, uint32_t MAX_WORD_LEN)
     _delta_dense.resize(boost::extents[NUM_STATES]);
     _delta_dense = delta_denseTmp;
     array_type_mpz_t2 TTmp(boost::extents[NUM_STATES][MAX_WORD_LEN+1]);
-    __buildTable( TTmp, deltaTmp, delta_denseTmp, MAX_WORD_LEN, _final_states );
     _T.resize(boost::extents[NUM_STATES][MAX_WORD_LEN+1]);
-    _T = TTmp;
+    DFA::buildTable();
+}
+
+
+void DFA::buildTable() {
+    uint32_t i, q, a;
+    uint32_t n = _max_len;
+    
+    boost::unordered_set<uint32_t>::iterator it;
+    for (it=_final_states.begin(); it!=_final_states.end(); it++) {
+        _T[*it][0] = 1;
+    }
+
+    mpz_t tmp;
+    mpz_init(tmp);
+    for (i=1; i<=n; i++) {
+        for (q=0; q<_delta.size(); q++) {
+            for (a=0; a<_delta[0].size(); a++) {
+                if ( mpz_cmp_ui( _T[_delta[q][a]][i-1].get_mpz_t(), 0 ) > 0 )
+                    _T[q][i] += _T[_delta[q][a]][i-1];
+            }
+        }
+    }
+    mpz_clear(tmp);
+
+}
+
+void DFA::doRank(mpz_t c, array_type_uint32_t1 X) {
+    
+    if (_T[0].size() < X.size()) {
+        mpz_set_si( c, -1 );
+        return;
+    }
+    
+    uint32_t q = _q0;
+    uint32_t n = X.size();
+    uint32_t i, j;
+
+    mpz_t tmp;
+    mpz_init(tmp);
+
+    mpz_init_set_si( c, 0 );
+
+    for (i=1; i<=n; i++) {
+        if (_delta_dense[q] == 1) {
+            uint32_t state = _delta[q][0];
+            mpz_mul_ui( tmp, _T[state][n-i].get_mpz_t(), X[i-1] );
+            mpz_add( c, c, tmp );
+        } else {
+            for (j=1; j<=X[i-1]; j++) {
+                mpz_add( c, c, _T[_delta[q][j-1]][n-i].get_mpz_t() );
+            }
+        }
+        q = _delta[q][X[i-1]];
+
+        if (q == (_delta.size()-1)) {
+            mpz_set_si( c, -1 );
+            return;
+        }
+    }
+
+    mpz_clear(tmp);
+
+    if (_final_states.count(q)==0) {
+        mpz_set_si( c, -1 );
+        return;
+    }
+
+    for (i=0; i<n; i++)
+        mpz_add( c, c, _T[_q0][i].get_mpz_t() );
+}
+
+void DFA::doUnrank(array_type_uint32_t1 & X, const mpz_t c) {
+
+    uint32_t q = _q0;
+    uint32_t n = 1;
+    uint32_t i;
+    uint32_t idx;
+    const uint32_t *j;
+    mpz_t cTmp;
+    mpz_t jTmp;
+
+    mpz_init(jTmp);
+    mpz_init_set(cTmp,c);
+
+    while ( mpz_cmp(cTmp, _T[_q0][n].get_mpz_t()) >= 0 ) {
+        mpz_sub( cTmp, cTmp, _T[_q0][n].get_mpz_t() );
+        n++;
+    }
+
+    X.resize(boost::extents[n]);
+
+    for (i=1; i<=n; i++) {
+        idx = n-i;
+        if (_delta_dense[q] == 1) {
+            q = _delta[q][0];
+            if ( mpz_cmp_ui( _T[q][idx].get_mpz_t(), 0 ) != 0 ) {
+                mpz_fdiv_qr( jTmp, cTmp, cTmp, _T[q][idx].get_mpz_t() );
+                X[i-1] = mpz_get_ui(jTmp);
+            } else {
+                X[i-1] = 0;
+            }
+        } else {
+            j = &_delta[q][0];
+            while (mpz_cmp( cTmp, _T[*j][idx].get_mpz_t() ) >= 0) {
+                mpz_sub( cTmp, cTmp, _T[*j][idx].get_mpz_t() );
+                j += 1;
+            }
+            X[i-1] = j - &_delta[q][0];
+            q = *j;
+        }
+    }
+
+    mpz_clear(cTmp);
+    mpz_clear(jTmp);
+
+    if (_final_states.count(q)==0) {
+        X.resize(boost::extents[0]);
+        return;
+    }
+}
+
+std::string DFA::unrank(PyObject * c ) {
+    array_type_uint32_t1 tmp;
+    
+    DFA::doUnrank(tmp, Pympz_AS_MPZ(c) );
+
+    uint32_t i;
+    std::string X;
+    for (i=0; i<tmp.size(); i++) {
+        X += _sigma[tmp[i]];
+    }
+
+    return X;
+}
+
+PyObject* DFA::rank( std::string X ) {
+    uint32_t i;
+    
+    array_type_uint32_t1 tmpX(boost::extents[X.size()]);
+    for (i=0; i<X.size(); i++) {
+        tmpX[i] = _sigma_reverse[X.at(i)];
+    }
+
+    mpz_t c;
+    mpz_init(c); 
+    DFA::doRank( c, tmpX );
+    
+    char * retval_str = mpz_get_str(NULL, 10, c);
+    
+    return PyLong_FromString(retval_str,NULL,10);
 }
 
 
