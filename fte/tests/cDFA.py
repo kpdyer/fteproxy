@@ -30,13 +30,13 @@ class TestcDFA(unittest.TestCase):
                 regex = fh.read()
 
             with open('fte/tests/dfas/test' + str(i) + '.dfa') as fh:
-                expected_dfa = fh.read()
+                expected_fst = fh.read()
 
-            dfa = fte.cDFA.fromRegex(regex)
-            dfa = fte.cDFA.minimize(dfa)
-            dfa = dfa.strip()
+            actual_fst = fte.cDFA.attFstFromRegex(regex)
+            actual_fst = fte.cDFA.attFstMinimize(actual_fst)
+            actual_fst = actual_fst.strip()
 
-            self.assertEquals(dfa, expected_dfa)
+            self.assertEquals(actual_fst, expected_fst)
 
 if __name__ == '__main__':
     unittest.main()

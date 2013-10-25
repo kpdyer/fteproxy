@@ -18,7 +18,6 @@
 #include <gmpxx.h>
 #include <map>
 
-#include <boost/assign/std/vector.hpp>
 #include <boost/multi_array.hpp>
 #include <boost/unordered_set.hpp>
 
@@ -26,15 +25,20 @@ typedef boost::multi_array<char, 1> array_type_char_t1;
 typedef boost::multi_array<uint32_t, 1> array_type_uint32_t1;
 typedef boost::multi_array<uint32_t, 2> array_type_uint32_t2;
 typedef boost::multi_array<mpz_class, 2> array_type_mpz_t2;
-typedef boost::const_multi_array_ref<uint32_t, 1> const_array_type_uint32_t1;
-typedef boost::const_multi_array_ref<uint32_t, 2> const_array_type_uint32_t2;
-typedef boost::const_multi_array_ref<mpz_class, 2> const_array_type_mpz_t2;
-typedef std::map< mpz_class, std::vector<uint32_t> > map_type_str_vec;
+
+typedef long Py_hash_t;
+typedef struct {
+    PyObject_HEAD
+    mpz_t z;
+    Py_hash_t hash_cache;
+} PympzObject;
+#define Pympz_AS_MPZ(obj) (((PympzObject *)(obj))->z)
 
 void dfainit();
 
 class DFA {
 private:
+    uint32_t _max_len = 0;
     int32_t _q0 = -1;
     std::map<uint32_t, char> _sigma;
     std::map<char, uint32_t> _sigma_reverse;
@@ -42,28 +46,30 @@ private:
     array_type_uint32_t1 _delta_dense;
     boost::unordered_set<uint32_t> _final_states;
     array_type_mpz_t2 _T;
+    
+    void doRank(mpz_t c,
+                array_type_uint32_t1 X,
+                const uint32_t q0,
+                array_type_uint32_t2 delta,
+                array_type_uint32_t1 delta_dense,
+                array_type_mpz_t2 T);
+    void doUnrank(array_type_uint32_t1 & X,
+                  const mpz_t c,
+                  const uint32_t q0,
+                  array_type_uint32_t2 delta,
+                  array_type_uint32_t1 delta_dense,
+                  array_type_mpz_t2 T);
 public:
     DFA(std::string DFA, uint32_t MAX_WORD_LEN);
-    std::string unrank( PyObject * c );
-    void rank( PyObject * c, std::string X );
-    void getT( PyObject * c, uint32_t q, uint32_t i );
-    uint32_t getSizeOfT();
-    uint32_t delta(uint32_t q, uint32_t c );
-    uint32_t getStart();
-    uint32_t getNumStates();
-    void doRank(mpz_t c,
-                          array_type_uint32_t1 X,
-                          const uint32_t q0,
-                          const_array_type_uint32_t2 delta,
-                          const_array_type_uint32_t1 delta_dense,
-                          const_array_type_mpz_t2 T);
-    void doUnrank(array_type_uint32_t1 & X,
-                            const mpz_t c,
-                            const uint32_t q0,
-                            const_array_type_uint32_t2 delta,
-                            const_array_type_uint32_t1 delta_dense,
-                            const_array_type_mpz_t2 T);
+    
+    std::string unrank( PyObject* );
+    void rank( PyObject*, std::string );
+    
+    uint32_t delta( uint32_t, uint32_t );
+    
+    PyObject* getNumWordsInLanguage();
+    PyObject* getNumWordsInSlice( uint32_t );
 };
 
-std::string minimize(std::string regex);
-std::string fromRegex(std::string regex);
+std::string attFstFromRegex(std::string regex);
+std::string attFstMinimize(std::string regex);
