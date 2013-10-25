@@ -27,5 +27,6 @@ setup(name='Format-Transforming Encrypion (FTE)',
                 ],
       scripts=['bin/fteproxy',
                'bin/socksproxy'],
+      package_data={'fte.defs': ['*.json', 'fte/defs/*.json']},
       ext_modules=[fte_cDFA],
       )
