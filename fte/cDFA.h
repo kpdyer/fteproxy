@@ -37,7 +37,7 @@ typedef struct {
 void dfainit();
 
 class DFA {
-    
+
 private:
     uint32_t _max_len;
     int32_t _q0;
@@ -47,17 +47,14 @@ private:
     array_type_uint32_t1 _delta_dense;
     boost::unordered_set<uint32_t> _final_states;
     array_type_mpz_t2 _T;
-    
-    void doRank(mpz_t c, array_type_uint32_t1 X);
-    void doUnrank(array_type_uint32_t1 & X, const mpz_t c);
+
     void buildTable();
 public:
-    DFA(std::string DFA, uint32_t MAX_WORD_LEN);
-    
+    DFA(std::string, uint32_t);
+
     std::string unrank( PyObject* );
     PyObject* rank( std::string );
-    
-    PyObject* getNumWordsInLanguage();
+    PyObject* getNumWordsInLanguage( );
     PyObject* getNumWordsInSlice( uint32_t );
 };
 

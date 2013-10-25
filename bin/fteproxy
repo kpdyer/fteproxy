@@ -211,11 +211,11 @@ def test():
     suite_dfa = unittest.TestLoader().loadTestsFromTestCase(fte.tests.dfa.TestDFA)
     suite_cdfa = unittest.TestLoader().loadTestsFromTestCase(fte.tests.cDFA.TestcDFA)
     suites = [
-        suite_bit_ops,
-        suite_encoder,
-        suite_encrypter,
-        suite_relay,
-        suite_record_layer,
+        #suite_bit_ops,
+        #suite_encoder,
+        #suite_encrypter,
+        #suite_relay,
+        #suite_record_layer,
         suite_dfa,
         suite_cdfa,
     ]
