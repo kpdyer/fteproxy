@@ -34,3 +34,7 @@ $ sudo make install
 ```
 $ ./unittests
 ```
+
+```
+$ fteproxy --help
+```
