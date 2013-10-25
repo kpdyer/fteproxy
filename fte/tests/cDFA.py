@@ -18,31 +18,25 @@
 
 
 import unittest
-import random
 
-import fte.dfa
-
-NUM_TRIALS = 10
-
-MAX_LEN = 512
-_regexs = [
-           '^\C+$',
-           '^(0|1)+$',
-           '^(A|B)+$',
-           '^(acat|adog)+$',
-           ]
+import fte.cDFA
 
 
-class TestDFA(unittest.TestCase):
+class TestcDFA(unittest.TestCase):
 
-    def testUnrankRank(self):
-        for regex in _regexs:
-            dfa = fte.dfa.from_regex(regex, MAX_LEN)
-            for i in range(NUM_TRIALS):
-                N = random.randint(0, (1 << dfa.getCapacity()))
-                X = dfa.unrank(N)
-                M = dfa.rank(X)
-                self.assertEquals(N, M)
+    def testMakeDFA(self):
+        for i in range(1, 6):
+            with open('fte/tests/dfas/test' + str(i) + '.regex') as fh:
+                regex = fh.read()
+
+            with open('fte/tests/dfas/test' + str(i) + '.dfa') as fh:
+                expected_dfa = fh.read()
+
+            dfa = fte.cDFA.fromRegex(regex)
+            dfa = fte.cDFA.minimize(dfa)
+            dfa = dfa.strip()
+
+            self.assertEquals(dfa, expected_dfa)
 
 if __name__ == '__main__':
     unittest.main()

@@ -33,14 +33,37 @@ typedef std::map< mpz_class, std::vector<uint32_t> > map_type_str_vec;
 
 void dfainit();
 
-inline static std::string unrank( std::string DFA_ID, PyObject * c );
-inline static void rank( std::string DFA_ID, PyObject * c, std::string X );
-void releaseLanguage(std::string DFA_ID);
-void loadLanguage(std::string DFA_ID, std::string DFA, uint32_t MAX_WORD_LEN);
-inline static void getT( std::string DFA_ID, PyObject * c, uint32_t q, uint32_t i );
-inline static uint32_t getSizeOfT( std::string DFA_ID );
-inline static uint32_t delta( std::string DFA_ID, uint32_t q, uint32_t c );
-inline static uint32_t getStart( std::string DFA_ID);
-inline static uint32_t getNumStates( std::string DFA_ID);
-inline static std::string fromRegex( std::string regex);
-inline static std::string minimize( std::string regex);
+class DFA {
+private:
+    int32_t _q0 = -1;
+    std::map<uint32_t, char> _sigma;
+    std::map<char, uint32_t> _sigma_reverse;
+    array_type_uint32_t2 _delta;
+    array_type_uint32_t1 _delta_dense;
+    boost::unordered_set<uint32_t> _final_states;
+    array_type_mpz_t2 _T;
+public:
+    DFA(std::string DFA, uint32_t MAX_WORD_LEN);
+    std::string unrank( PyObject * c );
+    void rank( PyObject * c, std::string X );
+    void getT( PyObject * c, uint32_t q, uint32_t i );
+    uint32_t getSizeOfT();
+    uint32_t delta(uint32_t q, uint32_t c );
+    uint32_t getStart();
+    uint32_t getNumStates();
+    void doRank(mpz_t c,
+                          array_type_uint32_t1 X,
+                          const uint32_t q0,
+                          const_array_type_uint32_t2 delta,
+                          const_array_type_uint32_t1 delta_dense,
+                          const_array_type_mpz_t2 T);
+    void doUnrank(array_type_uint32_t1 & X,
+                            const mpz_t c,
+                            const uint32_t q0,
+                            const_array_type_uint32_t2 delta,
+                            const_array_type_uint32_t1 delta_dense,
+                            const_array_type_mpz_t2 T);
+};
+
+std::string minimize(std::string regex);
+std::string fromRegex(std::string regex);

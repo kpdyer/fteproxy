@@ -191,6 +191,7 @@ This is free software, and you are welcome to redistribute it under certain cond
         if self._server is not None:
             self._server.stop()
 
+
 def test():
     import unittest
     
@@ -200,6 +201,7 @@ def test():
     import fte.tests.bit_ops
     import fte.tests.relay
     import fte.tests.dfa
+    import fte.tests.cDFA
     
     suite_encoder = unittest.TestLoader().loadTestsFromTestCase(fte.tests.encoder.TestEncoders)
     suite_encrypter = unittest.TestLoader().loadTestsFromTestCase(fte.tests.encrypter.TestEncoders)
@@ -207,16 +209,19 @@ def test():
     suite_relay = unittest.TestLoader().loadTestsFromTestCase(fte.tests.relay.TestRelay)
     suite_bit_ops = unittest.TestLoader().loadTestsFromTestCase(fte.tests.bit_ops.TestEncoders)
     suite_dfa = unittest.TestLoader().loadTestsFromTestCase(fte.tests.dfa.TestDFA)
+    suite_cdfa = unittest.TestLoader().loadTestsFromTestCase(fte.tests.cDFA.TestcDFA)
     suites = [
-        suite_bit_ops,
-        suite_encoder,
-        suite_encrypter,
-        suite_relay,
-        suite_record_layer,
+        #suite_bit_ops,
+        #suite_encoder,
+        #suite_encrypter,
+        #suite_relay,
+        #suite_record_layer,
         suite_dfa,
+        suite_cdfa,
     ]
     alltests = unittest.TestSuite(suites)
     unittest.TextTestRunner(verbosity=2, failfast=True).run(alltests)
+
 
 def main():
     global running
@@ -238,6 +243,7 @@ def main():
                                     + '-' + str(os.getpid()) + '.pid')
             if pid_file and os.path.exists(pid_file):
                 os.unlink(pid_file)
+
 
 if __name__ == '__main__':
     running = True

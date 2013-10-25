@@ -2,12 +2,12 @@ THIRD_PARTY_DIR=third-party
 RE2_DIR=third-party/re2
 RE2_PATCHFILE=re2.patch
 
-all: third-party/re2/obj/libre2.a fte/dfa.so doc
+all: third-party/re2/obj/libre2.a fte/cDFA.so doc
 
 install: all
 	python setup.py install
 
-fte/dfa.so:
+fte/cDFA.so:
 	python setup.py build_ext --inplace
 
 third-party/re2/obj/libre2.a:
@@ -32,7 +32,7 @@ test:
 
 uninstall:
 	@rm -rfv /usr/local/lib/python2.7/dist-packages/fte
-	@rm -rfv /usr/local/lib/python2.7/dist-packages/dfas
+	@rm -rfv /usr/local/lib/python2.7/dist-packages/cDFAs
 	@rm -fv /usr/local/lib/python2.7/dist-packages/Format_Transforming_Encrypion_FTE_-0.2.0_alpha.egg-info
 	@rm -fv /usr/local/bin/fteproxy
 

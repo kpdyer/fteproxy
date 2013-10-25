@@ -14,11 +14,6 @@ diff -urBNs re2/re2/dfa.cc re2.fte/re2/dfa.cc
  #include "util/flags.h"
  #include "util/sparse_set.h"
  
--DEFINE_bool(re2_dfa_bail_when_slow, true,
-+DEFINE_bool(re2_dfa_bail_when_slow, false,
-             "Whether the RE2 DFA should bail out early "
-             "if the NFA would be faster (for testing).");
- 
 @@ -79,6 +82,7 @@
    // Builds out all states for the entire DFA.  FOR TESTING ONLY
    // Returns number of states.
@@ -66,7 +61,6 @@ diff -urBNs re2/re2/dfa.cc re2.fte/re2/dfa.cc
 +
 +  // Flood to expand every state.
 +  for (int i = 0; i < q.size(); i++) {
-+    //if (i>5000) { retval = "ERROR: DFA has more than 5000 states."; break; }
 +    State* s = q[i];
 +    for (int c = 0; c < 257; c++) {
 +      State* ns = RunStateOnByteUnlocked(s, c);

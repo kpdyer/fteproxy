@@ -42,8 +42,8 @@ class RankFailureException(Exception):
 
 class DFA(object):
 
-    def __init__(self, dfa_id, max_len):
-        self._dfa_id = dfa_id
+    def __init__(self, dfa, max_len):
+        self._dfa = dfa
         self.max_len = max_len
 
         self._words_in_language = self._getNumWordsInLanguage()
@@ -52,8 +52,8 @@ class DFA(object):
         self._offset = gmpy.mpz(self._offset)
 
         if self._words_in_slice == 0:
-            fte.cDFA.releaseLanguage(self._dfa_id)
-            raise LanguageIsEmptySetException(dfa_id)
+            #fte.cDFA.releaseLanguage(self._dfa_id)
+            raise LanguageIsEmptySetException()
 
         self._capacity = -128
         self._capacity += int(math.floor(math.log(self._words_in_slice, 2)))
@@ -61,11 +61,11 @@ class DFA(object):
 
     def _getT(self, q, a):
         c = gmpy.mpz(0)
-        fte.cDFA.getT(self._dfa_id, c, int(q), a)
+        self._dfa.getT(c, int(q), a)
         return int(c)
 
     def _getStart(self):
-        q0 = fte.cDFA.getStart(self._dfa_id)
+        q0 = self._dfa.getStart()
         return int(q0)
 
     def _getNumWordsInSlice(self, N):
@@ -85,7 +85,7 @@ class DFA(object):
 
     def rank(self, X):
         c = gmpy.mpz(0)
-        fte.cDFA.rank(self._dfa_id, c, X)
+        self._dfa.rank(c, X)
 
         if c == -1:
             raise RankFailureException(('Rank failed.', X))
@@ -95,7 +95,7 @@ class DFA(object):
     def unrank(self, c):
         c = gmpy.mpz(c)
         c += self._offset
-        X = fte.cDFA.unrank(self._dfa_id, c)
+        X = self._dfa.unrank(c)
         if X == '':
             raise UnrankFailureException('Unank failed.')
 
@@ -104,10 +104,10 @@ class DFA(object):
     def getCapacity(self):
         return self._capacity
 
-    def _setDFAString(self, val):
+    def _setATTFSTString(self, val):
         self._dfa_string = val
 
-    def getDFAString(self):
+    def getATTFSTString(self):
         return self._dfa_string
 
 
@@ -115,15 +115,12 @@ def from_regex(regex, max_len):
     regex = str(regex)
     max_len = int(max_len)
 
-    char_set = string.ascii_uppercase + string.digits
-    dfa_id = ''.join(random.sample(char_set * 6, 6))
-
     dfa = fte.cDFA.fromRegex(regex)
     dfa = fte.cDFA.minimize(dfa)
     dfa = dfa.strip()
 
-    fte.cDFA.loadLanguage(dfa_id, dfa, max_len)
-    retval = DFA(dfa_id, max_len)
-    retval._setDFAString(dfa)
+    cDFA = fte.cDFA.DFA(dfa, max_len)
+    retval = DFA(cDFA, max_len)
+    retval._setATTFSTString(dfa)
 
     return retval
