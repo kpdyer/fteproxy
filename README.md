@@ -29,7 +29,6 @@ $ cd my-working-dir
 $ git clone https://github.com/redjack/fte-proxy.git
 $ cd FTE
 $ make all
-$ sudo make install
 ```
 
 ```
@@ -37,5 +36,10 @@ $ ./unittests
 ```
 
 ```
+$ sudo make install
+```
+
+```
+$ ./systemtests
 $ fteproxy --help
 ```
