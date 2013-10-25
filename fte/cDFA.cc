@@ -184,12 +184,13 @@ std::string DFA::unrank(PyObject * c ) {
 
 void DFA::rank(PyObject * c, std::string X ) {
     uint32_t i;
-    array_type_uint32_t1 tmp(boost::extents[X.size()]);
+    
+    array_type_uint32_t1 tmpX(boost::extents[X.size()]);
     for (i=0; i<X.size(); i++) {
-        tmp[i] = _sigma_reverse[X.at(i)];
+        tmpX[i] = _sigma_reverse[X.at(i)];
     }
 
-    doRank(Pympz_AS_MPZ(c), tmp, _q0, _delta, _delta_dense, _T  );
+    DFA::doRank(Pympz_AS_MPZ(c), tmpX, _q0, _delta, _delta_dense, _T  );
 }
 
 
@@ -319,13 +320,17 @@ PyObject* DFA::getNumWordsInLanguage() {
     for (uint32_t i =0; i<=_max_len; i++) {
         retval += _T[_q0][i];
     }
-    char* retval_str = (char*)(retval.get_str().c_str());
+    char *retval_str = new char[retval.get_str().length() + 1];
+    strcpy(retval_str, retval.get_str().c_str());
+    //delete [] retval_str;
     return PyLong_FromString(retval_str,NULL,10);
 }
 
 PyObject* DFA::getNumWordsInSlice( uint32_t i ) {
     mpz_class retval = _T[_q0][i];
-    char* retval_str = (char*)(retval.get_str().c_str());
+    char *retval_str = new char[retval.get_str().length() + 1];
+    strcpy(retval_str, retval.get_str().c_str());
+    //delete [] retval_str;
     return PyLong_FromString(retval_str,NULL,10);
 }
 
