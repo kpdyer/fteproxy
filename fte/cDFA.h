@@ -23,6 +23,7 @@
 #include <boost/unordered_set.hpp>
 
 typedef boost::multi_array<char, 1> array_type_char_t1;
+typedef boost::multi_array<bool, 1> array_type_bool_t1;
 typedef boost::multi_array<uint32_t, 1> array_type_uint32_t1;
 typedef boost::multi_array<uint32_t, 2> array_type_uint32_t2;
 typedef boost::multi_array<mpz_class, 2> array_type_mpz_t2;
@@ -60,6 +61,10 @@ private:
     // our transitions table
     array_type_uint32_t2 _delta;
 
+    // a lookup table used for performance gain
+    // for each state we detect if all outgoing transitions are to the same state
+    array_type_bool_t1 _delta_dense;
+
     // the set of final states in our DFA
     boost::unordered_set<uint32_t> _final_states;
 
@@ -81,7 +86,8 @@ public:
     std::string unrank( PyObject* );
 
     // our rank function performs the inverse operation of unrank
-    PyObject* rank( std::string );
+    // we have the output PyObject as an input for performance
+    void rank( std::string, PyObject* );
 
     // given integers [n,m] returns the number of words accepted by the
     // DFA that are at least length n and no greater than length m

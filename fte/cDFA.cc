@@ -29,7 +29,7 @@
 
 typedef vector< std::string > split_vector_type;
 
-/* 
+/*
  * Parameters:
  *   dfa_str: an ATT FST formatted DFA, see: http://www2.research.att.com/~fsmtools/fsm/man4/fsm.5.html
  *   max_len: the maxium length to compute DFA::buildTable
@@ -111,6 +111,18 @@ DFA::DFA(std::string dfa_str, uint32_t max_len)
         }
     }
 
+    _delta_dense.resize(boost::extents[_num_states]);
+    uint32_t q, a;
+    for (q=0; q < _num_states; q++ ) {
+        _delta_dense[q] = true;
+        for (a=1; a < _num_symbols; a++) {
+            if (_delta[q][a-1] != _delta[q][a]) {
+                _delta_dense[q] = false;
+                break;
+            }
+        }
+    }
+
     // perform our precalculation to speed up (un)ranking
     DFA::_buildTable();
 }
@@ -171,23 +183,33 @@ std::string DFA::unrank(PyObject * c_in) {
     uint32_t chars_left, char_cursor, state_cursor;
     for (i=1; i<=n; i++) {
         chars_left = n-i;
-        char_cursor = 0;
-        state_cursor = _delta[q][char_cursor];
-        while (c >= _T[state_cursor][chars_left]) {
-            c -= _T[state_cursor][chars_left];
-            state_cursor =_delta[q][++char_cursor];
+        if (_delta_dense[q]) {
+            q = _delta[q][0];
+            if (_T[q][chars_left]!=0) {
+                mpz_class char_index = (c / _T[q][chars_left]);
+                char_cursor = char_index.get_ui();
+                retval = retval + _sigma[char_cursor];
+                c = c % _T[q][chars_left];
+            } else {
+                retval += _sigma[0];
+            }
+        } else {
+            char_cursor = 0;
+            state_cursor = _delta[q][char_cursor];
+            while (c >= _T[state_cursor][chars_left]) {
+                c -= _T[state_cursor][chars_left];
+                state_cursor =_delta[q][++char_cursor];
+            }
+            retval += _sigma[char_cursor];
+            q = state_cursor;
         }
-        retval += _sigma[char_cursor];
-        q = state_cursor;
     }
 
     return retval;
 }
 
-PyObject* DFA::rank( std::string X_in ) {
+void DFA::rank( std::string X_in, PyObject * C_out ) {
     // TODO: verify that input symbols are in alphabet of DFA
-
-    PyObject* retval;
 
     // covert the input symbols in X_in into their numeric representation
     uint32_t i;
@@ -203,9 +225,14 @@ PyObject* DFA::rank( std::string X_in ) {
     mpz_class c = 0;
     uint32_t state;
     for (i=1; i<=n; i++) {
-        for (j=1; j<=X[i-1]; j++) {
-            state = _delta[q][j-1];
-            c += _T[state][n-i];
+        if (_delta_dense[q]) {
+            state = _delta[q][1];
+            c += (_T[state][n-i] * X[i-1]);
+        } else {
+            for (j=1; j<=X[i-1]; j++) {
+                state = _delta[q][j-1];
+                c += _T[state][n-i];
+            }
         }
         q = _delta[q][X[i-1]];
     }
@@ -221,15 +248,8 @@ PyObject* DFA::rank( std::string X_in ) {
         c += _T[_start_state][i];
     }
 
-    // convert our value c (mpz_class) to PyLong
-    // TODO: figure out safer/faster way to convert mpz_t to PyLong (or gmpy.mpz)
-    uint8_t base = 10;
-    uint32_t retval_str_len = c.get_str().length();
-    char *retval_str = new char[retval_str_len + 1];
-    strcpy(retval_str, c.get_str().c_str());
-    retval = PyLong_FromString(retval_str, NULL, base);
-
-    return retval;
+    // convert our value c (mpz_class) to PympzObject
+    mpz_set(Pympz_AS_MPZ(C_out), c.get_mpz_t());
 }
 
 PyObject* DFA::getNumWordsInLanguage( uint32_t min_word_length,
@@ -263,7 +283,7 @@ PyObject* DFA::getNumWordsInLanguage( uint32_t min_word_length,
 
 std::string attFstFromRegex(std::string str_dfa)
 {
-    // TODO: Throw exception if DFA is not generated correctly (how do we do this?)
+    // TODO: Throw exception if DFA is not generated correctly (how do we determine this case?)
     // TODO: Identify when DFA has >N states, then throw exception
 
     std::string retval;

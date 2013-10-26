@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
-
+import time
 import gmpy
 import math
 
@@ -43,6 +43,7 @@ class DFA(object):
 
         self._words_in_language = self._dfa.getNumWordsInLanguage(0, self.max_len)
         self._words_in_slice = self._dfa.getNumWordsInLanguage(self.max_len, self.max_len)
+        
         self._offset = self._words_in_language - self._words_in_slice
         self._offset = gmpy.mpz(self._offset)
 
@@ -52,21 +53,15 @@ class DFA(object):
         self._capacity = int(math.floor(math.log(self._words_in_slice, 2)))
 
     def rank(self, X):
-        c = self._dfa.rank(X)
-        c = gmpy.mpz(c)
-        if c == -1:
-            raise RankFailureException(('Rank failed.', X))
+        c = gmpy.mpz(0)
+        self._dfa.rank(X, c)
         c -= self._offset
-        
         return c
 
     def unrank(self, c):
         c = gmpy.mpz(c)
         c += self._offset
         X = self._dfa.unrank(c)
-        if X == '':
-            raise UnrankFailureException('Unank failed.')
-
         return str(X)
 
     def getCapacity(self):
