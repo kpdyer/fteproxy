@@ -15,11 +15,7 @@
 
 #include <cDFA.h>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <iostream>
 #include <fstream>
-#include <string>
 
 #include <boost/filesystem.hpp>
 #include <boost/python/module.hpp>
@@ -27,131 +23,103 @@
 #include <boost/python/class.hpp>
 #include <boost/algorithm/string.hpp>
 
-#include "util/test.h"
-#include "util/thread.h"
 #include "re2/prog.h"
 #include "re2/re2.h"
 #include "re2/regexp.h"
-#include "re2/testing/regexp_generator.h"
-#include "re2/testing/string_generator.h"
 
+typedef vector< std::string > split_vector_type;
 
-DFA::DFA(std::string DFA, uint32_t MAX_WORD_LEN)
-    : _max_len(MAX_WORD_LEN),
-      _start_state(-1)
+DFA::DFA(std::string dfa_str, uint32_t max_len)
+    : _max_len(max_len),
+      _start_state(-1),
+      _num_states(0),
+      _num_symbols(0)
 {
-    std::vector<uint32_t> symbolsTmp;
-    boost::unordered_set<uint32_t> statesTmp;
-    boost::unordered_set<uint32_t> final_statesTmp;
-
+	// construct the _start_state, _final_states and symbols/states of our DFA
+    std::vector<uint32_t> symbols;
+    boost::unordered_set<uint32_t> states;
     std::string line;
-    std::istringstream myfile(DFA);
+    std::istringstream myfile(dfa_str);
     while ( getline (myfile,line) )
     {
         if (line.empty()) break;
 
-        typedef vector< std::string > split_vector_type;
         split_vector_type SplitVec;
         boost::split( SplitVec, line, boost::is_any_of("\t") );
-        std::string bits = SplitVec[SplitVec.size()-1];
 
-        if (SplitVec.size() == 4 || SplitVec.size()==5) {
+        if (SplitVec.size() == 4) {
             uint32_t current_state = strtol(SplitVec[0].c_str(),NULL,10);
             uint32_t symbol = strtol(SplitVec[2].c_str(),NULL,10);
-            if (statesTmp.count(current_state)==0) {
-                statesTmp.insert( current_state );
+			states.insert( current_state );
+
+            if (find(symbols.begin(), symbols.end(), symbol)==symbols.end()) {
+                symbols.push_back( symbol );
             }
 
-            if (find(symbolsTmp.begin(), symbolsTmp.end(), symbol)==symbolsTmp.end()) {
-                symbolsTmp.push_back( symbol );
-            }
-
-            if (_start_state==-1) {
+            if ( _start_state == -1 ) {
                 _start_state = current_state;
             }
-        } else if (SplitVec.size()==1 || SplitVec.size()==2) {
+        } else if (SplitVec.size()==1) {
             uint32_t final_state = strtol(SplitVec[0].c_str(),NULL,10);
-            if (statesTmp.count(final_state)==0) {
-                statesTmp.insert( final_state );
-            }
-            final_statesTmp.insert( final_state );
+            _final_states.insert( final_state );
+        } else {
+        	// TODO: throw exception because we don't understand the file format
         }
+        
     }
-	
-    _final_states = final_statesTmp;//getFinalStates(DFA);
+    states.insert( states.size() );
+    
+    _num_symbols = symbols.size();
+    _num_states = states.size();
 
-    statesTmp.insert( statesTmp.size() );
-
+    // build up our sigma/sigma_reverse tables which enable mappings between
+    // bytes/integers
     uint32_t j, k;
-
-    const uint32_t NUM_STATES = statesTmp.size();
-    const uint32_t NUM_SYMBOLS = symbolsTmp.size();
-
-    statesTmp.clear();
-    final_statesTmp.clear();
-
-    array_type_uint32_t2 deltaTmp(boost::extents[NUM_STATES][NUM_SYMBOLS]);
-
-    std::map<uint32_t, char> sigmaTmp;
-    std::map<char,uint32_t> sigmaReverseTmp;
-    for (j=0; j<NUM_SYMBOLS; j++) {
-        sigmaTmp[j] = (char)(symbolsTmp[j]-1);
-        sigmaReverseTmp[(char)(symbolsTmp[j]-1)] = j;
+    for (j=0; j<_num_symbols; j++) {
+    	_sigma[j] = (char)(symbols[j]-1);
+    	_sigma_reverse[(char)(symbols[j]-1)] = j;
     }
-    _sigma = sigmaTmp;
-    _sigma_reverse = sigmaReverseTmp;
 
-    for (j=0; j<NUM_STATES; j++) {
-        for (k=0; k<NUM_SYMBOLS; k++) {
-            deltaTmp[j][k] = NUM_STATES-1;
+    // intialize all transitions in our DFA to our dead state
+    _delta.resize(boost::extents[_num_states][_num_symbols]);
+    for (j=0; j<_num_states; j++) {
+        for (k=0; k < _num_symbols; k++) {
+        	_delta[j][k] = _num_states - 1;
         }
     }
 
-    std::istringstream myfile2(DFA);
-    typedef std::vector< std::string > split_vector_type;
-
+    // fill our our transition function delta
+    std::istringstream myfile2(dfa_str);
     while ( getline (myfile2,line) )
     {
         split_vector_type SplitVec;
         boost::split( SplitVec, line, boost::is_any_of("\t") );
-        std::string bits = SplitVec[SplitVec.size()-1];
 
-        if (SplitVec.size() > 2) {
+        if (SplitVec.size() == 4) {
             uint32_t current_state = strtol(SplitVec[0].c_str(),NULL,10);
             uint32_t symbol = strtol(SplitVec[2].c_str(),NULL,10);
-
-            uint32_t i;
-            for (i=0; i<symbolsTmp.size(); i++) {
-                if(symbolsTmp[i]==symbol) {
-                    symbol = i;
-                    break;
-                }
-            }
-
             uint32_t new_state = strtol(SplitVec[1].c_str(),NULL,10);
-
-            deltaTmp[current_state][symbol] = new_state;
+            
+            symbol = _sigma_reverse[symbol];
+            
+            _delta[current_state][symbol] = new_state;
         }
     }
 
-    _delta.resize(boost::extents[NUM_STATES][NUM_SYMBOLS]);
-    _delta = deltaTmp;
-
-    array_type_mpz_t2 TTmp(boost::extents[NUM_STATES][MAX_WORD_LEN+1]);
-    _T.resize(boost::extents[NUM_STATES][MAX_WORD_LEN+1]);
+    // perform our precalculation to speed up (un)ranking
     DFA::_buildTable();
 }
 
-//boost::unordered_set<uint32_t> DFA::_getFinalStates(std::string DFA) {
-
-    //return final_statesTmp;
-//}
-
 
 void DFA::_buildTable() {
+    // TODO: baild if _final_states, _delta, or _T are not initialized
+
     uint32_t i;
     uint32_t q;
     uint32_t a;
+    
+    // ensure our table _T is the correct size
+    _T.resize(boost::extents[_num_states][_max_len+1]);
 
     // set all _T[q][0] = 1 for all states in _final_states
     boost::unordered_set<uint32_t>::iterator state;
@@ -165,23 +133,22 @@ void DFA::_buildTable() {
     for (i=1; i<=_max_len; i++) {
         for (q=0; q<_delta.size(); q++) {
             for (a=0; a<_delta[0].size(); a++) {
-            	uint32_t state = _delta[q][a];
-				_T[q][i] += _T[state][i-1];
+                uint32_t state = _delta[q][a];
+                _T[q][i] += _T[state][i-1];
             }
         }
     }
-
 }
 
 
 std::string DFA::unrank(PyObject * c_in) {
-	// TODO: throw exception if input integer is not in range of pre-computed
-	//       values
-	// TODO: throw exception if walking DFA does not end in a final state
-	// TODO: throw exception if input integer is not PympzObject*
+    // TODO: throw exception if input integer is not in range of pre-computed
+    //       values
+    // TODO: throw exception if walking DFA does not end in a final state
+    // TODO: throw exception if input integer is not PympzObject*-type
 
     std::string retval;
-    
+
     // assume input integer c_in is PympzObject*
     // convert c_in to mpz_class
     mpz_class c = mpz_class(Pympz_AS_MPZ(c_in));
@@ -190,15 +157,15 @@ std::string DFA::unrank(PyObject * c_in) {
     // the length n of the string we're ranking
     uint32_t n = 1;
     while (c >= _T[_start_state][n]) {
-    	c -= _T[_start_state][n];
-    	n++;
+        c -= _T[_start_state][n];
+        n++;
     }
 
     // walk the DFA subtracting values from c until we have our n symbols
     uint32_t i, q = _start_state;
     uint32_t chars_left, char_cursor, state_cursor;
     for (i=1; i<=n; i++) {
-    	chars_left = n-i;
+        chars_left = n-i;
         char_cursor = 0;
         state_cursor = _delta[q][char_cursor];
         while (c >= _T[state_cursor][chars_left]) {
@@ -213,10 +180,10 @@ std::string DFA::unrank(PyObject * c_in) {
 }
 
 PyObject* DFA::rank( std::string X_in ) {
-	// TODO: verify that input symbols are in alphabet of DFA
+    // TODO: verify that input symbols are in alphabet of DFA
 
     PyObject* retval;
-    
+
     // covert the input symbols in X_in into their numeric representation
     uint32_t i;
     array_type_uint32_t1 X(boost::extents[X_in.size()]);
@@ -232,7 +199,7 @@ PyObject* DFA::rank( std::string X_in ) {
     uint32_t state;
     for (i=1; i<=n; i++) {
         for (j=1; j<=X[i-1]; j++) {
-        	state = _delta[q][j-1];
+            state = _delta[q][j-1];
             c += _T[state][n-i];
         }
         q = _delta[q][X[i-1]];
@@ -256,22 +223,22 @@ PyObject* DFA::rank( std::string X_in ) {
     char *retval_str = new char[retval_str_len + 1];
     strcpy(retval_str, c.get_str().c_str());
     retval = PyLong_FromString(retval_str, NULL, base);
-    
+
     return retval;
 }
 
 PyObject* DFA::getNumWordsInLanguage( uint32_t min_word_length,
                                       uint32_t max_word_length )
 {
-	// TODO: Figure out if there is a better way to convert an mpz_class to a PyLong
-	
+    // TODO: Figure out if there is a better way to convert an mpz_class to a PyLong
+
     PyObject* retval;
 
     // count the number of words in the language of length
     // at least min_word_length and no greater than max_word_length
     mpz_class num_words = 0;
     for (uint32_t word_length = min_word_length;
-            word_length<= max_word_length;
+            word_length <= max_word_length;
             word_length++) {
         num_words += _T[_start_state][word_length];
     }
@@ -291,9 +258,9 @@ PyObject* DFA::getNumWordsInLanguage( uint32_t min_word_length,
 
 std::string attFstFromRegex(std::string str_dfa)
 {
-	// TODO: Throw exception if DFA is not generated correctly (how do we do this?)
-	// TODO: Identify when DFA has >N states, then throw exception 
-	
+    // TODO: Throw exception if DFA is not generated correctly (how do we do this?)
+    // TODO: Identify when DFA has >N states, then throw exception
+
     std::string retval;
 
     // specify compile flags for re2
@@ -320,8 +287,8 @@ std::string attFstFromRegex(std::string str_dfa)
 
 std::string attFstMinimize(std::string str_dfa)
 {
-	// TODO: Throw exception if fstcompile, fstminimize or fstprint don't exist in system path
-	// TODO: Throw exception if we fail to generate abspath_dfa_min
+    // TODO: Throw exception if fstcompile, fstminimize or fstprint don't exist in system path
+    // TODO: Throw exception if we fail to generate abspath_dfa_min
 
     std::string retval;
 

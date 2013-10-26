@@ -42,44 +42,47 @@ void dfainit();
 
 class DFA {
 private:
-	// the maximum value for which buildTable is computed
+    // the maximum value for which buildTable is computed
     uint32_t _max_len;
-    
+
     // the integer of our DFA start state
     int32_t _start_state;
     
+    uint32_t _num_states;
+    uint32_t _num_symbols;
+
     // our mapping between integers and the symbols in our alphabet; ints -> chars
     std::map<uint32_t, char> _sigma;
-    
+
     // the reverse mapping of sigma, chars -> ints
     std::map<char, uint32_t> _sigma_reverse;
-    
+
     // our transitions table
     array_type_uint32_t2 _delta;
 
     // the set of final states in our DFA
     boost::unordered_set<uint32_t> _final_states;
-    
+
     // buildTable builds a mapping from [q, i] -> n
     //   q: a state in our DFA
     //   i: an integer
     //   n: the number of words in our language that have a path to a final
     //      state that is exactly length i
     void _buildTable();
-    
+
     // _T is our cached table, the output of buildTable
     array_type_mpz_t2 _T;
 public:
     DFA(std::string, uint32_t);
-    
+
     // our unrank function an int -> str mapping
     // given an integer i, return the ith lexicographically ordered string in
     // the language accepted by the DFA
     std::string unrank( PyObject* );
-    
+
     // our rank function performs the inverse operation of unrank
     PyObject* rank( std::string );
-    
+
     // given integers [n,m] returns the number of words accepted by the
     // DFA that are at least length n and no greater than length m
     PyObject* getNumWordsInLanguage( uint32_t, uint32_t );
