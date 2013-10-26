@@ -136,7 +136,7 @@ DFA::DFA(std::string DFA, uint32_t MAX_WORD_LEN)
 
     _delta.resize(boost::extents[NUM_STATES][NUM_SYMBOLS]);
     _delta = deltaTmp;
-    
+
     array_type_mpz_t2 TTmp(boost::extents[NUM_STATES][MAX_WORD_LEN+1]);
     _T.resize(boost::extents[NUM_STATES][MAX_WORD_LEN+1]);
     DFA::buildTable();
@@ -173,7 +173,7 @@ std::string DFA::unrank(PyObject * c_input ) {
     mpz_t c;
     mpz_init_set(c, Pympz_AS_MPZ(c_input));
     //DFA::doUnrank(tmp, Pympz_AS_MPZ(c) );
-    
+
     /////////////////////
     uint32_t q = _start_state;
     uint32_t n = 1;
@@ -229,14 +229,14 @@ PyObject* DFA::rank( std::string X_input ) {
     uint32_t j;
     array_type_uint32_t1 X(boost::extents[X_input.size()]);
     mpz_t tmp;
-    
+
     for (i=0; i<X_input.size(); i++) {
         X[i] = _sigma_reverse[X_input.at(i)];
     }
 
     uint32_t n = X.size();
     mpz_init(c);
-    
+
     /////////////////////////////
     if (_T[0].size() < X.size()) {
         mpz_set_si( c, -1 );
@@ -276,65 +276,65 @@ PyObject* DFA::rank( std::string X_input ) {
 }
 
 PyObject* DFA::getNumWordsInLanguage( uint32_t min_word_length,
-									  uint32_t max_word_length )
+                                      uint32_t max_word_length )
 {
-	PyObject* retval;
-	
-	// count the number of words in the language of length
-	// at least min_word_length and no greater than max_word_length
+    PyObject* retval;
+
+    // count the number of words in the language of length
+    // at least min_word_length and no greater than max_word_length
     mpz_class num_words = 0;
     for (uint32_t word_length = min_word_length;
-    	 word_length<= max_word_length;
-    	 word_length++) {
-    	num_words += _T[_start_state][word_length];
+            word_length<= max_word_length;
+            word_length++) {
+        num_words += _T[_start_state][word_length];
     }
-    
+
     // convert the resulting integer to a string
     uint8_t base = 10;
     char *num_words_str = new char[num_words.get_str().length() + 1];
     strcpy(num_words_str, num_words.get_str().c_str());
     retval = PyLong_FromString(num_words_str, NULL, base);
-    
+
     // cleanup
     delete [] num_words_str;
-    
+
     return retval;
 }
 
 std::string attFstFromRegex(std::string regex)
-{   
-	std::string retval;
-	
-	// specify compile flags for re2
+{
+    std::string retval;
+
+    // specify compile flags for re2
     re2::Regexp::ParseFlags re_flags;
     re_flags = re2::Regexp::ClassNL;
     re_flags = re_flags | re2::Regexp::OneLine;
     re_flags = re_flags | re2::Regexp::PerlClasses;
     re_flags = re_flags | re2::Regexp::PerlB;
     re_flags = re_flags | re2::Regexp::PerlX;
-	re_flags = re_flags | re2::Regexp::Latin1;
-    
-	// compile regex to DFA
-	RE2::Options opt;
+    re_flags = re_flags | re2::Regexp::Latin1;
+
+    // compile regex to DFA
+    RE2::Options opt;
     re2::Regexp* re = re2::Regexp::Parse( regex, re_flags, NULL );
     re2::Prog* prog = re->CompileToProg( opt.max_mem() );
     retval = prog->PrintEntireDFA( re2::Prog::kFullMatch );
-    
+
     // cleanup
     delete prog;
     re->Decref();
-    
+
     return retval;
 }
 
 std::string attFstMinimize(std::string str_dfa)
 {
-	std::string retval;
-	
-	// create the destinations for our working files
-	boost::filesystem::path temp_dir = boost::filesystem::temp_directory_path();
+    std::string retval;
+
+    // create the destinations for our working files
+    boost::filesystem::path temp_dir = boost::filesystem::temp_directory_path();
     boost::filesystem::path temp_file = boost::filesystem::unique_path();
-    
+
     std::string abspath_dfa     = temp_dir.native() + "/" + temp_file.native() + ".dfa";
     std::string abspath_fst     = temp_dir.native() + "/" + temp_file.native() + ".fst";
     std::string abspath_fst_min = temp_dir.native() + "/" + temp_file.native() + ".min.fst";
@@ -349,12 +349,12 @@ std::string attFstMinimize(std::string str_dfa)
     std::string cmd;
     // convert our ATT DFA string to an FST
     cmd = "fstcompile " + abspath_dfa + " " + abspath_fst;
-    system(cmd.c_str());    
+    system(cmd.c_str());
 
     // convert our FST to a minmized FST
     cmd = "fstminimize " + abspath_fst + " " + abspath_fst_min;
     system(cmd.c_str());
-    
+
     // covert our minimized FST to an ATT FST string
     cmd = "fstprint " + abspath_fst_min + " " + abspath_dfa_min;
     system(cmd.c_str());
