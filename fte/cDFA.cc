@@ -144,82 +144,57 @@ DFA::DFA(std::string DFA, uint32_t MAX_WORD_LEN)
 
 
 void DFA::buildTable() {
-    uint32_t i, q, a;
-    uint32_t n = _max_len;
+    uint32_t i;
+    uint32_t q;
+    uint32_t a;
 
-    boost::unordered_set<uint32_t>::iterator it;
-    for (it=_final_states.begin(); it!=_final_states.end(); it++) {
-        _T[*it][0] = 1;
+    boost::unordered_set<uint32_t>::iterator state;
+    for (state=_final_states.begin(); state!=_final_states.end(); state++) {
+        _T[*state][0] = 1;
     }
 
-    mpz_t tmp;
-    mpz_init(tmp);
-    for (i=1; i<=n; i++) {
+    for (i=1; i<=_max_len; i++) {
         for (q=0; q<_delta.size(); q++) {
             for (a=0; a<_delta[0].size(); a++) {
-                if ( mpz_cmp_ui( _T[_delta[q][a]][i-1].get_mpz_t(), 0 ) > 0 )
-                    _T[q][i] += _T[_delta[q][a]][i-1];
+            	uint32_t state = _delta[q][a];
+				_T[q][i] += _T[state][i-1];
             }
         }
     }
-    mpz_clear(tmp);
 
 }
 
 
-std::string DFA::unrank(PyObject * c_input ) {
-    array_type_uint32_t1 Xtmp;
+std::string DFA::unrank(PyObject * c_in) {
+	// TODO: throw exception if input integer is not in range of pre-computed
+	//       values
+	// TODO: throw exception if walking DFA does not end in a final state
 
-    mpz_t c;
-    mpz_init_set(c, Pympz_AS_MPZ(c_input));
-    //DFA::doUnrank(tmp, Pympz_AS_MPZ(c) );
+    std::string retval;
+    
+    mpz_class c = mpz_class(Pympz_AS_MPZ(c_in));
 
-    /////////////////////
-    uint32_t q = _start_state;
     uint32_t n = 1;
-    uint32_t i;
-    uint32_t idx;
-    const uint32_t *j;
-    mpz_t cTmp;
-    mpz_t jTmp;
-
-    mpz_init(jTmp);
-    mpz_init_set(cTmp,c);
-
-    while ( mpz_cmp(cTmp, _T[_start_state][n].get_mpz_t()) >= 0 ) {
-        mpz_sub( cTmp, cTmp, _T[_start_state][n].get_mpz_t() );
-        n++;
+    while (c >= _T[_start_state][n]) {
+    	c -= _T[_start_state][n];
+    	n++;
     }
 
-    Xtmp.resize(boost::extents[n]);
-
+    uint32_t i, q = _start_state;
+    uint32_t chars_left, char_cursor, state_cursor;
     for (i=1; i<=n; i++) {
-        idx = n-i;
-        j = &_delta[q][0];
-        while (mpz_cmp( cTmp, _T[*j][idx].get_mpz_t() ) >= 0) {
-            mpz_sub( cTmp, cTmp, _T[*j][idx].get_mpz_t() );
-            j += 1;
+    	chars_left = n-i;
+        char_cursor = 0;
+        state_cursor = _delta[q][char_cursor];
+        while (c >= _T[state_cursor][chars_left]) {
+            c -= _T[state_cursor][chars_left];
+            state_cursor =_delta[q][++char_cursor];
         }
-        Xtmp[i-1] = j - &_delta[q][0];
-        q = *j;
+        retval += _sigma[char_cursor];
+        q = state_cursor;
     }
 
-    mpz_clear(cTmp);
-    mpz_clear(jTmp);
-
-    if (_final_states.count(q)==0) {
-        Xtmp.resize(boost::extents[0]);
-        return NULL;
-    }
-    /////////////////////
-
-    //uint32_t i;
-    std::string X;
-    for (i=0; i<Xtmp.size(); i++) {
-        X += _sigma[Xtmp[i]];
-    }
-
-    return X;
+    return retval;
 }
 
 PyObject* DFA::rank( std::string X_input ) {
@@ -249,12 +224,12 @@ PyObject* DFA::rank( std::string X_input ) {
 
     for (i=1; i<=n; i++) {
         for (j=1; j<=X[i-1]; j++) {
-            mpz_add( c, c, _T[_delta[q][j-1]][n-i].get_mpz_t() );
+        	uint32_t state = _delta[q][j-1];
+            mpz_add( c, c, _T[state][n-i].get_mpz_t() );
         }
         q = _delta[q][X[i-1]];
 
         if (q == (_delta.size()-1)) {
-            mpz_set_si( c, -1 );
             return NULL;
         }
     }
@@ -262,7 +237,6 @@ PyObject* DFA::rank( std::string X_input ) {
     mpz_clear(tmp);
 
     if (_final_states.count(q)==0) {
-        mpz_set_si( c, -1 );
         return NULL;
     }
 
@@ -278,6 +252,8 @@ PyObject* DFA::rank( std::string X_input ) {
 PyObject* DFA::getNumWordsInLanguage( uint32_t min_word_length,
                                       uint32_t max_word_length )
 {
+	// TODO: Figure out if there is a better way to convert an mpz_class to a PyLong
+	
     PyObject* retval;
 
     // count the number of words in the language of length
@@ -291,7 +267,8 @@ PyObject* DFA::getNumWordsInLanguage( uint32_t min_word_length,
 
     // convert the resulting integer to a string
     uint8_t base = 10;
-    char *num_words_str = new char[num_words.get_str().length() + 1];
+    uint32_t num_words_str_len = num_words.get_str().length();
+    char *num_words_str = new char[num_words_str_len + 1];
     strcpy(num_words_str, num_words.get_str().c_str());
     retval = PyLong_FromString(num_words_str, NULL, base);
 
@@ -301,8 +278,11 @@ PyObject* DFA::getNumWordsInLanguage( uint32_t min_word_length,
     return retval;
 }
 
-std::string attFstFromRegex(std::string regex)
+std::string attFstFromRegex(std::string str_dfa)
 {
+	// TODO: Throw exception if DFA is not generated correctly (how do we do this?)
+	// TODO: Identify when DFA has >N states, then throw exception 
+	
     std::string retval;
 
     // specify compile flags for re2
@@ -316,7 +296,7 @@ std::string attFstFromRegex(std::string regex)
 
     // compile regex to DFA
     RE2::Options opt;
-    re2::Regexp* re = re2::Regexp::Parse( regex, re_flags, NULL );
+    re2::Regexp* re = re2::Regexp::Parse( str_dfa, re_flags, NULL );
     re2::Prog* prog = re->CompileToProg( opt.max_mem() );
     retval = prog->PrintEntireDFA( re2::Prog::kFullMatch );
 
@@ -329,6 +309,9 @@ std::string attFstFromRegex(std::string regex)
 
 std::string attFstMinimize(std::string str_dfa)
 {
+	// TODO: Throw exception if fstcompile, fstminimize or fstprint don't exist in system path
+	// TODO: Throw exception if we fail to generate abspath_dfa_min
+
     std::string retval;
 
     // create the destinations for our working files
