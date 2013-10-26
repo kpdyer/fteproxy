@@ -214,3 +214,21 @@ class Encrypter(object):
             raise UnrecoverableDecryptionError('Negative message length.')
 
         return message_length
+    
+    def encryptOneBlock(self, plaintext):
+        """
+        """
+        
+        assert len(plaintext) == 8
+        plaintext = fte.bit_ops.random_bytes(8) + plaintext
+        return self._ecb_enc_K1.encrypt(plaintext)
+    
+    def decryptOneBlock(self, ciphertext):
+        """
+        """
+        
+        assert len(ciphertext) == 16
+        plaintext = self._ecb_enc_K1.decrypt(ciphertext)
+        plaintext = plaintext[8:16]
+        return plaintext
+    

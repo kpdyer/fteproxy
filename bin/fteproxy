@@ -252,7 +252,4 @@ if __name__ == '__main__':
         running = False
     signal.signal(signal.SIGINT, signal_handler)
     
-    import yappi
-    yappi.start()
     main()
-    yappi.print_stats(sort_type=yappi.SORTTYPE_TSUB)

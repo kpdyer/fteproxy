@@ -15,6 +15,7 @@
 
 #include <cDFA.h>
 
+#include <iostream>
 #include <fstream>
 
 #include <boost/filesystem.hpp>
@@ -28,6 +29,14 @@
 #include "re2/regexp.h"
 
 typedef vector< std::string > split_vector_type;
+
+// TODO: figure out a way around this rotN hack
+static std:: string rotN(int n, std::string s) {
+    for (uint32_t i = 0; i <= s.size(); i++) {
+        s[i] = s[i] + n;
+    }
+    return s;
+}
 
 /*
  * Parameters:
@@ -81,8 +90,8 @@ DFA::DFA(std::string dfa_str, uint32_t max_len)
     // bytes/integers
     uint32_t j, k;
     for (j=0; j<_num_symbols; j++) {
-        _sigma[j] = (char)(symbols[j]-1);
-        _sigma_reverse[(char)(symbols[j]-1)] = j;
+        _sigma[j] = (char)(symbols[j]);
+        _sigma_reverse[(char)(symbols[j])] = j;
     }
 
     // intialize all transitions in our DFA to our dead state
@@ -205,12 +214,16 @@ std::string DFA::unrank(PyObject * c_in) {
         }
     }
 
+    retval = rotN(-1, retval);
+    
     return retval;
 }
 
 void DFA::rank( std::string X_in, PyObject * C_out ) {
     // TODO: verify that input symbols are in alphabet of DFA
 
+    X_in = rotN(1, X_in);
+    
     // covert the input symbols in X_in into their numeric representation
     uint32_t i;
     array_type_uint32_t1 X(boost::extents[X_in.size()]);
@@ -237,7 +250,7 @@ void DFA::rank( std::string X_in, PyObject * C_out ) {
         q = _delta[q][X[i-1]];
     }
 
-    // bail if our final state is in _final_states
+    // bail if our final state is not in _final_states
     if (_final_states.count(q)==0) {
         // TODO: throw exception, because we are not in a final state
     }
