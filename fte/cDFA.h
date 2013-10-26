@@ -40,7 +40,7 @@ class DFA {
 
 private:
     uint32_t _max_len;
-    int32_t _q0;
+    int32_t _start_state;
     std::map<uint32_t, char> _sigma;
     std::map<char, uint32_t> _sigma_reverse;
     array_type_uint32_t2 _delta;
@@ -54,8 +54,7 @@ public:
 
     std::string unrank( PyObject* );
     PyObject* rank( std::string );
-    PyObject* getNumWordsInLanguage( );
-    PyObject* getNumWordsInSlice( uint32_t );
+    PyObject* getNumWordsInLanguage( uint32_t, uint32_t );
 };
 
 std::string attFstFromRegex(std::string regex);

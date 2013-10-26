@@ -38,7 +38,7 @@
 
 DFA::DFA(std::string DFA, uint32_t MAX_WORD_LEN)
     : _max_len(MAX_WORD_LEN),
-      _q0(-1)
+      _start_state(-1)
 {
     std::vector<uint32_t> symbolsTmp;
     boost::unordered_set<uint32_t> statesTmp;
@@ -66,8 +66,8 @@ DFA::DFA(std::string DFA, uint32_t MAX_WORD_LEN)
                 symbolsTmp.push_back( symbol );
             }
 
-            if (_q0==-1) {
-                _q0 = current_state;
+            if (_start_state==-1) {
+                _start_state = current_state;
             }
         } else if (SplitVec.size()==1 || SplitVec.size()==2) {
             uint32_t final_state = strtol(SplitVec[0].c_str(),NULL,10);
@@ -136,19 +136,7 @@ DFA::DFA(std::string DFA, uint32_t MAX_WORD_LEN)
 
     _delta.resize(boost::extents[NUM_STATES][NUM_SYMBOLS]);
     _delta = deltaTmp;
-
-    array_type_uint32_t1 delta_denseTmp(boost::extents[NUM_STATES]);
-    for (j=0; j<deltaTmp.size(); j++) {
-        delta_denseTmp[j] = 1;
-        for (k=0; k<deltaTmp[0].size()-1; k++) {
-            if (deltaTmp[j][k]!=deltaTmp[j][k+1]) {
-                delta_denseTmp[j] = 0;
-                break;
-            }
-        }
-    }
-    _delta_dense.resize(boost::extents[NUM_STATES]);
-    _delta_dense = delta_denseTmp;
+    
     array_type_mpz_t2 TTmp(boost::extents[NUM_STATES][MAX_WORD_LEN+1]);
     _T.resize(boost::extents[NUM_STATES][MAX_WORD_LEN+1]);
     DFA::buildTable();
@@ -187,7 +175,7 @@ std::string DFA::unrank(PyObject * c_input ) {
     //DFA::doUnrank(tmp, Pympz_AS_MPZ(c) );
     
     /////////////////////
-    uint32_t q = _q0;
+    uint32_t q = _start_state;
     uint32_t n = 1;
     uint32_t i;
     uint32_t idx;
@@ -198,8 +186,8 @@ std::string DFA::unrank(PyObject * c_input ) {
     mpz_init(jTmp);
     mpz_init_set(cTmp,c);
 
-    while ( mpz_cmp(cTmp, _T[_q0][n].get_mpz_t()) >= 0 ) {
-        mpz_sub( cTmp, cTmp, _T[_q0][n].get_mpz_t() );
+    while ( mpz_cmp(cTmp, _T[_start_state][n].get_mpz_t()) >= 0 ) {
+        mpz_sub( cTmp, cTmp, _T[_start_state][n].get_mpz_t() );
         n++;
     }
 
@@ -207,23 +195,13 @@ std::string DFA::unrank(PyObject * c_input ) {
 
     for (i=1; i<=n; i++) {
         idx = n-i;
-        if (_delta_dense[q] == 1) {
-            q = _delta[q][0];
-            if ( mpz_cmp_ui( _T[q][idx].get_mpz_t(), 0 ) != 0 ) {
-                mpz_fdiv_qr( jTmp, cTmp, cTmp, _T[q][idx].get_mpz_t() );
-                Xtmp[i-1] = mpz_get_ui(jTmp);
-            } else {
-                Xtmp[i-1] = 0;
-            }
-        } else {
-            j = &_delta[q][0];
-            while (mpz_cmp( cTmp, _T[*j][idx].get_mpz_t() ) >= 0) {
-                mpz_sub( cTmp, cTmp, _T[*j][idx].get_mpz_t() );
-                j += 1;
-            }
-            Xtmp[i-1] = j - &_delta[q][0];
-            q = *j;
+        j = &_delta[q][0];
+        while (mpz_cmp( cTmp, _T[*j][idx].get_mpz_t() ) >= 0) {
+            mpz_sub( cTmp, cTmp, _T[*j][idx].get_mpz_t() );
+            j += 1;
         }
+        Xtmp[i-1] = j - &_delta[q][0];
+        q = *j;
     }
 
     mpz_clear(cTmp);
@@ -246,40 +224,32 @@ std::string DFA::unrank(PyObject * c_input ) {
 
 PyObject* DFA::rank( std::string X_input ) {
     uint32_t i;
-
+    mpz_t c;
+    uint32_t q = _start_state;
+    uint32_t j;
     array_type_uint32_t1 X(boost::extents[X_input.size()]);
+    mpz_t tmp;
+    
     for (i=0; i<X_input.size(); i++) {
         X[i] = _sigma_reverse[X_input.at(i)];
     }
 
-    mpz_t c;
+    uint32_t n = X.size();
     mpz_init(c);
     
-    //DFA::doRank( c, tmpX );
     /////////////////////////////
     if (_T[0].size() < X.size()) {
         mpz_set_si( c, -1 );
         return NULL;
     }
 
-    uint32_t q = _q0;
-    uint32_t n = X.size();
-    uint32_t j;
-
-    mpz_t tmp;
     mpz_init(tmp);
 
     mpz_init_set_si( c, 0 );
 
     for (i=1; i<=n; i++) {
-        if (_delta_dense[q] == 1) {
-            uint32_t state = _delta[q][0];
-            mpz_mul_ui( tmp, _T[state][n-i].get_mpz_t(), X[i-1] );
-            mpz_add( c, c, tmp );
-        } else {
-            for (j=1; j<=X[i-1]; j++) {
-                mpz_add( c, c, _T[_delta[q][j-1]][n-i].get_mpz_t() );
-            }
+        for (j=1; j<=X[i-1]; j++) {
+            mpz_add( c, c, _T[_delta[q][j-1]][n-i].get_mpz_t() );
         }
         q = _delta[q][X[i-1]];
 
@@ -297,7 +267,7 @@ PyObject* DFA::rank( std::string X_input ) {
     }
 
     for (i=0; i<n; i++)
-        mpz_add( c, c, _T[_q0][i].get_mpz_t() );
+        mpz_add( c, c, _T[_start_state][i].get_mpz_t() );
     /////////////////////////////
 
     char * retval_str = mpz_get_str(NULL, 10, c);
@@ -305,73 +275,104 @@ PyObject* DFA::rank( std::string X_input ) {
     return PyLong_FromString(retval_str,NULL,10);
 }
 
-
-PyObject* DFA::getNumWordsInLanguage() {
-    PyObject* retval;3
-    mpz_class retval = 0;
-    for (uint32_t i =0; i<=_max_len; i++) {
-        retval += _T[_q0][i];
-    }
-    char *retval_str = new char[retval.get_str().length() + 1];
-    strcpy(retval_str, retval.get_str().c_str());
-    //delete [] retval_str;
-    return PyLong_FromString(retval_str,NULL,10);
-}
-
-PyObject* DFA::getNumWordsInSlice( uint32_t i ) {
-    mpz_class retval = _T[_q0][i];
-    char *retval_str = new char[retval.get_str().length() + 1];
-    strcpy(retval_str, retval.get_str().c_str());
-    //delete [] retval_str;
-    return PyLong_FromString(retval_str,NULL,10);
-}
-
-
-std::string attFstFromRegex(std::string regex)
+PyObject* DFA::getNumWordsInLanguage( uint32_t min_word_length,
+									  uint32_t max_word_length )
 {
-    RE2::Options opt;
-    opt.set_max_mem((int64_t)1<<40);
-    re2::Regexp::ParseFlags re_flags = re2::Regexp::ClassNL | re2::Regexp::OneLine | re2::Regexp::PerlClasses | re2::Regexp::PerlB | re2::Regexp::PerlX | re2::Regexp::Latin1;
-    re2::Regexp* re = re2::Regexp::Parse(regex, re_flags, NULL);
-    re2::Prog* prog = re->CompileToProg(opt.max_mem());
-    std::string retval = prog->PrintEntireDFA(re2::Prog::kFullMatch);
-    delete prog;
-    re->Decref();
+	PyObject* retval;
+	
+	// count the number of words in the language of length
+	// at least min_word_length and no greater than max_word_length
+    mpz_class num_words = 0;
+    for (uint32_t word_length = min_word_length;
+    	 word_length<= max_word_length;
+    	 word_length++) {
+    	num_words += _T[_start_state][word_length];
+    }
+    
+    // convert the resulting integer to a string
+    uint8_t base = 10;
+    char *num_words_str = new char[num_words.get_str().length() + 1];
+    strcpy(num_words_str, num_words.get_str().c_str());
+    retval = PyLong_FromString(num_words_str, NULL, base);
+    
+    // cleanup
+    delete [] num_words_str;
+    
     return retval;
 }
 
-std::string attFstMinimize(std::string dfa)
+std::string attFstFromRegex(std::string regex)
+{   
+	std::string retval;
+	
+	// specify compile flags for re2
+    re2::Regexp::ParseFlags re_flags;
+    re_flags = re2::Regexp::ClassNL;
+    re_flags = re_flags | re2::Regexp::OneLine;
+    re_flags = re_flags | re2::Regexp::PerlClasses;
+    re_flags = re_flags | re2::Regexp::PerlB;
+    re_flags = re_flags | re2::Regexp::PerlX;
+	re_flags = re_flags | re2::Regexp::Latin1;
+    
+	// compile regex to DFA
+	RE2::Options opt;
+    re2::Regexp* re = re2::Regexp::Parse( regex, re_flags, NULL );
+    re2::Prog* prog = re->CompileToProg( opt.max_mem() );
+    retval = prog->PrintEntireDFA( re2::Prog::kFullMatch );
+    
+    // cleanup
+    delete prog;
+    re->Decref();
+    
+    return retval;
+}
+
+std::string attFstMinimize(std::string str_dfa)
 {
-    boost::filesystem::path temp = boost::filesystem::unique_path();
-    std::string tempstr    = temp.native();  // optional
+	std::string retval;
+	
+	// create the destinations for our working files
+	boost::filesystem::path temp_dir = boost::filesystem::temp_directory_path();
+    boost::filesystem::path temp_file = boost::filesystem::unique_path();
+    
+    std::string abspath_dfa     = temp_dir.native() + "/" + temp_file.native() + ".dfa";
+    std::string abspath_fst     = temp_dir.native() + "/" + temp_file.native() + ".fst";
+    std::string abspath_fst_min = temp_dir.native() + "/" + temp_file.native() + ".min.fst";
+    std::string abspath_dfa_min = temp_dir.native() + "/" + temp_file.native() + ".min.dfa";
 
-    std::ofstream myfile;
-    myfile.open (tempstr.c_str());
-    myfile << dfa;
-    myfile.close();
+    // write our input DFA to disk
+    std::ofstream dfa_stream;
+    dfa_stream.open (abspath_dfa.c_str());
+    dfa_stream << str_dfa;
+    dfa_stream.close();
 
-    std::string temp_fst = temp.native() + ".fst";
-    std::string temp_fst_min = temp.native() + ".min.fst";
-    std::string temp_dfa_min = temp.native() + ".min.dfa";
+    std::string cmd;
+    // convert our ATT DFA string to an FST
+    cmd = "fstcompile " + abspath_dfa + " " + abspath_fst;
+    system(cmd.c_str());    
 
-    std::string cmd1 = "fstcompile "+temp.native()+" "+temp_fst;
-    std::string cmd2 = "fstminimize "+temp_fst+" "+temp_fst_min;
-    std::string cmd3 = "fstprint "+temp_fst_min+" "+temp_dfa_min;
+    // convert our FST to a minmized FST
+    cmd = "fstminimize " + abspath_fst + " " + abspath_fst_min;
+    system(cmd.c_str());
+    
+    // covert our minimized FST to an ATT FST string
+    cmd = "fstprint " + abspath_fst_min + " " + abspath_dfa_min;
+    system(cmd.c_str());
 
-    system(cmd1.c_str());
-    system(cmd2.c_str());
-    system(cmd3.c_str());
-
-    std::ifstream t(temp_dfa_min.c_str());
+    // read the contents of of the file at abspath_dfa_min to our retval
+    std::ifstream dfa_min_stream(abspath_dfa_min.c_str());
     std::stringstream buffer;
-    buffer << t.rdbuf();
+    buffer << dfa_min_stream.rdbuf();
+    retval = std::string(buffer.str());
+    dfa_min_stream.close();
 
-    remove( temp.native().c_str() );
-    remove( temp_fst.c_str() );
-    remove( temp_fst_min.c_str() );
-    remove( temp_dfa_min.c_str() );
+    // cleanup
+    remove( abspath_dfa.c_str() );
+    remove( abspath_fst.c_str() );
+    remove( abspath_fst_min.c_str() );
+    remove( abspath_dfa_min.c_str() );
 
-    return std::string(buffer.str());
+    return retval;
 }
 
 BOOST_PYTHON_MODULE(cDFA)
@@ -379,8 +380,7 @@ BOOST_PYTHON_MODULE(cDFA)
     boost::python::class_<DFA>("DFA",boost::python::init<std::string,int32_t>())
     .def("rank", &DFA::rank)
     .def("unrank", &DFA::unrank)
-    .def("getNumWordsInLanguage", &DFA::getNumWordsInLanguage)
-    .def("getNumWordsInSlice", &DFA::getNumWordsInSlice);
+    .def("getNumWordsInLanguage", &DFA::getNumWordsInLanguage);
 
     boost::python::def("attFstFromRegex",attFstFromRegex);
     boost::python::def("attFstMinimize",attFstMinimize);

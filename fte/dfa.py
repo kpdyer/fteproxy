@@ -41,8 +41,8 @@ class DFA(object):
         self._dfa = dfa
         self.max_len = max_len
 
-        self._words_in_language = self._dfa.getNumWordsInLanguage()
-        self._words_in_slice = self._dfa.getNumWordsInSlice(self.max_len)
+        self._words_in_language = self._dfa.getNumWordsInLanguage(0, self.max_len)
+        self._words_in_slice = self._dfa.getNumWordsInLanguage(self.max_len, self.max_len)
         self._offset = self._words_in_language - self._words_in_slice
         self._offset = gmpy.mpz(self._offset)
 
