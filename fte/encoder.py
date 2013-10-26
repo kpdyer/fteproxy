@@ -41,9 +41,9 @@ class RegexEncoder(object):
 
     def __new__(self, regex, max_len):
         global _instance
-        if not _instance.get((regex,max_len)):
-            _instance[(regex,max_len)] = RegexEncoderObject(regex, max_len)
-        return _instance[(regex,max_len)]
+        if not _instance.get((regex, max_len)):
+            _instance[(regex, max_len)] = RegexEncoderObject(regex, max_len)
+        return _instance[(regex, max_len)]
 
 
 class RegexEncoderObject(object):
@@ -59,28 +59,33 @@ class RegexEncoderObject(object):
     def getCapacity(self, ):
         return self._dfa._capacity
 
-    def encode(self, X):        
+    def encode(self, X):
         if not isinstance(X, str):
             raise InvalidInputException('Input must be of type string.')
 
         maximumBytesToRank = int(math.floor(self.getCapacity() / 8.0))
-        unrank_payload_len = (maximumBytesToRank - RegexEncoderObject.COVERTEXT_HEADER_LEN_CIPHERTTEXT)
+        unrank_payload_len = (
+            maximumBytesToRank - RegexEncoderObject.COVERTEXT_HEADER_LEN_CIPHERTTEXT)
         unrank_payload_len = min(len(X), unrank_payload_len)
 
         msg_len_header = fte.bit_ops.long_to_bytes(unrank_payload_len)
-        msg_len_header = string.rjust(msg_len_header, RegexEncoderObject.COVERTEXT_HEADER_LEN_PLAINTEXT, '\x00')
+        msg_len_header = string.rjust(
+            msg_len_header, RegexEncoderObject.COVERTEXT_HEADER_LEN_PLAINTEXT, '\x00')
         msg_len_header = self._encrypter.encryptOneBlock(msg_len_header)
 
-        unrank_payload = msg_len_header + X[:maximumBytesToRank - RegexEncoderObject.COVERTEXT_HEADER_LEN_CIPHERTTEXT]
+        unrank_payload = msg_len_header + \
+            X[:maximumBytesToRank -
+                RegexEncoderObject.COVERTEXT_HEADER_LEN_CIPHERTTEXT]
 
         random_padding_bytes = maximumBytesToRank - len(unrank_payload)
         if random_padding_bytes > 0:
             unrank_payload += fte.bit_ops.random_bytes(random_padding_bytes)
-            
+
         unrank_payload = fte.bit_ops.bytes_to_long(unrank_payload)
-        
+
         formatted_covertext_header = self._dfa.unrank(unrank_payload)
-        unformatted_covertext_body = X[maximumBytesToRank - RegexEncoderObject.COVERTEXT_HEADER_LEN_CIPHERTTEXT:]
+        unformatted_covertext_body = X[
+            maximumBytesToRank - RegexEncoderObject.COVERTEXT_HEADER_LEN_CIPHERTTEXT:]
 
         covertext = formatted_covertext_header + unformatted_covertext_body
 
@@ -93,15 +98,17 @@ class RegexEncoderObject(object):
         assert len(covertext) >= self._max_len, (len(covertext), self._max_len)
 
         maximumBytesToRank = int(math.floor(self.getCapacity() / 8.0))
-        
+
         rank_payload = self._dfa.rank(covertext[:self._max_len])
         X = fte.bit_ops.long_to_bytes(rank_payload)
 
         X = string.rjust(X, maximumBytesToRank, '\x00')
-        msg_len_header = self._encrypter.decryptOneBlock(X[:RegexEncoderObject.COVERTEXT_HEADER_LEN_CIPHERTTEXT])
-        msg_len = fte.bit_ops.bytes_to_long(msg_len_header[1:RegexEncoderObject.COVERTEXT_HEADER_LEN_PLAINTEXT])
-        
-        retval = X[16:16+msg_len]
+        msg_len_header = self._encrypter.decryptOneBlock(
+            X[:RegexEncoderObject.COVERTEXT_HEADER_LEN_CIPHERTTEXT])
+        msg_len = fte.bit_ops.bytes_to_long(
+            msg_len_header[1:RegexEncoderObject.COVERTEXT_HEADER_LEN_PLAINTEXT])
+
+        retval = X[16:16 + msg_len]
         retval += covertext[self._max_len:]
 
         return retval

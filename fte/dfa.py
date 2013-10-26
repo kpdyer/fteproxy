@@ -16,7 +16,6 @@
 # You should have received a copy of the GNU General Public License
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
-import time
 import gmpy
 import math
 
@@ -41,9 +40,11 @@ class DFA(object):
         self._dfa = dfa
         self.max_len = max_len
 
-        self._words_in_language = self._dfa.getNumWordsInLanguage(0, self.max_len)
-        self._words_in_slice = self._dfa.getNumWordsInLanguage(self.max_len, self.max_len)
-        
+        self._words_in_language = self._dfa.getNumWordsInLanguage(
+            0, self.max_len)
+        self._words_in_slice = self._dfa.getNumWordsInLanguage(
+            self.max_len, self.max_len)
+
         self._offset = self._words_in_language - self._words_in_slice
         self._offset = gmpy.mpz(self._offset)
 

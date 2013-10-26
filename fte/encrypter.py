@@ -143,7 +143,7 @@ class Encrypter(object):
 
         if not isinstance(ciphertext, str):
             raise CiphertextTypeError("Input ciphertext is not of type string")
-        
+
         plaintext_length = self.getPlaintextLen(ciphertext)
         ciphertext_length = self.getCiphertextLen(ciphertext)
         ciphertext_complete = (len(ciphertext) >= ciphertext_length)
@@ -193,7 +193,7 @@ class Encrypter(object):
     def getPlaintextLen(self, ciphertext):
         """Given a ``ciphertext`` with a valid header, returns the length of the plaintext payload.
         """
-        
+
         completeCiphertextHeader = (len(ciphertext) >= 16)
         if completeCiphertextHeader is False:
             raise RecoverableDecryptionError('Incomplete ciphertext header.')
@@ -202,10 +202,11 @@ class Encrypter(object):
         L = self._ecb_enc_K1.decrypt(ciphertext_header)
 
         padding_expected = '\x00\x00\x00\x00'
-        padding_actual =L[-8:-4] 
+        padding_actual = L[-8:-4]
         validPadding = (padding_actual == padding_expected)
         if validPadding is False:
-            raise UnrecoverableDecryptionError('Invalid padding: ' + padding_actual)
+            raise UnrecoverableDecryptionError(
+                'Invalid padding: ' + padding_actual)
 
         message_length = fte.bit_ops.bytes_to_long(L[-8:])
 
@@ -214,21 +215,20 @@ class Encrypter(object):
             raise UnrecoverableDecryptionError('Negative message length.')
 
         return message_length
-    
+
     def encryptOneBlock(self, plaintext):
         """
         """
-        
+
         assert len(plaintext) == 8
         plaintext = fte.bit_ops.random_bytes(8) + plaintext
         return self._ecb_enc_K1.encrypt(plaintext)
-    
+
     def decryptOneBlock(self, ciphertext):
         """
         """
-        
+
         assert len(ciphertext) == 16
         plaintext = self._ecb_enc_K1.decrypt(ciphertext)
         plaintext = plaintext[8:16]
         return plaintext
-    

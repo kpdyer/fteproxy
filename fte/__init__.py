@@ -26,10 +26,10 @@ import fte.record_layer
 class _FTESocketWrapper(object):
 
     def __init__(self, socket,
-                       outgoing_regex, outgoing_max_len,
-                       incoming_regex, incoming_max_len,
-                       K1, K2):
-        
+                 outgoing_regex, outgoing_max_len,
+                 incoming_regex, incoming_max_len,
+                 K1, K2):
+
         self._socket = socket
 
         self._outgoing_regex = outgoing_regex
@@ -52,7 +52,7 @@ class _FTESocketWrapper(object):
                                                  encoder=self._outgoing_encoder)
         self._decoder = fte.record_layer.Decoder(encrypter=self._encrypter,
                                                  encoder=self._incoming_decoder)
-        
+
         self._incoming_buffer = ''
 
     def fileno(self):
@@ -69,24 +69,24 @@ class _FTESocketWrapper(object):
     def recv(self, bufsize):
         while True:
             data = self._socket.recv(bufsize)
-            
+
             if not data and not self._incoming_buffer:
                 return ''
-            
+
             self._decoder.push(data)
-            
+
             while True:
                 frag = self._decoder.pop()
                 if not frag:
                     break
                 self._incoming_buffer += frag
-                
+
             if self._incoming_buffer:
                 break
-            
+
         retval = self._incoming_buffer[:bufsize]
         self._incoming_buffer = self._incoming_buffer[bufsize:]
-        
+
         return retval
 
     def send(self, data):

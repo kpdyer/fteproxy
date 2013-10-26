@@ -37,7 +37,7 @@ class FTEMain(threading.Thread):
     def run(self):
         self._client = None
         self._server = None
-        
+
         parser = argparse.ArgumentParser(prog='fteproxy',
                                          formatter_class=argparse.ArgumentDefaultsHelpFormatter)
         parser.add_argument('--mode',
@@ -78,21 +78,20 @@ class FTEMain(threading.Thread):
                             help='Forwarding-proxy (SOCKS) listening port',
                             default=fte.conf.getValue('runtime.proxy.port'
                                                       ))
-        parser.add_argument('--quiet', action='store_true',default=False)
+        parser.add_argument('--quiet', action='store_true', default=False)
         parser.add_argument('--key',
                             help='Cryptographic key, hex, must be exactly 64 characters',
                             default=fte.conf.getValue('runtime.fte.encrypter.key'
                                                       ))
         args = parser.parse_args(sys.argv[1:])
-        
-        
+
         if not args.quiet:
             print """FTE Copyright (C) 2012-2013 Kevin P. Dyer <kdyer@cs.pdx.edu>
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it under certain conditions.
 """
-        
-        if args.mode=='test':
+
+        if args.mode == 'test':
             test()
             sys.exit(0)
         if args.stop:
@@ -158,10 +157,10 @@ This is free software, and you are welcome to redistribute it under certain cond
         pid_file = os.path.join(fte.conf.getValue('general.pid_dir'),
                                 '.' + fte.conf.getValue('runtime.mode')
                                 + '-' + str(os.getpid()) + '.pid')
-        
+
         with open(pid_file, 'w') as f:
             f.write(str(os.getpid()))
-        
+
         fte.conf.setValue('runtime.state.message_token', 'client')
 
         if fte.conf.getValue('runtime.mode') == 'client':
@@ -170,7 +169,7 @@ This is free software, and you are welcome to redistribute it under certain cond
             remote_ip = fte.conf.getValue('runtime.server.ip')
             remote_port = fte.conf.getValue('runtime.server.port')
             self._client = fte.client.listener(local_ip, local_port,
-                                      remote_ip, remote_port)
+                                               remote_ip, remote_port)
             self._client.daemon = True
             self._client.start()
             self._client.join()
@@ -180,7 +179,7 @@ This is free software, and you are welcome to redistribute it under certain cond
             remote_ip = fte.conf.getValue('runtime.proxy.ip')
             remote_port = fte.conf.getValue('runtime.proxy.port')
             self._server = fte.server.listener(local_ip, local_port,
-                                      remote_ip, remote_port)
+                                               remote_ip, remote_port)
             self._server.daemon = True
             self._server.start()
             self._server.join()
@@ -194,7 +193,7 @@ This is free software, and you are welcome to redistribute it under certain cond
 
 def test():
     import unittest
-    
+
     import fte.tests.encoder
     import fte.tests.encrypter
     import fte.tests.record_layer
@@ -202,14 +201,21 @@ def test():
     import fte.tests.relay
     import fte.tests.dfa
     import fte.tests.cDFA
-    
-    suite_encoder = unittest.TestLoader().loadTestsFromTestCase(fte.tests.encoder.TestEncoders)
-    suite_encrypter = unittest.TestLoader().loadTestsFromTestCase(fte.tests.encrypter.TestEncoders)
-    suite_record_layer = unittest.TestLoader().loadTestsFromTestCase(fte.tests.record_layer.TestEncoders)
-    suite_relay = unittest.TestLoader().loadTestsFromTestCase(fte.tests.relay.TestRelay)
-    suite_bit_ops = unittest.TestLoader().loadTestsFromTestCase(fte.tests.bit_ops.TestEncoders)
-    suite_dfa = unittest.TestLoader().loadTestsFromTestCase(fte.tests.dfa.TestDFA)
-    suite_cdfa = unittest.TestLoader().loadTestsFromTestCase(fte.tests.cDFA.TestcDFA)
+
+    suite_encoder = unittest.TestLoader().loadTestsFromTestCase(
+        fte.tests.encoder.TestEncoders)
+    suite_encrypter = unittest.TestLoader().loadTestsFromTestCase(
+        fte.tests.encrypter.TestEncoders)
+    suite_record_layer = unittest.TestLoader().loadTestsFromTestCase(
+        fte.tests.record_layer.TestEncoders)
+    suite_relay = unittest.TestLoader().loadTestsFromTestCase(
+        fte.tests.relay.TestRelay)
+    suite_bit_ops = unittest.TestLoader().loadTestsFromTestCase(
+        fte.tests.bit_ops.TestEncoders)
+    suite_dfa = unittest.TestLoader().loadTestsFromTestCase(
+        fte.tests.dfa.TestDFA)
+    suite_cdfa = unittest.TestLoader().loadTestsFromTestCase(
+        fte.tests.cDFA.TestcDFA)
     suites = [
         suite_bit_ops,
         suite_encoder,
@@ -225,7 +231,7 @@ def test():
 
 def main():
     global running
-    
+
     try:
         main = FTEMain()
         main.daemon = True
@@ -247,9 +253,10 @@ def main():
 
 if __name__ == '__main__':
     running = True
+
     def signal_handler(signal, frame):
         global running
         running = False
     signal.signal(signal.SIGINT, signal_handler)
-    
+
     main()

@@ -26,11 +26,11 @@ NUM_TRIALS = 10
 
 MAX_LEN = 512
 _regexs = [
-           '^\C+$',
-           '^(0|1)+$',
-           '^(A|B)+$',
-           '^(acat|adog)+$',
-           ]
+    '^\C+$',
+    '^(0|1)+$',
+    '^(A|B)+$',
+    '^(acat|adog)+$',
+]
 
 
 class TestDFA(unittest.TestCase):

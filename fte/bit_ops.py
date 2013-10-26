@@ -40,7 +40,7 @@ def long_to_bytes(N, blocksize=1):
 
     if blocksize > 0 and len(bytestring) % blocksize != 0:
         bytestring = '\x00' * \
-            (blocksize - len(bytestring) % blocksize) + bytestring
+            (blocksize - (len(bytestring) % blocksize)) + bytestring
 
     return bytestring
 

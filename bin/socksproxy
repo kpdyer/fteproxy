@@ -24,6 +24,7 @@ import twisted.protocols.socks
 
 SOCKS_LOG = "socks.log"
 
+
 class SocksProxy:
 
     def __init__(self, proxyIP, proxyPort):
@@ -44,10 +45,10 @@ class SocksProxy:
 def main():
     parser = argparse.ArgumentParser(prog='socksproxy',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--ip',required=True)
-    parser.add_argument('--port',required=True)
+    parser.add_argument('--ip', required=True)
+    parser.add_argument('--port', required=True)
     args = parser.parse_args(sys.argv[1:])
-    
+
     proxy = SocksProxy(str(args.ip),
                        int(args.port))
     try:
