@@ -47,7 +47,7 @@ private:
 
     // the integer of our DFA start state
     int32_t _start_state;
-    
+
     uint32_t _num_states;
     uint32_t _num_symbols;
 

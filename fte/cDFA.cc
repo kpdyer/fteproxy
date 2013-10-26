@@ -29,13 +29,18 @@
 
 typedef vector< std::string > split_vector_type;
 
+/* 
+ * Parameters:
+ *   dfa_str: an ATT FST formatted DFA, see: http://www2.research.att.com/~fsmtools/fsm/man4/fsm.5.html
+ *   max_len: the maxium length to compute DFA::buildTable
+ */
 DFA::DFA(std::string dfa_str, uint32_t max_len)
     : _max_len(max_len),
       _start_state(-1),
       _num_states(0),
       _num_symbols(0)
 {
-	// construct the _start_state, _final_states and symbols/states of our DFA
+    // construct the _start_state, _final_states and symbols/states of our DFA
     std::vector<uint32_t> symbols;
     boost::unordered_set<uint32_t> states;
     std::string line;
@@ -50,7 +55,7 @@ DFA::DFA(std::string dfa_str, uint32_t max_len)
         if (SplitVec.size() == 4) {
             uint32_t current_state = strtol(SplitVec[0].c_str(),NULL,10);
             uint32_t symbol = strtol(SplitVec[2].c_str(),NULL,10);
-			states.insert( current_state );
+            states.insert( current_state );
 
             if (find(symbols.begin(), symbols.end(), symbol)==symbols.end()) {
                 symbols.push_back( symbol );
@@ -63,12 +68,12 @@ DFA::DFA(std::string dfa_str, uint32_t max_len)
             uint32_t final_state = strtol(SplitVec[0].c_str(),NULL,10);
             _final_states.insert( final_state );
         } else {
-        	// TODO: throw exception because we don't understand the file format
+            // TODO: throw exception because we don't understand the file format
         }
-        
+
     }
     states.insert( states.size() );
-    
+
     _num_symbols = symbols.size();
     _num_states = states.size();
 
@@ -76,15 +81,15 @@ DFA::DFA(std::string dfa_str, uint32_t max_len)
     // bytes/integers
     uint32_t j, k;
     for (j=0; j<_num_symbols; j++) {
-    	_sigma[j] = (char)(symbols[j]-1);
-    	_sigma_reverse[(char)(symbols[j]-1)] = j;
+        _sigma[j] = (char)(symbols[j]-1);
+        _sigma_reverse[(char)(symbols[j]-1)] = j;
     }
 
     // intialize all transitions in our DFA to our dead state
     _delta.resize(boost::extents[_num_states][_num_symbols]);
     for (j=0; j<_num_states; j++) {
         for (k=0; k < _num_symbols; k++) {
-        	_delta[j][k] = _num_states - 1;
+            _delta[j][k] = _num_states - 1;
         }
     }
 
@@ -99,9 +104,9 @@ DFA::DFA(std::string dfa_str, uint32_t max_len)
             uint32_t current_state = strtol(SplitVec[0].c_str(),NULL,10);
             uint32_t symbol = strtol(SplitVec[2].c_str(),NULL,10);
             uint32_t new_state = strtol(SplitVec[1].c_str(),NULL,10);
-            
+
             symbol = _sigma_reverse[symbol];
-            
+
             _delta[current_state][symbol] = new_state;
         }
     }
@@ -117,7 +122,7 @@ void DFA::_buildTable() {
     uint32_t i;
     uint32_t q;
     uint32_t a;
-    
+
     // ensure our table _T is the correct size
     _T.resize(boost::extents[_num_states][_max_len+1]);
 
