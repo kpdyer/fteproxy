@@ -77,8 +77,8 @@ DFA::DFA(std::string DFA, uint32_t MAX_WORD_LEN)
             final_statesTmp.insert( final_state );
         }
     }
-
-    _final_states = final_statesTmp;
+	
+    _final_states = final_statesTmp;//getFinalStates(DFA);
 
     statesTmp.insert( statesTmp.size() );
 
@@ -139,20 +139,29 @@ DFA::DFA(std::string DFA, uint32_t MAX_WORD_LEN)
 
     array_type_mpz_t2 TTmp(boost::extents[NUM_STATES][MAX_WORD_LEN+1]);
     _T.resize(boost::extents[NUM_STATES][MAX_WORD_LEN+1]);
-    DFA::buildTable();
+    DFA::_buildTable();
 }
 
+//boost::unordered_set<uint32_t> DFA::_getFinalStates(std::string DFA) {
 
-void DFA::buildTable() {
+    //return final_statesTmp;
+//}
+
+
+void DFA::_buildTable() {
     uint32_t i;
     uint32_t q;
     uint32_t a;
 
+    // set all _T[q][0] = 1 for all states in _final_states
     boost::unordered_set<uint32_t>::iterator state;
     for (state=_final_states.begin(); state!=_final_states.end(); state++) {
         _T[*state][0] = 1;
     }
 
+    // walk through our table _T
+    // we want each entry _T[q][i] to contain the number of strings that start
+    // from state q, terminate in a final state, and are of length i
     for (i=1; i<=_max_len; i++) {
         for (q=0; q<_delta.size(); q++) {
             for (a=0; a<_delta[0].size(); a++) {
@@ -169,17 +178,23 @@ std::string DFA::unrank(PyObject * c_in) {
 	// TODO: throw exception if input integer is not in range of pre-computed
 	//       values
 	// TODO: throw exception if walking DFA does not end in a final state
+	// TODO: throw exception if input integer is not PympzObject*
 
     std::string retval;
     
+    // assume input integer c_in is PympzObject*
+    // convert c_in to mpz_class
     mpz_class c = mpz_class(Pympz_AS_MPZ(c_in));
 
+    // subtract values values from c, while increasing n, to determine
+    // the length n of the string we're ranking
     uint32_t n = 1;
     while (c >= _T[_start_state][n]) {
     	c -= _T[_start_state][n];
     	n++;
     }
 
+    // walk the DFA subtracting values from c until we have our n symbols
     uint32_t i, q = _start_state;
     uint32_t chars_left, char_cursor, state_cursor;
     for (i=1; i<=n; i++) {
@@ -197,56 +212,52 @@ std::string DFA::unrank(PyObject * c_in) {
     return retval;
 }
 
-PyObject* DFA::rank( std::string X_input ) {
+PyObject* DFA::rank( std::string X_in ) {
+	// TODO: verify that input symbols are in alphabet of DFA
+
+    PyObject* retval;
+    
+    // covert the input symbols in X_in into their numeric representation
     uint32_t i;
-    mpz_t c;
+    array_type_uint32_t1 X(boost::extents[X_in.size()]);
+    for (i=0; i<X_in.size(); i++) {
+        X[i] = _sigma_reverse[X_in.at(i)];
+    }
+
+    // walk the DFA, adding values from T to c
+    uint32_t n = X.size();
     uint32_t q = _start_state;
     uint32_t j;
-    array_type_uint32_t1 X(boost::extents[X_input.size()]);
-    mpz_t tmp;
-
-    for (i=0; i<X_input.size(); i++) {
-        X[i] = _sigma_reverse[X_input.at(i)];
-    }
-
-    uint32_t n = X.size();
-    mpz_init(c);
-
-    /////////////////////////////
-    if (_T[0].size() < X.size()) {
-        mpz_set_si( c, -1 );
-        return NULL;
-    }
-
-    mpz_init(tmp);
-
-    mpz_init_set_si( c, 0 );
-
+    mpz_class c = 0;
+    uint32_t state;
     for (i=1; i<=n; i++) {
         for (j=1; j<=X[i-1]; j++) {
-        	uint32_t state = _delta[q][j-1];
-            mpz_add( c, c, _T[state][n-i].get_mpz_t() );
+        	state = _delta[q][j-1];
+            c += _T[state][n-i];
         }
         q = _delta[q][X[i-1]];
-
-        if (q == (_delta.size()-1)) {
-            return NULL;
-        }
     }
 
-    mpz_clear(tmp);
-
+    // bail if our final state is in _final_states
     if (_final_states.count(q)==0) {
-        return NULL;
+        // TODO: throw exception, because we are not in a final state
     }
 
-    for (i=0; i<n; i++)
-        mpz_add( c, c, _T[_start_state][i].get_mpz_t() );
-    /////////////////////////////
+    // based on the length of our input string X, add values from
+    // buildTable to put c in the correct slice
+    for (i=0; i<n; i++) {
+        c += _T[_start_state][i];
+    }
 
-    char * retval_str = mpz_get_str(NULL, 10, c);
-
-    return PyLong_FromString(retval_str,NULL,10);
+    // convert our value c (mpz_class) to PyLong
+    // TODO: figure out safer/faster way to convert mpz_t to PyLong (or gmpy.mpz)
+    uint8_t base = 10;
+    uint32_t retval_str_len = c.get_str().length();
+    char *retval_str = new char[retval_str_len + 1];
+    strcpy(retval_str, c.get_str().c_str());
+    retval = PyLong_FromString(retval_str, NULL, base);
+    
+    return retval;
 }
 
 PyObject* DFA::getNumWordsInLanguage( uint32_t min_word_length,

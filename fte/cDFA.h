@@ -65,7 +65,7 @@ private:
     //   i: an integer
     //   n: the number of words in our language that have a path to a final
     //      state that is exactly length i
-    void buildTable();
+    void _buildTable();
     
     // _T is our cached table, the output of buildTable
     array_type_mpz_t2 _T;
