@@ -65,7 +65,7 @@ class Encrypter(object):
     """On initialization, accepts optional keys ``K1`` and ``K2`` which much be exactly 16 bytes each.
     Object is a stateless encryption scheme with ``encrypt`` and ``decrypt`` functions.
     See [missing reference] for a description of the scheme.
-    
+
     If ``K1`` is not specified, its default value is ``0xffffffffffffffffffffffffffffffff``.
     If ``K2`` is not specified, its default value is ``0x00000000000000000000000000000000``.
     """
@@ -99,7 +99,7 @@ class Encrypter(object):
         """Given ``plaintext``, returns a ``ciphertext`` encrypted with an authentiated-encryption scheme, using the keys specified in ``__init__``.
         Ciphertext expansion is deterministic, the ouput ciphertext is always 42 bytes longer than the input ``plaintext``.
         The input ``plaintext`` can be ``''``.
-    
+
         Raises ``PlaintextTypeError`` if input plaintext is not a string.
         """
 
@@ -135,7 +135,7 @@ class Encrypter(object):
 
     def decrypt(self, ciphertext):
         """Given ``ciphertext`` returns a ``plaintext`` decrypted using the keys specified in ``__init__``.
-        
+
         Raises ``CiphertextTypeError`` if the input ``ciphertext`` is not a string.
         Raises ``RecoverableDecryptionError`` if the input ``ciphertext`` has a non-negative message length greater than the ciphertext length.
         Raises ``UnrecoverableDecryptionError`` if invalid padding is detected, or the the MAC is invalid.
@@ -217,7 +217,7 @@ class Encrypter(object):
         return message_length
 
     def encryptOneBlock(self, plaintext):
-        """
+        """Perform AES-128 ECB encryption on an 8-byte plainttext using ``K1``.
         """
 
         assert len(plaintext) == 8
@@ -225,7 +225,7 @@ class Encrypter(object):
         return self._ecb_enc_K1.encrypt(plaintext)
 
     def decryptOneBlock(self, ciphertext):
-        """
+        """Perform AES-128 ECB decryption on an 8-byte plainttext using ``K1``.
         """
 
         assert len(ciphertext) == 16
