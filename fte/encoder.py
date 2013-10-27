@@ -26,8 +26,8 @@ import fte.defs
 import fte.encrypter
 
 
-
 class InvalidInputException(Exception):
+
     """Raised when the input to ``fte.encoder.RegexEncoder.encode`` or
     ``fte.encoder.RegexEncoder.decode`` is not a string.
     """
@@ -35,7 +35,10 @@ class InvalidInputException(Exception):
 
 
 _instance = {}
+
+
 class RegexEncoder(object):
+
     """A proxy object used for caching invocations of ``RegexEncoderObject``.
     If a ``RegexEncoder`` is invoked twice in one process, we want to invoke
     ``RegexEncoderObject.__init__`` only once.

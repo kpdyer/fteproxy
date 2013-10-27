@@ -23,6 +23,7 @@ import fte.cDFA
 
 
 class LanguageIsEmptySetException(Exception):
+
     """Raised when the input language results in a set that is not rankable.
     """
     pass
