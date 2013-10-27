@@ -88,6 +88,7 @@ class RegexEncoderObject(object):
         msg_len_header = fte.bit_ops.long_to_bytes(unrank_payload_len)
         msg_len_header = string.rjust(
             msg_len_header, RegexEncoderObject._COVERTEXT_HEADER_LEN_PLAINTEXT, '\x00')
+        msg_len_header = fte.bit_ops.random_bytes(8) + msg_len_header
         msg_len_header = self._encrypter.encryptOneBlock(msg_len_header)
 
         unrank_payload = msg_len_header + \

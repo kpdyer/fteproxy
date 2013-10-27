@@ -217,15 +217,14 @@ class Encrypter(object):
         return message_length
 
     def encryptOneBlock(self, plaintext):
-        """Perform AES-128 ECB encryption on an 8-byte plainttext using ``K1``.
+        """Perform AES-128 ECB encryption on an 16-byte plaintext using ``K1``.
         """
 
-        assert len(plaintext) == 8
-        plaintext = fte.bit_ops.random_bytes(8) + plaintext
+        assert len(plaintext) == 16
         return self._ecb_enc_K1.encrypt(plaintext)
 
     def decryptOneBlock(self, ciphertext):
-        """Perform AES-128 ECB decryption on an 8-byte plainttext using ``K1``.
+        """Perform AES-128 ECB decryption on a 16-byte ciphertext using ``K1``.
         """
 
         assert len(ciphertext) == 16
