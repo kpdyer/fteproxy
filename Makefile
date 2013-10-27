@@ -56,6 +56,6 @@ uninstall:
 	@rm -fv /usr/local/lib/python2.7/dist-packages/Format_Transforming_Encrypion_FTE_-0.2.0_alpha.egg-info
 	@rm -fv /usr/local/bin/fteproxy
 
-doc: fte/cDFA.so
-phantom:
+doc: phantom
+phantom: fte/cDFA.so
 	@cd doc && $(MAKE) html

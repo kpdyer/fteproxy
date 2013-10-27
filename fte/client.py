@@ -21,10 +21,12 @@ import fte.relay
 
 class listener(fte.relay.listener):
 
-    def onNewIncomingConnection(self, socket):
-        return socket
-
     def onNewOutgoingConnection(self, socket):
+        """On an outgoing data stream we wrap it with ``fte.wrap_socket``, with
+        the languages specified in the ``runtime.state.upstream_language`` and
+        ``runtime.state.downstream_language`` configuration parameters.
+        """
+
         outgoing_language = fte.conf.getValue(
             'runtime.state.upstream_language')
         incoming_language = fte.conf.getValue(
@@ -39,4 +41,5 @@ class listener(fte.relay.listener):
         socket = fte.wrap_socket(socket,
                                  outgoing_regex, outgoing_max_len,
                                  incoming_regex, incoming_max_len)
+
         return socket

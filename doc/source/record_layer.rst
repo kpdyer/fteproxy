@@ -4,6 +4,8 @@
 Overview
 --------
 
+This is a class used internally by FTE and should not be invoked directly.
+
 Interface
 ---------
 
@@ -11,6 +13,3 @@ Interface
     :members:
     :undoc-members:
     :show-inheritance:
-
-Examples
---------

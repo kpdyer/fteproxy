@@ -36,11 +36,8 @@ conf = {}
 conf['general.base_dir'] = os.path.abspath(os.path.join(module_path()))
 conf['general.pid_dir'] = tempfile.gettempdir()
 conf['general.fte_dir'] = os.path.join(getValue('general.base_dir'))
-conf['general.bin_dir'] = os.path.join(getValue('general.base_dir'), 'bin')
-conf['general.scripts_dir'] = os.path.join(
-    getValue('general.base_dir'), 'scripts')
+
 conf['runtime.mode'] = None
-conf['runtime.tcp.relay.backlog'] = 5
 conf['runtime.fte.relay.backlog'] = 5
 conf['runtime.client.ip'] = '127.0.0.1'
 conf['runtime.client.port'] = 8079
@@ -49,14 +46,10 @@ conf['runtime.server.port'] = 8080
 conf['runtime.proxy.ip'] = '127.0.0.1'
 conf['runtime.proxy.port'] = 8081
 conf['runtime.fte.relay.socket_timeout'] = 0.001
-conf['runtime.fte.tcp.relay.block_size'] = 2 ** 12
-conf['runtime.fte.relay.encoder_block_size'] = 2 ** 12
-conf['runtime.fte.relay.decoder_block_size'] = 2 ** 12
 conf['runtime.fte.record_layer.max_cell_size'] = 2 ** 16
-
-
 conf['runtime.state.upstream_language'] = 'manual-http-request'
 conf['runtime.state.downstream_language'] = 'manual-http-response'
-conf['fte.default_max_len'] = 512
 conf['runtime.fte.encrypter.key'] = 'FF' * 16 + '00' * 16
+
+conf['fte.default_max_len'] = 512
 conf['fte.defs.release'] = '20131023'

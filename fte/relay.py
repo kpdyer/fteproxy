@@ -26,20 +26,25 @@ import fte.io
 
 class worker(threading.Thread):
 
-    """This class handles relaying data between two sockets. Given socket A and
-    socket B, it's the responsibility of this class to forward all incoming data
-    from A to B, and all incoming data from B to A. This class is a subclass of
-    threading.Thread and does not start working until start() is called. The run
-    method terimates when either socket A or B is dected to be closed.
+    """``fte.relay.worker`` is repsonsible for relaying data between two sockets. Given ``socket1`` and
+    ``socket2``, the worker will forward all data
+    from ``socket1`` to ``socket2``, and ``socket2`` to ``socket1``. This class is a subclass of
+    threading.Thread and does not start relaying until start() is called. The run
+    method terimates when either ``socket1`` or ``socket2`` is dected to be closed.
     """
 
     def __init__(self, socket1, socket2):
-        """test"""
         threading.Thread.__init__(self)
         self._socket1 = socket1
         self._socket2 = socket2
 
     def run(self):
+        """It's the responsibility of run to forward data from ``socket1`` to
+        ``socket2`` and from ``socket2`` to ``socket1``. The ``run()`` met6od
+        terminates and closes both sockets if ``fte.io.recvall_from_socket``
+        returns a negative regults for ``success``.
+        """
+
         try:
             while True:
                 [success, _data] = fte.io.recvall_from_socket(self._socket1)
@@ -60,7 +65,13 @@ class worker(threading.Thread):
 
 class listener(threading.Thread):
 
-    """It's he responsibility of the listener class is to
+    """It's he responsibility of ``fte.relay.listener`` to bind to
+    ``local_ip:local_port``. Once bound it will then relay all incoming connections
+    to ``remote_ip:remote_port``.
+    All new incoming connections are wrapped with ``onNewIncomingConnection``.
+    All new outgoing connections are wrapped with ``onNewOutgoingConnection``.
+    By default the functions ``onNewIncomingConnection`` and
+    ``onNewOutgoingConnection`` are the identity function.
     """
 
     def __init__(self, local_ip, local_port,
@@ -84,6 +95,9 @@ class listener(threading.Thread):
             fte.conf.getValue('runtime.fte.relay.socket_timeout'))
 
     def run(self):
+        """Bind to ``local_ip:local_port`` and forward all connections to
+        ``remote_ip:remote_port``.
+        """
         self._instantiateSocket()
 
         self._running = True
@@ -104,6 +118,22 @@ class listener(threading.Thread):
                 continue
 
     def stop(self):
+        """Terminate the thread and stop listening on ``local_ip:local_port``.
+        """
         self._running = False
         fte.io.close_socket(self._sock,
                             lock=self._sock_lock)
+
+    def onNewIncomingConnection(self, socket):
+        """``onNewIncomingConnection`` returns the socket unmodified, by default we do not need to
+        perform any modifications to incoming data streams.
+        """
+
+        return socket
+
+    def onNewOutgoingConnection(self, socket):
+        """``onNewOutgoingConnection`` returns the socket unmodified, by default we do not need to
+        perform any modifications to incoming data streams.
+        """
+
+        return socket

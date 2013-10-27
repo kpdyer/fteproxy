@@ -1,31 +1,39 @@
-Most Important Interface
-************************
+``fte.wrap_socket``
+*******************
+
 
 Overview
 --------
+
+The ``fte.wrap_socket`` function is useful for rapidly integrating FTE
+into existing applications. The interface is inspred by ``ssl.wrap_socket`` [1].
+
+.. [1] http://docs.python.org/2/library/ssl.html
 
 Interface
 ---------
 
 .. autofunction:: fte.wrap_socket
 
-Quickstart
-----------
+Example
+-------
 
-Detailed description.
+An example FTE-powered client-server chat application.
+The highlighted lines are the only lines introduced to the example chat
+application at for Python's socket module [2].
 
+.. [2] http://docs.python.org/2/library/socket.html
 
 .. code-block:: python
    :emphasize-lines: 3,5,6,11,12,13,14,15
-   :linenos:
 
     # FTE-Powered echo server program
     import socket
     import fte
-    
+
     client_server_regex = '^(0|1)+$'
     server_client_regex = '^(A|B)+$'
-    
+
     HOST = ''                 # Symbolic name meaning all available interfaces
     PORT = 50007              # Arbitrary non-privileged port
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -46,15 +54,14 @@ Detailed description.
 
 .. code-block:: python
    :emphasize-lines: 3,5,6,11,12,13,14,15
-   :linenos:
 
     # FTE-Powered echo client program
     import socket
     import fte
-    
+
     client_server_regex = '^(0|1)+$'
     server_client_regex = '^(A|B)+$'
-    
+
     HOST = '127.0.0.1'    # The remote host
     PORT = 50007              # The same port as used by the server
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

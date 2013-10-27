@@ -4,6 +4,9 @@
 Overview
 --------
 
+The core class that performs encoding/decoding w.r.t. an input ``regex``.
+Used internally for FTE and should not be invoked directly.
+
 Interface
 ---------
 
@@ -11,6 +14,3 @@ Interface
     :members:
     :undoc-members:
     :show-inheritance:
-
-Examples
---------

@@ -44,7 +44,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'fte-proxy'
+project = u'fteproxy'
 copyright = u'2013, Kevin P. Dyer'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -187,7 +187,7 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-    ('index', 'Format-TransformingEncryptionFTE.tex', u'fte-proxy Documentation',
+    ('index', 'Format-TransformingEncryptionFTE.tex', u'fteproxy Documentation',
      u'Kevin P. Dyer', 'manual'),
 ]
 
@@ -217,7 +217,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'format-transformingencryptionfte', u'fte-proxy Documentation',
+    ('index', 'format-transformingencryptionfte', u'fteproxy Documentation',
      [u'Kevin P. Dyer'], 1)
 ]
 
@@ -231,7 +231,7 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    ('index', 'Format-TransformingEncryptionFTE', u'fte-proxy Documentation',
+    ('index', 'Format-TransformingEncryptionFTE', u'fteproxy Documentation',
      u'Kevin P. Dyer', 'Format-TransformingEncryptionFTE', 'One line description of project.',
      'Miscellaneous'),
 ]

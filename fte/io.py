@@ -3,6 +3,10 @@ import socket
 
 
 def sendall_to_socket(sock, msg, socket_timeout=0.01):
+    """Given a socket ``sock`` and ``msg`` does a best effort to send
+    ``msg`` on ``sock`` as quickly as possible.
+    """
+
     totalsent = 0
     try:
         _incoming_timeout = sock.gettimeout()
@@ -24,8 +28,17 @@ def recvall_from_socket(sock,
                         bufsize=2 ** 12,
                         socket_timeout=0.001,
                         select_timeout=0.001):
+    """Give ``sock``, does a best effort to pull data from ``sock``.
+    By default, fails quickly if ``sock`` is closed or has no data ready.
+    The return value ``is_alive`` reports if ``sock`` is still alive.
+    The return value ``retval`` is the data extracted from the socket.
+    Unlike normal raw sockets, it may be the case that ``retval`` is '', and
+    ``is_alive`` is ``true``.
+    """
+
     retval = ''
-    success = False
+    is_alive = False
+
     _incoming_timeout = sock.gettimeout()
     sock.settimeout(socket_timeout)
     try:
@@ -35,32 +48,37 @@ def recvall_from_socket(sock,
                 _data = sock.recv(bufsize)
                 if _data:
                     retval += _data
-                    success = True
+                    is_alive = True
                     if len(retval) >= bufsize:
                         break
                     else:
                         continue
                 else:
-                    success = (len(retval) > 0)
+                    is_alive = (len(retval) > 0)
                     break
         elif ready[2]:
-            success = (len(retval) > 0)
+            is_alive = (len(retval) > 0)
         else:
             # select.timeout
-            success = True
+            is_alive = True
     except socket.timeout:
-        success = True
+        is_alive = True
     except socket.error:
-        success = (len(retval) > 0)
+        is_alive = (len(retval) > 0)
     except select.error:
-        success = (len(retval) > 0)
+        is_alive = (len(retval) > 0)
     finally:
         sock.settimeout(_incoming_timeout)
 
-    return [success, retval]
+    return [is_alive, retval]
 
 
 def close_socket(sock, lock=None):
+    """Given socket ``sock`` closes the socket for reading and writing.
+    If the optional ``lock`` paramter is provided, protects all accesses
+    to ``sock`` with ``lock``.
+    """
+
     try:
         if lock is not None:
             with lock:

@@ -16,7 +16,6 @@
 # You should have received a copy of the GNU General Public License
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
-import socket
 
 import fte.encoder
 import fte.encrypter
@@ -124,14 +123,28 @@ class _FTESocketWrapper(object):
         return self._socket.listen(N)
 
 
-def wrap_socket(socket,
+def wrap_socket(sock,
                 outgoing_regex, outgoing_max_len,
                 incoming_regex, incoming_max_len,
                 K1=None, K2=None):
-    """TEST
+    """``fte.wrap_socket`` turns an existing socket into an FTE socket.
+
+    The input parameter ``sock`` is the socket to wrap.
+    The parameter ``outgoing_regex`` specifies the format of the messages
+    to send via the socket. The ``outgoing_max_len`` parameter specifies the
+    maximum length of the strings in ``outgoing_regex``.
+    The paramters ``incoming_regex`` and ``incoming_max_len`` are defined
+    similarly.
+    The optional paramters ``K1`` and ``K2`` specify 128-bit keys to be used
+    in FTE's underlying AE scheme. If specified, these values must be 16-byte
+    hex strings.
     """
+
+    assert K1 == None or len(K1) == 16
+    assert K2 == None or len(K2) == 16
+
     socket_wrapped = _FTESocketWrapper(
-        socket,
+        sock,
         outgoing_regex, outgoing_max_len,
         incoming_regex, incoming_max_len,
         K1, K2)

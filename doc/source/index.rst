@@ -1,52 +1,64 @@
-FTE Proxy Documentation
+fteproxy Documentation
 =======================
 
+Format-Transforming Encryption (FTE) is a stategy for communicating using
+strings defined by compact regular expressions.
+FTE is well-positioned to circumvent regex-based DPI systems.
 
-General overview of FTE and why it matters.
+``fteproxy`` Command Line Application
+---------------------------------
 
-   
-   
-Contents:
+The ``fteproxy`` command-line application can be used to run and FTE proxy client
+or server.
 
 .. toctree::
    :maxdepth: 2
-   
-   __init__.rst
-    
 
-High-level Client/Server Logic
+   fteproxy.rst
+
+
+FTE Wrapper for Socket Objects
 ------------------------------
 
-Contents:
+The FTE socket wrapper is useful for rapidly integrating FTE into existing
+socket-powered applications.
 
 .. toctree::
    :maxdepth: 2
-   
+
+   __init__.rst
+
+
+FTE API
+----------------------------
+
+The FTE API contains the essential building blocks for constructing the FTE
+socket wrapper and fteproxy command line application.
+
+High-level Client/Server modules:
+
+.. toctree::
+   :maxdepth: 1
+
+   relay.rst
    client.rst
    server.rst
-   relay.rst
 
-Encoding/Encryption
--------------------
-
-Contents:
+Encrypting/Encoding modules:
 
 .. toctree::
-   :maxdepth: 2
-   
+   :maxdepth: 1
+
    record_layer.rst
    encoder.rst
    dfa.rst
    encrypter.rst
 
-Low-level Data Logic
---------------------
-
-Contents:
+Low-level I/O modules:
 
 .. toctree::
-   :maxdepth: 2
-   
+   :maxdepth: 1
+
    io.rst
    bit_ops.rst
 
@@ -57,4 +69,3 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-

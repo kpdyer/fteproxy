@@ -35,9 +35,17 @@ class Encoder:
         self._buffer = ''
 
     def push(self, data):
+        """Push data onto the FIFO buffer."""
+
         self._buffer += data
 
     def pop(self):
+        """Pop data off the FIFO buffer. We pop at most
+        ``runtime.fte.record_layer.max_cell_size``
+        bytes. The returned value is encrypted with ``encrypter`` then encoded
+        with ``encoder`` specied in ``__init__``.
+        """
+
         retval = ''
 
         outgoing_msg = self._buffer[:MAX_CELL_SIZE]
@@ -53,25 +61,33 @@ class Decoder:
 
     def __init__(
         self,
-        encrypter,
-        encoder,
+        decrypter,
+        decoder,
     ):
-        self._encrypter = encrypter
-        self._encoder = encoder
+        self._decrypter = decrypter
+        self._decoder = decoder
         self._buffer = ''
 
     def push(self, data):
+        """Push data onto the FIFO buffer."""
+
         self._buffer += data
 
     def pop(self):
+        """Pop data off the FIFO buffer. We return at most
+        ``runtime.fte.record_layer.max_cell_size``
+        bytes. The returned value is decoded with ``encoder`` then decrypted
+        with ``decrypter`` specied in ``__init__``.
+        """
+
         retval = ''
 
         if self._buffer:
             try:
-                incoming_msg = self._encoder.decode(self._buffer)
-                to_take = self._encrypter.getCiphertextLen(incoming_msg)
+                incoming_msg = self._decoder.decode(self._buffer)
+                to_take = self._decrypter.getCiphertextLen(incoming_msg)
                 to_decrypt = incoming_msg[:to_take]
-                retval = self._encrypter.decrypt(to_decrypt)
+                retval = self._decrypter.decrypt(to_decrypt)
                 self._buffer = incoming_msg[to_take:]
             except fte.encoder.DecodeFailureException:
                 pass
