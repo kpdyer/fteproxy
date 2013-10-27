@@ -52,8 +52,8 @@ class TestEncoders(unittest.TestCase):
     def testEncryptDecryptOneBlock(self):
         for i in range(128):
             for j in range(128):
-                M1 = random.randint(0, (1 << 64) - 1)
-                M1 = fte.bit_ops.long_to_bytes(M1, 8)
+                M1 = random.randint(0, (1 << 128) - 1)
+                M1 = fte.bit_ops.long_to_bytes(M1, 16)
                 retval = self.encrypter.encryptOneBlock(M1)
                 H_out = self.encrypter.decryptOneBlock(retval)
                 self.assertEquals(M1, H_out)

@@ -49,7 +49,7 @@ class TestEncoders(unittest.TestCase):
             encoder = fte.record_layer.Encoder(
                 encrypter=encrypter, encoder=regex_encoder)
             decoder = fte.record_layer.Decoder(
-                encrypter=encrypter, encoder=regex_encoder)
+                decrypter=encrypter, decoder=regex_encoder)
             self.recoder_layers_info.append(language)
             self.record_layers_outgoing.append(encoder)
             self.record_layers_incoming.append(decoder)

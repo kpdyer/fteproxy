@@ -49,8 +49,8 @@ class _FTESocketWrapper(object):
 
         self._encoder = fte.record_layer.Encoder(encrypter=self._encrypter,
                                                  encoder=self._outgoing_encoder)
-        self._decoder = fte.record_layer.Decoder(encrypter=self._encrypter,
-                                                 encoder=self._incoming_decoder)
+        self._decoder = fte.record_layer.Decoder(decrypter=self._encrypter,
+                                                 decoder=self._incoming_decoder)
 
         self._incoming_buffer = ''
 

@@ -126,8 +126,9 @@ class RegexEncoderObject(object):
         X = string.rjust(X, maximumBytesToRank, '\x00')
         msg_len_header = self._encrypter.decryptOneBlock(
             X[:RegexEncoderObject._COVERTEXT_HEADER_LEN_CIPHERTTEXT])
+        msg_len_header = msg_len_header[8:16]
         msg_len = fte.bit_ops.bytes_to_long(
-            msg_len_header[1:RegexEncoderObject._COVERTEXT_HEADER_LEN_PLAINTEXT])
+            msg_len_header[:RegexEncoderObject._COVERTEXT_HEADER_LEN_PLAINTEXT])
 
         retval = X[16:16 + msg_len]
         retval += covertext[self._max_len:]

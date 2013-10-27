@@ -27,7 +27,7 @@ class InvalidRegexName(Exception):
 
 
 def load_definitions():
-    def_dir = os.path.join(fte.conf.getValue('general.fte_dir'), 'defs')
+    def_dir = os.path.join(fte.conf.getValue('general.base_dir'), 'defs')
     def_file = fte.conf.getValue('fte.defs.release') + '.json'
     def_abspath = os.path.join(def_dir, def_file)
 

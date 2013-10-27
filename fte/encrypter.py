@@ -228,6 +228,4 @@ class Encrypter(object):
         """
 
         assert len(ciphertext) == 16
-        plaintext = self._ecb_enc_K1.decrypt(ciphertext)
-        plaintext = plaintext[8:16]
-        return plaintext
+        return self._ecb_enc_K1.decrypt(ciphertext)

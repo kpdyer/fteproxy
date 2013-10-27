@@ -72,7 +72,7 @@ class TestRelay(unittest.TestCase):
             proxy_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             proxy_socket.bind(
                 (LOCAL_INTERFACE, fte.conf.getValue('runtime.proxy.port')))
-            proxy_socket.listen(fte.conf.getValue('runtime.tcp.relay.backlog'))
+            proxy_socket.listen(fte.conf.getValue('runtime.fte.relay.backlog'))
 
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client_socket.connect((LOCAL_INTERFACE,
