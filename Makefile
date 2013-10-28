@@ -9,7 +9,7 @@ RE2_PATCHFILE=re2.patch
 OPENFST_VERSION=1.3.3
 OPENFST_TGZ=http://www.openfst.org/twiki/pub/FST/FstDownload/openfst-$(OPENFST_VERSION).tar.gz
 
-all: $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize $(THIRD_PARTY_DIR)/re2/obj/libre2.a fte/cDFA.so doc
+all: $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize $(THIRD_PARTY_DIR)/re2/obj/libre2.a fte/cDFA.so
 
 install: all
 	cd $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION) && make install
@@ -29,9 +29,6 @@ $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize:
 	cd $(THIRD_PARTY_DIR) && tar zxvf openfst-$(OPENFST_VERSION).tar.gz
 	cd $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION) && ./configure --enable-fast-install --disable-dependency-tracking --prefix=$(PREFIX)
 	cd $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION) && make -j `nproc`
-	#echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib" >> ~/.bashrc
-	#export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
-	#source ~/.bashrc
 
 clean:
 	@find . -name "*.pyc" -exec rm {} \;
@@ -57,5 +54,5 @@ uninstall:
 	@rm -fv /usr/local/bin/fteproxy
 
 doc: phantom
-phantom: fte/cDFA.so
+phantom:
 	@cd doc && $(MAKE) html

@@ -1,0 +1,14 @@
+
+Installing Dependencies
+-----------------------
+
+sudo apt-get update
+sudo apt-get -y install m4 git python-dev python-gmpy python-crypto python-twisted libboost-python-dev libboost-system-dev libboost-filesystem-dev libgmp-dev
+
+Building fteproxy
+-----------------
+
+git clone https://github.com/redjack/fteproxy.git
+cd fteproxy
+make all
+sudo make install

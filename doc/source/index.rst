@@ -6,7 +6,7 @@ strings defined by compact regular expressions.
 FTE is well-positioned to circumvent regex-based DPI systems.
 
 ``fteproxy`` Command Line Application
----------------------------------
+-------------------------------------
 
 The ``fteproxy`` command-line application can be used to run and FTE proxy client
 or server.
@@ -30,37 +30,15 @@ socket-powered applications.
 
 
 FTE API
-----------------------------
+-------
 
 The FTE API contains the essential building blocks for constructing the FTE
 socket wrapper and fteproxy command line application.
 
-High-level Client/Server modules:
-
 .. toctree::
    :maxdepth: 1
 
-   relay.rst
-   client.rst
-   server.rst
-
-Encrypting/Encoding modules:
-
-.. toctree::
-   :maxdepth: 1
-
-   record_layer.rst
-   encoder.rst
-   dfa.rst
-   encrypter.rst
-
-Low-level I/O modules:
-
-.. toctree::
-   :maxdepth: 1
-
-   io.rst
-   bit_ops.rst
+   api.rst
 
 
 Indices and tables
