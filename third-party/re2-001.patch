@@ -1,6 +1,6 @@
-diff -urBNs re2/re2/dfa.cc re2.fte/re2/dfa.cc
+diff -urBNs re2/re2/dfa.cc re2/re2/dfa.cc
 --- re2/re2/dfa.cc	2013-01-15 10:00:09.000000000 +0000
-+++ re2.fte/re2/dfa.cc	2013-10-24 05:53:02.220772889 +0000
++++ re2/re2/dfa.cc	2013-10-24 05:53:02.220772889 +0000
 @@ -21,13 +21,16 @@
  //
  // See http://swtch.com/~rsc/regexp/ for a very bare-bones equivalent.
@@ -129,9 +129,9 @@ diff -urBNs re2/re2/dfa.cc re2.fte/re2/dfa.cc
  // Computes min and max for matching string.
  // Won't return strings bigger than maxlen.
  bool DFA::PossibleMatchRange(string* min, string* max, int maxlen) {
-diff -urBNs re2/re2/prog.h re2.fte/re2/prog.h
+diff -urBNs re2/re2/prog.h re2/re2/prog.h
 --- re2/re2/prog.h	2012-10-21 13:15:03.000000000 +0000
-+++ re2.fte/re2/prog.h	2013-10-24 01:25:33.113488427 +0000
++++ re2/re2/prog.h	2013-10-24 01:25:33.113488427 +0000
 @@ -279,6 +279,7 @@
    // avoids lots of unnecessary work.  This function is useful only
    // for testing purposes.  Returns number of states.
@@ -140,9 +140,9 @@ diff -urBNs re2/re2/prog.h re2.fte/re2/prog.h
  
    // Compute byte map.
    void ComputeByteMap();
-diff -urBNs re2/re2/re2.cc re2.fte/re2/re2.cc
+diff -urBNs re2/re2/re2.cc re2/re2/re2.cc
 --- re2/re2/re2.cc	2012-11-27 10:00:16.000000000 +0000
-+++ re2.fte/re2/re2.cc	2013-10-24 00:49:42.889584294 +0000
++++ re2/re2/re2.cc	2013-10-24 00:49:42.889584294 +0000
 @@ -33,7 +33,7 @@
  
  // This will trigger LNK2005 error in MSVC.
@@ -152,9 +152,9 @@ diff -urBNs re2/re2/re2.cc re2.fte/re2/re2.cc
  #endif  // COMPILER_MSVC
  
  RE2::Options::Options(RE2::CannedOptions opt)
-diff -urBNs re2/re2/re2.h re2.fte/re2/re2.h
+diff -urBNs re2/re2/re2.h re2/re2/re2.h
 --- re2/re2/re2.h	2012-10-21 13:15:03.000000000 +0000
-+++ re2.fte/re2/re2.h	2013-10-24 00:49:42.901584293 +0000
++++ re2/re2/re2.h	2013-10-24 00:49:42.901584293 +0000
 @@ -552,7 +552,7 @@
      // If this happens too often, RE2 falls back on the NFA implementation.
  
