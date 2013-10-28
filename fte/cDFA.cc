@@ -24,9 +24,9 @@
 #include <boost/python/class.hpp>
 #include <boost/algorithm/string.hpp>
 
-#include "re2/prog.h"
 #include "re2/re2.h"
 #include "re2/regexp.h"
+#include "re2/prog.h"
 
 typedef vector< std::string > split_vector_type;
 
@@ -310,9 +310,11 @@ std::string attFstFromRegex(std::string str_dfa)
     re_flags = re_flags | re2::Regexp::PerlX;
     re_flags = re_flags | re2::Regexp::Latin1;
 
+    re2::RegexpStatus status;
+
     // compile regex to DFA
     RE2::Options opt;
-    re2::Regexp* re = re2::Regexp::Parse( str_dfa, re_flags, NULL );
+    re2::Regexp* re = re2::Regexp::Parse( str_dfa, re_flags, &status );
     re2::Prog* prog = re->CompileToProg( opt.max_mem() );
     retval = prog->PrintEntireDFA( re2::Prog::kFullMatch );
 
