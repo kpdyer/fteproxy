@@ -1,8 +1,9 @@
 #!/bin/sh
 
-# verify fteproxy in path
-# verify socksproxy in path
-# output helpful error message if the fte/non-fte downloads differ
+# TODO: convert this to a python script
+# TODO: verify fteproxy in path
+# TODO: verify socksproxy in path
+# TODO: output helpful error message if the fte/non-fte downloads differ
 
 sudo pkill -9 -f fteproxy > /dev/null 2> /dev/null
 sudo pkill -9 -f socksproxy > /dev/null 2> /dev/null
