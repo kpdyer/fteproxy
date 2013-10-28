@@ -1,3 +1,7 @@
+# TODO: print warning if /usr/local/bin is not in PATH
+# TODO: print warning if /usr/local/lib is not in LD_LIBRARY_PATH
+# TODO: encourage user to run "make test"
+
 PREFIX=/usr/local
 
 THIRD_PARTY_DIR=third-party
@@ -11,9 +15,26 @@ OPENFST_TGZ=http://www.openfst.org/twiki/pub/FST/FstDownload/openfst-$(OPENFST_V
 
 all: $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize $(THIRD_PARTY_DIR)/re2/obj/libre2.a fte/cDFA.so
 
-install: all
-	cd $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION) && make install
-	python setup.py install --prefix=$(PREFIX)
+install: #all
+	#cd $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION) && make install
+	#python setup.py install --prefix=$(PREFIX)
+	@echo ""
+	@echo "###########################################################"
+	@echo "#"
+	@echo "# Installation complete!!"
+	@echo "# "
+	@echo "# For fteproxy to work, you must ensure:"
+	@echo "#"
+	@echo "#   /usr/local/bin"
+	@echo "#"
+	@echo "# is in your PATH, and"
+	@echo "#"
+	@echo "#   /usr/local/lib"
+	@echo "#"
+	@echo "# is in your LD_LIBRARY_PATH."
+	@echo "#"
+	@echo "###########################################################"
+	@echo ""
 
 fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/libre2.a $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize
 	python setup.py build_ext --inplace
@@ -28,7 +49,7 @@ $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize:
 	cd $(THIRD_PARTY_DIR) && wget $(OPENFST_TGZ)
 	cd $(THIRD_PARTY_DIR) && tar zxvf openfst-$(OPENFST_VERSION).tar.gz
 	cd $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION) && ./configure --enable-fast-install --disable-dependency-tracking --prefix=$(PREFIX)
-	cd $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION) && make -j `nproc`
+	cd $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION) && $(MAKE)
 
 clean:
 	@find . -name "*.pyc" -exec rm {} \;
