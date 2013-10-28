@@ -36,7 +36,7 @@ install: all
 	@echo "###########################################################"
 	@echo ""
 
-f/tch --verbose -p0 -i re2-002.patchte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/so/libre2.so $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize
+fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/so/libre2.so $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize
 	python setup.py build_ext --inplace
 
 $(THIRD_PARTY_DIR)/re2/obj/so/libre2.so:
