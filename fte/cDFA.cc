@@ -215,7 +215,7 @@ std::string DFA::unrank(PyObject * c_in) {
     }
 
     retval = rotN(-1, retval);
-    
+
     return retval;
 }
 
@@ -223,7 +223,7 @@ void DFA::rank( std::string X_in, PyObject * C_out ) {
     // TODO: verify that input symbols are in alphabet of DFA
 
     X_in = rotN(1, X_in);
-    
+
     // covert the input symbols in X_in into their numeric representation
     uint32_t i;
     array_type_uint32_t1 X(boost::extents[X_in.size()]);
