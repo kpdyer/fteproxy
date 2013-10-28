@@ -20,26 +20,26 @@ socks client <> tor client <> fteproxy client <--> fteproxy server <> tor bridge
 
 High-level configuration:
 
-* tor client is listening on 9050 and forwarding connections via fteproxy client
-* fteproxy client is listening on port 8079 and forwarding connections to fteproxy server
-* fteproxy server is listening on port 8080 and forwarding connections to the tor bridge
-* tor bridge is listening on port 9001
+* tor client is listening on $TORCLIENT_SOCKS_PORT and forwarding connections via fteproxy client
+* fteproxy client is listening on port $FTEPROXY_CLIENT_PORT and forwarding connections to fteproxy server
+* fteproxy server is listening on port $FTEPROXY_SERVER_PORT and forwarding connections to the tor bridge
+* tor bridge is listening on port $TORBRIDGE_PORT
 
-tor client configuration:
-SocksPort 9050
+tor client torrc file:
+SocksPort $TORCLIENT_SOCKS_PORT
 UseBridges 1
-Bridge 127.0.0.1:8079
+Bridge 127.0.0.1:$FTEPROXY_CLIENT_PORT
 
 fteproxy client configuration:
 $ fteproxy --mode client \
-           --client_ip 127.0.0.1 --client_port 8079 \
-           --server_ip $SERVER_IP --server_port 80
+           --client_ip 127.0.0.1 --client_port $FTEPROXY_CLIENT_PORT \
+           --server_ip $SERVER_IP --server_port $FTEPROXY_SERVER_PORT
 
 fteproxy server configuration:
 $ fteproxy --mode server \
-           --server_ip $SERVER_IP --server_port 80 \
-           --proxy_ip 127.0.0.1 --proxy_port 9001
+           --server_ip $SERVER_IP --server_port $FTEPROXY_SERVER_PORT \
+           --proxy_ip 127.0.0.1 --proxy_port $TORBRIDGE_PORT
 
-tor bridge configuration
+tor bridge torrc file:
 BridgeRelay 1
 PublishServerDescriptor 0
