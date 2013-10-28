@@ -2,7 +2,7 @@
 Installing Dependencies
 -----------------------
 
-Debian:
+Debian 7.1.0:
 
 sudo apt-get update
 sudo apt-get -y install m4
@@ -15,6 +15,11 @@ sudo apt-get -y install libboost-python-dev
 sudo apt-get -y install libboost-system-dev
 sudo apt-get -y install libboost-filesystem-dev
 sudo apt-get -y install libgmp-dev
+
+Ubuntu:
+
+
+
 
 Building fteproxy
 -----------------

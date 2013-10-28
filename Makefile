@@ -36,7 +36,7 @@ install: all
 	@echo "###########################################################"
 	@echo ""
 
-fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/so/libre2.so $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize
+f/tch --verbose -p0 -i re2-002.patchte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/so/libre2.so $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize
 	python setup.py build_ext --inplace
 
 $(THIRD_PARTY_DIR)/re2/obj/so/libre2.so:
@@ -44,7 +44,7 @@ $(THIRD_PARTY_DIR)/re2/obj/so/libre2.so:
 	cd $(THIRD_PARTY_DIR) && tar zxvf re2-20130115.tgz
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-001.patch
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-002.patch
-	cd $(RE2_DIR) && $(MAKE)
+	cd $(RE2_DIR) && $(MAKE) obj/libre2.a
 	cd $(RE2_DIR) && $(MAKE) obj/so/libre2.so
 
 $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize:
