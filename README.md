@@ -3,7 +3,7 @@ fteproxy
 
 * homepage: https://fteproxy.org
 * source code: https://github.com/redjack/fteproxy
-* publication: http://eprint.iacr.org/2012/494
+* publication: https://eprint.iacr.org/2012/494
 
 Overview
 --------
@@ -20,11 +20,11 @@ Building fteproxy
 Dependencies for building from source:
 * standard build tools: gcc/g++/make/etc.
 * git: http://git-scm.com/
-* python 2.7: http://python.org
-* gmp5: http://gmplib.org/
+* Python 2.7: http://python.org
+* GMP: http://gmplib.org/
 * gmpy: https://code.google.com/p/gmpy/
-* pycrypto: https://www.dlitz.net/software/pycrypto/
-* python twisted: http://twistedmatrix.com/trac/
+* PyCrypto: https://www.dlitz.net/software/pycrypto/
+* Twisted: http://twistedmatrix.com/trac/
 * boost (python,system,filesystem): http://www.boost.org/
 
 For platform-specific build instructions see: README.[linux|osx|windows]
