@@ -14,7 +14,7 @@ That is, given a regular epxression R, fteproxy can tunnel arbitrary TCP streams
 
 [1] http://eprint.iacr.org/2012/494
 
-Building fteproxy
+Dependencies
 --------
 
 Dependencies for building from source:
@@ -27,7 +27,20 @@ Dependencies for building from source:
 * Twisted: http://twistedmatrix.com/trac/
 * boost (python, system, filesystem): http://www.boost.org/
 
+Building
+-----------
+
 For platform-specific build instructions see: README.[linux|osx|windows]
+
+However, once all dependencies are installed, it should be as simple
+as
+```
+git clone https://github.com/redjack/fteproxy.git
+cd fteproxy
+make all
+sudo make install
+```
+to build and install fteproxy.
 
 Documentation
 -------------
