@@ -41,5 +41,8 @@ $ fteproxy --mode server \
            --proxy_ip 127.0.0.1 --proxy_port $TORBRIDGE_PORT
 
 tor bridge torrc file:
+RunAsDaemon 1
+ExitPolicy reject *:* # no exits allowed
+ORPort $TORBRIDGE_PORT
 BridgeRelay 1
 PublishServerDescriptor 0
