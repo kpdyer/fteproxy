@@ -2,28 +2,27 @@ Using fteproxy with Tor
 -----------------------
 
 client running:
-
-* socks client
 * tor client
 * fteproxy client
 
 server running:
-
 * fteproxy server
 * tor bridge
 
-configuration:
+Overview
+--------
 
 [<> means TCP connection on a local machine, <--> means TCP connection over a network]
 
 socks client <> tor client <> fteproxy client <--> fteproxy server <> tor bridge <--> tor network
 
-High-level configuration:
-
 * tor client is listening on $TORCLIENT_SOCKS_PORT and forwarding connections via fteproxy client
 * fteproxy client is listening on port $FTEPROXY_CLIENT_PORT and forwarding connections to fteproxy server
 * fteproxy server is listening on port $FTEPROXY_SERVER_PORT and forwarding connections to the tor bridge
 * tor bridge is listening on port $TORBRIDGE_PORT
+
+Client
+------
 
 tor client torrc file:
 SocksPort $TORCLIENT_SOCKS_PORT
@@ -35,6 +34,9 @@ $ fteproxy --mode client \
            --client_ip 127.0.0.1 --client_port $FTEPROXY_CLIENT_PORT \
            --server_ip $SERVER_IP --server_port $FTEPROXY_SERVER_PORT
 
+Server
+------
+
 fteproxy server configuration:
 $ fteproxy --mode server \
            --server_ip $SERVER_IP --server_port $FTEPROXY_SERVER_PORT \
@@ -42,7 +44,15 @@ $ fteproxy --mode server \
 
 tor bridge torrc file:
 RunAsDaemon 1
-ExitPolicy reject *:* # no exits allowed
+ExitPolicy reject *:*
 ORPort $TORBRIDGE_PORT
 BridgeRelay 1
 PublishServerDescriptor 0
+
+Testing
+-------
+On the client run a command from a SOCKS client, such as curl:
+
+curl --socks5 127.0.0.1:$FTEPROXY_CLIENT_PORT google.com
+
+Upon success a webpage should be returned.
