@@ -1,5 +1,5 @@
 fteproxy
-********
+========
 
 * url: https://fteproxy.org
 * github: https://github.com/redjack/fteproxy
@@ -13,4 +13,6 @@ Building
 Documentation
 -------------
 
+```
 $ make doc
+```
