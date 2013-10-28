@@ -18,14 +18,14 @@ Building fteproxy
 --------
 
 Dependencies for building from source:
-* standard build tools: gcc/g++/make/etc.
+* Standard build tools: gcc/g++/make/etc.
 * git: http://git-scm.com/
 * Python 2.7: http://python.org
 * GMP: http://gmplib.org/
 * gmpy: https://code.google.com/p/gmpy/
 * PyCrypto: https://www.dlitz.net/software/pycrypto/
 * Twisted: http://twistedmatrix.com/trac/
-* boost (python,system,filesystem): http://www.boost.org/
+* boost (python, system, filesystem): http://www.boost.org/
 
 For platform-specific build instructions see: README.[linux|osx|windows]
 
