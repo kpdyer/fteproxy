@@ -8,9 +8,9 @@ fteproxy
 Overview
 --------
 
-fteproxy is client-server proxy powered by Format-Transforming Encryption [1] that tunnels arbitrary TCP streams.
-Regular expressions specified at runtime are used to format messages on the wire.
-That is, given a regular epxression R, fteproxy can tunnel arbitrary TCP streams by transmitting messages in the language L(R).
+fteproxy is client-server proxy powered by Format-Transforming Encryption (FTE) [1] capable of tunneling arbitrary TCP streams.
+FTE uses regular expressions, specified at runtime, to format messages on the wire.
+That is, given a regular epxression R, fteproxy can tunnel arbitrary TCP streams by transmitting messages from the language L(R).
 
 [1] http://eprint.iacr.org/2012/494
 
@@ -30,17 +30,16 @@ Dependencies for building from source:
 Building
 -----------
 
-For platform-specific build instructions see: README.[linux|osx|windows]
+For platform-specific build instructions see: BUILDING.[linux|osx|windows]
 
-However, once all dependencies are installed, it should be as simple
-as
+Once all dependencies are installed, it's as simple as:
+
 ```
 git clone https://github.com/redjack/fteproxy.git
 cd fteproxy
 make all
 sudo make install
 ```
-to build and install fteproxy.
 
 Documentation
 -------------
