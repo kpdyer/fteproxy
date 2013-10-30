@@ -34,6 +34,13 @@ class InvalidInputException(Exception):
     pass
 
 
+class DecodeFailureError(Exception):
+
+    """Raised when ``decode`` fails to properly recover a message.
+    """
+    pass
+
+
 _instance = {}
 
 
@@ -116,7 +123,9 @@ class RegexEncoderObject(object):
         if not isinstance(covertext, str):
             raise InvalidInputException('Input must be of type string.')
 
-        assert len(covertext) >= self._max_len, (len(covertext), self._max_len)
+        insuffientCovertextLen = (len(covertext) < self._max_len)
+        if insuffientCovertextLen:
+            raise DecodeFailureError("Covertext is shorter than self._max_len, can't decode.")
 
         maximumBytesToRank = int(math.floor(self.getCapacity() / 8.0))
 
