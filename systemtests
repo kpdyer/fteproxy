@@ -1,34 +1,87 @@
-#!/bin/sh
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# This file is part of FTE.
+#
+# FTE is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# FTE is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
 # TODO: convert this to a python script
 # TODO: verify fteproxy in path
 # TODO: verify socksproxy in path
 # TODO: output helpful error message if the fte/non-fte downloads differ
 
-sudo pkill -9 -f fteproxy > /dev/null 2> /dev/null
-sudo pkill -9 -f socksproxy > /dev/null 2> /dev/null
+import os
+import time
 
-sleep 1
+import fte.defs
 
-fteproxy --mode client --client_ip 127.0.0.1 --client_port 8079 \
-                             --server_ip 127.0.0.1 --server_port 8080 \
-                             --quiet &
+def main():
+    languages = ['manual-http-request']#fte.defs.load_definitions().keys()
+    for language in languages:
+        if language.endswith('request'):
+            format = language[:-8]
+            print doTest(format), format
 
-fteproxy --mode server --server_ip 127.0.0.1 --server_port 8080 \
-                             --proxy_ip 127.0.0.1  --proxy_port 8081 \
-                             --quiet &
+def doTest(format):
+    try:
+        os.system("fteproxy --quiet --mode client" \
+                        + " --upstream-format "+format+"-request" \
+                        + " --downstream-format "+format+"-response" \
+                        + " --client_ip 127.0.0.1 --client_port 8079" \
+                        + " --server_ip 127.0.0.1 --server_port 8080 &")
+        os.system("fteproxy --quiet --mode server" \
+                        + " --server_ip 127.0.0.1 --server_port 8080" \
+                        + " --proxy_ip 127.0.0.1  --proxy_port 8081 &")
+        os.system("socksproxy --ip 127.0.0.1 --port 8081 &")
+    
+        time.sleep(0.1)
+    
+        withoutfte = ".withoutfte.txt"
+        withfte = ".withfte.txt"
+        
+        os.system("curl -s https://kpdyer.com/ > " + withoutfte)
+        os.system("curl -s --socks4 127.0.0.1:8079 https://kpdyer.com/ > " + withfte)
+    
+        if filesAreEquivalent(withoutfte, withfte):
+            retval = "SUCCESS!"
+        else:
+            retval = "FAILED :("
+    
+        os.unlink(withoutfte)
+        os.unlink(withfte)
+    finally:
+        killall()
+    
+    return retval
 
-socksproxy --ip 127.0.0.1 --port 8081 &
 
-sleep 1
+def killall():
+    os.system("fteproxy --quiet --mode client --stop")
+    os.system("fteproxy --quiet --mode server --stop")
+    os.system("sudo pkill -9 -f socksproxy > /dev/null 2> /dev/null")
+    os.system("rm -f socks.log")
 
-curl -s https://kpdyer.com/ > .no_fte.txt
-curl -s --socks4 127.0.0.1:8079 https://kpdyer.com/ > .yes_fte.txt
 
-diff -s .no_fte.txt .yes_fte.txt
+def filesAreEquivalent(fileA, fileB):
+    with open(fileA) as fh:
+        contentsFileA = fh.read()
+    with open(fileB) as fh:
+        contentsFileB = fh.read()
+    assert contentsFileA != ''
+    assert contentsFileB != ''
+    return (contentsFileA == contentsFileB)
 
-rm .no_fte.txt
-rm .yes_fte.txt
 
-sudo pkill -9 -f fteproxy > /dev/null 2> /dev/null
-sudo pkill -9 -f socksproxy > /dev/null 2> /dev/null
+if __name__ == '__main__':
+    main()
