@@ -89,8 +89,6 @@ class Decoder:
                 to_decrypt = incoming_msg[:to_take]
                 retval = self._decrypter.decrypt(to_decrypt)
                 self._buffer = incoming_msg[to_take:]
-            except fte.encoder.DecodeFailureException:
-                pass
             except fte.encrypter.RecoverableDecryptionError:
                 pass
 
