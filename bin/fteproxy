@@ -107,8 +107,6 @@ This is free software, and you are welcome to redistribute it under certain cond
                 for pid_file in pid_files:
                     with open(pid_file) as f:
                         pid = int(f.read())
-                        if fte.conf.getValue('runtime.console.debug'):
-                            print 'Stopping pid=' + str(pid)
                         try:
                             os.kill(pid, signal.SIGKILL)
                         except OSError:
