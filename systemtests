@@ -16,25 +16,32 @@
 # You should have received a copy of the GNU General Public License
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: convert this to a python script
-# TODO: verify fteproxy in path
-# TODO: verify socksproxy in path
-# TODO: output helpful error message if the fte/non-fte downloads differ
-
 import os
 import time
 
 import fte.defs
 
+
 def main():
-    languages = ['manual-http-request']#fte.defs.load_definitions().keys()
+    languages = fte.defs.load_definitions().keys()
     for language in languages:
         if language.endswith('request'):
             format = language[:-8]
             print doTest(format), format
 
+
+def sanityCheck():
+    assert which("fstminimize") is not None, ("openfst not properly installed")
+    assert which("fstprint") is not None, ("openfst not properly installed")
+    assert which("fstcompile") is not None, ("openfst not properly installed")
+    assert which("fteproxy") is not None, ("fteproxy not properly installed, did you run 'sudo make install'?")
+    assert which("socksproxy") is not None, ("socksproxy not properly installed, did you run 'sudo make install'?")
+
+
 def doTest(format):
     try:
+        sanityCheck()
+        
         os.system("fteproxy --quiet --mode client" \
                         + " --upstream-format "+format+"-request" \
                         + " --downstream-format "+format+"-response" \
@@ -81,6 +88,26 @@ def filesAreEquivalent(fileA, fileB):
     assert contentsFileA != ''
     assert contentsFileB != ''
     return (contentsFileA == contentsFileB)
+
+
+def which(program):
+    def is_exe(fpath):
+        isFile = os.path.isfile(fpath)
+        isExecutable = os.access(fpath, os.X_OK)
+        return isFile and isExecutable
+    
+    fpath, fname = os.path.split(program)
+    if fpath:
+        if is_exe(program):
+            return program
+    else:
+        for path in os.environ["PATH"].split(os.pathsep):
+            path = path.strip('"')
+            exe_file = os.path.join(path, program)
+            if is_exe(exe_file):
+                return exe_file
+
+    return None
 
 
 if __name__ == '__main__':
