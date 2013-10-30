@@ -16,7 +16,7 @@ sudo apt-get -y install libboost-system-dev
 sudo apt-get -y install libboost-filesystem-dev
 sudo apt-get -y install libgmp-dev
 
-Ubuntu 12.04:
+Ubuntu 12.04/12.10/13.04:
 
 sudo apt-get update
 sudo apt-get -y install build-essential
