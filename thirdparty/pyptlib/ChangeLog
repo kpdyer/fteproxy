@@ -1,0 +1,24 @@
+Changes in version 0.0.5 - 2013-09-30
+ - API change to expose server-side transport options. Fixes #8979.
+
+
+Changes in version 0.0.4 - 2013-09-11
+ - Add a subprocess management module, which should make it easier to
+   write composed plugins such as obfs-flash, and the 2-INT termination
+   behaviour specified in the PT spec.
+ - Present a more object-oriented public API, and refactor internals to
+   have better separation of concerns. Add a more complete set of tests.
+
+
+Changes in version 0.0.3 - 2013-02-18
+ - Restrict the MANIFEST.in file some more, so that no .pyc files
+   sneak into the release tarballs.
+
+
+Changes in version 0.0.2 - 2013-02-17
+ - Add a MANIFEST.in file so that we can specify which files should
+   get into the release tarballs.
+
+
+Changes in version 0.0.1 - 2013-02-15
+ - Initial release.

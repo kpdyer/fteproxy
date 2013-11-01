@@ -5,8 +5,8 @@ from distutils.core import Extension
 
 fte_cDFA = Extension('fte.cDFA',
                      include_dirs=['fte',
-                                   'third-party/re2'],
-                     library_dirs=['third-party/re2/obj/so'],
+                                   'thirdparty/re2'],
+                     library_dirs=['thirdparty/re2/obj/so'],
                      extra_compile_args=['-O3',
                                          '-fstack-protector-all',
                                          '-D_FORTIFY_SOURCE',
@@ -14,7 +14,7 @@ fte_cDFA = Extension('fte.cDFA',
                                          ],
                      extra_link_args=['-fPIC',
                                       '-Wl,-no-undefined',
-                                      'third-party/re2/obj/libre2.a'
+                                      'thirdparty/re2/obj/libre2.a'
                                       ],
                      libraries=['gmp',
                                 'gmpxx',

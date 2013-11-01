@@ -31,6 +31,7 @@ import fte.conf
 import fte.client
 import fte.server
 
+FTE_PT_NAME = 'fte'
 
 class FTEMain(threading.Thread):
 
@@ -79,6 +80,10 @@ class FTEMain(threading.Thread):
                             default=fte.conf.getValue('runtime.proxy.port'
                                                       ))
         parser.add_argument('--quiet', action='store_true', default=False)
+        parser.add_argument('--managed',
+                            help="Start in managed mode, for use with Tor. --server paramters ignored.",
+                            action='store_true',
+                            default=False)
         parser.add_argument('--key',
                             help='Cryptographic key, hex, must be exactly 64 characters',
                             default=fte.conf.getValue('runtime.fte.encrypter.key'
@@ -162,7 +167,6 @@ This is free software, and you are welcome to redistribute it under certain cond
         fte.conf.setValue('runtime.state.message_token', 'client')      
         
         if fte.conf.getValue('runtime.mode') == 'client':
-
             incoming_regex = fte.defs.getRegex(args.downstream_format)
             incoming_max_len = fte.defs.getMaxLen(args.downstream_format)
             fte.encoder.RegexEncoder(incoming_regex, incoming_max_len)
@@ -170,18 +174,52 @@ This is free software, and you are welcome to redistribute it under certain cond
             outgoing_max_len = fte.defs.getMaxLen(args.upstream_format)
             fte.encoder.RegexEncoder(outgoing_regex, outgoing_max_len)
 
-            if not args.quiet:
-                print 'Client ready!'
+            if args.managed:
+                sys.path.append(
+                    os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..','thirdparty','pyptlib')))
+                from pyptlib.client import ClientTransportPlugin
+                from pyptlib.config import EnvError
+                
+                client = ClientTransportPlugin()
+                try:
+                    client.init([FTE_PT_NAME])
+                except EnvError, err:
+                    print "pyptlib could not bootstrap ('%s')." % str(err)
+                    sys.exit(1)
             
-            local_ip = fte.conf.getValue('runtime.client.ip')
-            local_port = fte.conf.getValue('runtime.client.port')
-            remote_ip = fte.conf.getValue('runtime.server.ip')
-            remote_port = fte.conf.getValue('runtime.server.port')
-            self._client = fte.client.listener(local_ip, local_port,
-                                               remote_ip, remote_port)
-            self._client.daemon = True
-            self._client.start()
-            self._client.join()
+                for transport in client.getTransports():
+                    if transport == FTE_PT_NAME:
+                        local_ip = fte.conf.getValue('runtime.client.ip')
+                        local_port = fte.conf.getValue('runtime.client.port')
+                        proxy_ip = fte.conf.getValue('runtime.proxy.ip')
+                        proxy_port = fte.conf.getValue('runtime.proxy.port')
+                        proxy = fte.socks.SocksProxyv4(str(proxy_ip), int(proxy_port))
+                        proxy.start()
+                        self._client = fte.client.listener(local_ip, local_port,
+                                                           proxy_ip, proxy_port)
+                        self._client.daemon = True
+                        self._client.start()
+                        socks_version = 4
+                        bind_addrport = (local_ip, local_port)
+                        client.reportMethodSuccess(transport, socks_version, bind_addrport, None, None)
+                    else:
+                        client.reportFailure(transport, "Failed to launch ('%s')." % "We don't support transport "+transport)
+                        
+                client.reportMethodsEnd()
+            else:
+    
+                if not args.quiet:
+                    print 'Client ready!'
+                
+                local_ip = fte.conf.getValue('runtime.client.ip')
+                local_port = fte.conf.getValue('runtime.client.port')
+                remote_ip = fte.conf.getValue('runtime.server.ip')
+                remote_port = fte.conf.getValue('runtime.server.port')
+                self._client = fte.client.listener(local_ip, local_port,
+                                                   remote_ip, remote_port)
+                self._client.daemon = True
+                self._client.start()
+                self._client.join()
         elif fte.conf.getValue('runtime.mode') == 'server':
 
             languages = fte.defs.load_definitions()
@@ -190,18 +228,48 @@ This is free software, and you are welcome to redistribute it under certain cond
                 max_len = fte.defs.getMaxLen(language)
                 fte.encoder.RegexEncoder(regex, max_len)
 
-            if not args.quiet:
-                print 'Server ready!'
+            if args.managed:
+                sys.path.append(
+                    os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..','thirdparty','pyptlib')))
+                from pyptlib.server import ServerTransportPlugin
+                from pyptlib.config import EnvError
+                
+                server = ServerTransportPlugin()
+                try:
+                    server.init([FTE_PT_NAME])
+                except EnvError, err:
+                    print "pyptlib could not bootstrap ('%s')." % str(err)
+                    sys.exit(1)
             
-            local_ip = fte.conf.getValue('runtime.server.ip')
-            local_port = fte.conf.getValue('runtime.server.port')
-            remote_ip = fte.conf.getValue('runtime.proxy.ip')
-            remote_port = fte.conf.getValue('runtime.proxy.port')
-            self._server = fte.server.listener(local_ip, local_port,
-                                               remote_ip, remote_port)
-            self._server.daemon = True
-            self._server.start()
-            self._server.join()
+                for transport, transport_bindaddr in server.getBindAddresses().items():
+                    if transport == FTE_PT_NAME:
+                        local_ip = transport_bindaddr[0]
+                        local_port = transport_bindaddr[1]
+                        remote_ip = fte.conf.getValue('runtime.proxy.ip')
+                        remote_port = fte.conf.getValue('runtime.proxy.port')
+                        self._server = fte.server.listener(local_ip, local_port,
+                                                           remote_ip, remote_port)
+                        self._server.daemon = True
+                        self._server.start()
+                        bind_addrport = (local_ip, local_port)
+                        
+                        server.reportMethodSuccess(transport, bind_addrport, None)
+                    else:
+                        server.reportFailure(transport, "Failed to launch ('%s')." % "We don't support transport "+transport)
+                    
+                server.reportMethodsEnd()
+            else:
+                local_ip = fte.conf.getValue('runtime.server.ip')
+                local_port = fte.conf.getValue('runtime.server.port')
+                remote_ip = fte.conf.getValue('runtime.proxy.ip')
+                remote_port = fte.conf.getValue('runtime.proxy.port')
+                self._server = fte.server.listener(local_ip, local_port,
+                                                   remote_ip, remote_port)
+                self._server.daemon = True
+                self._server.start()
+                if not args.quiet:
+                    print 'Server ready!'
+                self._server.join()
 
     def stop(self):
         if self._client is not None:

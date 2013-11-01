@@ -20,26 +20,10 @@ import os
 import sys
 import argparse
 
-import twisted.protocols.socks
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')))
 
-SOCKS_LOG = "socks.log"
-
-
-class SocksProxy:
-
-    def __init__(self, proxyIP, proxyPort):
-        self._proxyIP = proxyIP
-        self._proxyPort = proxyPort
-
-    def run(self):
-        factory = twisted.protocols.socks.SOCKSv4Factory(SOCKS_LOG)
-        twisted.internet.reactor.listenTCP(
-            self._proxyPort, factory, interface=self._proxyIP)
-
-        twisted.internet.reactor.run()
-
-    def stop(self):
-        pass
+import fte.socks
 
 
 def main():
@@ -49,10 +33,12 @@ def main():
     parser.add_argument('--port', required=True)
     args = parser.parse_args(sys.argv[1:])
 
-    proxy = SocksProxy(str(args.ip),
-                       int(args.port))
+    proxy = fte.socks.SocksProxyv4(str(args.ip), int(args.port))
     try:
-        proxy.run()
+        proxy.start()
+        proxy.join()
+    except KeyboardInterrupt:
+        pass
     finally:
         proxy.stop()
 

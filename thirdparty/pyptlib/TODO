@@ -1,0 +1,7 @@
+- Add unit test to test the stdout output of pyptlib (check if all
+  CMETHOD and CMETHOD-ERROR lines appear as they should)
+
+- Make the API a bit more elegant. checkClientMode() is probably
+  unnecessary.
+
+- Switch camelCase to underscores?
