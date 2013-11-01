@@ -329,6 +329,7 @@ std::string attFstMinimize(std::string str_dfa)
 {
     // TODO: Throw exception if fstcompile, fstminimize or fstprint don't exist in system path
     // TODO: Throw exception if we fail to generate abspath_dfa_min
+    // TODO: Throw exception if we can't remove() the generated files
 
     std::string retval;
 
