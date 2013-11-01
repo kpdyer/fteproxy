@@ -66,8 +66,8 @@ clean:
 	@cd doc && $(MAKE) clean
 
 test:
-	@./unittests
-	@./systemtests
+	@LD_LIBRARY_PATH=third-party/re2/obj/so:$(LD_LIBRARY_PATH) PATH=./bin:./third-party/openfst-1.3.3/src/bin:$(PATH) ./unittests
+	@LD_LIBRARY_PATH=third-party/re2/obj/so:$(LD_LIBRARY_PATH) PATH=./bin:./third-party/openfst-1.3.3/src/bin:$(PATH) ./systemtests
 
 uninstall:
 	@rm -rfv /usr/local/fteproxy
@@ -75,7 +75,7 @@ uninstall:
 	@rm -vf /usr/local/lib/libre2*
 	@rm -rfv /usr/local/lib/python2.7/dist-packages/fte
 	@rm -rfv /usr/local/lib/python2.7/dist-packages/cDFAs
-	@rm -fv /usr/local/lib/python2.7/dist-packages/Format_Transforming_Encrypion_*.info
+	@rm -fv /usr/local/lib/python2.7/dist-packages/Format_Transforming_Encrypion_*-info
 	@rm -fv /usr/local/bin/fteproxy
 
 doc: phantom

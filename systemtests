@@ -16,18 +16,32 @@
 # You should have received a copy of the GNU General Public License
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
+# TODO: Change test to not be dependent upon remote server
+
 import os
 import time
 
 import fte.defs
 
 
+URL = "https://google.com/"
+
+
 def main():
+    print 'System tests:'
+    
+    os.system("fteproxy --quiet --mode server" \
+                    + " --server_ip 127.0.0.1 --server_port 8080" \
+                    + " --proxy_ip 127.0.0.1  --proxy_port 8081 &")
+    time.sleep(30)
+    
     languages = fte.defs.load_definitions().keys()
     for language in languages:
         if language.endswith('request'):
             format = language[:-8]
             print doTest(format), format
+            
+    os.system("fteproxy --quiet --mode server --stop")
 
 
 def sanityCheck():
@@ -40,28 +54,28 @@ def sanityCheck():
 
 def doTest(format):
     try:
+        killall()
         sanityCheck()
         
         os.system("fteproxy --quiet --mode client" \
-                        + " --upstream-format "+format+"-request" \
-                        + " --downstream-format "+format+"-response" \
+                        + " --upstream-format " + format + "-request" \
+                        + " --downstream-format " + format + "-response" \
                         + " --client_ip 127.0.0.1 --client_port 8079" \
                         + " --server_ip 127.0.0.1 --server_port 8080 &")
-        os.system("fteproxy --quiet --mode server" \
-                        + " --server_ip 127.0.0.1 --server_port 8080" \
-                        + " --proxy_ip 127.0.0.1  --proxy_port 8081 &")
         os.system("socksproxy --ip 127.0.0.1 --port 8081 &")
     
-        time.sleep(0.1)
+        time.sleep(5)
     
         withoutfte = ".withoutfte.txt"
         withfte = ".withfte.txt"
         
-        os.system("curl -s https://kpdyer.com/ > " + withoutfte)
-        os.system("curl -s --socks4 127.0.0.1:8079 https://kpdyer.com/ > " + withfte)
+        os.system("curl -s "+URL+" > " + withoutfte)
+        start = time.time()
+        os.system("curl -s --socks4 127.0.0.1:8079 "+URL+" > " + withfte)
+        elapsed = time.time() - start
     
         if filesAreEquivalent(withoutfte, withfte):
-            retval = "SUCCESS!"
+            retval = "SUCCESS! " + str(elapsed)
         else:
             retval = "FAILED :("
     
@@ -75,7 +89,6 @@ def doTest(format):
 
 def killall():
     os.system("fteproxy --quiet --mode client --stop")
-    os.system("fteproxy --quiet --mode server --stop")
     os.system("sudo pkill -9 -f socksproxy > /dev/null 2> /dev/null")
     os.system("rm -f socks.log")
 

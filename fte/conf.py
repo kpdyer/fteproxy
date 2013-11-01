@@ -48,7 +48,7 @@ conf['runtime.mode'] = None
 
 
 """The maximum number of queued connections for sockets"""
-conf['runtime.fte.relay.backlog'] = 5
+conf['runtime.fte.relay.backlog'] = 100
 
 
 """Our client-side ip:port to listen for incoming connections"""
@@ -70,8 +70,12 @@ conf['runtime.proxy.port'] = 8081
 conf['runtime.fte.relay.socket_timeout'] = 0.001
 
 
+"""The default timeout when establishing a new FTE socket."""
+conf['runtime.fte.negotiate.timeout'] = 5
+
+
 """The maxium number of bytes to sgement for an outgoing message."""
-conf['runtime.fte.record_layer.max_cell_size'] = 2 ** 16
+conf['runtime.fte.record_layer.max_cell_size'] = 2 ** 15
 
 
 """The default client-to-server language."""
@@ -87,7 +91,7 @@ conf['runtime.fte.encrypter.key'] = 'FF' * 16 + '00' * 16
 
 
 """The default max_len parameter to use for buildTable."""
-conf['fte.default_max_len'] = 512
+conf['fte.default_max_len'] = 256
 
 
 """The default definitions file to use."""

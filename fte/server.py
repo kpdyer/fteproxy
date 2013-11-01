@@ -23,24 +23,10 @@ import fte.relay
 class listener(fte.relay.listener):
 
     def onNewIncomingConnection(self, socket):
-        """On an incoming data stream we wrap it with ``fte.wrap_socket``, with
-        the languages specified in the ``runtime.state.downstream_language`` and
-        ``runtime.state.upstream_language`` configuration parameters.
+        """On an incoming data stream we wrap it with ``fte.wrap_socket``, with no parameters.
+        By default we want the regular expressions to be negotiated in-band, specified by the client.
         """
 
-        outgoing_language = fte.conf.getValue(
-            'runtime.state.downstream_language')
-        incoming_language = fte.conf.getValue(
-            'runtime.state.upstream_language')
-
-        outgoing_regex = fte.defs.getRegex(outgoing_language)
-        outgoing_max_len = fte.defs.getMaxLen(outgoing_language)
-
-        incoming_regex = fte.defs.getRegex(incoming_language)
-        incoming_max_len = fte.defs.getMaxLen(incoming_language)
-
-        socket = fte.wrap_socket(socket,
-                                 outgoing_regex, outgoing_max_len,
-                                 incoming_regex, incoming_max_len)
+        socket = fte.wrap_socket(socket)
 
         return socket

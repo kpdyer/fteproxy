@@ -159,9 +159,20 @@ This is free software, and you are welcome to redistribute it under certain cond
         with open(pid_file, 'w') as f:
             f.write(str(os.getpid()))
 
-        fte.conf.setValue('runtime.state.message_token', 'client')
-
+        fte.conf.setValue('runtime.state.message_token', 'client')      
+        
         if fte.conf.getValue('runtime.mode') == 'client':
+
+            incoming_regex = fte.defs.getRegex(args.downstream_format)
+            incoming_max_len = fte.defs.getMaxLen(args.downstream_format)
+            fte.encoder.RegexEncoder(incoming_regex, incoming_max_len)
+            outgoing_regex = fte.defs.getRegex(args.upstream_format)
+            outgoing_max_len = fte.defs.getMaxLen(args.upstream_format)
+            fte.encoder.RegexEncoder(outgoing_regex, outgoing_max_len)
+
+            if not args.quiet:
+                print 'Client ready!'
+            
             local_ip = fte.conf.getValue('runtime.client.ip')
             local_port = fte.conf.getValue('runtime.client.port')
             remote_ip = fte.conf.getValue('runtime.server.ip')
@@ -172,6 +183,16 @@ This is free software, and you are welcome to redistribute it under certain cond
             self._client.start()
             self._client.join()
         elif fte.conf.getValue('runtime.mode') == 'server':
+
+            languages = fte.defs.load_definitions()
+            for language in languages.keys():
+                regex = fte.defs.getRegex(language)
+                max_len = fte.defs.getMaxLen(language)
+                fte.encoder.RegexEncoder(regex, max_len)
+
+            if not args.quiet:
+                print 'Server ready!'
+            
             local_ip = fte.conf.getValue('runtime.server.ip')
             local_port = fte.conf.getValue('runtime.server.port')
             remote_ip = fte.conf.getValue('runtime.proxy.ip')
