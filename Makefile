@@ -12,7 +12,7 @@ RE2_DIR=third-party/re2
 OPENFST_VERSION=1.3.3
 OPENFST_TGZ=http://www.openfst.org/twiki/pub/FST/FstDownload/openfst-$(OPENFST_VERSION).tar.gz
 
-all: $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize $(THIRD_PARTY_DIR)/re2/obj/so/libre2.so fte/cDFA.so
+all: fte/cDFA.so
 
 install: all
 	cd $(THIRD_PARTY_DIR)/re2 && make install
@@ -36,10 +36,10 @@ install: all
 	@echo "###########################################################"
 	@echo ""
 
-fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/so/libre2.so $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize
+fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/so/libre2.so
 	python setup.py build_ext --inplace
 
-$(THIRD_PARTY_DIR)/re2/obj/so/libre2.so:
+$(THIRD_PARTY_DIR)/re2/obj/so/libre2.so: $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize
 	cd $(THIRD_PARTY_DIR) && wget $(RE2_TGZ)
 	cd $(THIRD_PARTY_DIR) && tar zxvf re2-20130115.tgz
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-001.patch
