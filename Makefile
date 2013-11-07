@@ -4,10 +4,10 @@
 
 PREFIX=/usr/local
 
-THIRD_PARTY_DIR=third-party
+THIRD_PARTY_DIR=thirdparty
 
 RE2_TGZ=https://re2.googlecode.com/files/re2-20130115.tgz
-RE2_DIR=third-party/re2
+RE2_DIR=$(THIRD_PARTY_DIR)/re2
 
 OPENFST_VERSION=1.3.3
 OPENFST_TGZ=http://www.openfst.org/twiki/pub/FST/FstDownload/openfst-$(OPENFST_VERSION).tar.gz
@@ -56,18 +56,18 @@ $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize:
 clean:
 	@find . -name "*.pyc" -exec rm {} \;
 	@rm -rvf build
-	@rm -rvf third-party/openfst-$(OPENFST_VERSION)
-	@rm -vf third-party/openfst-$(OPENFST_VERSION).tar.gz
-	@rm -rvf third-party/re2
-	@rm -vf third-party/*.tgz
+	@rm -rvf $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)
+	@rm -vf $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION).tar.gz
+	@rm -rvf $(THIRD_PARTY_DIR)/re2
+	@rm -vf $(THIRD_PARTY_DIR)/*.tgz
 	@rm -vf src/*.o
 	@rm -vf fte/*.so
 	@rm -vf socks.log
 	@cd doc && $(MAKE) clean
 
 test:
-	@LD_LIBRARY_PATH=third-party/re2/obj/so:$(LD_LIBRARY_PATH) PATH=./bin:./third-party/openfst-1.3.3/src/bin:$(PATH) ./unittests
-	@LD_LIBRARY_PATH=third-party/re2/obj/so:$(LD_LIBRARY_PATH) PATH=./bin:./third-party/openfst-1.3.3/src/bin:$(PATH) ./systemtests
+	@LD_LIBRARY_PATH=$(THIRD_PARTY_DIR)/re2/obj/so:$(LD_LIBRARY_PATH) PATH=./bin:./$(THIRD_PARTY_DIR)/openfst-1.3.3/src/bin:$(PATH) ./unittests
+	@LD_LIBRARY_PATH=$(THIRD_PARTY_DIR)/re2/obj/so:$(LD_LIBRARY_PATH) PATH=./bin:./$(THIRD_PARTY_DIR)/openfst-1.3.3/src/bin:$(PATH) ./systemtests
 
 uninstall:
 	@rm -rfv /usr/local/fteproxy
