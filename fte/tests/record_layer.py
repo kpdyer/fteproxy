@@ -37,7 +37,6 @@ class TestEncoders(unittest.TestCase):
     def setUpClass(self):
         encrypter = fte.encrypter.Encrypter()
         fte.conf.setValue('runtime.mode', 'client')
-        fte.conf.setValue('runtime.state.message_token', 'client')
         self.recoder_layers_info = []
         self.record_layers_outgoing = []
         self.record_layers_incoming = []

@@ -28,8 +28,9 @@ sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')))
 
 import fte.conf
-import fte.client
+import fte.socks
 import fte.server
+import fte.client
 
 FTE_PT_NAME = 'fte'
 
@@ -90,7 +91,7 @@ class FTEMain(threading.Thread):
                                                       ))
         args = parser.parse_args(sys.argv[1:])
 
-        if not args.quiet:
+        if not args.quiet and not args.managed:
             print """FTE Copyright (C) 2012-2013 Kevin P. Dyer <kdyer@cs.pdx.edu>
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it under certain conditions.
@@ -163,8 +164,6 @@ This is free software, and you are welcome to redistribute it under certain cond
 
         with open(pid_file, 'w') as f:
             f.write(str(os.getpid()))
-
-        fte.conf.setValue('runtime.state.message_token', 'client')      
         
         if fte.conf.getValue('runtime.mode') == 'client':
             incoming_regex = fte.defs.getRegex(args.downstream_format)
@@ -191,19 +190,20 @@ This is free software, and you are welcome to redistribute it under certain cond
                         local_port = fte.conf.getValue('runtime.client.port')
                         proxy_ip = fte.conf.getValue('runtime.proxy.ip')
                         proxy_port = fte.conf.getValue('runtime.proxy.port')
+                        socks_version = 'socks4'
                         proxy = fte.socks.SocksProxyv4(str(proxy_ip), int(proxy_port))
                         proxy.start()
                         self._client = fte.client.listener(local_ip, local_port,
                                                            proxy_ip, proxy_port)
                         self._client.daemon = True
                         self._client.start()
-                        socks_version = 4
                         bind_addrport = (local_ip, local_port)
                         client.reportMethodSuccess(transport, socks_version, bind_addrport, None, None)
                     else:
                         client.reportFailure(transport, "Failed to launch ('%s')." % "We don't support transport "+transport)
                         
                 client.reportMethodsEnd()
+                self._client.join()
             else:
     
                 if not args.quiet:
@@ -240,7 +240,10 @@ This is free software, and you are welcome to redistribute it under certain cond
                 for transport, transport_bindaddr in server.getBindAddresses().items():
                     if transport == FTE_PT_NAME:
                         local_ip = transport_bindaddr[0]
-                        local_port = transport_bindaddr[1]
+                        if transport_bindaddr[1] == 0:
+                            local_port = fte.conf.getValue('runtime.server.port')
+                        else:
+                            local_port = transport_bindaddr[1]
                         remote_ip = fte.conf.getValue('runtime.proxy.ip')
                         remote_port = fte.conf.getValue('runtime.proxy.port')
                         self._server = fte.server.listener(local_ip, local_port,
@@ -248,12 +251,12 @@ This is free software, and you are welcome to redistribute it under certain cond
                         self._server.daemon = True
                         self._server.start()
                         bind_addrport = (local_ip, local_port)
-                        
                         server.reportMethodSuccess(transport, bind_addrport, None)
                     else:
                         server.reportFailure(transport, "Failed to launch ('%s')." % "We don't support transport "+transport)
                     
                 server.reportMethodsEnd()
+                self._server.join()
             else:
                 local_ip = fte.conf.getValue('runtime.server.ip')
                 local_port = fte.conf.getValue('runtime.server.port')
