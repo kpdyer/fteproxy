@@ -12,7 +12,7 @@ fteproxy is client-server proxy powered by Format-Transforming Encryption (FTE) 
 FTE uses regular expressions, specified at runtime, to format messages on the wire.
 That is, given a regular epxression R, fteproxy can tunnel arbitrary TCP streams by transmitting messages from the language L(R).
 
-[1] http://eprint.iacr.org/2012/494
+[1] https://eprint.iacr.org/2012/494
 
 Dependencies
 --------
