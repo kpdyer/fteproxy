@@ -1,0 +1,8 @@
+ORPort 127.0.0.1:8081
+BridgeRelay 1
+Exitpolicy reject *:*
+
+Nickname fteserver
+ContactInfo fteadmin@fteproxy.org
+
+ServerTransportPlugin fte exec /usr/local/bin/fteproxy --managed --mode server

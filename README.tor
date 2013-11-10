@@ -21,6 +21,14 @@ socks client <> tor client <> fteproxy client <--> fteproxy server <> tor bridge
 * fteproxy server is listening on port $FTEPROXY_SERVER_PORT and forwarding connections to the tor bridge
 * tor bridge is listening on port $TORBRIDGE_PORT
 
+
+Dependencies
+------------
+
+sudo apt-get -y install python-pip
+sudo pip install pyptlib
+
+
 Client
 ------
 
