@@ -20,12 +20,16 @@
 
 import os
 import time
+import socket
 
 import fte.defs
 
 
 BIND_IP = '127.0.0.1'
-URL = "https://google.com/"
+
+
+class ListenerNotListening(Exception):
+    pass
 
 
 def main():
@@ -34,13 +38,15 @@ def main():
     os.system("fteproxy --quiet --mode server" \
                     + " --server_ip " + BIND_IP + " --server_port 8080" \
                     + " --proxy_ip " + BIND_IP + "  --proxy_port 8081 &")
-    time.sleep(30)
+    
+    waitForListener(BIND_IP, 8080)
     
     languages = fte.defs.load_definitions().keys()
     for language in languages:
         if language.endswith('request'):
             format = language[:-8]
-            print doTest(format), format
+            elapsed, bytesSent = doTest(format)
+            print '+', format, str(1.0*bytesSent/elapsed/(2**20)*(2**3))+'Mbps'
             
     os.system("fteproxy --quiet --mode server --stop")
 
@@ -54,6 +60,9 @@ def sanityCheck():
 
 
 def doTest(format):
+    elapsed = -1
+    bytesSent = 0
+    
     try:
         killall()
         sanityCheck()
@@ -63,35 +72,44 @@ def doTest(format):
                         + " --downstream-format " + format + "-response" \
                         + " --client_ip " + BIND_IP + " --client_port 8079" \
                         + " --server_ip " + BIND_IP + " --server_port 8080 &")
-        os.system("socksproxy --ip " + BIND_IP + " --port 8081 &")
-    
-        time.sleep(5)
-    
-        withoutfte = ".withoutfte.txt"
-        withfte = ".withfte.txt"
         
-        os.system("curl -s "+URL+" > " + withoutfte)
-        start = time.time()
-        os.system("curl -s --socks4 " + BIND_IP + ":8079 "+URL+" > " + withfte)
-        elapsed = time.time() - start
-    
-        if filesAreEquivalent(withoutfte, withfte):
-            retval = "SUCCESS! " + str(elapsed)
-        else:
-            retval = "FAILED :("
-    
-        os.unlink(withoutfte)
-        os.unlink(withfte)
+        waitForListener(BIND_IP, 8079)
+        
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind((BIND_IP, 8081))
+        sock.listen(10)
+        
+        new_stream = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        new_stream.connect((BIND_IP, 8079))
+        
+        conn, addr = sock.accept()
+        
+        bytesSent = 2**12
+        expected = 'X' * bytesSent
+        
+        new_stream.sendall(expected)
+        
+        elapsed = -1
+        success = True
+        actual = ''
+        startTimer = time.time()
+        while success:
+            elapsed = time.time() - startTimer
+            [is_alive, data] = fte.io.recvall_from_socket(conn)
+            actual += data
+            if (actual == expected) or elapsed>30 or not is_alive:
+                break
     finally:
+        assert actual == expected, (actual, expected)
         killall()
     
-    return retval
+    
+    return elapsed, bytesSent
 
 
 def killall():
     os.system("fteproxy --quiet --mode client --stop")
-    os.system("sudo pkill -9 -f socksproxy > /dev/null 2> /dev/null")
-    os.system("rm -f socks.log")
 
 
 def filesAreEquivalent(fileA, fileB):
@@ -122,6 +140,32 @@ def which(program):
                 return exe_file
 
     return None
+
+
+def waitForListener(ip, port, maxWait=30):
+    startTime = time.time()
+    
+    success = False
+    new_stream = None
+    while not success and (time.time()-startTime) < maxWait:
+        try:
+            new_stream = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            new_stream.settimeout(0.1)
+            new_stream.connect((ip, port))
+            success = True
+        except:
+            continue
+        finally:
+            if new_stream:
+                new_stream.close()
+                new_stream = None
+            
+    if not success:
+        raise ListenerNotListening()
+            
+    time.sleep(1)
+    
+    return success
 
 
 if __name__ == '__main__':

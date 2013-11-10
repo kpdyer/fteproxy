@@ -22,6 +22,7 @@ import threading
 import fte.conf
 import fte.encoder
 import fte.io
+import fte.logger
 
 
 class worker(threading.Thread):
@@ -108,6 +109,7 @@ class listener(threading.Thread):
 
                 new_stream = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 new_stream.connect((self._remote_ip, self._remote_port))
+                fte.logger.debug("New outgoing connection established: " + str((self._remote_ip, self._remote_port)))
 
                 conn = self.onNewIncomingConnection(conn)
                 new_stream = self.onNewOutgoingConnection(new_stream)
@@ -115,6 +117,9 @@ class listener(threading.Thread):
                 w = worker(conn, new_stream)
                 w.start()
             except socket.timeout:
+                continue
+            except socket.error:
+                fte.logger.error("socket.error reecived in fte.relay")
                 continue
 
     def stop(self):

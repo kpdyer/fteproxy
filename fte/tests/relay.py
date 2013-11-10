@@ -28,7 +28,6 @@ import fte.relay
 import fte.client
 import fte.server
 
-
 LOCAL_INTERFACE = '127.0.0.1'
 
 
@@ -67,6 +66,9 @@ class TestRelay(unittest.TestCase):
         expected_msg = 'Hello, world' * 100 + uniq_id
         actual_msg = ''
 
+        proxy_socket = None
+        client_socket = None
+        server_conn = None
         try:
             proxy_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             proxy_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

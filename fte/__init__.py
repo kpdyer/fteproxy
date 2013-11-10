@@ -45,7 +45,7 @@ class NegotiateCell(object):
         self._language = ""
     
     
-    def setDefFile(self,def_file):#YYYYMMDD
+    def setDefFile(self,def_file):
         self._def_file = def_file
     
     
@@ -53,7 +53,7 @@ class NegotiateCell(object):
         return self._def_file
     
     
-    def setLanguage(self,language):#<source>-<protocol>
+    def setLanguage(self,language):
         self._language = language
     
     
