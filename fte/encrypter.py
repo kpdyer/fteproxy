@@ -121,7 +121,7 @@ class Encrypter(object):
             counter_length_in_bits, initial_value=counter_val)
         ctr_enc = AES.new(key=self.K1,
                           mode=AES.MODE_CTR,
-                          IV=iv2_bytes,
+                          IV='\x00'*8+iv2_bytes,
                           counter=counter)
         W2 = ctr_enc.encrypt(plaintext)
 
@@ -176,7 +176,7 @@ class Encrypter(object):
             counter_length_in_bits, initial_value=counter_val)
         ctr_enc = AES.new(key=self.K1,
                           mode=AES.MODE_CTR,
-                          IV=iv2_bytes,
+                          IV='\x00'*8+iv2_bytes,
                           counter=counter)
         plaintext = ctr_enc.decrypt(W2)
 
