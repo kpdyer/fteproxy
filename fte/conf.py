@@ -95,4 +95,4 @@ conf['fte.default_max_len'] = 256
 
 
 """The default definitions file to use."""
-conf['fte.defs.release'] = '20131023'
+conf['fte.defs.release'] = '20131110'

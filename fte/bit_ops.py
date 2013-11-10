@@ -35,6 +35,7 @@ def long_to_bytes(N, blocksize=1):
     """
 
     bytestring = gmpy.mpz(N).digits(16)
+    bytestring = bytestring[2:] if bytestring.startswith('0x') else bytestring
     bytestring = '0' + bytestring if (len(bytestring) % 2) != 0 else bytestring
     bytestring = binascii.unhexlify(bytestring)
 
