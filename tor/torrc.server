@@ -1,6 +1,7 @@
 ORPort 127.0.0.1:8081
 BridgeRelay 1
 Exitpolicy reject *:*
+PublishServerDescriptor 0
 
 Nickname fteserver
 ContactInfo fteadmin@fteproxy.org

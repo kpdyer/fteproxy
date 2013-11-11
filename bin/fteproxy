@@ -24,8 +24,6 @@ import glob
 import argparse
 import threading
 
-from twisted.internet import reactor
-
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')))
 
@@ -131,31 +129,7 @@ This is free software, and you are welcome to redistribute it under certain cond
             fte.encoder.RegexEncoder(outgoing_regex, outgoing_max_len)
 
             if self._args.managed:
-                from pyptlib.client import ClientTransportPlugin
-                from pyptlib.config import EnvError
-                
-                client = ClientTransportPlugin()
-                try:
-                    client.init([FTE_PT_NAME])
-                except EnvError, err:
-                    print "pyptlib could not bootstrap ('%s')." % str(err)
-                    sys.exit(1)
-            
-                for transport in client.getTransports():
-                    if transport == FTE_PT_NAME:
-                        local_ip = fte.conf.getValue('runtime.client.ip')
-                        local_port = fte.conf.getValue('runtime.client.port')
-                        proxy_ip = fte.conf.getValue('runtime.proxy.ip')
-                        proxy_port = fte.conf.getValue('runtime.proxy.port')
-                        socks_version = 'socks4'
-                        factory = fte.socks.managed.SOCKSv4Factory(str(proxy_ip), int(proxy_port))
-                        addrport = reactor.listenTCP(local_port, factory, interface=local_ip)
-                        client.reportMethodSuccess(transport, socks_version, (addrport.getHost().host, addrport.getHost().port), None, None)
-                    else:
-                        client.reportFailure(transport, "Failed to launch ('%s')." % "We don't support transport "+transport)
-                        
-                client.reportMethodsEnd()
-                reactor.run()
+                do_managed_client()
             else:
     
                 if not self._args.quiet:
@@ -179,32 +153,7 @@ This is free software, and you are welcome to redistribute it under certain cond
                 fte.encoder.RegexEncoder(regex, max_len)
 
             if self._args.managed:
-                from pyptlib.server import ServerTransportPlugin
-                from pyptlib.config import EnvError
-                
-                server = ServerTransportPlugin()
-                try:
-                    server.init([FTE_PT_NAME])
-                except EnvError, err:
-                    print "pyptlib could not bootstrap ('%s')." % str(err)
-                    sys.exit(1)
-            
-                for transport, transport_bindaddr in server.getBindAddresses().items():
-                    if transport == FTE_PT_NAME:
-                        local_ip = transport_bindaddr[0]
-                        if transport_bindaddr[1] == 0:
-                            local_port = fte.conf.getValue('runtime.server.port')
-                        else:
-                            local_port = transport_bindaddr[1]
-                        remote_ip = fte.conf.getValue('runtime.proxy.ip')
-                        remote_port = fte.conf.getValue('runtime.proxy.port')
-                        fte.client.managed.DummyTransport(None)
-                        bind_addrport = (local_ip, local_port)
-                        server.reportMethodSuccess(transport, bind_addrport, None)
-                    else:
-                        server.reportFailure(transport, "Failed to launch ('%s')." % "We don't support transport "+transport)
-                    
-                server.reportMethodsEnd()
+                do_managed_server()
             else:
                 local_ip = fte.conf.getValue('runtime.server.ip')
                 local_port = fte.conf.getValue('runtime.server.port')
@@ -223,6 +172,150 @@ This is free software, and you are welcome to redistribute it under certain cond
             self._client.stop()
         if self._server is not None:
             self._server.stop()
+
+
+def do_managed_client():
+
+    from twisted.internet import reactor, error
+    
+    import obfsproxy.common.transport_config as transport_config
+    import obfsproxy.network.launch_transport as launch_transport
+    import obfsproxy.transports.transports as transports
+    import obfsproxy.common.log as logging
+    
+    from pyptlib.client import ClientTransportPlugin
+    from pyptlib.config import EnvError
+    
+    import pprint
+    
+    log = logging.get_obfslogger()
+
+    """Start the managed-proxy protocol as a client."""
+
+    should_start_event_loop = False
+
+    ptclient = ClientTransportPlugin()
+    try:
+        ptclient.init([FTE_PT_NAME])
+    except EnvError, err:
+        log.warning("Client managed-proxy protocol failed (%s)." % err)
+        return
+
+    log.debug("pyptlib gave us the following data:\n'%s'", pprint.pformat(ptclient.getDebugData()))
+
+    for transport in ptclient.getTransports():
+        # Will hold configuration parameters for the pluggable transport module.
+        pt_config = transport_config.TransportConfig()
+        pt_config.setStateLocation(ptclient.config.getStateLocation())
+
+        try:
+            addrport = fte.launch_transport_listener(transport, None, 'socks', None, pt_config)
+        except transports.TransportNotFound:
+            log.warning("Could not find transport '%s'" % transport)
+            ptclient.reportMethodError(transport, "Could not find transport.")
+            continue
+        except error.CannotListenError:
+            log.warning("Could not set up listener for '%s'." % transport)
+            ptclient.reportMethodError(transport, "Could not set up listener.")
+            continue
+
+        should_start_event_loop = True
+        log.debug("Successfully launched '%s' at '%s'" % (transport, log.safe_addr_str(str(addrport))))
+        ptclient.reportMethodSuccess(transport, "socks4", addrport, None, None)
+
+    ptclient.reportMethodsEnd()
+
+    if should_start_event_loop:
+        log.info("Starting up the event loop.")
+        reactor.run()
+    else:
+        log.info("No transports launched. Nothing to do.")
+
+
+def do_managed_server():
+    from twisted.internet import reactor, error
+    
+    from pyptlib.server import ServerTransportPlugin
+    from pyptlib.config import EnvError
+    
+    import obfsproxy.transports.transports as transports
+    import obfsproxy.network.launch_transport as launch_transport
+    import obfsproxy.common.log as logging
+    import obfsproxy.common.transport_config as transport_config
+    
+    import pprint
+    
+    log = logging.get_obfslogger()
+    
+    """Start the managed-proxy protocol as a server."""
+
+    should_start_event_loop = False
+
+    ptserver = ServerTransportPlugin()
+    try:
+        ptserver.init([FTE_PT_NAME])
+    except EnvError, err:
+        log.warning("Server managed-proxy protocol failed (%s)." % err)
+        return
+
+    log.debug("pyptlib gave us the following data:\n'%s'", pprint.pformat(ptserver.getDebugData()))
+
+    ext_orport = ptserver.config.getExtendedORPort()
+    authcookie = ptserver.config.getAuthCookieFile()
+    orport = ptserver.config.getORPort()
+    server_transport_options = ptserver.config.getServerTransportOptions()
+    for transport, transport_bindaddr in ptserver.getBindAddresses().items():
+
+        # Will hold configuration parameters for the pluggable transport module.
+        pt_config = transport_config.TransportConfig()
+        pt_config.setStateLocation(ptserver.config.getStateLocation())
+        transport_options = ""
+        if server_transport_options and transport in server_transport_options:
+            transport_options = server_transport_options[transport]
+            pt_config.setServerTransportOptions(transport_options)
+
+        try:
+            if ext_orport:
+                addrport = fte.launch_transport_listener(transport,
+                                                                      transport_bindaddr,
+                                                                      'ext_server',
+                                                                      ext_orport,
+                                                                      pt_config,
+                                                                      ext_or_cookie_file=authcookie)
+            else:
+                addrport = fte.launch_transport_listener(transport,
+                                                                      transport_bindaddr,
+                                                                      'server',
+                                                                      orport,
+                                                                      pt_config)
+        except transports.TransportNotFound:
+            log.warning("Could not find transport '%s'" % transport)
+            ptserver.reportMethodError(transport, "Could not find transport.")
+            continue
+        except error.CannotListenError:
+            log.warning("Could not set up listener for '%s'." % transport)
+            ptserver.reportMethodError(transport, "Could not set up listener.")
+            continue
+
+        should_start_event_loop = True
+
+        extra_log = "" # Include server transport options in the log message if we got 'em
+        if transport_options:
+            extra_log = " (server transport options: '%s')" % str(transport_options)
+        log.debug("Successfully launched '%s' at '%s'%s" % (transport, log.safe_addr_str(str(addrport)), extra_log))
+
+        # Report success for this transport.
+        # (We leave the 'options' as None and let pyptlib handle the
+        # SMETHOD argument sending.)
+        ptserver.reportMethodSuccess(transport, addrport, None)
+
+    ptserver.reportMethodsEnd()
+
+    if should_start_event_loop:
+        log.info("Starting up the event loop.")
+        reactor.run()
+    else:
+        log.info("No transports launched. Nothing to do.")
 
 
 def test():
@@ -324,7 +417,7 @@ def main():
     try:
         args = get_args()
         main = FTEMain(args)
-        if args.managed and args.mode=="client":
+        if args.managed:# and args.mode=="client":
             main.run()
         else:
             main.daemon = True

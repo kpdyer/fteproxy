@@ -121,6 +121,7 @@ class DummyTransport(BaseTransport):
     """
 
     def __init__(self, transport_config):
+        print transport_config
         pass
 
     def receivedDownstream(self, data, circuit):

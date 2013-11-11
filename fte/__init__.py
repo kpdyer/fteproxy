@@ -26,6 +26,8 @@ import fte.encoder
 import fte.encrypter
 import fte.record_layer
 
+import fte.client.managed
+import fte.server.managed
 
 class NegotiateTimeoutException(Exception):
 
@@ -306,3 +308,59 @@ def wrap_socket(sock,
         incoming_regex, incoming_max_len,
         K1, K2)
     return socket_wrapped
+
+
+def launch_transport_listener(transport, bindaddr, role, remote_addrport, pt_config, ext_or_cookie_file=None):
+    import obfsproxy.network.network as network
+    import obfsproxy.transports.transports as transports
+    import obfsproxy.network.socks as socks
+    import obfsproxy.network.extended_orport as extended_orport
+    
+    from twisted.internet import reactor
+    """
+    Launch a listener for 'transport' in role 'role' (socks/client/server/ext_server).
+
+    If 'bindaddr' is set, then listen on bindaddr. Otherwise, listen
+    on an ephemeral port on localhost.
+    'remote_addrport' is the TCP/IP address of the other end of the
+    circuit. It's not used if we are in 'socks' role.
+
+    'pt_config' contains configuration options (such as the state location)
+    which are of interest to the pluggable transport.
+
+    'ext_or_cookie_file' is the filesystem path where the Extended
+    ORPort Authentication cookie is stored. It's only used in
+    'ext_server' mode.
+
+    Return a tuple (addr, port) representing where we managed to bind.
+
+    Throws obfsproxy.transports.transports.TransportNotFound if the
+    transport could not be found.
+
+    Throws twisted.internet.error.CannotListenError if the listener
+    could not be set up.
+    """
+
+    listen_host = bindaddr[0] if bindaddr else 'localhost'
+    listen_port = int(bindaddr[1]) if bindaddr else 0
+
+    print role
+    if role == 'socks':        
+        transport_class = fte.client.managed.DummyTransport(None)
+        factory = fte.socks.managed.SOCKSv4Factory(transport_class, pt_config)
+    elif role == 'ext_server':
+        assert(remote_addrport and ext_or_cookie_file)
+        transport_class = fte.server.managed.DummyTransport(None)
+        factory = extended_orport.ExtORPortServerFactory(remote_addrport, ext_or_cookie_file, transport, transport_class, pt_config)
+    elif role == 'client':
+        assert(remote_addrport)
+        transport_class = fte.client.managed.DummyTransport(None)
+        factory = network.StaticDestinationServerFactory(remote_addrport, role, transport_class, pt_config)
+    elif role == 'server':
+        assert(remote_addrport)
+        transport_class = fte.server.managed.DummyTransport(None)
+        factory = network.StaticDestinationServerFactory(remote_addrport, role, transport_class, pt_config)
+
+    addrport = reactor.listenTCP(listen_port, factory, interface=listen_host)
+
+    return (addrport.getHost().host, addrport.getHost().port)
