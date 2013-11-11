@@ -346,7 +346,7 @@ def launch_transport_listener(transport, bindaddr, role, remote_addrport, pt_con
     
     if role == 'socks':
         transport_class = fte.client.managed.DummyTransport
-        factory = fte.socks.managed.SOCKSv4Factory(transport_class, pt_config)
+        factory = socks.SOCKSv4Factory(transport_class, pt_config)
     elif role == 'ext_server':
         assert(remote_addrport and ext_or_cookie_file)
         transport_class = fte.server.managed.DummyTransport
