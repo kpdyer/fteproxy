@@ -316,32 +316,10 @@ def launch_transport_listener(transport, bindaddr, role, remote_addrport, pt_con
     import obfsproxy.transports.transports as transports
     import obfsproxy.network.socks as socks
     import obfsproxy.network.extended_orport as extended_orport
-    from obfsproxy.transports.base import BaseTransport
+    
+    from obfsproxy.transports.b64 import B64Transport
     
     from twisted.internet import reactor
-    
-    class DummyTransport(BaseTransport):
-        """
-        Implements the dummy protocol. A protocol that simply proxies data
-        without obfuscating them.
-        """
-    
-        def __init__(self, transport_config):
-            pass
-    
-        def receivedDownstream(self, data, circuit):
-            """
-            Got data from downstream; relay them upstream.
-            """
-    
-            circuit.upstream.write(data.read())
-    
-        def receivedUpstream(self, data, circuit):
-            """
-            Got data from upstream; relay them downstream.
-            """
-    
-            circuit.downstream.write(data.read())
         
         
     """
@@ -372,23 +350,23 @@ def launch_transport_listener(transport, bindaddr, role, remote_addrport, pt_con
     listen_port = int(bindaddr[1]) if bindaddr else 0
     
     if role == 'socks':
-        transport_class = DummyTransport
+        transport_class = B64Transport
         factory = socks.SOCKSv4Factory(transport_class, pt_config)
     elif role == 'ext_server':
         assert(remote_addrport and ext_or_cookie_file)
-        transport_class = DummyTransport
+        transport_class = B64Transport
         factory = extended_orport.ExtORPortServerFactory(remote_addrport, ext_or_cookie_file, transport, transport_class, pt_config)
     elif role == 'client':
         assert(remote_addrport)
-        transport_class = DummyTransport
+        transport_class = B64Transport
         factory = network.StaticDestinationServerFactory(remote_addrport, role, transport_class, pt_config)
     elif role == 'server':
         assert(remote_addrport)
-        transport_class = DummyTransport
+        transport_class = B64Transport
         factory = network.StaticDestinationServerFactory(remote_addrport, role, transport_class, pt_config)
     else:
         assert(remote_addrport)
-        transport_class = DummyTransport
+        transport_class = B64Transport
         factory = network.StaticDestinationServerFactory(remote_addrport, role, transport_class, pt_config)
 
     addrport = reactor.listenTCP(listen_port, factory, interface=listen_host)
