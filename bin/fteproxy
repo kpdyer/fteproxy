@@ -41,6 +41,7 @@ FTE_PT_NAME = 'fte'
 class FTEMain(threading.Thread):
 
     def __init__(self, args):
+        threading.Thread.__init(self)
         self._args = args
 
     def run(self):
