@@ -66,7 +66,7 @@ clean:
 	@cd doc && $(MAKE) clean
 
 test:
-	@LD_LIBRARY_PATH=$(THIRD_PARTY_DIR)/re2/obj/so:$(LD_LIBRARY_PATH) PATH=./bin:./$(THIRD_PARTY_DIR)/openfst-1.3.3/src/bin:$(PATH) ./unittests
+	#@LD_LIBRARY_PATH=$(THIRD_PARTY_DIR)/re2/obj/so:$(LD_LIBRARY_PATH) PATH=./bin:./$(THIRD_PARTY_DIR)/openfst-1.3.3/src/bin:$(PATH) ./unittests
 	@LD_LIBRARY_PATH=$(THIRD_PARTY_DIR)/re2/obj/so:$(LD_LIBRARY_PATH) PATH=./bin:./$(THIRD_PARTY_DIR)/openfst-1.3.3/src/bin:$(PATH) ./systemtests
 
 uninstall:

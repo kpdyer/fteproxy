@@ -32,6 +32,7 @@ class ListenerNotListening(Exception):
     pass
 
 
+
 def main():
     print 'System tests:'
     
@@ -85,23 +86,25 @@ def doTest(format):
         
         conn, addr = sock.accept()
         
-        bytesSent = 2**12
-        expected = 'X' * bytesSent
-        
-        new_stream.sendall(expected)
-        
+        bytesSent = 2**20
+        expected = id_generator(bytesSent)
         elapsed = -1
         success = True
         actual = ''
         startTimer = time.time()
+        BLOCK_SIZE = 2 ** 12
+        expectedbuf = expected
         while success:
+            if expectedbuf:
+                bytessent = new_stream.send(expectedbuf[:BLOCK_SIZE])
+                expectedbuf = expectedbuf[bytessent:]
             elapsed = time.time() - startTimer
             [is_alive, data] = fte.io.recvall_from_socket(conn)
             actual += data
             if (actual == expected) or elapsed>30 or not is_alive:
                 break
     finally:
-        assert actual == expected, (actual, expected)
+        assert actual == expected, ((actual[:32], expected[:32]), (actual[-32:], expected[-32:]))
         killall()
     
     
@@ -166,6 +169,12 @@ def waitForListener(ip, port, maxWait=30):
     time.sleep(1)
     
     return success
+
+
+import string
+import random
+def id_generator(size, chars=string.ascii_uppercase + string.digits):
+    return ''.join(random.choice(chars) for x in range(size))
 
 
 if __name__ == '__main__':

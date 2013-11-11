@@ -24,91 +24,47 @@ import glob
 import argparse
 import threading
 
+from twisted.internet import reactor
+
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')))
 
 import fte.conf
 import fte.socks
+import fte.socks.managed
 import fte.server
 import fte.client
+import fte.client.managed
 
 FTE_PT_NAME = 'fte'
 
 class FTEMain(threading.Thread):
 
+    def __init__(self, args):
+        self._args = args
+
     def run(self):
         self._client = None
         self._server = None
 
-        parser = argparse.ArgumentParser(prog='fteproxy',
-                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-        parser.add_argument('--mode',
-                            default='client',
-                            metavar='(client|server|test)',
-                            help='Relay mode: client or server')
-        parser.add_argument('--stop', action='store_true',
-                            help='Shutdown daemon process')
-        parser.add_argument('--upstream-format',
-                            help='Client-to-server language format',
-                            default=fte.conf.getValue('runtime.state.upstream_language'
-                                                      ))
-        parser.add_argument('--downstream-format',
-                            help='Server-to-client language format',
-                            default=fte.conf.getValue('runtime.state.downstream_language'
-                                                      ))
-        parser.add_argument('--client_ip',
-                            help='Client-side listening IP',
-                            default=fte.conf.getValue('runtime.client.ip'
-                                                      ))
-        parser.add_argument('--client_port',
-                            help='Client-side listening port',
-                            default=fte.conf.getValue('runtime.client.port'
-                                                      ))
-        parser.add_argument('--server_ip',
-                            help='Server-side listening IP',
-                            default=fte.conf.getValue('runtime.server.ip'
-                                                      ))
-        parser.add_argument('--server_port',
-                            help='Server-side listening port',
-                            default=fte.conf.getValue('runtime.server.port'
-                                                      ))
-        parser.add_argument('--proxy_ip',
-                            help='Forwarding-proxy (SOCKS) listening IP',
-                            default=fte.conf.getValue('runtime.proxy.ip'
-                                                      ))
-        parser.add_argument('--proxy_port',
-                            help='Forwarding-proxy (SOCKS) listening port',
-                            default=fte.conf.getValue('runtime.proxy.port'
-                                                      ))
-        parser.add_argument('--quiet', action='store_true', default=False)
-        parser.add_argument('--managed',
-                            help="Start in managed mode, for use with Tor. --server paramters ignored.",
-                            action='store_true',
-                            default=False)
-        parser.add_argument('--key',
-                            help='Cryptographic key, hex, must be exactly 64 characters',
-                            default=fte.conf.getValue('runtime.fte.encrypter.key'
-                                                      ))
-        args = parser.parse_args(sys.argv[1:])
-
-        if not args.quiet and not args.managed:
+        if not self._args.quiet and not self._args.managed:
             print """FTE Copyright (C) 2012-2013 Kevin P. Dyer <kdyer@cs.pdx.edu>
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it under certain conditions.
 """
 
-        if args.mode == 'test':
+        if self._args.mode == 'test':
             test()
             sys.exit(0)
-        if args.stop:
-            if not args.mode:
+        if self._args.stop:
+            if not self._args.mode:
                 print '--mode keyword is required with --stop'
                 parser.print_help()
                 sys.exit(1)
-            if args.mode in ['client', 'server']:
+            if self._args.mode in ['client', 'server']:
                 pid_files_path = \
                     os.path.join(fte.conf.getValue('general.pid_dir'),
-                                 '.' + args.mode + '-*.pid')
+                                 '.' + self._args.mode + '-*.pid')
                 pid_files = glob.glob(pid_files_path)
                 for pid_file in pid_files:
                     with open(pid_file) as f:
@@ -119,40 +75,40 @@ This is free software, and you are welcome to redistribute it under certain cond
                             pass
                         os.unlink(pid_file)
                 sys.exit(0)
-        if args.mode == 'client':
+        if self._args.mode == 'client':
             fte.conf.setValue('runtime.mode', 'client')
-        elif args.mode == 'server':
+        elif self._args.mode == 'server':
             fte.conf.setValue('runtime.mode', 'server')
         else:
             parser.print_help()
             sys.exit(1)
-        if args.client_ip:
-            fte.conf.setValue('runtime.client.ip', args.client_ip)
-        if args.client_port:
+        if self._args.client_ip:
+            fte.conf.setValue('runtime.client.ip', self._args.client_ip)
+        if self._args.client_port:
             fte.conf.setValue('runtime.client.port',
-                              int(args.client_port))
-        if args.server_ip:
-            fte.conf.setValue('runtime.server.ip', args.server_ip)
-        if args.server_port:
+                              int(self._args.client_port))
+        if self._args.server_ip:
+            fte.conf.setValue('runtime.server.ip', self._args.server_ip)
+        if self._args.server_port:
             fte.conf.setValue('runtime.server.port',
-                              int(args.server_port))
-        if args.proxy_ip:
-            fte.conf.setValue('runtime.proxy.ip', args.proxy_ip)
-        if args.proxy_port:
+                              int(self._args.server_port))
+        if self._args.proxy_ip:
+            fte.conf.setValue('runtime.proxy.ip', self._args.proxy_ip)
+        if self._args.proxy_port:
             fte.conf.setValue('runtime.proxy.port',
-                              int(args.proxy_port))
-        if args.downstream_format:
+                              int(self._args.proxy_port))
+        if self._args.downstream_format:
             fte.conf.setValue('runtime.state.downstream_language',
-                              args.downstream_format)
-        if args.upstream_format:
+                              self._args.downstream_format)
+        if self._args.upstream_format:
             fte.conf.setValue('runtime.state.upstream_language',
-                              args.upstream_format)
-        if args.key:
-            if len(args.key) != 64:
-                print 'Invalid key length: ' + str(len(args.key)) + ', should be 64'
+                              self._args.upstream_format)
+        if self._args.key:
+            if len(self._args.key) != 64:
+                print 'Invalid key length: ' + str(len(self._args.key)) + ', should be 64'
                 sys.exit(1)
             try:
-                binary_key = args.key.decode('hex')
+                binary_key = self._args.key.decode('hex')
             except:
                 print 'Invalid key format, must contain only 0-9a-fA-F'
                 sys.exit(1)
@@ -166,14 +122,14 @@ This is free software, and you are welcome to redistribute it under certain cond
             f.write(str(os.getpid()))
         
         if fte.conf.getValue('runtime.mode') == 'client':
-            incoming_regex = fte.defs.getRegex(args.downstream_format)
-            incoming_max_len = fte.defs.getMaxLen(args.downstream_format)
+            incoming_regex = fte.defs.getRegex(self._args.downstream_format)
+            incoming_max_len = fte.defs.getMaxLen(self._args.downstream_format)
             fte.encoder.RegexEncoder(incoming_regex, incoming_max_len)
-            outgoing_regex = fte.defs.getRegex(args.upstream_format)
-            outgoing_max_len = fte.defs.getMaxLen(args.upstream_format)
+            outgoing_regex = fte.defs.getRegex(self._args.upstream_format)
+            outgoing_max_len = fte.defs.getMaxLen(self._args.upstream_format)
             fte.encoder.RegexEncoder(outgoing_regex, outgoing_max_len)
 
-            if args.managed:
+            if self._args.managed:
                 from pyptlib.client import ClientTransportPlugin
                 from pyptlib.config import EnvError
                 
@@ -191,22 +147,17 @@ This is free software, and you are welcome to redistribute it under certain cond
                         proxy_ip = fte.conf.getValue('runtime.proxy.ip')
                         proxy_port = fte.conf.getValue('runtime.proxy.port')
                         socks_version = 'socks4'
-                        proxy = fte.socks.SocksProxyv4(str(proxy_ip), int(proxy_port))
-                        proxy.start()
-                        self._client = fte.client.listener(local_ip, local_port,
-                                                           proxy_ip, proxy_port)
-                        self._client.daemon = True
-                        self._client.start()
-                        bind_addrport = (local_ip, local_port)
-                        client.reportMethodSuccess(transport, socks_version, bind_addrport, None, None)
+                        factory = fte.socks.managed.SOCKSv4Factory(str(proxy_ip), int(proxy_port))
+                        addrport = reactor.listenTCP(local_port, factory, interface=local_ip)
+                        client.reportMethodSuccess(transport, socks_version, (addrport.getHost().host, addrport.getHost().port), None, None)
                     else:
                         client.reportFailure(transport, "Failed to launch ('%s')." % "We don't support transport "+transport)
                         
                 client.reportMethodsEnd()
-                self._client.join()
+                reactor.run()
             else:
     
-                if not args.quiet:
+                if not self._args.quiet:
                     print 'Client ready!'
                 
                 local_ip = fte.conf.getValue('runtime.client.ip')
@@ -226,7 +177,7 @@ This is free software, and you are welcome to redistribute it under certain cond
                 max_len = fte.defs.getMaxLen(language)
                 fte.encoder.RegexEncoder(regex, max_len)
 
-            if args.managed:
+            if self._args.managed:
                 from pyptlib.server import ServerTransportPlugin
                 from pyptlib.config import EnvError
                 
@@ -246,17 +197,13 @@ This is free software, and you are welcome to redistribute it under certain cond
                             local_port = transport_bindaddr[1]
                         remote_ip = fte.conf.getValue('runtime.proxy.ip')
                         remote_port = fte.conf.getValue('runtime.proxy.port')
-                        self._server = fte.server.listener(local_ip, local_port,
-                                                           remote_ip, remote_port)
-                        self._server.daemon = True
-                        self._server.start()
+                        fte.client.managed.DummyTransport(None)
                         bind_addrport = (local_ip, local_port)
                         server.reportMethodSuccess(transport, bind_addrport, None)
                     else:
                         server.reportFailure(transport, "Failed to launch ('%s')." % "We don't support transport "+transport)
                     
                 server.reportMethodsEnd()
-                self._server.join()
             else:
                 local_ip = fte.conf.getValue('runtime.server.ip')
                 local_port = fte.conf.getValue('runtime.server.port')
@@ -266,7 +213,7 @@ This is free software, and you are welcome to redistribute it under certain cond
                                                    remote_ip, remote_port)
                 self._server.daemon = True
                 self._server.start()
-                if not args.quiet:
+                if not self._args.quiet:
                     print 'Server ready!'
                 self._server.join()
 
@@ -315,16 +262,75 @@ def test():
     unittest.TextTestRunner(verbosity=2, failfast=True).run(alltests)
 
 
+def get_args():
+    parser = argparse.ArgumentParser(prog='fteproxy',
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--mode',
+                        default='client',
+                        metavar='(client|server|test)',
+                        help='Relay mode: client or server')
+    parser.add_argument('--stop', action='store_true',
+                        help='Shutdown daemon process')
+    parser.add_argument('--upstream-format',
+                        help='Client-to-server language format',
+                        default=fte.conf.getValue('runtime.state.upstream_language'
+                                                  ))
+    parser.add_argument('--downstream-format',
+                        help='Server-to-client language format',
+                        default=fte.conf.getValue('runtime.state.downstream_language'
+                                                  ))
+    parser.add_argument('--client_ip',
+                        help='Client-side listening IP',
+                        default=fte.conf.getValue('runtime.client.ip'
+                                                  ))
+    parser.add_argument('--client_port',
+                        help='Client-side listening port',
+                        default=fte.conf.getValue('runtime.client.port'
+                                                  ))
+    parser.add_argument('--server_ip',
+                        help='Server-side listening IP',
+                        default=fte.conf.getValue('runtime.server.ip'
+                                                  ))
+    parser.add_argument('--server_port',
+                        help='Server-side listening port',
+                        default=fte.conf.getValue('runtime.server.port'
+                                                  ))
+    parser.add_argument('--proxy_ip',
+                        help='Forwarding-proxy (SOCKS) listening IP',
+                        default=fte.conf.getValue('runtime.proxy.ip'
+                                                  ))
+    parser.add_argument('--proxy_port',
+                        help='Forwarding-proxy (SOCKS) listening port',
+                        default=fte.conf.getValue('runtime.proxy.port'
+                                                  ))
+    parser.add_argument('--quiet', action='store_true', default=False)
+    parser.add_argument('--managed',
+                        help="Start in managed mode, for use with Tor. --server paramters ignored.",
+                        action='store_true',
+                        default=False)
+    parser.add_argument('--key',
+                        help='Cryptographic key, hex, must be exactly 64 characters',
+                        default=fte.conf.getValue('runtime.fte.encrypter.key'
+                                                  ))
+    args = parser.parse_args(sys.argv[1:])
+
+    return args
+
+
 def main():
     global running
 
     try:
-        main = FTEMain()
-        main.daemon = True
-        main.start()
-        while running and main.is_alive():
-            main.join(0.01)
-        main.stop()
+        args = get_args()
+        main = FTEMain(args)
+        if args.managed and args.mode=="client":
+            main.run()
+        else:
+            main.daemon = True
+            main.start()
+            while running and main.is_alive():
+                main.join(0.01)
+            main.stop()
     except KeyboardInterrupt:
         pass
     finally:

@@ -180,7 +180,7 @@ class _FTESocketWrapper(object):
         while True:
             data = self._socket.recv(bufsize)
 
-            if not data and not self._incoming_buffer:
+            if not data and not self._incoming_buffer and not self._decoder._buffer:
                 return ''
 
             self._decoder.push(data)
