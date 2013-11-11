@@ -22,6 +22,7 @@ def split_socks_args(args_str):
     semicolons, and with semicolons and backslashes escaped), parse it
     and return a list of the unescaped SOCKS arguments.
     """
+    print args_str
     return csv.reader([args_str], delimiter=';', escapechar='\\').next()
 
 class MySOCKSv4Outgoing(socks.SOCKSv4Outgoing, network.GenericProtocol):
@@ -160,6 +161,7 @@ class SOCKSv4Protocol(socks.SOCKSv4, network.GenericProtocol):
 
     def connectionLost(self, reason):
         network.GenericProtocol.connectionLost(self, reason)
+
 
 class SOCKSv4Factory(Factory):
     """
