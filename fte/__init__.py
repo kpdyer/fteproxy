@@ -29,6 +29,11 @@ import fte.record_layer
 import fte.client.managed
 import fte.server.managed
 
+
+class InvalidRoleException(Exception):
+    pass
+
+
 class NegotiateTimeoutException(Exception):
 
     """Raised when negotiation fails to complete after """+str(fte.conf.getValue('runtime.fte.negotiate.timeout'))+""" seconds.
@@ -279,8 +284,6 @@ class _FTESocketWrapper(object):
             
         return False
         
-    
-
 
 def wrap_socket(sock,
                 outgoing_regex = None, outgoing_max_len = -1,
@@ -311,16 +314,112 @@ def wrap_socket(sock,
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+import base64
+
+import obfsproxy.network.network as network
+import obfsproxy.network.socks as socks
+import obfsproxy.network.extended_orport as extended_orport
+import obfsproxy.common.log as logging
+
+from obfsproxy.transports.base import BaseTransport
+
+from twisted.internet import reactor
+
+log = logging.get_obfslogger()
+
+def _get_b64_chunks_from_str(string):
+    """
+    Given a 'string' of concatenated base64 objects, return a list
+    with the objects.
+
+    Assumes that the objects are well-formed base64 strings. Also
+    assumes that the padding character of base64 is '='.
+    """
+    chunks = []
+
+    while True:
+        pad_loc = string.find('=')
+        if pad_loc < 0 or pad_loc == len(string)-1 or pad_loc == len(string)-2:
+            # If there is no padding, or it's the last chunk: append
+            # it to chunks and return.
+            chunks.append(string)
+            return chunks
+
+        if pad_loc != len(string)-1 and string[pad_loc+1] == '=': # double padding
+            pad_loc += 1
+
+        # Append the object to the chunks, and prepare the string for
+        # the next iteration.
+        chunks.append(string[:pad_loc+1])
+        string = string[pad_loc+1:]
+
+    return chunks
+
+class FTETransport(BaseTransport):
+    """
+    The BaseTransport class is a skeleton class for pluggable transports.
+    It contains callbacks that your pluggable transports should
+    override and customize.
+    """
+
+    def __init__(self, transport_config):
+        pass
+    
+    def receivedDownstream(self, data, circuit):
+        """
+        Got data from downstream; relay them upstream.
+        """
+
+        decoded_data = ''
+
+        # TCP is a stream protocol: the data we received might contain
+        # more than one b64 chunk. We should inspect the data and
+        # split it into multiple chunks.
+        b64_chunks = _get_b64_chunks_from_str(data.peek())
+
+        # Now b64 decode each chunk and append it to the our decoded
+        # data.
+        for chunk in b64_chunks:
+            try:
+                decoded_data += base64.b64decode(chunk)
+            except TypeError:
+                log.info("We got corrupted b64 ('%s')." % chunk)
+                return
+
+        data.drain()
+        circuit.upstream.write(decoded_data)
+
+    def receivedUpstream(self, data, circuit):
+        """
+        Got data from upstream; relay them downstream.
+        """
+
+        circuit.downstream.write(base64.b64encode(data.read()))
+        return
+
+class PluggableTransportError(Exception): pass
+class SOCKSArgsError(Exception): pass
+
+
+class FTEClientTransport(FTETransport):
+    pass
+
+class FTEServerTransport(FTETransport):
+    pass
+
+
 def launch_transport_listener(transport, bindaddr, role, remote_addrport, pt_config, ext_or_cookie_file=None):
-    import obfsproxy.network.network as network
-    import obfsproxy.transports.transports as transports
-    import obfsproxy.network.socks as socks
-    import obfsproxy.network.extended_orport as extended_orport
-    
-    from obfsproxy.transports.b64 import B64Transport
-    
-    from twisted.internet import reactor
-        
         
     """
     Launch a listener for 'transport' in role 'role' (socks/client/server/ext_server).
@@ -350,24 +449,22 @@ def launch_transport_listener(transport, bindaddr, role, remote_addrport, pt_con
     listen_port = int(bindaddr[1]) if bindaddr else 0
     
     if role == 'socks':
-        transport_class = B64Transport
+        transport_class = FTETransport
         factory = socks.SOCKSv4Factory(transport_class, pt_config)
     elif role == 'ext_server':
         assert(remote_addrport and ext_or_cookie_file)
-        transport_class = B64Transport
+        transport_class = FTETransport
         factory = extended_orport.ExtORPortServerFactory(remote_addrport, ext_or_cookie_file, transport, transport_class, pt_config)
     elif role == 'client':
         assert(remote_addrport)
-        transport_class = B64Transport
+        transport_class = FTETransport
         factory = network.StaticDestinationServerFactory(remote_addrport, role, transport_class, pt_config)
     elif role == 'server':
         assert(remote_addrport)
-        transport_class = B64Transport
+        transport_class = FTETransport
         factory = network.StaticDestinationServerFactory(remote_addrport, role, transport_class, pt_config)
     else:
-        assert(remote_addrport)
-        transport_class = B64Transport
-        factory = network.StaticDestinationServerFactory(remote_addrport, role, transport_class, pt_config)
+        raise InvalidRoleException()
 
     addrport = reactor.listenTCP(listen_port, factory, interface=listen_host)
 
