@@ -391,11 +391,12 @@ def wrap_socket(sock,
 
 class FTETransport(FTEHelper, BaseTransport):
 
-    def __init__(self):
-        self._isClient = (fte.confg.getValue('runtime.mode') == 'client')
+    def __init__(self, pt_config):
+        self._isClient = (fte.conf.getValue('runtime.mode') == 'client')
+        self._isServer = not self._isClient
         if self._isClient:
-            outgoing_language = fte.confg.getValue('runtime.state.upstream_language')
-            incoming_language = fte.confg.getValue('runtime.state.downstream_language')
+            outgoing_language = fte.conf.getValue('runtime.state.upstream_language')
+            incoming_language = fte.conf.getValue('runtime.state.downstream_language')
             self._outgoing_regex = fte.defs.getRegex(outgoing_language)
             self._outgoing_max_len = fte.defs.getMaxLen(outgoing_language)
             self._incoming_regex = fte.defs.getRegex(incoming_language)
@@ -420,6 +421,7 @@ class FTETransport(FTEHelper, BaseTransport):
     def receivedDownstream(self, data, circuit):
         """decode FTE stream"""
         data = data.read()
+        print ['data',data]
         data = self._processRecv(data)
 
         self._decoder.push(data)
