@@ -435,27 +435,25 @@ class FTETransport(FTEHelper, BaseTransport):
     
             self._decoder.push(data)
             
-            _buffer = ''
             while True:
                 frag = self._decoder.pop()
                 if not frag:
                     break
-                _buffer += frag
+                circuit.upstream.write(frag)
     
-            circuit.upstream.write(_buffer)
         except ChannelNotReadyException:
             pass
 
     def receivedUpstream(self, data, circuit):
         """encode FTE stream"""
         to_send = self._processSend()
-        circuit.downstream.write(to_send)
+        if to_send:
+            circuit.downstream.write(to_send)
             
         data = data.read()
         self._encoder.push(data)
         while True:
             to_send = self._encoder.pop()
-            print ['to_send',to_send]
             if not to_send:
                 break
             circuit.downstream.write(to_send)
