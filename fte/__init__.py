@@ -221,7 +221,7 @@ class FTEHelper(object):
             
         return retval
     
-    def _processSend(self, data):
+    def _processSend(self):
         retval = ''
         if self._isClient and not self._negotiationComplete:
             [encoder, decoder] = self._negotiation_manager._init_encoders(self._encrypter,
@@ -301,7 +301,7 @@ class _FTESocketWrapper(FTEHelper, object):
 
 
     def send(self, data):
-        to_send = self._processSend(data)
+        to_send = self._processSend()
         if to_send:
             self._socket.sendall(to_send)
         
@@ -448,11 +448,14 @@ class FTETransport(FTEHelper, BaseTransport):
 
     def receivedUpstream(self, data, circuit):
         """encode FTE stream"""
+        to_send = self._processSend()
+        circuit.downstream.write(to_send)
+            
         data = data.read()
-        data = self._processSend(data)
         self._encoder.push(data)
         while True:
             to_send = self._encoder.pop()
+            print ['to_send',to_send]
             if not to_send:
                 break
             circuit.downstream.write(to_send)
