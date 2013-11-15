@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
-import time
+import socket
 import string
 
 import obfsproxy.network.network as network
@@ -43,6 +43,10 @@ class InvalidRoleException(Exception):
 
 
 class NegotiationFailedException(Exception):
+    pass
+
+
+class ChannelNotReadyException(Exception):
     pass
 
 
@@ -213,7 +217,8 @@ class FTEHelper(object):
                 self._negotiationComplete = True
                 retval = ''
             except:
-                pass
+                raise ChannelNotReadyException()
+            
         return retval
     
     def _processSend(self, data):
@@ -267,27 +272,30 @@ class _FTESocketWrapper(FTEHelper, object):
 
 
     def recv(self, bufsize):
-        while True:
-            data = self._socket.recv(bufsize)
-            noData = (data == '')
-            data = self._processRecv(data)
-            
-            if noData and not self._incoming_buffer and not self._decoder._buffer:
-                return ''
-
-            self._decoder.push(data)
-            
+        try:
             while True:
-                frag = self._decoder.pop()
-                if not frag:
+                data = self._socket.recv(bufsize)
+                noData = (data == '')
+                data = self._processRecv(data)
+                
+                if noData and not self._incoming_buffer and not self._decoder._buffer:
+                    return ''
+    
+                self._decoder.push(data)
+                
+                while True:
+                    frag = self._decoder.pop()
+                    if not frag:
+                        break
+                    self._incoming_buffer += frag
+    
+                if self._incoming_buffer:
                     break
-                self._incoming_buffer += frag
-
-            if self._incoming_buffer:
-                break
-
-        retval = self._incoming_buffer[:bufsize]
-        self._incoming_buffer = self._incoming_buffer[bufsize:]
+    
+            retval = self._incoming_buffer[:bufsize]
+            self._incoming_buffer = self._incoming_buffer[bufsize:]
+        except ChannelNotReadyException:
+            raise socket.timeout
 
         return retval
 
@@ -420,20 +428,23 @@ class FTETransport(FTEHelper, BaseTransport):
     
     def receivedDownstream(self, data, circuit):
         """decode FTE stream"""
-        data = data.read()
-        print ['data',data]
-        data = self._processRecv(data)
-
-        self._decoder.push(data)
         
-        _buffer = ''
-        while True:
-            frag = self._decoder.pop()
-            if not frag:
-                break
-            _buffer += frag
-
-        circuit.upstream.write(_buffer)
+        try:
+            data = data.read()
+            data = self._processRecv(data)
+    
+            self._decoder.push(data)
+            
+            _buffer = ''
+            while True:
+                frag = self._decoder.pop()
+                if not frag:
+                    break
+                _buffer += frag
+    
+            circuit.upstream.write(_buffer)
+        except ChannelNotReadyException:
+            pass
 
     def receivedUpstream(self, data, circuit):
         """encode FTE stream"""
