@@ -19,6 +19,15 @@
 import time
 import string
 
+import obfsproxy.network.network as network
+import obfsproxy.network.socks
+import obfsproxy.network.extended_orport as extended_orport
+import obfsproxy.common.log as logging
+
+from obfsproxy.transports.base import BaseTransport
+
+from twisted.internet import reactor
+
 import fte.io
 import fte.conf
 import fte.defs
@@ -26,11 +35,14 @@ import fte.encoder
 import fte.encrypter
 import fte.record_layer
 
-import fte.client.managed
-import fte.server.managed
+log = logging.get_obfslogger()
 
 
 class InvalidRoleException(Exception):
+    pass
+
+
+class NegotiationFailedException(Exception):
     pass
 
 
@@ -87,98 +99,169 @@ class NegotiateCell(object):
         negotiate_cell.setDefFile(def_file)
         negotiate_cell.setLanguage(language)
         return negotiate_cell
+
+
+class NegotiationManager(object):
     
+    def __init__(self):
+        self._negotiationComplete = False
+    
+    
+    def getNegotiationComplete(self):
+        return self._negotiationComplete
+    
+    
+    def _acceptNegotiation(self, encrypter, data):
+        
+        languages = fte.defs.load_definitions()
+        for incoming_language in languages.keys():
+            try:
+                if incoming_language.endswith('response'): continue
+        
+                incoming_regex = fte.defs.getRegex(incoming_language)
+                incoming_max_len = fte.defs.getMaxLen(incoming_language)
+                
+                incoming_decoder = fte.encoder.RegexEncoder(incoming_regex,
+                                                            incoming_max_len)
+                decoder = fte.record_layer.Decoder(decrypter=encrypter,
+                                                   decoder=incoming_decoder)
+                
+                decoder.push(data)
+                negotiate_cell = decoder.pop()
+                NegotiateCell().fromString(negotiate_cell)
+                
+                return [negotiate_cell, decoder._buffer]
+            except:
+                continue
+            
+        raise NegotiationFailedException()
 
 
-class _FTESocketWrapper(object):
+    def _init_encoders(self, encrypter,
+                             outgoing_regex, outgoing_max_len,
+                             incoming_regex, incoming_max_len):
+        
+        encoder = None
+        decoder = None
+        
+        if outgoing_regex != None and outgoing_max_len != -1:
+            outgoing_encoder = fte.encoder.RegexEncoder(outgoing_regex,
+                                                        outgoing_max_len)
+            encoder = fte.record_layer.Encoder(encrypter=encrypter,
+                                                     encoder=outgoing_encoder)
+
+        if incoming_regex != None and incoming_max_len != -1:
+            incoming_decoder = fte.encoder.RegexEncoder(incoming_regex,
+                                                        incoming_max_len)
+            decoder = fte.record_layer.Decoder(decrypter=encrypter,
+                                                     decoder=incoming_decoder)
+            
+        return [encoder, decoder]
+    
+    
+    def _makeNegotiationCell(self, encoder):
+        negotiate_cell = NegotiateCell()
+        def_file = fte.conf.getValue('fte.defs.release')
+        negotiate_cell.setDefFile(def_file)
+        language = fte.conf.getValue('runtime.state.upstream_language')
+        language = language[:-len('-request')]
+        negotiate_cell.setLanguage(language)
+        encoder.push(negotiate_cell.toString())
+        data = encoder.pop()
+        return data
+    
+    
+    def makeClientNegotiationCell(self, encrypter,
+                             outgoing_regex, outgoing_max_len,
+                             incoming_regex, incoming_max_len):
+        [encoder, decoder] = self._init_encoders(encrypter, outgoing_regex, outgoing_max_len, incoming_regex, incoming_max_len)
+        return self._makeNegotiationCell(encoder)
+    
+    
+    def doServerSideNegotiation(self, encrypter, data):
+        [negotiate_cell, remaining_buffer] = self._acceptNegotiation(encrypter, data)
+
+        negotiate = NegotiateCell().fromString(negotiate_cell)
+        
+        outgoing_language = negotiate.getLanguage()+'-response'
+        incoming_language = negotiate.getLanguage()+'-request'
+
+        outgoing_regex = fte.defs.getRegex(outgoing_language)
+        outgoing_max_len = fte.defs.getMaxLen(outgoing_language)
+        incoming_regex = fte.defs.getRegex(incoming_language)
+        incoming_max_len = fte.defs.getMaxLen(incoming_language)
+
+        [encoder, decoder] = self._init_encoders(encrypter, outgoing_regex, outgoing_max_len, incoming_regex, incoming_max_len)
+
+        decoder.push(remaining_buffer)
+        
+        return [encoder, decoder]
 
 
-    def __init__(self, socket,
+class FTEHelper(object):
+        
+        
+    def _processRecv(self, data):
+        retval = data
+        if self._isServer and not self._negotiationComplete:
+            try:                
+                self._preNegotiationBuffer_incoming += data
+                [encoder, decoder] = self._negotiation_manager.doServerSideNegotiation(self._encrypter, self._preNegotiationBuffer_incoming)
+                self._encoder = encoder
+                self._decoder = decoder
+                self._preNegotiationBuffer_incoming = ''
+                self._negotiationComplete = True
+                retval = ''
+            except:
+                pass
+        return retval
+    
+    def _processSend(self, data):
+        retval = ''
+        if self._isClient and not self._negotiationComplete:
+            [encoder, decoder] = self._negotiation_manager._init_encoders(self._encrypter,
+                                                                          self._outgoing_regex,
+                                                                          self._outgoing_max_len,
+                                                                          self._incoming_regex,
+                                                                          self._incoming_max_len)
+            self._encoder = encoder
+            self._decoder = decoder
+            negotiation_cell = self._negotiation_manager.makeClientNegotiationCell(self._encrypter,
+                                      self._outgoing_regex, self._outgoing_max_len,
+                                      self._incoming_regex, self._incoming_max_len)
+            retval = negotiation_cell
+            self._negotiationComplete = True
+        return retval
+
+
+class _FTESocketWrapper(FTEHelper, object):
+
+
+    def __init__(self, _socket,
                  outgoing_regex = None, outgoing_max_len = -1,
                  incoming_regex = None, incoming_max_len = -1,
                  K1 = None, K2 = None):
         
-        self._socket = socket
-
+        self._socket = _socket
         self._outgoing_regex = outgoing_regex
         self._outgoing_max_len = outgoing_max_len
         self._incoming_regex = incoming_regex
         self._incoming_max_len = incoming_max_len
-
         self._K1 = K1
         self._K2 = K2
-
+        
         self._encrypter = fte.encrypter.Encrypter(K1=self._K1,
                                                   K2=self._K2)
-
-        self._init_encoders(outgoing_regex, outgoing_max_len,
-                            incoming_regex, incoming_max_len)
-
+        
+        self._negotiation_manager = NegotiationManager()
+        self._negotiationComplete = False
+        self._isServer = (outgoing_regex is None and incoming_regex is None)
+        self._isClient = (outgoing_regex is not None and incoming_regex is not None)
         self._incoming_buffer = ''
-        
-        # establish connection
-        if self._encoder: # client
-            negotiate_cell = NegotiateCell()
-            def_file = fte.conf.getValue('fte.defs.release')
-            negotiate_cell.setDefFile(def_file)
-            language = fte.conf.getValue('runtime.state.upstream_language')
-            language = language[:-len('-request')]
-            negotiate_cell.setLanguage(language)
-            self.send(negotiate_cell.toString())
-        else: # server
-            loop_start = time.time()
-            while True:
-                if loop_start - time.time() > fte.conf.getValue('runtime.fte.negotiate.timeout'):
-                    raise NegotiateTimeoutException()
-                
-                [success, data] = fte.io.recvall_from_socket(self._socket)
-                if data == '':
-                    continue
-                [negotiate_cell,remaining_buffer] = self._accept_negotiation(data)
-
-                negotiate = NegotiateCell().fromString(negotiate_cell)
-                
-                outgoing_language = negotiate.getLanguage()+'-response'
-                incoming_language = negotiate.getLanguage()+'-request'
-        
-                outgoing_regex = fte.defs.getRegex(outgoing_language)
-                outgoing_max_len = fte.defs.getMaxLen(outgoing_language)
-                incoming_regex = fte.defs.getRegex(incoming_language)
-                incoming_max_len = fte.defs.getMaxLen(incoming_language)
-
-                self._init_encoders(outgoing_regex, outgoing_max_len,
-                                    incoming_regex, incoming_max_len)
-
-                self._decoder.push(remaining_buffer)
-                self._incoming_buffer += self._decoder.pop()
-                break
-
-
-    def _init_encoders(self, outgoing_regex, outgoing_max_len,
-                             incoming_regex, incoming_max_len):
-        self._outgoing_regex = outgoing_regex
-        self._outgoing_max_len = outgoing_max_len
-        self._incoming_regex = incoming_regex
-        self._incoming_max_len = incoming_max_len
-        
-        self._outgoing_encoder = None
-        self._encoder = None
-        self._incoming_decoder = None
-        self._decoder = None
-        
-        if outgoing_regex != None and outgoing_max_len != -1:
-            self._outgoing_encoder = fte.encoder.RegexEncoder(self._outgoing_regex,
-                                                              self._outgoing_max_len)
-            self._encoder = fte.record_layer.Encoder(encrypter=self._encrypter,
-                                                     encoder=self._outgoing_encoder)
-
-        if incoming_regex != None and incoming_max_len != -1:
-            self._incoming_decoder = fte.encoder.RegexEncoder(self._incoming_regex,
-                                                              self._incoming_max_len)
-            self._decoder = fte.record_layer.Decoder(decrypter=self._encrypter,
-                                                     decoder=self._incoming_decoder)
+        self._preNegotiationBuffer_outgoing = ''
+        self._preNegotiationBuffer_incoming = ''
     
-
+    
     def fileno(self):
         return self._socket.fileno()
 
@@ -186,12 +269,14 @@ class _FTESocketWrapper(object):
     def recv(self, bufsize):
         while True:
             data = self._socket.recv(bufsize)
-
-            if not data and not self._incoming_buffer and not self._decoder._buffer:
+            noData = (data == '')
+            data = self._processRecv(data)
+            
+            if noData and not self._incoming_buffer and not self._decoder._buffer:
                 return ''
 
             self._decoder.push(data)
-
+            
             while True:
                 frag = self._decoder.pop()
                 if not frag:
@@ -208,6 +293,10 @@ class _FTESocketWrapper(object):
 
 
     def send(self, data):
+        to_send = self._processSend(data)
+        if to_send:
+            self._socket.sendall(to_send)
+        
         self._encoder.push(data)
         while True:
             to_send = self._encoder.pop()
@@ -258,31 +347,6 @@ class _FTESocketWrapper(object):
 
     def listen(self, N):
         return self._socket.listen(N)
-    
-    
-    def _accept_negotiation(self, data):
-        languages = fte.defs.load_definitions()
-        for incoming_language in languages.keys():
-            try:
-                if incoming_language.endswith('response'): continue
-        
-                incoming_regex = fte.defs.getRegex(incoming_language)
-                incoming_max_len = fte.defs.getMaxLen(incoming_language)
-                
-                incoming_decoder = fte.encoder.RegexEncoder(incoming_regex,
-                                                            incoming_max_len)
-                decoder = fte.record_layer.Decoder(decrypter=self._encrypter,
-                                                   decoder=incoming_decoder)
-                
-                decoder.push(data)
-                negotiate_cell = decoder.pop()
-                NegotiateCell().fromString(negotiate_cell)
-                
-                return [negotiate_cell, decoder._buffer]
-            except:
-                continue
-            
-        return False
         
 
 def wrap_socket(sock,
@@ -325,98 +389,69 @@ def wrap_socket(sock,
 
 
 
-import base64
+class FTETransport(FTEHelper, BaseTransport):
 
-import obfsproxy.network.network as network
-import obfsproxy.network.socks as socks
-import obfsproxy.network.extended_orport as extended_orport
-import obfsproxy.common.log as logging
-
-from obfsproxy.transports.base import BaseTransport
-
-from twisted.internet import reactor
-
-log = logging.get_obfslogger()
-
-def _get_b64_chunks_from_str(string):
-    """
-    Given a 'string' of concatenated base64 objects, return a list
-    with the objects.
-
-    Assumes that the objects are well-formed base64 strings. Also
-    assumes that the padding character of base64 is '='.
-    """
-    chunks = []
-
-    while True:
-        pad_loc = string.find('=')
-        if pad_loc < 0 or pad_loc == len(string)-1 or pad_loc == len(string)-2:
-            # If there is no padding, or it's the last chunk: append
-            # it to chunks and return.
-            chunks.append(string)
-            return chunks
-
-        if pad_loc != len(string)-1 and string[pad_loc+1] == '=': # double padding
-            pad_loc += 1
-
-        # Append the object to the chunks, and prepare the string for
-        # the next iteration.
-        chunks.append(string[:pad_loc+1])
-        string = string[pad_loc+1:]
-
-    return chunks
-
-class FTETransport(BaseTransport):
-    """
-    The BaseTransport class is a skeleton class for pluggable transports.
-    It contains callbacks that your pluggable transports should
-    override and customize.
-    """
-
-    def __init__(self, transport_config):
-        pass
+    def __init__(self):
+        self._isClient = (fte.confg.getValue('runtime.mode') == 'client')
+        if self._isClient:
+            outgoing_language = fte.confg.getValue('runtime.state.upstream_language')
+            incoming_language = fte.confg.getValue('runtime.state.downstream_language')
+            self._outgoing_regex = fte.defs.getRegex(outgoing_language)
+            self._outgoing_max_len = fte.defs.getMaxLen(outgoing_language)
+            self._incoming_regex = fte.defs.getRegex(incoming_language)
+            self._incoming_max_len = fte.defs.getMaxLen(incoming_language)
+        else:
+            self._outgoing_regex = None
+            self._outgoing_max_len = -1
+            self._incoming_regex = None
+            self._incoming_max_len = -1
+        
+        self._K1 = fte.conf.getValue('runtime.fte.encrypter.key')[0:16]
+        self._K2 = fte.conf.getValue('runtime.fte.encrypter.key')[16:32]
+        self._encrypter = fte.encrypter.Encrypter(K1=self._K1,
+                                                  K2=self._K2)
+        
+        self._negotiation_manager = NegotiationManager()
+        self._negotiationComplete = False
+        self._incoming_buffer = ''
+        self._preNegotiationBuffer_outgoing = ''
+        self._preNegotiationBuffer_incoming = ''
     
     def receivedDownstream(self, data, circuit):
-        """
-        Got data from downstream; relay them upstream.
-        """
+        """decode FTE stream"""
+        data = data.read()
+        data = self._processRecv(data)
 
-        decoded_data = ''
+        self._decoder.push(data)
+        
+        _buffer = ''
+        while True:
+            frag = self._decoder.pop()
+            if not frag:
+                break
+            _buffer += frag
 
-        # TCP is a stream protocol: the data we received might contain
-        # more than one b64 chunk. We should inspect the data and
-        # split it into multiple chunks.
-        b64_chunks = _get_b64_chunks_from_str(data.peek())
-
-        # Now b64 decode each chunk and append it to the our decoded
-        # data.
-        for chunk in b64_chunks:
-            try:
-                decoded_data += base64.b64decode(chunk)
-            except TypeError:
-                log.info("We got corrupted b64 ('%s')." % chunk)
-                return
-
-        data.drain()
-        circuit.upstream.write(decoded_data)
+        circuit.upstream.write(_buffer)
 
     def receivedUpstream(self, data, circuit):
-        """
-        Got data from upstream; relay them downstream.
-        """
+        """encode FTE stream"""
+        data = data.read()
+        data = self._processSend(data)
+        self._encoder.push(data)
+        while True:
+            to_send = self._encoder.pop()
+            if not to_send:
+                break
+            circuit.downstream.write(to_send)
 
-        circuit.downstream.write(base64.b64encode(data.read()))
-        return
 
-class PluggableTransportError(Exception): pass
-class SOCKSArgsError(Exception): pass
-
-
-class FTEClientTransport(FTETransport):
+class FTETransportClient(FTETransport):
     pass
 
-class FTEServerTransport(FTETransport):
+
+class FTETransportServer(FTETransport):
     pass
+
 
 
 def launch_transport_listener(transport, bindaddr, role, remote_addrport, pt_config, ext_or_cookie_file=None):
@@ -449,19 +484,19 @@ def launch_transport_listener(transport, bindaddr, role, remote_addrport, pt_con
     listen_port = int(bindaddr[1]) if bindaddr else 0
     
     if role == 'socks':
-        transport_class = FTETransport
-        factory = socks.SOCKSv4Factory(transport_class, pt_config)
+        transport_class = FTETransportClient
+        factory = obfsproxy.network.socks.SOCKSv4Factory(transport_class, pt_config)
     elif role == 'ext_server':
         assert(remote_addrport and ext_or_cookie_file)
-        transport_class = FTETransport
+        transport_class = FTETransportServer
         factory = extended_orport.ExtORPortServerFactory(remote_addrport, ext_or_cookie_file, transport, transport_class, pt_config)
     elif role == 'client':
         assert(remote_addrport)
-        transport_class = FTETransport
+        transport_class = FTETransportClient
         factory = network.StaticDestinationServerFactory(remote_addrport, role, transport_class, pt_config)
     elif role == 'server':
         assert(remote_addrport)
-        transport_class = FTETransport
+        transport_class = FTETransportServer
         factory = network.StaticDestinationServerFactory(remote_addrport, role, transport_class, pt_config)
     else:
         raise InvalidRoleException()

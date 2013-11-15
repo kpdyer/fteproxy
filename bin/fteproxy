@@ -27,12 +27,11 @@ import threading
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')))
 
+import fte
 import fte.conf
 import fte.socks
-import fte.socks.managed
 import fte.server
 import fte.client
-import fte.client.managed
 
 FTE_PT_NAME = 'fte'
 
@@ -179,7 +178,7 @@ def do_managed_client():
     from twisted.internet import reactor, error
     
     import obfsproxy.common.transport_config as transport_config
-    import obfsproxy.network.launch_transport as launch_transport
+    #import obfsproxy.network.launch_transport as launch_transport
     import obfsproxy.transports.transports as transports
     import obfsproxy.common.log as logging
     
@@ -239,7 +238,7 @@ def do_managed_server():
     from pyptlib.config import EnvError
     
     import obfsproxy.transports.transports as transports
-    import obfsproxy.network.launch_transport as launch_transport
+    #import obfsproxy.network.launch_transport as launch_transport
     import obfsproxy.common.log as logging
     import obfsproxy.common.transport_config as transport_config
     

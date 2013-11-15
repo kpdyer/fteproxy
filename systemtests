@@ -44,10 +44,11 @@ def main():
     
     languages = fte.defs.load_definitions().keys()
     for language in languages:
-        if language.endswith('request'):
-            format = language[:-8]
-            elapsed, bytesSent = doTest(format)
-            print '+', format, str(1.0*bytesSent/elapsed/(2**20)*(2**3))+'Mbps'
+        for i in range(10):
+            if language.endswith('request'):
+                format = language[:-8]
+                elapsed, bytesSent = doTest(format)
+                print '+', format, str(1.0*bytesSent/elapsed/(2**20)*(2**3))+'Mbps'
             
     os.system("fteproxy --quiet --mode server --stop")
 
@@ -86,7 +87,7 @@ def doTest(format):
         
         conn, addr = sock.accept()
         
-        bytesSent = 2**20
+        bytesSent = 2 ** 16
         expected = id_generator(bytesSent)
         elapsed = -1
         success = True
