@@ -1,4 +1,4 @@
-ORPort 127.0.0.1:8081
+ORPort 0.0.0.0:8081
 BridgeRelay 1
 Exitpolicy reject *:*
 PublishServerDescriptor 0

@@ -1,5 +1,8 @@
 #!/bin/bash
 
+BUILD_DIR=/vagrant/sandbox
+DEB_DIST=wheezy
+
 # install fte depedencies
 sudo apt-get update
 sudo apt-get -y install m4
@@ -17,21 +20,22 @@ sudo apt-get -y install libgmp-dev
 sudo apt-get -y install python-pip
 sudo pip install obfsproxy
 sudo pip install pyptlib
-sudo sh -c 'echo "deb http://deb.torproject.org/torproject.org experimental-wheezy main" >> /etc/apt/sources.list'
+sudo sh -c 'echo "deb http://deb.torproject.org/torproject.org $DEB_DIST main" >> /etc/apt/sources.list'
+sudo sh -c 'echo "deb http://deb.torproject.org/torproject.org experimental-$DEB_DIST main" >> /etc/apt/sources.list'
 gpg --keyserver keys.gnupg.net --recv 886DDD89
 gpg --export A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89 | sudo apt-key add -
 sudo apt-get update
 sudo apt-get -y install tor
 sudo apt-get -y install deb.torproject.org-keyring
-sudo cp /vagrant/sandbox/fteproxy/tor/torrc.client /etc/tor/torrc
 
 # build+install fte
-mkdir /vagrant/sandbox
-cd /vagrant/sandbox
+mkdir $BUILD_DIR
+cd $BUILD_DIR
 git clone https://github.com/redjack/fteproxy.git
 cd fteproxy
 make all
 sudo make install
 
 # restart tor to pickup fte changes
+sudo cp $BUILD_DIR/fteproxy/tor/torrc.client /etc/tor/torrc
 sudo service tor restart
