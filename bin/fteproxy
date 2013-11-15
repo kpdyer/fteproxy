@@ -207,8 +207,7 @@ def do_managed_client():
         pt_config.setStateLocation(ptclient.config.getStateLocation())
 
         try:
-            #addrport = fte.launch_transport_listener(transport, None, 'socks', None, pt_config)
-            addrport = fte.launch_transport_listener(transport, None, 'client', ('54.212.249.156',8080), pt_config)
+            addrport = fte.launch_transport_listener(transport, None, 'socks', None, pt_config)
         except transports.TransportNotFound:
             log.warning("Could not find transport '%s'" % transport)
             ptclient.reportMethodError(transport, "Could not find transport.")
