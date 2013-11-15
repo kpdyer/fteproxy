@@ -29,7 +29,6 @@ sys.path.append(
 
 import fte
 import fte.conf
-import fte.socks
 import fte.server
 import fte.client
 

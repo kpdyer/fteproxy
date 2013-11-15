@@ -19,23 +19,12 @@
 import socket
 import string
 
-import obfsproxy.network.network as network
-import obfsproxy.network.socks
-import obfsproxy.network.extended_orport as extended_orport
-import obfsproxy.common.log as logging
-
-from obfsproxy.transports.base import BaseTransport
-
-from twisted.internet import reactor
-
 import fte.io
 import fte.conf
 import fte.defs
 import fte.encoder
 import fte.encrypter
 import fte.record_layer
-
-log = logging.get_obfslogger()
 
 
 class InvalidRoleException(Exception):
@@ -395,7 +384,10 @@ def wrap_socket(sock,
 
 
 
-
+try:
+    from obfsproxy.transports.base import BaseTransport
+except:
+    pass
 
 class FTETransport(FTEHelper, BaseTransport):
 
@@ -469,6 +461,11 @@ class FTETransportServer(FTETransport):
 
 
 def launch_transport_listener(transport, bindaddr, role, remote_addrport, pt_config, ext_or_cookie_file=None):
+    import obfsproxy.network.network as network
+    import obfsproxy.network.socks as socks
+    import obfsproxy.network.extended_orport as extended_orport
+    
+    from twisted.internet import reactor
         
     """
     Launch a listener for 'transport' in role 'role' (socks/client/server/ext_server).
@@ -499,7 +496,7 @@ def launch_transport_listener(transport, bindaddr, role, remote_addrport, pt_con
     
     if role == 'socks':
         transport_class = FTETransportClient
-        factory = obfsproxy.network.socks.SOCKSv4Factory(transport_class, pt_config)
+        factory = socks.SOCKSv4Factory(transport_class, pt_config)
     elif role == 'ext_server':
         assert(remote_addrport and ext_or_cookie_file)
         transport_class = FTETransportServer
