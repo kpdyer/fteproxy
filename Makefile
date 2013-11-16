@@ -3,6 +3,7 @@
 # TODO: encourage user to run "make test"
 
 PREFIX=/usr/local
+FTEPROXY_VERSION=0.2.0
 
 THIRD_PARTY_DIR=thirdparty
 
@@ -56,6 +57,7 @@ $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize:
 clean:
 	@find . -name "*.pyc" -exec rm {} \;
 	@rm -rvf build
+	@rm -rvf dist
 	@rm -rvf $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)
 	@rm -vf $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION).tar.gz
 	@rm -rvf $(THIRD_PARTY_DIR)/re2
@@ -66,7 +68,7 @@ clean:
 	@cd doc && $(MAKE) clean
 
 test:
-	#@LD_LIBRARY_PATH=$(THIRD_PARTY_DIR)/re2/obj/so:$(LD_LIBRARY_PATH) PATH=./bin:./$(THIRD_PARTY_DIR)/openfst-1.3.3/src/bin:$(PATH) ./unittests
+	@LD_LIBRARY_PATH=$(THIRD_PARTY_DIR)/re2/obj/so:$(LD_LIBRARY_PATH) PATH=./bin:./$(THIRD_PARTY_DIR)/openfst-1.3.3/src/bin:$(PATH) ./unittests
 	@LD_LIBRARY_PATH=$(THIRD_PARTY_DIR)/re2/obj/so:$(LD_LIBRARY_PATH) PATH=./bin:./$(THIRD_PARTY_DIR)/openfst-1.3.3/src/bin:$(PATH) ./systemtests
 
 uninstall:
@@ -81,3 +83,16 @@ uninstall:
 doc: phantom
 phantom:
 	@cd doc && $(MAKE) html
+
+dist: all
+	mkdir -p dist/fteproxy-0.2.0/bin
+	mkdir -p dist/fteproxy-0.2.0/lib
+	cp -rvf fte dist/fteproxy-$(FTEPROXY_VERSION)/
+	cp -rfv bin/* dist/fteproxy-$(FTEPROXY_VERSION)/bin/
+	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstcompile dist/fteproxy-$(FTEPROXY_VERSION)/bin/
+	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize dist/fteproxy-$(FTEPROXY_VERSION)/bin/
+	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstprint dist/fteproxy-$(FTEPROXY_VERSION)/bin/
+	cp $(THIRD_PARTY_DIR)/re2/obj/so/libre2.so dist/fteproxy-$(FTEPROXY_VERSION)/lib/
+	cd dist/fteproxy-$(FTEPROXY_VERSION)/lib/ && ln -s libre2.so libre2.so.0
+	cp README.md dist/fteproxy-$(FTEPROXY_VERSION)/
+	cp COPYING dist/fteproxy-$(FTEPROXY_VERSION)/
