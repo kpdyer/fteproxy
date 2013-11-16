@@ -1,5 +1,7 @@
 #!/bin/sh
 
+# assumes proxy is running on 127.0.0.1:8081
+
 sudo pkill -9 -f fteproxy
 sudo pkill -9 -f tor
 
