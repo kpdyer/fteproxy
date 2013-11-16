@@ -1,7 +1,7 @@
 #!/bin/sh
 
 BUILD_DIR=$HOME
-CODENAME=`grep -oP 'CODENAME=(.+)' -m 1 /etc/lsb-release | awk -F= '{ print $NF }'`
+CODENAME=`lsb_release -sc`
 
 # install fte depedencies
 sudo apt-get update
