@@ -36,6 +36,9 @@ git clone https://github.com/redjack/fteproxy.git
 cd fteproxy
 make all
 sudo make install
+sudo touch /etc/bash.bashrc
+sudo sh -c "echo "LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH" >> /etc/bash.bashrc"
+LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 
 # restart tor to pickup fte changes
 sudo cp $BUILD_DIR/fteproxy/tor/torrc.client /etc/tor/torrc
