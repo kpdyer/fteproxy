@@ -68,8 +68,6 @@ phantom:
 	@cd doc && $(MAKE) html
 
 dist: all
-	rm -rfv dist
-	mkdir -p dist
 	PATH=bin:$(PATH) pyinstaller --clean packaging/fteproxy.spec
 	cp README.md dist/
 	cp COPYING dist/
