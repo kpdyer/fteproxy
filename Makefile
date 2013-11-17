@@ -15,33 +15,22 @@ OPENFST_TGZ=http://www.openfst.org/twiki/pub/FST/FstDownload/openfst-$(OPENFST_V
 
 all: fte/cDFA.so
 
-install: all
-	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstcompile $(PREFIX)/bin/
-	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize $(PREFIX)/bin/
-	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstprint $(PREFIX)/bin/
-	python setup.py install --prefix=$(PREFIX)
+install: dist
+	cp dist/fteproxy $(PREFIX)/bin/
 	@echo ""
 	@echo "###########################################################"
 	@echo "#"
 	@echo "# Installation complete!!"
 	@echo "# "
-	@echo "# For fteproxy to work, you must ensure:"
-	@echo "#"
-	@echo "#   /usr/local/bin"
-	@echo "#"
-	@echo "# is in your PATH, and"
-	@echo "#"
-	@echo "#   /usr/local/lib"
-	@echo "#"
-	@echo "# is in your LD_LIBRARY_PATH."
+	@echo "# !!! For fteproxy to work, you must ensure $(PREFIX) is in your PATH!"
 	@echo "#"
 	@echo "###########################################################"
 	@echo ""
 
-fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/so/libre2.so
+fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/so/libre2.so bin/fstcompile bin/fstprint bin/fstminimize
 	python setup.py build_ext --inplace
 
-$(THIRD_PARTY_DIR)/re2/obj/libre2.a: $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize
+$(THIRD_PARTY_DIR)/re2/obj/libre2.a: bin/fstminimize bin/fstprint bin/fstcompile
 	cd $(THIRD_PARTY_DIR) && wget $(RE2_TGZ)
 	cd $(THIRD_PARTY_DIR) && tar zxvf re2-20130115.tgz
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-001.patch
@@ -73,12 +62,6 @@ test:
 	@PATH=./bin:./$(THIRD_PARTY_DIR)/openfst-1.3.3/src/bin:$(PATH) ./systemtests
 
 uninstall:
-	@rm -rfv /usr/local/fteproxy
-	@rm -vf /usr/local/lib/libfst*
-	@rm -vf /usr/local/lib/libre2*
-	@rm -rfv /usr/local/lib/python2.7/dist-packages/fte
-	@rm -rfv /usr/local/lib/python2.7/dist-packages/cDFAs
-	@rm -fv /usr/local/lib/python2.7/dist-packages/Format_Transforming_Encrypion_*-info
 	@rm -fv /usr/local/bin/fteproxy
 
 doc: phantom
@@ -88,9 +71,13 @@ phantom:
 dist: all
 	rm -rfv dist
 	mkdir -p dist
-	PATH=bin:$(PATH) pyinstaller packaging/fteproxy.spec
-	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstcompile dist/
-	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize dist/
-	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstprint dist/
+	PATH=bin:$(PATH) pyinstaller --clean packaging/fteproxy.spec
 	cp README.md dist/
 	cp COPYING dist/
+
+bin/fstminimize: 
+	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize bin/
+bin/fstcompile: 
+	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstcompile bin/
+bin/fstprint: 
+	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstprint bin/

@@ -5,6 +5,9 @@ a = Analysis(['./bin/fteproxy'],
              hookspath=None,
              runtime_hooks=None)
 a.datas += [('fte/defs/20131110.json','fte/defs/20131110.json','DATA')]
+a.datas += [('bin/fstprint','bin/fstprint','BINARY')]
+a.datas += [('bin/fstcompile','bin/fstcompile','BINARY')]
+a.datas += [('bin/fstminimize','bin/fstminimize','BINARY')]
 pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts,

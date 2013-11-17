@@ -17,6 +17,7 @@
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import sys
 import tempfile
 
 
@@ -32,11 +33,30 @@ def module_path():
     return os.path.dirname(__file__)
 
 
+def we_are_frozen():
+    return hasattr(sys, "frozen")
+
+
 conf = {}
 
 
 """The base path for the location of the fte.* modules."""
 conf['general.base_dir'] = os.path.abspath(os.path.join(module_path()))
+
+
+"""Directory containing binary executables"""
+if we_are_frozen():
+    invoked_script = os.path.realpath(__file__)
+    invoked_script = invoked_script.split('/')
+    invoked_script = invoked_script[:-1]
+    bin_path = os.path.join('/'.join(invoked_script), '..', 'bin')
+    conf['general.bin_dir'] = bin_path
+else:
+    conf['general.bin_dir'] = os.path.abspath(os.path.join(module_path(),'..','bin'))
+
+
+"""The path for fte *.json definition files."""
+conf['general.defs_dir'] = os.path.abspath(os.path.join(module_path(),'..','fte','defs'))
 
 
 """The location that we store *.pid files, such that we can kill FTE from the command line."""

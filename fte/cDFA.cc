@@ -325,7 +325,7 @@ std::string attFstFromRegex(std::string str_dfa)
     return retval;
 }
 
-std::string attFstMinimize(std::string str_dfa)
+std::string attFstMinimize(std::string fst_path, std::string str_dfa)
 {
     // TODO: Throw exception if fstcompile, fstminimize or fstprint don't exist in system path
     // TODO: Throw exception if we fail to generate abspath_dfa_min
@@ -350,15 +350,15 @@ std::string attFstMinimize(std::string str_dfa)
 
     std::string cmd;
     // convert our ATT DFA string to an FST
-    cmd = "fstcompile " + abspath_dfa + " " + abspath_fst;
+    cmd = fst_path + "/fstcompile " + abspath_dfa + " " + abspath_fst;
     system(cmd.c_str());
 
     // convert our FST to a minmized FST
-    cmd = "fstminimize " + abspath_fst + " " + abspath_fst_min;
+    cmd = fst_path + "/fstminimize " + abspath_fst + " " + abspath_fst_min;
     system(cmd.c_str());
 
     // covert our minimized FST to an ATT FST string
-    cmd = "fstprint " + abspath_fst_min + " " + abspath_dfa_min;
+    cmd = fst_path + "/fstprint " + abspath_fst_min + " " + abspath_dfa_min;
     system(cmd.c_str());
 
     // read the contents of of the file at abspath_dfa_min to our retval
