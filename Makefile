@@ -27,7 +27,7 @@ install: dist
 	@echo "###########################################################"
 	@echo ""
 
-fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/so/libre2.so bin/fstcompile bin/fstprint bin/fstminimize
+fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/libre2.a bin/fstcompile bin/fstprint bin/fstminimize
 	python setup.py build_ext --inplace
 
 $(THIRD_PARTY_DIR)/re2/obj/libre2.a: bin/fstminimize bin/fstprint bin/fstcompile
@@ -36,7 +36,6 @@ $(THIRD_PARTY_DIR)/re2/obj/libre2.a: bin/fstminimize bin/fstprint bin/fstcompile
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-001.patch
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-002.patch
 	cd $(RE2_DIR) && $(MAKE) obj/libre2.a
-	#cd $(RE2_DIR) && $(MAKE) obj/so/libre2.so
 
 $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize:
 	cd $(THIRD_PARTY_DIR) && wget $(OPENFST_TGZ)
