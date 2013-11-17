@@ -33,10 +33,6 @@ def module_path():
     return os.path.dirname(__file__)
 
 
-def we_are_frozen():
-    return hasattr(sys, "frozen")
-
-
 conf = {}
 
 
@@ -45,14 +41,7 @@ conf['general.base_dir'] = os.path.abspath(os.path.join(module_path()))
 
 
 """Directory containing binary executables"""
-if we_are_frozen():
-    invoked_script = os.path.realpath(__file__)
-    invoked_script = invoked_script.split('/')
-    invoked_script = invoked_script[:-1]
-    bin_path = os.path.join('/'.join(invoked_script), '..', 'bin')
-    conf['general.bin_dir'] = bin_path
-else:
-    conf['general.bin_dir'] = os.path.abspath(os.path.join(module_path(),'..','bin'))
+conf['general.bin_dir'] = os.path.abspath(os.path.join(module_path(),'..','bin'))
 
 
 """The path for fte *.json definition files."""
