@@ -27,6 +27,10 @@ Dependencies for building from source:
 * Twisted: http://twistedmatrix.com/trac/
 * boost (python, system, filesystem): http://www.boost.org/
 
+Dependencies for integration with Tor:
+* obfsproxy: https://pypi.python.org/pypi/obfsproxy
+* pyptlib: https://pypi.python.org/pypi/pyptlib
+
 Building
 -----------
 
