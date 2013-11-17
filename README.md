@@ -32,7 +32,7 @@ Dependencies for building from source:
 Building
 -----------
 
-For platform-specific build instructions see: BUILDING.[linux|osx|windows]
+For platform-specific instructions on how to install dependencies see: BUILDING.[linux|osx|windows]
 
 Once all dependencies are installed, it's as simple as:
 
