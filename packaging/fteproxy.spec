@@ -1,6 +1,6 @@
 # -*- mode: python -*-
 a = Analysis(['./bin/fteproxy'],
-             pathex=['/home/vagrant/fteproxy'],
+             pathex=['.'],
              hiddenimports=[],
              hookspath=None,
              runtime_hooks=None)
