@@ -19,7 +19,6 @@ Dependencies
 
 Dependencies for building from source:
 * Standard build tools: gcc/g++/make/etc.
-* git: http://git-scm.com/
 * Python 2.7: http://python.org
 * GMP: http://gmplib.org/
 * gmpy: https://code.google.com/p/gmpy/
