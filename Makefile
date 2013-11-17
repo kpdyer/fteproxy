@@ -14,18 +14,26 @@ OPENFST_VERSION=1.3.3
 OPENFST_TGZ=http://www.openfst.org/twiki/pub/FST/FstDownload/openfst-$(OPENFST_VERSION).tar.gz
 
 all: fte/cDFA.so
+	pyinstaller --clean packaging/fteproxy.spec
+	cp README.md dist/
+	cp COPYING dist/
 
-install: dist
-	cp dist/fteproxy $(PREFIX)/bin/
-	@echo ""
-	@echo "###########################################################"
-	@echo "#"
-	@echo "# Installation complete!!"
-	@echo "# "
-	@echo "# !!! For fteproxy to work, you must ensure $(PREFIX) is in your PATH!"
-	@echo "#"
-	@echo "###########################################################"
-	@echo ""
+install:
+	if [ -a dist/fteproxy ];
+	then
+	    cp dist/fteproxy $(PREFIX)/bin/
+	    @echo ""
+	    @echo "###########################################################"
+	    @echo "#"
+	    @echo "# Installation complete!!"
+	    @echo "# "
+	    @echo "# !!! For fteproxy to work, you must ensure $(PREFIX) is in your PATH!"
+	    @echo "#"
+	    @echo "###########################################################"
+	    @echo ""
+	else
+	    @echo "Please run \"make\" first."
+	fi;
 
 fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/libre2.a bin/fstcompile bin/fstprint bin/fstminimize
 	python setup.py build_ext --inplace
@@ -66,11 +74,8 @@ uninstall:
 doc: phantom
 phantom:
 	@cd doc && $(MAKE) html
-
+	
 dist: all
-	PATH=bin:$(PATH) pyinstaller --clean packaging/fteproxy.spec
-	cp README.md dist/
-	cp COPYING dist/
 
 bin/fstminimize: $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize
 	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize bin/
