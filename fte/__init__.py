@@ -381,12 +381,14 @@ def wrap_socket(sock,
 
 
 
+import obfsproxy.network.network as network
+import obfsproxy.network.socks as socks
+import obfsproxy.network.extended_orport as extended_orport
+import obfsproxy.transports.base
 
+import twisted.internet
 
-
-from obfsproxy.transports.base import BaseTransport
-
-class FTETransport(FTEHelper, BaseTransport):
+class FTETransport(FTEHelper, obfsproxy.transports.base.BaseTransport):
 
     def __init__(self, pt_config):
         self._isClient = (fte.conf.getValue('runtime.mode') == 'client')
@@ -458,11 +460,6 @@ class FTETransportServer(FTETransport):
 
 
 def launch_transport_listener(transport, bindaddr, role, remote_addrport, pt_config, ext_or_cookie_file=None):
-    import obfsproxy.network.network as network
-    import obfsproxy.network.socks as socks
-    import obfsproxy.network.extended_orport as extended_orport
-    
-    from twisted.internet import reactor
         
     """
     Launch a listener for 'transport' in role 'role' (socks/client/server/ext_server).
@@ -509,6 +506,6 @@ def launch_transport_listener(transport, bindaddr, role, remote_addrport, pt_con
     else:
         raise InvalidRoleException()
 
-    addrport = reactor.listenTCP(listen_port, factory, interface=listen_host)
+    addrport = twisted.internet.reactor.listenTCP(listen_port, factory, interface=listen_host)
 
     return (addrport.getHost().host, addrport.getHost().port)
