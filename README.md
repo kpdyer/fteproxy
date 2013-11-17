@@ -26,8 +26,6 @@ Dependencies for building from source:
 * PyCrypto: https://www.dlitz.net/software/pycrypto/
 * Twisted: http://twistedmatrix.com/trac/
 * boost (python, system, filesystem): http://www.boost.org/
-
-Dependencies for integration with Tor:
 * obfsproxy: https://pypi.python.org/pypi/obfsproxy
 * pyptlib: https://pypi.python.org/pypi/pyptlib
 
