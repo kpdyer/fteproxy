@@ -7,7 +7,8 @@ FTEPROXY_VERSION=0.2.0
 
 THIRD_PARTY_DIR=thirdparty
 
-RE2_TGZ=https://re2.googlecode.com/files/re2-20130115.tgz
+RE2_VERSION=20130115
+RE2_TGZ=https://re2.googlecode.com/files/re2-$(RE2_VERSION).tgz
 RE2_DIR=$(THIRD_PARTY_DIR)/re2
 
 OPENFST_VERSION=1.3.3
@@ -35,14 +36,14 @@ fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/libre2.a bin/fstcompile bin/fstprint bin
 	python setup.py build_ext --inplace
 
 $(THIRD_PARTY_DIR)/re2/obj/libre2.a: bin/fstminimize bin/fstprint bin/fstcompile
-	cd $(THIRD_PARTY_DIR) && wget $(RE2_TGZ)
+	cd $(THIRD_PARTY_DIR) && curl $(RE2_TGZ) > re2-$(RE2_VERSION).tgz
 	cd $(THIRD_PARTY_DIR) && tar zxvf re2-20130115.tgz
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-001.patch
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-002.patch
 	cd $(RE2_DIR) && $(MAKE) obj/libre2.a
 
 $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize:
-	cd $(THIRD_PARTY_DIR) && wget $(OPENFST_TGZ)
+	cd $(THIRD_PARTY_DIR) && curl $(OPENFST_TGZ) > openfst-$(OPENFST_VERSION).tar.gz
 	cd $(THIRD_PARTY_DIR) && tar zxvf openfst-$(OPENFST_VERSION).tar.gz
 	cd $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION) && ./configure --enable-fast-install --disable-dependency-tracking --disable-shared --enable-static --prefix=$(PREFIX)
 	cd $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION) && $(MAKE)
