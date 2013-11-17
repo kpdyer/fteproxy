@@ -19,21 +19,17 @@ all: fte/cDFA.so
 	cp COPYING dist/
 
 install:
-	if [ -a dist/fteproxy ];
-	then
-	    cp dist/fteproxy $(PREFIX)/bin/
-	    @echo ""
-	    @echo "###########################################################"
-	    @echo "#"
-	    @echo "# Installation complete!!"
-	    @echo "# "
-	    @echo "# !!! For fteproxy to work, you must ensure $(PREFIX) is in your PATH!"
-	    @echo "#"
-	    @echo "###########################################################"
-	    @echo ""
-	else
-	    @echo "Please run \"make\" first."
-	fi;
+	@test -s dist/fteproxy || { echo "Please run \"make\" first."; exit 1; }
+	cp dist/fteproxy $(PREFIX)/bin/
+	@echo ""
+	@echo "###########################################################"
+	@echo "#"
+	@echo "# Installation complete!!"
+	@echo "# "
+	@echo "# !!! For fteproxy to work, you must ensure $(PREFIX) is in your PATH!"
+	@echo "#"
+	@echo "###########################################################"
+	@echo ""
 
 fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/libre2.a bin/fstcompile bin/fstprint bin/fstminimize
 	python setup.py build_ext --inplace
