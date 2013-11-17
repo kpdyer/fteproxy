@@ -39,7 +39,7 @@ Once all dependencies are installed, it's as simple as:
 ```
 git clone https://github.com/redjack/fteproxy.git
 cd fteproxy
-make all
+make
 sudo make install
 ```
 
