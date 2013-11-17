@@ -384,10 +384,7 @@ def wrap_socket(sock,
 
 
 
-try:
-    from obfsproxy.transports.base import BaseTransport
-except:
-    pass
+from obfsproxy.transports.base import BaseTransport
 
 class FTETransport(FTEHelper, BaseTransport):
 

@@ -16,8 +16,9 @@ OPENFST_TGZ=http://www.openfst.org/twiki/pub/FST/FstDownload/openfst-$(OPENFST_V
 all: fte/cDFA.so
 
 install: all
-	cd $(THIRD_PARTY_DIR)/re2 && make install
-	cd $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION) && make install
+	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstcompile $(PREFIX)/bin/
+	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize $(PREFIX)/bin/
+	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstprint $(PREFIX)/bin/
 	python setup.py install --prefix=$(PREFIX)
 	@echo ""
 	@echo "###########################################################"
@@ -40,13 +41,13 @@ install: all
 fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/so/libre2.so
 	python setup.py build_ext --inplace
 
-$(THIRD_PARTY_DIR)/re2/obj/so/libre2.so: $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize
+$(THIRD_PARTY_DIR)/re2/obj/libre2.a: $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize
 	cd $(THIRD_PARTY_DIR) && wget $(RE2_TGZ)
 	cd $(THIRD_PARTY_DIR) && tar zxvf re2-20130115.tgz
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-001.patch
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-002.patch
 	cd $(RE2_DIR) && $(MAKE) obj/libre2.a
-	cd $(RE2_DIR) && $(MAKE) obj/so/libre2.so
+	#cd $(RE2_DIR) && $(MAKE) obj/so/libre2.so
 
 $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize:
 	cd $(THIRD_PARTY_DIR) && wget $(OPENFST_TGZ)
@@ -68,8 +69,8 @@ clean:
 	@cd doc && $(MAKE) clean
 
 test:
-	@LD_LIBRARY_PATH=$(THIRD_PARTY_DIR)/re2/obj/so:$(LD_LIBRARY_PATH) PATH=./bin:./$(THIRD_PARTY_DIR)/openfst-1.3.3/src/bin:$(PATH) ./unittests
-	@LD_LIBRARY_PATH=$(THIRD_PARTY_DIR)/re2/obj/so:$(LD_LIBRARY_PATH) PATH=./bin:./$(THIRD_PARTY_DIR)/openfst-1.3.3/src/bin:$(PATH) ./systemtests
+	@PATH=./bin:./$(THIRD_PARTY_DIR)/openfst-1.3.3/src/bin:$(PATH) ./unittests
+	@PATH=./bin:./$(THIRD_PARTY_DIR)/openfst-1.3.3/src/bin:$(PATH) ./systemtests
 
 uninstall:
 	@rm -rfv /usr/local/fteproxy
@@ -85,14 +86,11 @@ phantom:
 	@cd doc && $(MAKE) html
 
 dist: all
-	mkdir -p dist/fteproxy-0.2.0/bin
-	mkdir -p dist/fteproxy-0.2.0/lib
-	cp -rvf fte dist/fteproxy-$(FTEPROXY_VERSION)/
-	cp -rfv bin/* dist/fteproxy-$(FTEPROXY_VERSION)/bin/
-	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstcompile dist/fteproxy-$(FTEPROXY_VERSION)/bin/
-	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize dist/fteproxy-$(FTEPROXY_VERSION)/bin/
-	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstprint dist/fteproxy-$(FTEPROXY_VERSION)/bin/
-	cp $(THIRD_PARTY_DIR)/re2/obj/so/libre2.so dist/fteproxy-$(FTEPROXY_VERSION)/lib/
-	cd dist/fteproxy-$(FTEPROXY_VERSION)/lib/ && ln -s libre2.so libre2.so.0
-	cp README.md dist/fteproxy-$(FTEPROXY_VERSION)/
-	cp COPYING dist/fteproxy-$(FTEPROXY_VERSION)/
+	rm -rfv dist
+	mkdir -p dist
+	PATH=bin:$(PATH) pyinstaller packaging/fteproxy.spec
+	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstcompile dist/
+	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize dist/
+	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstprint dist/
+	cp README.md dist/
+	cp COPYING dist/

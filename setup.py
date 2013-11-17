@@ -6,7 +6,7 @@ from distutils.core import Extension
 fte_cDFA = Extension('fte.cDFA',
                      include_dirs=['fte',
                                    'thirdparty/re2'],
-                     library_dirs=['thirdparty/re2/obj/so'],
+                     library_dirs=['thirdparty/re2/obj'],
                      extra_compile_args=['-O3',
                                          '-fstack-protector-all',
                                          '-D_FORTIFY_SOURCE',
