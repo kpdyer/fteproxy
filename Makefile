@@ -57,6 +57,7 @@ clean:
 	@rm -vf $(THIRD_PARTY_DIR)/*.tgz
 	@rm -vf src/*.o
 	@rm -vf fte/*.so
+	@rm -vf bin/fst*
 	@rm -vf socks.log
 	@cd doc && $(MAKE) clean
 
