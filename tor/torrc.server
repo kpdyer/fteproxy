@@ -3,8 +3,8 @@ BridgeRelay 1
 Exitpolicy reject *:*
 PublishServerDescriptor 0
 
-Nickname fteserver
-ContactInfo fteadmin@fteproxy.org
+# Nickname [SET ME!]
+# ContactInfo [SET ME!]
 
 ServerTransportListenAddr fte 0.0.0.0:8080
 ServerTransportPlugin fte exec /usr/local/bin/fteproxy --managed --mode server
