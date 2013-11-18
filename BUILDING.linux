@@ -1,25 +1,7 @@
 Installing Dependencies
 -----------------------
 
-Debian 7.1.0:
-
-sudo apt-get update
-sudo apt-get -y install m4
-sudo apt-get -y install git
-sudo apt-get -y install python-dev
-sudo apt-get -y install python-gmpy
-sudo apt-get -y install python-crypto
-sudo apt-get -y install python-twisted
-sudo apt-get -y install libboost-python-dev
-sudo apt-get -y install libboost-system-dev
-sudo apt-get -y install libboost-filesystem-dev
-sudo apt-get -y install libgmp-dev
-sudo apt-get -y install python-pip
-sudo pip install obfsproxy
-sudo pip install pyptlib
-sudo pip install pyinstaller
-
-Ubuntu 12.04/12.10/13.04:
+Debian 7.1.0, Ubuntu 12.04/12.10/13.04:
 
 sudo apt-get update
 sudo apt-get -y install build-essential
@@ -39,7 +21,7 @@ sudo pip install obfsproxy
 sudo pip install pyptlib
 sudo pip install pyinstaller
 
-Building fteproxy
+Building/Installing fteproxy
 -----------------
 
 git clone https://github.com/kpdyer/fteproxy.git
