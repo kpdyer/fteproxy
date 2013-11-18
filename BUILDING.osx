@@ -29,8 +29,7 @@ sudo pip install obfsproxy
 sudo pip install pyptlib
 sudo pip install pyinstaller
 
-cd ~
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
-make
+make -j`nproc`
 sudo make install
