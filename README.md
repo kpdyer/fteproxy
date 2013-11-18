@@ -2,7 +2,7 @@ fteproxy
 ========
 
 * homepage: https://fteproxy.org
-* source code: https://github.com/redjack/fteproxy
+* source code: https://github.com/kpdyer/fteproxy
 * publication: https://eprint.iacr.org/2012/494
 
 Overview
