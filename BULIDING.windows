@@ -7,23 +7,32 @@
 # install python 2.7
 # install py2exe
 # install openssl
+# install apt-cyg
 
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P asciidoc
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P bash
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P ca-certificates
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P coreutils
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P curl
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gcc
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P git
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gnupg
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P grep
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P make
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-gcc-core
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P perl
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P tar
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P unzip
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P wget
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P zip
+# http://code.google.com/p/apt-cyg/issues/detail?id=23
+wget http://apt-cyg.googlecode.com/svn/trunk/apt-cyg
+sed -e 's%wget -N \$mirror/%&x86/%' -i apt-cyg
+
+# update installed packages
+./apt-cyg update
+
+
+./apt-cyg install asciidoc
+./apt-cyg install bash
+./apt-cyg install ca-certificates
+./apt-cyg install coreutils
+./apt-cyg install curl
+./apt-cyg install gcc
+./apt-cyg install git
+./apt-cyg install gnupg
+./apt-cyg install grep
+./apt-cyg install make
+./apt-cyg install mingw-gcc-core
+./apt-cyg install perl
+./apt-cyg install tar
+./apt-cyg install unzip
+./apt-cyg install wget
+./apt-cyg install zip
 
 
 cp /usr/bin/i686-pc-mingw32-gcc /usr/bin/gcc
