@@ -19,12 +19,14 @@
 
 import unittest
 
+import fte.conf
 import fte.cDFA
 
 
 class TestcDFA(unittest.TestCase):
 
     def testMakeDFA(self):
+        fst_path = fte.conf.getValue('general.bin_dir')
         for i in range(1, 6):
             with open('fte/tests/dfas/test' + str(i) + '.regex') as fh:
                 regex = fh.read()
@@ -33,7 +35,7 @@ class TestcDFA(unittest.TestCase):
                 expected_fst = fh.read()
 
             actual_fst = fte.cDFA.attFstFromRegex(regex)
-            actual_fst = fte.cDFA.attFstMinimize(actual_fst)
+            actual_fst = fte.cDFA.attFstMinimize(fst_path, actual_fst)
             actual_fst = actual_fst.strip()
 
             self.assertEquals(actual_fst, expected_fst)

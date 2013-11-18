@@ -76,12 +76,13 @@ DFA::DFA(std::string dfa_str, uint32_t max_len)
         } else if (SplitVec.size()==1) {
             uint32_t final_state = strtol(SplitVec[0].c_str(),NULL,10);
             _final_states.insert( final_state );
+            states.insert( final_state );
         } else {
             // TODO: throw exception because we don't understand the file format
         }
 
     }
-    states.insert( states.size() );
+    states.insert( states.size() ); // extra for the "dead" state
 
     _num_symbols = symbols.size();
     _num_states = states.size();
@@ -146,6 +147,12 @@ void DFA::_buildTable() {
 
     // ensure our table _T is the correct size
     _T.resize(boost::extents[_num_states][_max_len+1]);
+    
+    for (i=0; i<=_max_len; i++) {
+        for (q=0; q<_num_states; q++) {
+                _T[q][i] = 0;
+        }
+    }
 
     // set all _T[q][0] = 1 for all states in _final_states
     boost::unordered_set<uint32_t>::iterator state;
@@ -207,7 +214,8 @@ std::string DFA::unrank(PyObject * c_in) {
             state_cursor = _delta[q][char_cursor];
             while (c >= _T[state_cursor][chars_left]) {
                 c -= _T[state_cursor][chars_left];
-                state_cursor =_delta[q][++char_cursor];
+                char_cursor += 1;
+                state_cursor =_delta[q][char_cursor];
             }
             retval += _sigma[char_cursor];
             q = state_cursor;
@@ -294,7 +302,7 @@ PyObject* DFA::getNumWordsInLanguage( uint32_t min_word_length,
     return retval;
 }
 
-std::string attFstFromRegex(std::string str_dfa)
+std::string attFstFromRegex(std::string str_regex)
 {
     // TODO: Throw exception if DFA is not generated correctly (how do we determine this case?)
     // TODO: Identify when DFA has >N states, then throw exception
@@ -314,7 +322,7 @@ std::string attFstFromRegex(std::string str_dfa)
 
     // compile regex to DFA
     RE2::Options opt;
-    re2::Regexp* re = re2::Regexp::Parse( str_dfa, re_flags, &status );
+    re2::Regexp* re = re2::Regexp::Parse( str_regex, re_flags, &status );
     re2::Prog* prog = re->CompileToProg( opt.max_mem() );
     retval = prog->PrintEntireDFA( re2::Prog::kFullMatch );
 

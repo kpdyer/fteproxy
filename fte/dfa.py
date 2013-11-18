@@ -29,6 +29,9 @@ class LanguageIsEmptySetException(Exception):
     pass
 
 
+class IntegerOutOfRangeException(Exception):
+    pass
+
 class DFA(object):
 
     def __init__(self, dfa, max_len):
@@ -62,10 +65,14 @@ class DFA(object):
     def unrank(self, c):
         """The inverse of ``rank``.
         """
+        
+        if c > (self._words_in_slice-1):
+            raise IntegerOutOfRangeException()
 
         c = gmpy.mpz(c)
         c += self._offset
         X = self._dfa.unrank(c)
+
         return str(X)
 
     def getCapacity(self):
