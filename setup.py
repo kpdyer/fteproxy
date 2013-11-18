@@ -13,7 +13,6 @@ fte_cDFA = Extension('fte.cDFA',
                                          '-fPIE',
                                          ],
                      extra_link_args=['-fPIC',
-                                      '-Wl,-no-undefined',
                                       'thirdparty/re2/obj/libre2.a'
                                       ],
                      libraries=['gmp',
