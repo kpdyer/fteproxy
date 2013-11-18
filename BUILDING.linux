@@ -16,6 +16,7 @@ sudo apt-get -y install libboost-filesystem-dev
 sudo apt-get -y install libgmp-dev
 sudo apt-get -y install python-pip
 sudo pip install obfsproxy
+sudo pip install pyptlib
 sudo pip install pyinstaller
 
 Ubuntu 12.04/12.10/13.04:
@@ -35,6 +36,7 @@ sudo apt-get -y install libboost-filesystem-dev
 sudo apt-get -y install libgmp-dev
 sudo apt-get -y install python-pip
 sudo pip install obfsproxy
+sudo pip install pyptlib
 sudo pip install pyinstaller
 
 Building fteproxy
@@ -42,5 +44,5 @@ Building fteproxy
 
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
-make all
+make
 sudo make install
