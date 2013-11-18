@@ -1,1 +1,59 @@
-TODO
+#!/bin/sh
+
+# set IP address to 192.168.10.11
+# set DNS to 8.8.8.8
+
+# install cygwin
+# install python 2.7
+# install py2exe
+# install openssl
+
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P asciidoc
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P bash
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P ca-certificates
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P coreutils
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P curl
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gcc
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P git
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gnupg
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P grep
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P make
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-gcc-core
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P perl
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P tar
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P unzip
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P wget
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P zip
+
+
+cp /usr/bin/i686-pc-mingw32-gcc /usr/bin/gcc
+
+
+cd ~
+curl https://pypi.python.org/packages/source/s/setuptools/setuptools-1.1.6.tar.gz > setuptools-1.1.6.tar.gz
+tar zxvf setuptools-1.1.6.tar.gz
+cd setuptools-1.1.6
+/cygdrive/c/Python27/python setup.py install
+
+cd ~
+curl https://ftp.dlitz.net/pub/dlitz/crypto/pycrypto/pycrypto-2.6.tar.gz > pycrypto-2.6.tar.gz
+tar zxvf pycrypto-2.6.tar.gz
+cd pycrypto-2.6
+CROSS_COMPILE=i686-pc-mingw32- ./configure shared mingw
+sed -i /cygdrive/c/Python27/Lib/distutils/cygwinccompiler.py -e 's/-mno-cygwin//g'
+sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/io.h -e 's/off64_t/_off64_t/g'
+sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/unistd.h -e 's/off_t/_off_t/g'
+/cygdrive/c/Python27/python setup.py build -cmingw32
+/cygdrive/c/Python27/python setup.py install
+
+
+cd ~
+curl http://twistedmatrix.com/Releases/Twisted/12.3/Twisted-12.3.0.win32-py2.7.msi > Twisted-12.3.0.win32-py2.7.msi
+msiexec /q /i Twisted-12.3.0.win32-py2.7.msi
+
+
+cd ~
+git clone https://github.com/kpdyer/fteproxy.git
+cd fteproxy
+make
+sudo make install
