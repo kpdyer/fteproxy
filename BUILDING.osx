@@ -16,7 +16,7 @@ export PATH=/usr/local/bin:$PATH
 ruby -e "$(curl -fsSL https://raw.github.com/mxcl/homebrew/go)"
 
 # required only if running a hackintoch in virtualbox, must perform after homebrew install
-sudo sed -i -e 's/native/core2/g' /usr/local/Library/ENV/4.3/cc
+sudo sed -i -e 's/march=native/march=core2/g' /usr/local/Library/ENV/4.3/cc
 
 brew install boost --build-from-source
 brew install gmp
