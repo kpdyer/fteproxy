@@ -40,7 +40,7 @@ sudo pip install pyinstaller
 Building fteproxy
 -----------------
 
-git clone https://github.com/redjack/fteproxy.git
+git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
 make all
 sudo make install
