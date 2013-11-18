@@ -37,7 +37,7 @@ For platform-specific instructions on how to install dependencies see: BUILDING.
 Once all dependencies are installed, it's as simple as:
 
 ```
-git clone https://github.com/redjack/fteproxy.git
+git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
 make
 sudo make install
