@@ -55,5 +55,5 @@ msiexec /q /i Twisted-12.3.0.win32-py2.7.msi
 cd ~
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
-make
+make -j`nproc`
 sudo make install
