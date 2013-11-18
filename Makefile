@@ -15,7 +15,7 @@ OPENFST_VERSION=1.3.3
 OPENFST_TGZ=http://www.openfst.org/twiki/pub/FST/FstDownload/openfst-$(OPENFST_VERSION).tar.gz
 
 all: fte/cDFA.so
-	pyinstaller --clean packaging/fteproxy.spec
+	pyinstaller fteproxy.spec
 	cp README.md dist/
 	cp COPYING dist/
 
