@@ -8,9 +8,10 @@ fteproxy
 Overview
 --------
 
-fteproxy is client-server proxy powered by Format-Transforming Encryption (FTE) [1] capable of tunneling arbitrary TCP streams.
-FTE uses regular expressions, specified at runtime, to format messages on the wire.
-That is, given a regular epxression R, fteproxy can tunnel arbitrary TCP streams by transmitting messages from the language L(R).
+fteproxy provides transport-layer protection to resist keyword filtering, censorship and discrimantory routing policies.
+It's job is to relay datastreams, such as web browsing traffic, by encoding the stream into messages that satisfy a user-specified regular expression. 
+
+fteproxy is powered by Format-Transforming Encryption [1] and was presented as CCS 2013.
 
 [1] https://eprint.iacr.org/2012/494
 
