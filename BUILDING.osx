@@ -1,1 +1,34 @@
-TODO
+#!/bin/sh
+
+# Tested on OSX 10.8
+
+# install all system updates
+# install xcode
+# install xcode command line tools
+# enable password-less sudo
+
+# required only if running a hackintoch in virtualbox
+sudo sed -i 's/native/core2/g' /usr/local/Library/ENV/4.3/cc
+
+export PATH=/usr/local/bin:$PATH
+
+# install homebrew
+ruby -e "$(curl -fsSL https://raw.github.com/mxcl/homebrew/go)"
+
+brew install boost --build-from-source
+brew install gmp
+brew install git
+
+sudo easy_install pip
+pip install --upgrade pip
+pip install --upgrade setuptools
+sudo pip install gmpy
+sudo pip install obfsproxy
+sudo pip install pyptlib
+sudo pip install pyinstaller
+
+cd ~
+git clone https://github.com/kpdyer/fteproxy.git
+cd fteproxy
+make
+sudo make install
