@@ -8,7 +8,7 @@
 # enable password-less sudo
 
 # required only if running a hackintoch in virtualbox
-sudo sed -i 's/native/core2/g' /usr/local/Library/ENV/4.3/cc
+sudo sed -i -e 's/native/core2/g' /usr/local/Library/ENV/4.3/cc
 
 export PATH=/usr/local/bin:$PATH
 
