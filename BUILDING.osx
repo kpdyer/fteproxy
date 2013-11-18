@@ -2,10 +2,11 @@
 
 # Tested on OSX 10.8
 
-# install all system updates
 # install xcode
 # install xcode command line tools
 # enable password-less sudo
+
+sudo softwareupdate --install --all
 
 # required only if running a hackintoch in virtualbox
 sudo sed -i -e 's/native/core2/g' /usr/local/Library/ENV/4.3/cc
