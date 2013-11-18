@@ -12,6 +12,7 @@ sudo softwareupdate --install --all
 # required only if running a hackintoch in virtualbox
 sudo sed -i -e 's/native/core2/g' /usr/local/Library/ENV/4.3/cc
 
+echo export PATH='/usr/local/bin:$PATH' >> ~/.bash_profile
 export PATH=/usr/local/bin:$PATH
 
 # install homebrew
