@@ -20,8 +20,8 @@ brew install gmp
 brew install git
 
 sudo easy_install pip
-pip install --upgrade pip
-pip install --upgrade setuptools
+sudo pip install --upgrade pip
+sudo pip install --upgrade setuptools
 sudo pip install gmpy
 sudo pip install obfsproxy
 sudo pip install pyptlib
