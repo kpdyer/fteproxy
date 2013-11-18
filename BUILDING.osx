@@ -5,6 +5,7 @@
 # install xcode
 # install xcode command line tools
 # enable password-less sudo
+# enable ssh access
 
 sudo softwareupdate --install --all
 
