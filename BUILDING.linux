@@ -26,5 +26,5 @@ Building/Installing fteproxy
 
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
-make
+make -j`nproc`
 sudo make install
