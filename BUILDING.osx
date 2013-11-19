@@ -18,12 +18,15 @@ export PATH="/usr/local/bin:/usr/local/share/python:${PATH}"
 ruby -e "$(curl -fsSL https://raw.github.com/mxcl/homebrew/go)"
 
 # required only if running a hackintoch in virtualbox, must perform after homebrew install
+# see: https://github.com/kpdyer/fteproxy/issues/64
 sudo sed -i -e 's/march=native/march=core2/g' /usr/local/Library/ENV/4.3/cc
 
+# see: https://github.com/kpdyer/fteproxy/issues/65
 brew install wget
 wget https://raw.github.com/mxcl/homebrew/master/Library/Formula/python.rb
 sudo sed -i -e 's/enable-ipv6/disable-ipv6/g' python.rb
 brew install python.rb
+
 brew install boost
 brew install gmp
 brew install git
@@ -36,10 +39,13 @@ sudo pip install obfsproxy
 sudo pip install pyptlib
 sudo pip install pyinstaller
 
+# see: https://github.com/kpdyer/fteproxy/issues/66
 sudo touch /usr/local/lib/python2.7/site-packages/zope/__init__.py
 
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
+
+# see: https://github.com/kpdyer/fteproxy/issues/67
 make -j`nproc` fte/cDFA.so
 install_name_tool -change /System/Library/Frameworks/Python.framework/Versions/2.7/Python /usr/local/Cellar/python/2.7.6/Frameworks/Python.framework/Python fte/cDFA.so
 make
