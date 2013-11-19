@@ -17,7 +17,6 @@ export PATH="/usr/local/bin:/usr/local/share/python:${PATH}"
 # install homebrew
 ruby -e "$(curl -fsSL https://raw.github.com/mxcl/homebrew/go)"
 
-# required only if running a hackintoch in virtualbox, must perform after homebrew install
 # see: https://github.com/kpdyer/fteproxy/issues/64
 sudo sed -i -e 's/march=native/march=core2/g' /usr/local/Library/ENV/4.3/cc
 
