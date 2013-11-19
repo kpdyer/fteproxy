@@ -1,5 +1,8 @@
 PREFIX=/usr/local
-FTEPROXY_VERSION=0.2.0-`arch`
+PLATFORM=$(shell uname)
+PLATFORM_LOWER=$(shell echo $(PLATFORM) | tr A-Z a-z)
+ARCH=$(shell arch)
+FTEPROXY_VERSION=0.2.0-$(PLATFORM_LOWER)-$(ARCH)
 
 THIRD_PARTY_DIR=thirdparty
 
