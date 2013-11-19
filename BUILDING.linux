@@ -25,4 +25,3 @@ sudo pip install pyinstaller
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
 make -j`nproc`
-sudo make install
