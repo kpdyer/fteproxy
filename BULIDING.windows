@@ -1,5 +1,7 @@
 #!/bin/sh
 
+WORKING_DIR=/vagrant
+
 # set IP address to 192.168.10.11
 # set DNS to 8.8.8.8
 
@@ -9,42 +11,34 @@
 # install openssl
 # install apt-cyg
 
-# http://code.google.com/p/apt-cyg/issues/detail?id=23
-wget http://apt-cyg.googlecode.com/svn/trunk/apt-cyg
-sed -e 's%wget -N \$mirror/%&x86/%' -i apt-cyg
-
-# update installed packages
-./apt-cyg update
-
-
-./apt-cyg install asciidoc
-./apt-cyg install bash
-./apt-cyg install ca-certificates
-./apt-cyg install coreutils
-./apt-cyg install curl
-./apt-cyg install gcc
-./apt-cyg install git
-./apt-cyg install gnupg
-./apt-cyg install grep
-./apt-cyg install make
-./apt-cyg install mingw-gcc-core
-./apt-cyg install perl
-./apt-cyg install tar
-./apt-cyg install unzip
-./apt-cyg install wget
-./apt-cyg install zip
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P asciidoc
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P bash
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P ca-certificates
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P coreutils
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P curl
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gcc
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P git
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gnupg
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P grep
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P make
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-gcc-core
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P perl
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P tar
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P unzip
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P wget
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P zip
 
 
 cp /usr/bin/i686-pc-mingw32-gcc /usr/bin/gcc
 
 
-cd ~
+cd $(WORKING_DIR)
 curl https://pypi.python.org/packages/source/s/setuptools/setuptools-1.1.6.tar.gz > setuptools-1.1.6.tar.gz
 tar zxvf setuptools-1.1.6.tar.gz
 cd setuptools-1.1.6
 /cygdrive/c/Python27/python setup.py install
 
-cd ~
+cd $(WORKING_DIR)
 curl https://ftp.dlitz.net/pub/dlitz/crypto/pycrypto/pycrypto-2.6.tar.gz > pycrypto-2.6.tar.gz
 tar zxvf pycrypto-2.6.tar.gz
 cd pycrypto-2.6
@@ -56,13 +50,12 @@ sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/unistd.h -e 's/off_t/_off_t/g
 /cygdrive/c/Python27/python setup.py install
 
 
-cd ~
+cd $(WORKING_DIR)
 curl http://twistedmatrix.com/Releases/Twisted/12.3/Twisted-12.3.0.win32-py2.7.msi > Twisted-12.3.0.win32-py2.7.msi
 msiexec /q /i Twisted-12.3.0.win32-py2.7.msi
 
 
-cd ~
+cd $(WORKING_DIR)
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
 make -j`nproc`
-sudo make install
