@@ -1,9 +1,5 @@
-# TODO: print warning if /usr/local/bin is not in PATH
-# TODO: print warning if /usr/local/lib is not in LD_LIBRARY_PATH
-# TODO: encourage user to run "make test"
-
 PREFIX=/usr/local
-FTEPROXY_VERSION=0.2.0
+FTEPROXY_VERSION=0.2.0-`arch`
 
 THIRD_PARTY_DIR=thirdparty
 
