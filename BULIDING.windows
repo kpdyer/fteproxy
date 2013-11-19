@@ -10,7 +10,6 @@
 # install apt-cyg
 
 
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -g # update
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P asciidoc
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P bash
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P binutils
