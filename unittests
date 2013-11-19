@@ -1,3 +1,3 @@
 #!/bin/sh
 
-./bin/fteproxy --mode test --quiet
+./dist/fteproxy --mode test --quiet
