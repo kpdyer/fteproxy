@@ -15,9 +15,9 @@ OPENFST_VERSION=1.3.3
 OPENFST_TGZ=http://www.openfst.org/twiki/pub/FST/FstDownload/openfst-$(OPENFST_VERSION).tar.gz
 
 all: fte/cDFA.so
-	mkdir dist/fteproxy-$(FTEPROXY_VERSION)
-	pyinstaller -o dist/fteproxy-$(FTEPROXY_VERSION)/fteproxy fteproxy.spec
-	cd dist && cp fteproxy-$(FTEPROXY_VERSION)/fteproxy .
+	mkdir -p dist/fteproxy-$(FTEPROXY_VERSION)
+	pyinstaller fteproxy.spec
+	cd dist && cp fteproxy fteproxy-$(FTEPROXY_VERSION)/
 	cp README.md dist/fteproxy-$(FTEPROXY_VERSION)
 	cp COPYING dist/fteproxy-$(FTEPROXY_VERSION)
 	cd dist && tar cvf fteproxy-$(FTEPROXY_VERSION).tar fteproxy-$(FTEPROXY_VERSION)
