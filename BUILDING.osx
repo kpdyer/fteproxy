@@ -21,8 +21,8 @@ sudo sed -i -e 's/march=native/march=core2/g' /usr/local/Library/ENV/4.3/cc
 brew install wget
 wget https://raw.github.com/mxcl/homebrew/master/Library/Formula/python.rb
 sudo sed -i -e 's/enable-ipv6/disable-ipv6/g' python.rb
-brew install python.rb --build-from-source
-brew install boost --build-from-source
+brew install python.rb
+brew install boost
 brew install gmp
 brew install git
 
