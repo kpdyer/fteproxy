@@ -10,6 +10,7 @@
 # install apt-cyg
 
 
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -g # update
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P asciidoc
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P bash
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P binutils
@@ -28,7 +29,6 @@
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P unzip
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P wget
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P zip
-
 
 cp /usr/bin/i686-pc-mingw32-gcc-4.7.3 /usr/bin/gcc
 
@@ -49,7 +49,7 @@ bzip2 -d gmp-5.1.3.tar.bz2
 tar xvf gmp-5.1.3.tar
 cd gmp-5.1.3
 ./configure
-make
+make -j`nproc`
 make install
 
 
