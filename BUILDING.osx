@@ -39,5 +39,6 @@ sudo touch /usr/local/lib/python2.7/site-packages/zope/__init__.py
 
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
-make -j`nproc`
+make -j`nproc` fte/cDFA.so
 install_name_tool -change /System/Library/Frameworks/Python.framework/Versions/2.7/Python /usr/local/Cellar/python/2.7.6/Frameworks/Python.framework/Python fte/cDFA.so
+make
