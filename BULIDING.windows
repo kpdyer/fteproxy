@@ -14,6 +14,7 @@
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P asciidoc
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P bash
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P binutils
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P boost
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P bzip2
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P ca-certificates
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P coreutils
@@ -59,7 +60,9 @@ make install
 
 /cygdrive/c/Python27/Scripts/pip install setuptools
 /cygdrive/c/Python27/Scripts/pip install pycrypto
-/cygdrive/c/Python27/Scripts/pip install twisted
+/cygdrive/c/Python27/Scripts/pip install obfsproxy
+/cygdrive/c/Python27/Scripts/pip install pyptlib
+/cygdrive/c/Python27/Scripts/pip install pyinstaller
 
 
 cd /vagrant
