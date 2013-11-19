@@ -32,13 +32,14 @@ WORKING_DIR=/vagrant
 cp /usr/bin/i686-pc-mingw32-gcc /usr/bin/gcc
 
 
-cd $(WORKING_DIR)
+cd $WORKING_DIR
 curl https://pypi.python.org/packages/source/s/setuptools/setuptools-1.1.6.tar.gz > setuptools-1.1.6.tar.gz
 tar zxvf setuptools-1.1.6.tar.gz
 cd setuptools-1.1.6
 /cygdrive/c/Python27/python setup.py install
 
-cd $(WORKING_DIR)
+
+cd $WORKING_DIR
 curl https://ftp.dlitz.net/pub/dlitz/crypto/pycrypto/pycrypto-2.6.tar.gz > pycrypto-2.6.tar.gz
 tar zxvf pycrypto-2.6.tar.gz
 cd pycrypto-2.6
@@ -50,12 +51,12 @@ sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/unistd.h -e 's/off_t/_off_t/g
 /cygdrive/c/Python27/python setup.py install
 
 
-cd $(WORKING_DIR)
+cd $WORKING_DIR
 curl http://twistedmatrix.com/Releases/Twisted/12.3/Twisted-12.3.0.win32-py2.7.msi > Twisted-12.3.0.win32-py2.7.msi
 msiexec /q /i Twisted-12.3.0.win32-py2.7.msi
 
 
-cd $(WORKING_DIR)
+cd $WORKING_DIR
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
 make -j`nproc`
