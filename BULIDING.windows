@@ -28,6 +28,7 @@
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P m4
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P make
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-gcc-core
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P patch
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P perl
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P tar
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P unzip
@@ -54,7 +55,27 @@ make install
 #curl http://softlayer-dal.dl.sourceforge.net/project/boost/boost/1.55.0/boost_1_55_0.tar.gz > boost_1_55_0.tar.gz
 #tar zxvf boost_1_55_0.tar.gz
 #cd boost_1_55_0
-#./b2
+#./b2 -j`nproc`./te 
+
+
+# see: 
+# action "pip install X"
+# error "error: Unable to find vcvarsall.bat"
+echo "[build]" > /cygdrive/c/Python27/Lib/distutils/distutils.cfg
+echo "compiler=mingw32" >> /cygdrive/c/Python27/Lib/distutils/distutils.cfg
+
+# see:
+# action "pip install X"
+# error: "gcc: error: unrecognized command line option ‘-mno-cygwin’"
+# error: "error: command 'gcc' failed with exit status 1"
+sed -i -e 's/ -mno-cygwin//g' /cygdrive/c/Python27/Lib/distutils/cygwinccompiler.py
+
+
+cd ~
+curl https://pypi.python.org/packages/source/s/setuptools/setuptools-1.1.6.tar.gz > setuptools-1.1.6.tar.gz
+tar zxvf setuptools-1.1.6.tar.gz
+cd setuptools-1.1.6
+/cygdrive/c/Python27/python setup.py install
 
 
 cd /vagrant
@@ -64,7 +85,7 @@ cd pip-1.4.1
 /cygdrive/c/Python27/python setup.py install
 
 
-/cygdrive/c/Python27/Scripts/pip install setuptools
+/cygdrive/c/Python27/Scripts/pip install gmpy
 /cygdrive/c/Python27/Scripts/pip install pycrypto
 /cygdrive/c/Python27/Scripts/pip install obfsproxy
 /cygdrive/c/Python27/Scripts/pip install pyptlib
