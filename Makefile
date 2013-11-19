@@ -15,9 +15,13 @@ OPENFST_VERSION=1.3.3
 OPENFST_TGZ=http://www.openfst.org/twiki/pub/FST/FstDownload/openfst-$(OPENFST_VERSION).tar.gz
 
 all: fte/cDFA.so
-	pyinstaller fteproxy.spec
-	cp README.md dist/
-	cp COPYING dist/
+	mkdir dist/fteproxy-$(FTEPROXY_VERSION)
+	pyinstaller -o dist/fteproxy-$(FTEPROXY_VERSION)/fteproxy fteproxy.spec
+	cd dist && cp fteproxy-$(FTEPROXY_VERSION)/fteproxy .
+	cp README.md dist/fteproxy-$(FTEPROXY_VERSION)
+	cp COPYING dist/fteproxy-$(FTEPROXY_VERSION)
+	cd dist && tar cvf fteproxy-$(FTEPROXY_VERSION).tar fteproxy-$(FTEPROXY_VERSION)
+	cd dist && gzip -9 fteproxy-$(FTEPROXY_VERSION).tar
 
 install:
 	@test -s dist/fteproxy || { echo "Please run \"make\" first."; exit 1; }
@@ -37,7 +41,7 @@ fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/libre2.a bin/fstcompile bin/fstprint bin
 
 $(THIRD_PARTY_DIR)/re2/obj/libre2.a: bin/fstminimize bin/fstprint bin/fstcompile
 	cd $(THIRD_PARTY_DIR) && curl $(RE2_TGZ) > re2-$(RE2_VERSION).tgz
-	cd $(THIRD_PARTY_DIR) && tar zxvf re2-20130115.tgz
+	cd $(THIRD_PARTY_DIR) && tar zxvf re2-$(RE2_VERSION).tgz
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-001.patch
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-002.patch
 	cd $(RE2_DIR) && $(MAKE) obj/libre2.a
