@@ -3,6 +3,7 @@
 # Tested on OSX 10.8
 
 # update system software
+# sudo softwareupdate --install --all
 # install xcode
 # install xcode command line tools
 # enable password-less sudo
