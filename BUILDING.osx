@@ -17,6 +17,7 @@ ruby -e "$(curl -fsSL https://raw.github.com/mxcl/homebrew/go)"
 # required only if running a hackintoch in virtualbox, must perform after homebrew install
 sudo sed -i -e 's/march=native/march=core2/g' /usr/local/Library/ENV/4.3/cc
 
+brew install python --build-from-source
 brew install boost --build-from-source
 brew install gmp
 brew install git
