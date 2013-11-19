@@ -9,8 +9,8 @@
 # enable password-less sudo
 # enable ssh access
 
-echo export PATH='/usr/local/bin:$PATH' >> ~/.bash_profile
-export PATH=/usr/local/bin:$PATH
+echo export PATH='/usr/local/bin:/usr/local/share/python:${PATH}' >> ~/.bash_profile
+export PATH="/usr/local/bin:/usr/local/share/python:${PATH}"
 
 # install homebrew
 ruby -e "$(curl -fsSL https://raw.github.com/mxcl/homebrew/go)"
