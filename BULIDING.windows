@@ -1,5 +1,9 @@
 #!/bin/sh
 
+# notes:
+#  * build gmp from source (plus all depdendencies)
+#  * use gmpy and not gmpy2
+
 # disable UAC
 # set IP address to 192.168.10.11
 # set DNS to 8.8.8.8
@@ -150,7 +154,6 @@ cd /vagrant
 curl https://gmpy.googlecode.com/files/gmpy-1.17.zip > gmpy-1.17.zip
 unzip gmpy-1.17.zip
 cd gmpy-1.17
-#sed -i -e 's/my_extra_link_args = \[\"\/MANIFEST\"\]/my_extra_link_args = []/g' setup.py
 python setup.py build -cmingw32
 python setup.py install
 
