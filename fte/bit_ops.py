@@ -16,7 +16,11 @@
 # You should have received a copy of the GNU General Public License
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
-import gmpy
+try:
+    import gmpy2 as gmpy
+except ImportError:
+    import gmpy
+
 import binascii
 import os
 
