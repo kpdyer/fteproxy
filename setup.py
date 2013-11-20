@@ -7,8 +7,18 @@ import os
 
 if os.name=='nt':
     boost_libs = ['boost_python-mt','boost_system-mt','boost_filesystem-mt']
+    extra_compile_args = ['-O3',
+                          #'-fstack-protector-all',
+                          '-D_FORTIFY_SOURCE',
+                          '-fPIE',
+                         ]
 else:
     boost_libs = ['boost_python','boost_system','boost_filesystem']
+    extra_compile_args = ['-O3',
+                          '-fstack-protector-all',
+                          '-D_FORTIFY_SOURCE',
+                          '-fPIE',
+                         ]
     
 fte_cDFA = Extension('fte.cDFA',
                      include_dirs=['fte',
@@ -16,11 +26,7 @@ fte_cDFA = Extension('fte.cDFA',
                                    '/usr/local/include'],
                      library_dirs=['thirdparty/re2/obj',
                                    '/usr/local/lib'],
-                     extra_compile_args=['-O3',
-                                         '-fstack-protector-all',
-                                         '-D_FORTIFY_SOURCE',
-                                         '-fPIE',
-                                         ],
+                     extra_compile_args=extra_compile_args,
                      extra_link_args=['-fPIC',
                                       'thirdparty/re2/obj/libre2.a'
                                       ],
