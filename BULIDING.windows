@@ -112,7 +112,6 @@ CROSS_COMPILE=i686-pc-mingw32- ./configure shared mingw
 /cygdrive/c/Python27/python setup.py install
 
 
-# dodgy inc/lib dirs
 cd /vagrant
 curl https://gmpy.googlecode.com/files/gmpy2-2.0.2.zip > gmpy2-2.0.2.zip
 unzip gmpy2-2.0.2.zip
