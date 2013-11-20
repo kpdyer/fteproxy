@@ -29,7 +29,7 @@ export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:$PATH
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gzip
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P libboost-devel
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P libboost_python-devel
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P libgmp-devel
+#/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P libgmp-devel
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P m4
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P make
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-gcc
@@ -83,11 +83,20 @@ make -j`nproc`
 make install
 
 
+curl https://ftp.gnu.org/gnu/gmp/gmp-5.1.3.tar.bz2 > gmp-5.1.3.tar.bz2
+bzip2 -d gmp-5.1.3.tar.bz2
+tar xvf gmp-5.1.3.tar
+cd gmp-5.1.3
+./configure
+make -j`nproc`
+make install
+
+
 cd /vagrant
 curl http://www.mpfr.org/mpfr-current/mpfr-3.1.2.tar.gz > mpfr-3.1.2.tar.gz
 tar zxvf mpfr-3.1.2.tar.gz
 cd mpfr-3.1.2
-./configure --with-gmp-include=/cygdrive/c/Python27/include --with-gmp-lib=/cygdrive/c/Python27/libs --disable-static --enable-shared
+./configure --with-gmp-include=/cygdrive/c/Python27/include --with-gmp-lib=/cygdrive/c/Python27/libs
 make -j`nproc`
 make install
 
@@ -96,7 +105,8 @@ cd /vagrant
 curl http://www.multiprecision.org/mpc/download/mpc-1.0.1.tar.gz > mpc-1.0.1.tar.gz
 tar zxvf mpc-1.0.1.tar.gz
 cd mpc-1.0.1
-./configure --with-gmp-include=/cygdrive/c/Python27/include --with-gmp-lib=/cygdrive/c/Python27/libs --with-mpfr-include=/cygdrive/c/Python27/include --with-mpfr-lib=/cygdrive/c/Python27/libs --disable-static --enable-shared
+./configure --with-gmp-include=/cygdrive/c/Python27/include --with-gmp-lib=/cygdrive/c/Python27/libs \
+            --with-mpfr-include=/cygdrive/c/Python27/include --with-mpfr-lib=/cygdrive/c/Python27/libs
 make -j`nproc`
 make install
 
@@ -113,10 +123,15 @@ ln -s /usr/include/gmpxx.h /cygdrive/c/Python27/include/gmpxx.h
 ln -s /usr/include/boost /cygdrive/c/Python27/include/boost
 ln -s /usr/local/include/mpir.h /cygdrive/c/Python27/include/mpir.h
 ln -s /usr/local/include/mpfr.h /cygdrive/c/Python27/include/mpfr.h
+ln -s /usr/local/include/mpc.h /cygdrive/c/Python27/include/mpc.h
 
 ln -s /usr/lib/libgmp.dll.a /cygdrive/c/Python27/libs/libgmp.dll.a
 ln -s /usr/lib/libgmp.la /cygdrive/c/Python27/libs/libgmp.la
 ln -s /usr/local/lib/libmpir.a /cygdrive/c/Python27/libs/libmpir.a
+ln -s /usr/local/lib/libmpir.la /cygdrive/c/Python27/libs/libmpir.la
+ln -s /usr/local/lib/libmpfr.a /cygdrive/c/Python27/libs/libmpfr.a
+ln -s /usr/local/lib/libmpfr.la /cygdrive/c/Python27/libs/libmpfr.la
+ln -s /usr/local/lib/libmpc.a /cygdrive/c/Python27/libs/libmpc.a
 ln -s /usr/lib/libboost_python-mt.dll.a /cygdrive/c/Python27/libs/libboost_python-mt.dll.a
 ln -s /usr/lib/libboost_system-mt.dll.a /cygdrive/c/Python27/libs/libboost_system-mt.dll.a
 ln -s /usr/lib/libboost_filesystem-mt.dll.a /cygdrive/c/Python27/libs/libboost_filesystem-mt.dll.a
