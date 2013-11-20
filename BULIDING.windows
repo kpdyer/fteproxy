@@ -1,5 +1,6 @@
 #!/bin/sh
 
+# disable UAC
 # set IP address to 192.168.10.11
 # set DNS to 8.8.8.8
 
@@ -7,7 +8,7 @@
 # install python 2.7
 # install py2exe
 # install openssl
-
+# install pywin32
 
 export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:$PATH
 export C_INCLUDE_PATH=/usr/local/include
@@ -133,6 +134,10 @@ ln -s /usr/lib/libboost_filesystem-mt.dll.a /usr/local/lib/libboost_filesystem-m
 
 # see:
 ln -s /usr/i686-pc-mingw32/sys-root/mingw/lib/libmsvcr90.a /usr/local/lib/libmsvcr90.a
+
+curl http://superb-dca2.dl.sourceforge.net/project/pywin32/pywin32/Build%20218/pywin32-218.zip > pywin32-218.zip
+unzip pywin32-218.zip
+cd pywin32-218
 
 cd /vagrant
 git clone https://github.com/kpdyer/fteproxy.git
