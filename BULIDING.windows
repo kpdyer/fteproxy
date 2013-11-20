@@ -81,36 +81,38 @@ make install
 
 
 # see: https://github.com/kpdyer/fteproxy/issues/73
-sed -i /cygdrive/c/Python27/Lib/distutils/cygwinccompiler.py -e 's/-mno-cygwin//g'
-sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/io.h -e 's/off64_t/_off64_t/g'
-sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/unistd.h -e 's/off_t/_off_t/g'
+#sed -i /cygdrive/c/Python27/Lib/distutils/cygwinccompiler.py -e 's/-mno-cygwin//g'
+#sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/io.h -e 's/off64_t/_off64_t/g'
+#sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/unistd.h -e 's/off_t/_off_t/g'
 
 
-cd /vagrant
-curl https://ftp.dlitz.net/pub/dlitz/crypto/pycrypto/pycrypto-2.6.tar.gz > pycrypto-2.6.tar.gz
-tar zxvf pycrypto-2.6.tar.gz
-cd pycrypto-2.6
-CROSS_COMPILE=i686-pc-mingw32- ./configure shared mingw
-python setup.py build -cmingw32
-python setup.py install
+PIP_NO_INPUT=1 pip ninstall pycrypto
+#cd /vagrant
+#curl https://ftp.dlitz.net/pub/dlitz/crypto/pycrypto/pycrypto-2.6.tar.gz > pycrypto-2.6.tar.gz
+#tar zxvf pycrypto-2.6.tar.gz
+#cd pycrypto-2.6
+#CROSS_COMPILE=i686-pc-mingw32- ./configure shared mingw
+#python setup.py build -cmingw32
+#python setup.py install
 
 
-cd /vagrant
-curl https://gmpy.googlecode.com/files/gmpy2-2.0.2.zip > gmpy2-2.0.2.zip
-unzip gmpy2-2.0.2.zip
-cd gmpy2-2.0.2
-# see: https://github.com/kpdyer/fteproxy/issues/74
-sed -i -e "s/incdirs\ =\ \['\.\/src'\]/incdirs\ =\ \['\.\/src','\/usr\/local\/include'\]/g" setup.py
-sed -i -e "s/libdirs\ =\ \[\]/libdirs\ =\ \['\/usr\/local\/lib'\]/g" setup.py
-# see: https://github.com/kpdyer/fteproxy/issues/
-sed -i -e 's/my_extra_link_args = \[\"\/MANIFEST\"\]/my_extra_link_args = []/g' setup.py
-python setup.py --nompfr build -cmingw32
-python setup.py install
+PIP_NO_INPUT=1 pip ninstall gmpy2
+#cd /vagrant
+#curl https://gmpy.googlecode.com/files/gmpy2-2.0.2.zip > gmpy2-2.0.2.zip
+#unzip gmpy2-2.0.2.zip
+#cd gmpy2-2.0.2
+## see: https://github.com/kpdyer/fteproxy/issues/74
+#sed -i -e "s/incdirs\ =\ \['\.\/src'\]/incdirs\ =\ \['\.\/src','\/usr\/local\/include'\]/g" setup.py
+#sed -i -e "s/libdirs\ =\ \[\]/libdirs\ =\ \['\/usr\/local\/lib'\]/g" setup.py
+## see: https://github.com/kpdyer/fteproxy/issues/
+#sed -i -e 's/my_extra_link_args = \[\"\/MANIFEST\"\]/my_extra_link_args = []/g' setup.py
+#python setup.py --nompfr build -cmingw32
+#python setup.py install
 
 
-pip install obfsproxy
-pip install pyptlib
-pip install pyinstaller
+PIP_NO_INPUT=1 pip install obfsproxy
+PIP_NO_INPUT=1 pip install pyptlib
+PIP_NO_INPUT=1 pip install pyinstaller
 
 
 # see: https://github.com/kpdyer/fteproxy/issues/78
@@ -127,9 +129,6 @@ ln -s /usr/lib/libboost_filesystem-mt.dll.a /usr/local/lib/libboost_filesystem-m
 # see:
 ln -s /usr/i686-pc-mingw32/sys-root/mingw/lib/libmsvcr90.a /usr/local/lib/libmsvcr90.a
 
-curl http://superb-dca2.dl.sourceforge.net/project/pywin32/pywin32/Build%20218/pywin32-218.zip > pywin32-218.zip
-unzip pywin32-218.zip
-cd pywin32-218
 
 cd /vagrant
 git clone https://github.com/kpdyer/fteproxy.git
