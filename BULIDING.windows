@@ -87,7 +87,16 @@ cd /vagrant
 curl http://www.mpfr.org/mpfr-current/mpfr-3.1.2.tar.gz > mpfr-3.1.2.tar.gz
 tar zxvf mpfr-3.1.2.tar.gz
 cd mpfr-3.1.2
-./configure --with-gmp-include=/cygdrive/c/Python27/include --disable-static --enable-shared
+./configure --with-gmp-include=/cygdrive/c/Python27/include --with-gmp-lib=/cygdrive/c/Python27/libs --disable-static --enable-shared
+make -j`nproc`
+make install
+
+
+cd /vagrant
+curl http://www.multiprecision.org/mpc/download/mpc-1.0.1.tar.gz > mpc-1.0.1.tar.gz
+tar zxvf mpc-1.0.1.tar.gz
+cd mpc-1.0.1
+./configure --with-gmp-include=/cygdrive/c/Python27/include --with-gmp-lib=/cygdrive/c/Python27/libs --disable-static --enable-shared
 make -j`nproc`
 make install
 
