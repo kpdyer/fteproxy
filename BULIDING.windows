@@ -128,7 +128,8 @@ cd /vagrant
 curl http://www.mpfr.org/mpfr-current/mpfr-3.1.2.tar.gz > mpfr-3.1.2.tar.gz
 tar zxvf mpfr-3.1.2.tar.gz
 cd mpfr-3.1.2
-./configure --with-gmp-include=/cygdrive/c/Python27/include --with-gmp-lib=/cygdrive/c/Python27/libs
+./configure --with-gmp-include=/cygdrive/c/Python27/include --with-gmp-lib=/cygdrive/c/Python27/libs \
+            --enable-static --disable-shared
 make -j`nproc`
 make install
 
@@ -145,7 +146,14 @@ make install
 
 rebaseall # http://cygwin.wikia.com/wiki/Rebaseall
 
-pip install gmpy2
+cd /vagrant
+curl https://gmpy.googlecode.com/files/gmpy-1.17.zip > gmpy-1.17.zip
+unzip gmpy-1.17.zip
+cd gmpy-1.17
+#sed -i -e 's/my_extra_link_args = \[\"\/MANIFEST\"\]/my_extra_link_args = []/g' setup.py
+python setup.py build -cmingw32
+python setup.py install
+
 pip install pycrypto
 pip install obfsproxy
 pip install pyptlib
