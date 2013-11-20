@@ -24,7 +24,6 @@
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P grep
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gzip
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P libboost-devel
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P libgmp-devel
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P m4
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P make
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-gcc-core
