@@ -43,6 +43,7 @@ export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:$PATH
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P wget
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P zip
 
+rebaseall # http://cygwin.wikia.com/wiki/Rebaseall
 
 cp /usr/bin/i686-pc-mingw32-gcc-4.7.3 /usr/bin/gcc
 
@@ -101,6 +102,9 @@ cd pip-1.4.1
 /cygdrive/c/Python27/python setup.py install
 
 
+rebaseall # http://cygwin.wikia.com/wiki/Rebaseall
+
+
 curl https://ftp.gnu.org/gnu/gmp/gmp-5.1.3.tar.bz2 > gmp-5.1.3.tar.bz2
 bzip2 -d gmp-5.1.3.tar.bz2
 tar xvf gmp-5.1.3.tar
@@ -134,10 +138,12 @@ curl http://www.multiprecision.org/mpc/download/mpc-1.0.1.tar.gz > mpc-1.0.1.tar
 tar zxvf mpc-1.0.1.tar.gz
 cd mpc-1.0.1
 ./configure --with-gmp-include=/cygdrive/c/Python27/include --with-gmp-lib=/cygdrive/c/Python27/libs \
-            --with-mpfr-include=/cygdrive/c/Python27/include --with-mpfr-lib=/cygdrive/c/Python27/libs
+            --with-mpfr-include=/cygdrive/c/Python27/include --with-mpfr-lib=/cygdrive/c/Python27/libs \
+            --enable-static --disable-shared
 make -j`nproc`
 make install
 
+rebaseall # http://cygwin.wikia.com/wiki/Rebaseall
 
 pip install gmpy2
 pip install pycrypto
