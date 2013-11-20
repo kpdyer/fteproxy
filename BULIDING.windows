@@ -111,6 +111,12 @@ pip install pyptlib
 pip install pyinstaller
 
 
+# see: https://github.com/kpdyer/fteproxy/issues/78
+ln -s /usr/include/gmp.h /usr/local/include/gmp.h
+ln -s /usr/include/gmpxx.h /usr/local/include/gmpxx.h
+ln -s /usr/include/boost /usr/local/include/boost
+
+
 cd /vagrant
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
