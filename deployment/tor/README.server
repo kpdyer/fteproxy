@@ -1,27 +1,11 @@
 #!/bin/sh
 
+FTEPROXY_VERSION=0.2.0
+ARCH=`arch`
 BUILD_DIR=$HOME
 CODENAME=`lsb_release -sc`
 
-# install fte depedencies
-sudo apt-get update
-sudo apt-get -y install make
-sudo apt-get -y install m4
-sudo apt-get -y install git
-sudo apt-get -y install python-dev
-sudo apt-get -y install python-gmpy
-sudo apt-get -y install python-crypto
-sudo apt-get -y install python-twisted
-sudo apt-get -y install libboost-python-dev
-sudo apt-get -y install libboost-system-dev
-sudo apt-get -y install libboost-filesystem-dev
-sudo apt-get -y install libgmp-dev
-sudo apt-get -y install python-pip
-sudo pip install obfsproxy
-sudo pip install pyptlib
-sudo pip install pyinstaller
-
-# install fte+tor depedencies
+# download+install tor
 sudo sh -c "echo \"deb http://deb.torproject.org/torproject.org $CODENAME main\" >> /etc/apt/sources.list"
 sudo sh -c "echo \"deb http://deb.torproject.org/torproject.org experimental-$CODENAME main\" >> /etc/apt/sources.list"
 gpg --keyserver keys.gnupg.net --recv 886DDD89
@@ -29,17 +13,14 @@ gpg --export A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89 | sudo apt-key add -
 sudo apt-get update
 sudo apt-get -y install tor
 sudo apt-get -y install deb.torproject.org-keyring
+sudo cp $BUILD_DIR/fteproxy/tor/torrc.server /etc/tor/torrc
 
-# build+install fte
+# download+install fte
 mkdir -p $BUILD_DIR
 cd $BUILD_DIR
-git clone https://github.com/redjack/fteproxy.git
-cd fteproxy
-make all
-sudo make install
-sudo sh -c "echo \"LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH\" >> /etc/bash.bashrc"
-export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+curl https://fteproxy.org/dist/fteproxy/linux/fteproxy-$FTEPROXY_VERSION-linux-$ARCH.tar.gz > fteproxy-$FTEPROXY_VERSION-linux-$ARCH.tar.gz
+tar zxvf fteproxy-$FTEPROXY_VERSION-linux-$ARCH.tar.gz
+sudo cp fteproxy-$FTEPROXY_VERSION-linux-$ARCH/fteproxy /usr/local/bin/
 
 # restart tor to pickup fte changes
-sudo cp $BUILD_DIR/fteproxy/tor/torrc.server /etc/tor/torrc
 sudo service tor restart
