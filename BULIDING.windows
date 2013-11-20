@@ -95,6 +95,8 @@ ln -s /usr/include/gmpxx.h /cygdrive/c/Python27/include/gmpxx.h
 ln -s /usr/include/boost /cygdrive/c/Python27/include/boost
 ln -s /usr/local/include/mpir.h /cygdrive/c/Python27/include/mpir.h
 
+ln -s /usr/lib/libgmp.dll.a /cygdrive/c/Python27/libs/libgmp.dll.a
+ln -s /usr/lib/libgmp.la /cygdrive/c/Python27/libs/libgmp.la
 ln -s /usr/local/lib/libmpir.a /cygdrive/c/Python27/libs/libmpir.a
 ln -s /usr/lib/libboost_python-mt.dll.a /usr/local/lib/libboost_python-mt.dll.a
 ln -s /usr/lib/libboost_system-mt.dll.a /usr/local/lib/libboost_system-mt.dll.a
@@ -102,16 +104,7 @@ ln -s /usr/lib/libboost_filesystem-mt.dll.a /usr/local/lib/libboost_filesystem-m
 ln -s /usr/i686-pc-mingw32/sys-root/mingw/lib/libmsvcr90.a /usr/local/lib/libmsvcr90.a
 
 
-cd /vagrant
-curl https://gmpy.googlecode.com/files/gmpy2-2.0.2.zip > gmpy2-2.0.2.zip
-unzip gmpy2-2.0.2.zip
-cd gmpy2-2.0.2
-## see: https://github.com/kpdyer/fteproxy/issues/
-sed -i -e 's/my_extra_link_args = \[\"\/MANIFEST\"\]/my_extra_link_args = []/g' setup.py
-python setup.py --nompfr build -cmingw32
-python setup.py install
-
-
+pip install gmpy
 pip install pycrypto
 pip install obfsproxy
 pip install pyptlib
