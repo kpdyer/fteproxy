@@ -11,6 +11,7 @@
 # install pywin32: http://sourceforge.net/projects/pywin32/files/pywin32/Build%20218/pywin32-218.win32-py2.7.exe/download
 
 
+echo "export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:$PATH" >> ~/.bashrc
 export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:$PATH
 
 
@@ -56,6 +57,33 @@ echo "compiler=mingw32" >> /cygdrive/c/Python27/Lib/distutils/distutils.cfg
 
 # see: https://github.com/kpdyer/fteproxy/issues/72
 sed -i -e 's/ -mno-cygwin//g' /cygdrive/c/Python27/Lib/distutils/cygwinccompiler.py
+
+
+# see: https://github.com/kpdyer/fteproxy/issues/73
+sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/io.h -e 's/off64_t/_off64_t/g'
+sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/unistd.h -e 's/off_t/_off_t/g'
+
+
+# see: https://github.com/kpdyer/fteproxy/issues/78
+# see: https://github.com/kpdyer/fteproxy/issues/80
+ln -s /usr/include/boost /cygdrive/c/Python27/include/boost
+ln -s /usr/local/include/gmp.h /cygdrive/c/Python27/include/gmp.h
+ln -s /usr/local/include/gmpxx.h /cygdrive/c/Python27/include/gmpxx.h
+ln -s /usr/local/include/mpir.h /cygdrive/c/Python27/include/mpir.h
+ln -s /usr/local/include/mpfr.h /cygdrive/c/Python27/include/mpfr.h
+ln -s /usr/local/include/mpc.h /cygdrive/c/Python27/include/mpc.h
+
+ln -s /usr/lib/libboost_python-mt.dll.a /cygdrive/c/Python27/libs/libboost_python-mt.dll.a
+ln -s /usr/lib/libboost_system-mt.dll.a /cygdrive/c/Python27/libs/libboost_system-mt.dll.a
+ln -s /usr/lib/libboost_filesystem-mt.dll.a /cygdrive/c/Python27/libs/libboost_filesystem-mt.dll.a
+ln -s /usr/i686-pc-mingw32/sys-root/mingw/lib/libmsvcr90.a /cygdrive/c/Python27/libs/libmsvcr90.a
+ln -s /usr/local/lib/libgmp.a /cygdrive/c/Python27/libs/libgmp.a
+ln -s /usr/local/lib/libgmp.la /cygdrive/c/Python27/libs/libgmp.la
+ln -s /usr/local/lib/libmpir.a /cygdrive/c/Python27/libs/libmpir.a
+ln -s /usr/local/lib/libmpir.la /cygdrive/c/Python27/libs/libmpir.la
+ln -s /usr/local/lib/libmpfr.a /cygdrive/c/Python27/libs/libmpfr.a
+ln -s /usr/local/lib/libmpfr.la /cygdrive/c/Python27/libs/libmpfr.la
+ln -s /usr/local/lib/libmpc.a /cygdrive/c/Python27/libs/libmpc.a
 
 
 cd /vagrant
@@ -108,33 +136,6 @@ cd mpc-1.0.1
             --with-mpfr-include=/cygdrive/c/Python27/include --with-mpfr-lib=/cygdrive/c/Python27/libs
 make -j`nproc`
 make install
-
-
-# see: https://github.com/kpdyer/fteproxy/issues/73
-sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/io.h -e 's/off64_t/_off64_t/g'
-sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/unistd.h -e 's/off_t/_off_t/g'
-
-
-# see: https://github.com/kpdyer/fteproxy/issues/78
-# see: https://github.com/kpdyer/fteproxy/issues/80
-ln -s /usr/include/boost /cygdrive/c/Python27/include/boost
-ln -s /usr/local/include/gmp.h /cygdrive/c/Python27/include/gmp.h
-ln -s /usr/local/include/gmpxx.h /cygdrive/c/Python27/include/gmpxx.h
-ln -s /usr/local/include/mpir.h /cygdrive/c/Python27/include/mpir.h
-ln -s /usr/local/include/mpfr.h /cygdrive/c/Python27/include/mpfr.h
-ln -s /usr/local/include/mpc.h /cygdrive/c/Python27/include/mpc.h
-
-ln -s /usr/lib/libboost_python-mt.dll.a /cygdrive/c/Python27/libs/libboost_python-mt.dll.a
-ln -s /usr/lib/libboost_system-mt.dll.a /cygdrive/c/Python27/libs/libboost_system-mt.dll.a
-ln -s /usr/lib/libboost_filesystem-mt.dll.a /cygdrive/c/Python27/libs/libboost_filesystem-mt.dll.a
-ln -s /usr/i686-pc-mingw32/sys-root/mingw/lib/libmsvcr90.a /cygdrive/c/Python27/libs/libmsvcr90.a
-ln -s /usr/local/lib/libgmp.dll.a /cygdrive/c/Python27/libs/libgmp.dll.a
-ln -s /usr/local/lib/libgmp.la /cygdrive/c/Python27/libs/libgmp.la
-ln -s /usr/local/lib/libmpir.a /cygdrive/c/Python27/libs/libmpir.a
-ln -s /usr/local/lib/libmpir.la /cygdrive/c/Python27/libs/libmpir.la
-ln -s /usr/local/lib/libmpfr.a /cygdrive/c/Python27/libs/libmpfr.a
-ln -s /usr/local/lib/libmpfr.la /cygdrive/c/Python27/libs/libmpfr.la
-ln -s /usr/local/lib/libmpc.a /cygdrive/c/Python27/libs/libmpc.a
 
 
 pip install gmpy2
