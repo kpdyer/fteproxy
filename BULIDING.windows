@@ -27,8 +27,8 @@ export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:$PATH
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gnupg
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P grep
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gzip
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P libboost-devel
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P libboost_python-devel
+#/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P libboost-devel
+#/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P libboost_python-devel
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P libgmp-devel
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P m4
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P make
@@ -43,10 +43,17 @@ export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:$PATH
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P wget
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P zip
 
-cp /usr/bin/i686-pc-mingw32-gcc-4.7.3 /usr/bin/gcc
+#cp /usr/bin/i686-pc-mingw32-gcc-4.7.3 /usr/bin/gcc
 
 
 mkdir -p /vagrant
+
+
+cd /vagrant
+curl http://softlayer-dal.dl.sourceforge.net/project/boost/boost/1.55.0/boost_1_55_0.tar.gz > boost_1_55_0.tar.gz
+tar zxvf boost_1_55_0.tar.gz
+cd boost_1_55_0
+./bootstrap.sh
 
 
 # see: https://github.com/kpdyer/fteproxy/issues/71
