@@ -84,6 +84,7 @@ ln -s /usr/local/lib/libmpir.la /cygdrive/c/Python27/libs/libmpir.la
 ln -s /usr/local/lib/libmpfr.a /cygdrive/c/Python27/libs/libmpfr.a
 ln -s /usr/local/lib/libmpfr.la /cygdrive/c/Python27/libs/libmpfr.la
 ln -s /usr/local/lib/libmpc.a /cygdrive/c/Python27/libs/libmpc.a
+ln -s /usr/local/lib/libmpc.la /cygdrive/c/Python27/libs/libmpc.la
 
 
 cd /vagrant
