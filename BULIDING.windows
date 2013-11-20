@@ -9,6 +9,10 @@
 # install openssl
 
 
+export C_INCLUDE_PATH=/usr/local/include
+export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib
+
+
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P asciidoc
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P bash
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P binutils
@@ -88,18 +92,6 @@ curl http://www.mpir.org/mpir-2.6.0.tar.bz2 > mpir-2.6.0.tar.bz2
 bzip2 -d mpir-2.6.0.tar.bz2
 tar xvf mpir-2.6.0.tar
 cd mpir-2.6.0
-./configure
-make -j`nproc`
-make install
-
-
-export C_INCLUDE_PATH=/usr/local/include
-export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib
-
-cd /vagrant
-curl http://www.mpfr.org/mpfr-current/mpfr-3.1.2.tar.gz > mpfr-3.1.2.tar.gz
-tar zxvf mpfr-3.1.2.tar.gz
-cd mpfr-3.1.2
 ./configure
 make -j`nproc`
 make install
