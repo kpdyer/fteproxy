@@ -27,12 +27,14 @@ export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P grep
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gzip
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P libboost-devel
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P libboost_python-devel
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P libgmp-devel
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P m4
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P make
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-gcc
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-gcc-core
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-gcc-g++
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-runtime
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P patch
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P perl
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P tar
@@ -66,6 +68,13 @@ curl https://pypi.python.org/packages/source/p/pip/pip-1.4.1.tar.gz > pip-1.4.1.
 tar zxvf pip-1.4.1.tar.gz
 cd pip-1.4.1
 /cygdrive/c/Python27/python setup.py install
+
+
+cd /vagrant
+curl http://softlayer-dal.dl.sourceforge.net/project/boost/boost/1.55.0/boost_1_55_0.tar.gz > boost_1_55_0.tar.gz
+tar zxvf boost_1_55_0.tar.gz
+cd boost_1_55_0
+./bootstrap.h
 
 
 cd /vagrant
@@ -116,6 +125,15 @@ ln -s /usr/include/gmp.h /usr/local/include/gmp.h
 ln -s /usr/include/gmpxx.h /usr/local/include/gmpxx.h
 ln -s /usr/include/boost /usr/local/include/boost
 
+
+# see:
+# added -mt suffix in setup.py
+ln -s /usr/lib/libboost_python-mt.dll.a /usr/local/lib/libboost_python-mt.dll.a
+ln -s /usr/lib/libboost_system-mt.dll.a /usr/local/lib/libboost_system-mt.dll.a
+ln -s /usr/lib/libboost_filesystem-mt.dll.a /usr/local/lib/libboost_filesystem-mt.dll.a
+#ln -s /usr/i686-pc-mingw32/sys-root/mingw/lib/libmsvcr90.a /usr/local/lib/libmsvcr90.a
+#/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-gcc
+#added -L/usr/local/lib to setup.py
 
 cd /vagrant
 git clone https://github.com/kpdyer/fteproxy.git
