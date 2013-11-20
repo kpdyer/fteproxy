@@ -98,10 +98,10 @@ ln -s /usr/local/include/mpir.h /cygdrive/c/Python27/include/mpir.h
 ln -s /usr/lib/libgmp.dll.a /cygdrive/c/Python27/libs/libgmp.dll.a
 ln -s /usr/lib/libgmp.la /cygdrive/c/Python27/libs/libgmp.la
 ln -s /usr/local/lib/libmpir.a /cygdrive/c/Python27/libs/libmpir.a
-ln -s /usr/lib/libboost_python-mt.dll.a /usr/local/lib/libboost_python-mt.dll.a
-ln -s /usr/lib/libboost_system-mt.dll.a /usr/local/lib/libboost_system-mt.dll.a
-ln -s /usr/lib/libboost_filesystem-mt.dll.a /usr/local/lib/libboost_filesystem-mt.dll.a
-ln -s /usr/i686-pc-mingw32/sys-root/mingw/lib/libmsvcr90.a /usr/local/lib/libmsvcr90.a
+ln -s /usr/lib/libboost_python-mt.dll.a /cygdrive/c/Python27/libs/libboost_python-mt.dll.a
+ln -s /usr/lib/libboost_system-mt.dll.a /cygdrive/c/Python27/libs/libboost_system-mt.dll.a
+ln -s /usr/lib/libboost_filesystem-mt.dll.a /cygdrive/c/Python27/libs/libboost_filesystem-mt.dll.a
+ln -s /usr/i686-pc-mingw32/sys-root/mingw/lib/libmsvcr90.a /cygdrive/c/Python27/libs/libmsvcr90.a
 
 
 pip install gmpy
