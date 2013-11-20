@@ -117,6 +117,10 @@ pip install pyptlib
 pip install pyinstaller
 
 
+# see: https://github.com/kpdyer/fteproxy/issues/66
+touch /cygdrive/c/Python27/Lib/site-packages/zope/__init__.py
+
+
 cd /vagrant
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
