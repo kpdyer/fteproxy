@@ -28,6 +28,8 @@
 #include "re2/regexp.h"
 #include "re2/prog.h"
 
+int _CRT_MT = 1;
+
 typedef vector< std::string > split_vector_type;
 
 // TODO: figure out a way around this rotN hack
@@ -340,15 +342,21 @@ std::string attFstMinimize(std::string fst_path, std::string str_dfa)
     // TODO: Throw exception if we can't remove() the generated files
 
     std::string retval;
-
+    
+#ifdef _WIN32
     // create the destinations for our working files
-    boost::filesystem::path temp_dir = boost::filesystem::temp_directory_path();
-    boost::filesystem::path temp_file = boost::filesystem::unique_path();
+    std::string temp_dir = "c:/tmp"; // need to figure out proper path
+    std::string temp_file = "fteproxy"; // need better random function
+#else
+    // create the destinations for our working files
+    std::string temp_dir = boost::filesystem::temp_directory_path().native();
+    std::string temp_file = boost::filesystem::unique_path().native();
+#endif
 
-    std::string abspath_dfa     = temp_dir.string() + "/" + temp_file.string() + ".dfa";
-    std::string abspath_fst     = temp_dir.string() + "/" + temp_file.string() + ".fst";
-    std::string abspath_fst_min = temp_dir.string() + "/" + temp_file.string() + ".min.fst";
-    std::string abspath_dfa_min = temp_dir.string() + "/" + temp_file.string() + ".min.dfa";
+    std::string abspath_dfa     = temp_dir+ "/" + temp_file + ".dfa";
+    std::string abspath_fst     = temp_dir+ "/" + temp_file + ".fst";
+    std::string abspath_fst_min = temp_dir+ "/" + temp_file + ".min.fst";
+    std::string abspath_dfa_min = temp_dir+ "/" + temp_file + ".min.dfa";
 
     // write our input DFA to disk
     std::ofstream dfa_stream;
