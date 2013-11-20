@@ -125,6 +125,7 @@ cd /vagrant
 curl https://gmpy.googlecode.com/files/gmpy2-2.0.2.zip > gmpy2-2.0.2.zip
 unzip gmpy2-2.0.2.zip
 cd gmpy2-2.0.2
+# see: https://github.com/kpdyer/fteproxy/issues/74
 sed -i -e "s/incdirs\ =\ \['\.\/src'\]/incdirs\ =\ \['\.\/src','\/usr\/local\/include'\]/g" setup.py
 sed -i -e "s/libdirs\ =\ \[\]/libdirs\ =\ \['\/usr\/local\/lib'\]/g" setup.py
 /cygdrive/c/Python27/python setup.py --nompfr build -cmingw32
