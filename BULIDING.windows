@@ -83,6 +83,15 @@ make -j`nproc`
 make install
 
 
+cd /vagrant
+curl http://www.mpfr.org/mpfr-current/mpfr-3.1.2.tar.gz > mpfr-3.1.2.tar.gz
+tar zxvf mpfr-3.1.2.tar.gz
+cd mpfr-3.1.2
+./configure --with-gmp-include=/cygdrive/c/Python27/include --disable-static --enable-shared
+make -j`nproc`
+make install
+
+
 # see: https://github.com/kpdyer/fteproxy/issues/73
 sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/io.h -e 's/off64_t/_off64_t/g'
 sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/unistd.h -e 's/off_t/_off_t/g'
@@ -94,6 +103,7 @@ ln -s /usr/include/gmp.h /cygdrive/c/Python27/include/gmp.h
 ln -s /usr/include/gmpxx.h /cygdrive/c/Python27/include/gmpxx.h
 ln -s /usr/include/boost /cygdrive/c/Python27/include/boost
 ln -s /usr/local/include/mpir.h /cygdrive/c/Python27/include/mpir.h
+ln -s /usr/local/include/mpfr.h /cygdrive/c/Python27/include/mpfr.h
 
 ln -s /usr/lib/libgmp.dll.a /cygdrive/c/Python27/libs/libgmp.dll.a
 ln -s /usr/lib/libgmp.la /cygdrive/c/Python27/libs/libgmp.la
@@ -104,7 +114,7 @@ ln -s /usr/lib/libboost_filesystem-mt.dll.a /cygdrive/c/Python27/libs/libboost_f
 ln -s /usr/i686-pc-mingw32/sys-root/mingw/lib/libmsvcr90.a /cygdrive/c/Python27/libs/libmsvcr90.a
 
 
-pip install gmpy
+pip install gmpy2
 pip install pycrypto
 pip install obfsproxy
 pip install pyptlib
