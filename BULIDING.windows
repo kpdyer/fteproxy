@@ -7,13 +7,11 @@
 # install python 2.7
 # install py2exe
 # install openssl
-# install apt-cyg
 
 
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P asciidoc
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P bash
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P binutils
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P boost
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P bzip2
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P ca-certificates
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P coreutils
@@ -25,6 +23,8 @@
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gnupg
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P grep
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gzip
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P libboost-devel
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P libgmp-devel
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P m4
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P make
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-gcc-core
@@ -39,16 +39,6 @@ cp /usr/bin/i686-pc-mingw32-gcc-4.7.3 /usr/bin/gcc
 
 
 mkdir -p /vagrant
-
-
-cd /vagrant
-curl https://ftp.gnu.org/gnu/gmp/gmp-5.1.3.tar.bz2 > gmp-5.1.3.tar.bz2
-bzip2 -d gmp-5.1.3.tar.bz2
-tar xvf gmp-5.1.3.tar
-cd gmp-5.1.3
-./configure
-make -j`nproc`
-make install
 
 
 #cd /vagrant
@@ -85,8 +75,65 @@ cd pip-1.4.1
 /cygdrive/c/Python27/python setup.py install
 
 
-/cygdrive/c/Python27/Scripts/pip install gmpy
-/cygdrive/c/Python27/Scripts/pip install pycrypto
+cd /vagrant
+curl https://ftp.gnu.org/gnu/gmp/gmp-5.1.3.tar.bz2 > gmp-5.1.3.tar.bz2
+bzip2 -d gmp-5.1.3.tar.bz2
+tar xvf gmp-5.1.3.tar
+cd gmp-5.1.3
+./configure
+make -j`nproc`
+make install
+
+
+cd /vagrant
+curl http://www.mpir.org/mpir-2.6.0.tar.bz2 > mpir-2.6.0.tar.bz2
+bzip2 -d mpir-2.6.0.tar.bz2
+tar xvf mpir-2.6.0.tar
+cd mpir-2.6.0
+./configure
+make -j`nproc`
+make install
+
+
+cd /vagrant
+curl http://www.mpfr.org/mpfr-current/mpfr-3.1.2.tar.gz > mpfr-3.1.2.tar.gz
+tar zxvf mpfr-3.1.2.tar.gz
+cd mpfr-3.1.2
+./configure
+make -j`nproc`
+make install
+
+
+# see: 
+# action "pip install pycrypto"
+# error:
+#   /usr/i686-pc-mingw32/sys-root/mingw/include/io.h:301:1: error: unknown type name ‘off64_t’
+#   /usr/i686-pc-mingw32/sys-root/mingw/include/io.h:301:36: error: unknown type name ‘off64_t’
+#   /usr/i686-pc-mingw32/sys-root/mingw/include/io.h:302:1: error: unknown type name ‘off64_t’
+#   /usr/i686-pc-mingw32/sys-root/mingw/include/io.h:302:39: error: unknown type name ‘off64_t’
+sed -i /cygdrive/c/Python27/Lib/distutils/cygwinccompiler.py -e 's/-mno-cygwin//g'
+sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/io.h -e 's/off64_t/_off64_t/g'
+sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/unistd.h -e 's/off_t/_off_t/g'
+
+
+cd /vagrant
+curl https://ftp.dlitz.net/pub/dlitz/crypto/pycrypto/pycrypto-2.6.tar.gz > pycrypto-2.6.tar.gz
+tar zxvf pycrypto-2.6.tar.gz
+cd pycrypto-2.6
+CROSS_COMPILE=i686-pc-mingw32- ./configure shared mingw
+/cygdrive/c/Python27/python setup.py build -cmingw32
+/cygdrive/c/Python27/python setup.py install
+
+
+cd /vagrant
+curl https://gmpy.googlecode.com/files/gmpy2-2.0.2.zip > gmpy2-2.0.2.zip
+unzip gmpy2-2.0.2.zip
+cd gmpy2-2.0.2
+sed -i -e "s/incdirs\ =\ \['\.\/src'\]/incdirs\ =\ \['\.\/src','\/usr\/local\/include'\]/g" setup.py
+/cygdrive/c/Python27/python setup.py build -cmingw32
+/cygdrive/c/Python27/python setup.py install
+
+
 /cygdrive/c/Python27/Scripts/pip install obfsproxy
 /cygdrive/c/Python27/Scripts/pip install pyptlib
 /cygdrive/c/Python27/Scripts/pip install pyinstaller
