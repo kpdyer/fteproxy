@@ -54,6 +54,7 @@ mkdir -p /vagrant
 echo "[build]" > /cygdrive/c/Python27/Lib/distutils/distutils.cfg
 echo "compiler=mingw32" >> /cygdrive/c/Python27/Lib/distutils/distutils.cfg
 
+
 # see: https://github.com/kpdyer/fteproxy/issues/72
 sed -i -e 's/ -mno-cygwin//g' /cygdrive/c/Python27/Lib/distutils/cygwinccompiler.py
 
@@ -83,7 +84,6 @@ make install
 
 
 # see: https://github.com/kpdyer/fteproxy/issues/73
-sed -i /cygdrive/c/Python27/Lib/distutils/cygwinccompiler.py -e 's/-mno-cygwin//g'
 sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/io.h -e 's/off64_t/_off64_t/g'
 sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/unistd.h -e 's/off_t/_off_t/g'
 
