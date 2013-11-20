@@ -57,7 +57,7 @@ echo "compiler=mingw32" >> /cygdrive/c/Python27/Lib/distutils/distutils.cfg
 sed -i -e 's/ -mno-cygwin//g' /cygdrive/c/Python27/Lib/distutils/cygwinccompiler.py
 
 
-cd ~
+cd /vagrant
 curl https://pypi.python.org/packages/source/s/setuptools/setuptools-1.1.6.tar.gz > setuptools-1.1.6.tar.gz
 tar zxvf setuptools-1.1.6.tar.gz
 cd setuptools-1.1.6
