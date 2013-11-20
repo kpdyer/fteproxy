@@ -345,10 +345,10 @@ std::string attFstMinimize(std::string fst_path, std::string str_dfa)
     boost::filesystem::path temp_dir = boost::filesystem::temp_directory_path();
     boost::filesystem::path temp_file = boost::filesystem::unique_path();
 
-    std::string abspath_dfa     = temp_dir.native() + "/" + temp_file.native() + ".dfa";
-    std::string abspath_fst     = temp_dir.native() + "/" + temp_file.native() + ".fst";
-    std::string abspath_fst_min = temp_dir.native() + "/" + temp_file.native() + ".min.fst";
-    std::string abspath_dfa_min = temp_dir.native() + "/" + temp_file.native() + ".min.dfa";
+    std::string abspath_dfa     = temp_dir.string() + "/" + temp_file.string() + ".dfa";
+    std::string abspath_fst     = temp_dir.string() + "/" + temp_file.string() + ".fst";
+    std::string abspath_fst_min = temp_dir.string() + "/" + temp_file.string() + ".min.fst";
+    std::string abspath_dfa_min = temp_dir.string() + "/" + temp_file.string() + ".min.dfa";
 
     // write our input DFA to disk
     std::ofstream dfa_stream;
