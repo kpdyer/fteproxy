@@ -4,11 +4,11 @@
 # set IP address to 192.168.10.11
 # set DNS to 8.8.8.8
 
-# install cygwin
-# install python 2.7
-# install py2exe
-# install openssl
-# install pywin32
+# install cygwin: http://cygwin.com/setup-x86.exe
+# install python 2.7: http://python.org/ftp/python/2.7.6/python-2.7.6.msi
+# install py2exe: http://sourceforge.net/projects/py2exe/files/py2exe/0.6.9/py2exe-0.6.9.win32-py2.7.exe/download
+# install openssl: http://slproweb.com/download/Win32OpenSSL-1_0_0k.exe
+# install pywin32: http://sourceforge.net/projects/pywin32/files/pywin32/Build%20218/pywin32-218.win32-py2.7.exe/download
 
 export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:$PATH
 export C_INCLUDE_PATH=/usr/local/include
