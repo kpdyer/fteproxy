@@ -22,11 +22,6 @@ export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P coreutils
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P curl
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P cygwin
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gcc
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gcc-core
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gcc-g++
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gcc-mingw
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gcc-mingw-g++
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P git
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gnupg
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P grep
@@ -35,7 +30,9 @@ export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P libgmp-devel
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P m4
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P make
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-gcc
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-gcc-core
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-gcc-g++
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P patch
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P perl
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P tar
