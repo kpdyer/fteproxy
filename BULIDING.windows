@@ -126,14 +126,13 @@ ln -s /usr/include/gmpxx.h /usr/local/include/gmpxx.h
 ln -s /usr/include/boost /usr/local/include/boost
 
 
-# see:
-# added -mt suffix in setup.py
+# see: https://github.com/kpdyer/fteproxy/issues/80
 ln -s /usr/lib/libboost_python-mt.dll.a /usr/local/lib/libboost_python-mt.dll.a
 ln -s /usr/lib/libboost_system-mt.dll.a /usr/local/lib/libboost_system-mt.dll.a
 ln -s /usr/lib/libboost_filesystem-mt.dll.a /usr/local/lib/libboost_filesystem-mt.dll.a
-#ln -s /usr/i686-pc-mingw32/sys-root/mingw/lib/libmsvcr90.a /usr/local/lib/libmsvcr90.a
-#/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-gcc
-#added -L/usr/local/lib to setup.py
+
+# see:
+ln -s /usr/i686-pc-mingw32/sys-root/mingw/lib/libmsvcr90.a /usr/local/lib/libmsvcr90.a
 
 cd /vagrant
 git clone https://github.com/kpdyer/fteproxy.git
