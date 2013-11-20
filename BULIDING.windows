@@ -119,6 +119,8 @@ cd gmpy2-2.0.2
 # see: https://github.com/kpdyer/fteproxy/issues/74
 sed -i -e "s/incdirs\ =\ \['\.\/src'\]/incdirs\ =\ \['\.\/src','\/usr\/local\/include'\]/g" setup.py
 sed -i -e "s/libdirs\ =\ \[\]/libdirs\ =\ \['\/usr\/local\/lib'\]/g" setup.py
+# see: https://github.com/kpdyer/fteproxy/issues/
+sed -i -e 's/my_extra_link_args = \[\"\/MANIFEST\"\]/my_extra_link_args = []/g' setup.py
 /cygdrive/c/Python27/python setup.py --nompfr build -cmingw32
 /cygdrive/c/Python27/python setup.py install
 
