@@ -8,6 +8,7 @@
 # set IP address to 192.168.10.11
 # set DNS to 8.8.8.8
 
+# install boost: http://softlayer-dal.dl.sourceforge.net/project/boost/boost-binaries/1.54.0/boost_1_54_0-msvc-9.0-32.exe
 # install cygwin: http://cygwin.com/setup-x86.exe
 # install python 2.7: http://python.org/ftp/python/2.7.6/python-2.7.6.msi
 # install py2exe: http://sourceforge.net/projects/py2exe/files/py2exe/0.6.9/py2exe-0.6.9.win32-py2.7.exe/download
@@ -32,8 +33,6 @@ export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:$PATH
                                                    -P gnupg \
                                                    -P grep \
                                                    -P gzip \
-                                                   -P libboost-devel \
-                                                   -P libboost_python-devel \
                                                    -P m4 \
                                                    -P make \
                                                    -P mingw-gcc \
