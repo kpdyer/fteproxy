@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/dash
 
 # notes:
 #  * build gmp from source (plus all depdendencies)
