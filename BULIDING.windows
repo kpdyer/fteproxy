@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # notes:
 #  * build gmp from source (plus all depdendencies)
