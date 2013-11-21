@@ -33,12 +33,9 @@
                                                    -P libboost_python-devel \
                                                    -P m4 \
                                                    -P make \
-                                                   -P mingw-binutils \
                                                    -P mingw-bzip2 \
-                                                   -P mingw-gcc \
                                                    -P mingw-gcc-core \
                                                    -P mingw-gcc-g++ \
-                                                   -P mingw-pthreads \
                                                    -P mingw-runtime \
                                                    -P patch \
                                                    -P perl \
@@ -117,7 +114,7 @@ curl https://ftp.gnu.org/gnu/gmp/gmp-5.1.3.tar.bz2 > gmp-5.1.3.tar.bz2
 bzip2 -d gmp-5.1.3.tar.bz2
 tar xvf gmp-5.1.3.tar
 cd gmp-5.1.3
-./configure --enable-cxx --with-gnu-ld
+./configure --enable-cxx --with-gnu-ld --build=mingw32
 make -j`nproc`
 make install
 
@@ -127,7 +124,7 @@ curl http://www.mpir.org/mpir-2.6.0.tar.bz2 > mpir-2.6.0.tar.bz2
 bzip2 -d mpir-2.6.0.tar.bz2
 tar xvf mpir-2.6.0.tar
 cd mpir-2.6.0
-./configure --with-gnu-ld
+./configure --with-gnu-ld --build=mingw32
 make -j`nproc`
 make install
 
@@ -137,7 +134,7 @@ curl http://www.mpfr.org/mpfr-current/mpfr-3.1.2.tar.gz > mpfr-3.1.2.tar.gz
 tar zxvf mpfr-3.1.2.tar.gz
 cd mpfr-3.1.2
 ./configure --with-gmp-include=/cygdrive/c/Python27/include --with-gmp-lib=/cygdrive/c/Python27/libs \
-            --enable-static --disable-shared --with-gnu-ld
+            --enable-static --disable-shared --with-gnu-ld --build=mingw32
 make -j`nproc`
 make install
 
@@ -148,7 +145,7 @@ tar zxvf mpc-1.0.1.tar.gz
 cd mpc-1.0.1
 ./configure --with-gmp-include=/cygdrive/c/Python27/include --with-gmp-lib=/cygdrive/c/Python27/libs \
             --with-mpfr-include=/cygdrive/c/Python27/include --with-mpfr-lib=/cygdrive/c/Python27/libs \
-            --enable-static --disable-shared --with-gnu-ld
+            --enable-static --disable-shared --with-gnu-ld --build=mingw32
 make -j`nproc`
 make install
 
