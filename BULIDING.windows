@@ -16,11 +16,33 @@
 # install pywin32: http://sourceforge.net/projects/pywin32/files/pywin32/Build%20218/pywin32-218.win32-py2.7.exe/download
 
 
-# install cygwin packages
-#   asciidoc autoconf bash binutils bzip2 ca-certificates coreutils
-#   curl cygwin git gnupg grep gzip m4 make mingw-gcc
-#   mingw-gcc-core mingw-gcc-g++ mingw-runtime patch perl
-#   tar unzip zip
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P asciidoc \
+                                                   -P autoconf \
+                                                   -P bash \
+                                                   -P binutils \
+                                                   -P bzip2 \
+                                                   -P ca-certificates \
+                                                   -P coreutils \
+                                                   -P curl \
+                                                   -P cygwin \
+                                                   -P git \
+                                                   -P gnupg \
+                                                   -P grep \
+                                                   -P gzip \
+                                                   -P libboost-devel \
+                                                   -P libboost_python-devel \
+                                                   -P m4 \
+                                                   -P make \
+                                                   -P mingw-gcc \
+                                                   -P mingw-gcc-core \
+                                                   -P mingw-gcc-g++ \
+                                                   -P mingw-runtime \
+                                                   -P patch \
+                                                   -P perl \
+                                                   -P tar \
+                                                   -P unzip \
+                                                   -P wget \
+                                                   -P zip
 
 
 echo "export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH" >> ~/.bashrc
