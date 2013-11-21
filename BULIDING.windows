@@ -91,6 +91,9 @@ ln -s /usr/local/lib/libmpc.a /cygdrive/c/Python27/libs/libmpc.a
 ln -s /usr/local/lib/libmpc.la /cygdrive/c/Python27/libs/libmpc.la
 
 
+/usr/bin/rebaseall -v # http://cygwin.wikia.com/wiki/Rebaseall
+
+
 cd /vagrant
 curl https://pypi.python.org/packages/source/s/setuptools/setuptools-1.1.6.tar.gz > setuptools-1.1.6.tar.gz
 tar zxvf setuptools-1.1.6.tar.gz
@@ -144,6 +147,9 @@ cd mpc-1.0.1
             --enable-static --disable-shared
 make -j`nproc`
 make install
+
+
+/usr/bin/rebaseall -v # http://cygwin.wikia.com/wiki/Rebaseall
 
 
 cd /vagrant
