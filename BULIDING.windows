@@ -17,7 +17,7 @@
 
 
 echo "export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:$PATH" >> ~/.bashrc
-export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:$PATH
+export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH
 
 
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P asciidoc \
