@@ -19,35 +19,34 @@ echo "export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:$PATH" >> ~/
 export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:$PATH
 
 
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P asciidoc
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P autoconf
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P bash
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P binutils
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P bzip2
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P ca-certificates
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P coreutils
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P curl
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P cygwin
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P git
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gnupg
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P grep
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P gzip
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P libboost-devel
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P libboost_python-devel
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P m4
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P make
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-gcc
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-gcc-core
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-gcc-g++
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P mingw-runtime
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P patch
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P perl
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P tar
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P unzip
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P wget
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P zip
-
-rebaseall # http://cygwin.wikia.com/wiki/Rebaseall
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P asciidoc \
+                                                      autoconf \
+                                                      bash \
+                                                      binutils \
+                                                      bzip2 \
+                                                      ca-certificates \
+                                                      coreutils \
+                                                      curl \
+                                                      cygwin \
+                                                      git \
+                                                      gnupg \
+                                                      grep \
+                                                      gzip \
+                                                      libboost-devel \
+                                                      libboost_python-devel \
+                                                      m4 \
+                                                      make \
+                                                      mingw-gcc \
+                                                      mingw-gcc-core \
+                                                      mingw-gcc-g++ \
+                                                      mingw-runtime \
+                                                      patch \
+                                                      perl \
+                                                      tar \
+                                                      unzip \
+                                                      wget \
+                                                      zip
+                                                      
 
 cp /usr/bin/i686-pc-mingw32-gcc-4.7.3 /usr/bin/gcc
 
@@ -106,9 +105,6 @@ cd pip-1.4.1
 /cygdrive/c/Python27/python setup.py install
 
 
-rebaseall # http://cygwin.wikia.com/wiki/Rebaseall
-
-
 cd /vagrant
 curl https://ftp.gnu.org/gnu/gmp/gmp-5.1.3.tar.bz2 > gmp-5.1.3.tar.bz2
 bzip2 -d gmp-5.1.3.tar.bz2
@@ -149,7 +145,6 @@ cd mpc-1.0.1
 make -j`nproc`
 make install
 
-rebaseall # http://cygwin.wikia.com/wiki/Rebaseall
 
 cd /vagrant
 curl https://gmpy.googlecode.com/files/gmpy-1.17.zip > gmpy-1.17.zip
@@ -158,10 +153,11 @@ cd gmpy-1.17
 python setup.py build -cmingw32
 python setup.py install
 
-pip install pycrypto
-pip install obfsproxy
-pip install pyptlib
-pip install pyinstaller
+
+pip install pycrypto \
+            obfsproxy \
+            pyptlib \
+            pyinstaller
 
 
 # see: https://github.com/kpdyer/fteproxy/issues/66
