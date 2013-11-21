@@ -47,8 +47,8 @@ export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH
                                                    -P zip
                                                       
 
-cp /usr/bin/i686-pc-mingw32-gcc /usr/bin/gcc
-cp /usr/bin/i686-pc-mingw32-g++ /usr/bin/g++
+ln -s /usr/bin/i686-pc-mingw32-gcc /usr/bin/gcc
+ln -s /usr/bin/i686-pc-mingw32-g++ /usr/bin/g++
 
 
 mkdir -p /vagrant
@@ -91,9 +91,6 @@ ln -s /usr/local/lib/libmpfr.a /cygdrive/c/Python27/libs/libmpfr.a
 ln -s /usr/local/lib/libmpfr.la /cygdrive/c/Python27/libs/libmpfr.la
 ln -s /usr/local/lib/libmpc.a /cygdrive/c/Python27/libs/libmpc.a
 ln -s /usr/local/lib/libmpc.la /cygdrive/c/Python27/libs/libmpc.la
-
-
-/usr/bin/rebaseall -v # http://cygwin.wikia.com/wiki/Rebaseall
 
 
 cd /vagrant
@@ -150,9 +147,6 @@ cd mpc-1.0.1
             --enable-static --disable-shared
 make -j`nproc`
 make install
-
-
-/usr/bin/rebaseall -v # http://cygwin.wikia.com/wiki/Rebaseall
 
 
 cd /vagrant
