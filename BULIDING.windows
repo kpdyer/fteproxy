@@ -16,7 +16,7 @@
 # install pywin32: http://sourceforge.net/projects/pywin32/files/pywin32/Build%20218/pywin32-218.win32-py2.7.exe/download
 
 
-echo "export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:$PATH" >> ~/.bashrc
+echo "export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH" >> ~/.bashrc
 export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH
 
 
