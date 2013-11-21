@@ -33,9 +33,12 @@
                                                    -P libboost_python-devel \
                                                    -P m4 \
                                                    -P make \
+                                                   -P mingw-binutils \
+                                                   -P mingw-bzip2 \
                                                    -P mingw-gcc \
                                                    -P mingw-gcc-core \
                                                    -P mingw-gcc-g++ \
+                                                   -P mingw-pthreads \
                                                    -P mingw-runtime \
                                                    -P patch \
                                                    -P perl \
