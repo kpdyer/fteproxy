@@ -20,32 +20,32 @@ export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:$PATH
 
 
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P asciidoc \
-                                                      autoconf \
-                                                      bash \
-                                                      binutils \
-                                                      bzip2 \
-                                                      ca-certificates \
-                                                      coreutils \
-                                                      curl \
-                                                      cygwin \
-                                                      git \
-                                                      gnupg \
-                                                      grep \
-                                                      gzip \
-                                                      libboost-devel \
-                                                      libboost_python-devel \
-                                                      m4 \
-                                                      make \
-                                                      mingw-gcc \
-                                                      mingw-gcc-core \
-                                                      mingw-gcc-g++ \
-                                                      mingw-runtime \
-                                                      patch \
-                                                      perl \
-                                                      tar \
-                                                      unzip \
-                                                      wget \
-                                                      zip
+                                                   -P autoconf \
+                                                   -P bash \
+                                                   -P binutils \
+                                                   -P bzip2 \
+                                                   -P ca-certificates \
+                                                   -P coreutils \
+                                                   -P curl \
+                                                   -P cygwin \
+                                                   -P git \
+                                                   -P gnupg \
+                                                   -P grep \
+                                                   -P gzip \
+                                                   -P libboost-devel \
+                                                   -P libboost_python-devel \
+                                                   -P m4 \
+                                                   -P make \
+                                                   -P mingw-gcc \
+                                                   -P mingw-gcc-core \
+                                                   -P mingw-gcc-g++ \
+                                                   -P mingw-runtime \
+                                                   -P patch \
+                                                   -P perl \
+                                                   -P tar \
+                                                   -P unzip \
+                                                   -P wget \
+                                                   -P zip
                                                       
 
 cp /usr/bin/i686-pc-mingw32-gcc-4.7.3 /usr/bin/gcc
@@ -154,10 +154,10 @@ python setup.py build -cmingw32
 python setup.py install
 
 
-pip install pycrypto \
-            obfsproxy \
-            pyptlib \
-            pyinstaller
+pip install pycrypto
+pip install obfsproxy
+pip install pyptlib
+pip install pyinstaller
 
 
 # see: https://github.com/kpdyer/fteproxy/issues/66
