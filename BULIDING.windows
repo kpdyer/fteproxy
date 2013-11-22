@@ -30,8 +30,6 @@ WORKING_DIR=/vagrant
                                                    -P cygwin \
                                                    -P git \
                                                    -P gzip \
-                                                   -P libboost-devel \
-                                                   -P libboost_python-devel \
                                                    -P m4 \
                                                    -P make \
                                                    -P patch \
@@ -61,9 +59,22 @@ sed -i /cygdrive/c/MinGW/include/unistd.h -e 's/off_t/_off_t/g'
 
 cp /usr/include/dlfcn.h /cygdrive/c
 cp /usr/include/sys/mman.h /cygdrive/c/MinGW/include/sys/
+#cp -rfv /cygdrive/c/local/boost_1_55_0/boost /cygdrive/c/MinGW/include/
+#cp /usr/lib/libboost_* /cygdrive/c/MinGW/lib/
+#cp  /cygdrive/c/local/boost_1_55_0/lib32-msvc-9.0/libboost_python-vc90-1_55.lib /cygdrive/c/MinGW/lib/libboost_python-vc90-1_55.a
+#cp  /cygdrive/c/local/boost_1_55_0/lib32-msvc-9.0/libboost_filesystem-vc90-1_55.lib /cygdrive/c/MinGW/lib/libboost_filesystem-vc90-1_55.a
+#cp  /cygdrive/c/local/boost_1_55_0/lib32-msvc-9.0/libboost_system-vc90-1_55.lib /cygdrive/c/MinGW/lib/libboost_system-vc90-1_55.a
 
 
 mkdir -p $WORKING_DIR
+
+
+cd $WORKING_DIR
+curl http://hivelocity.dl.sourceforge.net/project/boost/boost/1.55.0/boost_1_55_0.tar.gz > boost_1_55_0.tar.gz
+tar zxvf boost_1_55_0.tar.gz
+cd boost_1_55_0
+./bootstrap.sh --with-toolset=mingw
+./b2 -j`nproc` --with-python
 
 
 cd $WORKING_DIR
