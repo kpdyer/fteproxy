@@ -17,23 +17,23 @@
 # install mingw-get: https://sourceforge.net/projects/mingw/files/Installer
 #   * via mingw-get install: gcc, g++, gmp
 
-#/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P autoconf \
-#                                                   -P automake \
-#                                                   -P bash \
-#                                                   -P binutils \
-#                                                   -P coreutils \
-#                                                   -P curl \
-#                                                   -P git \
-#                                                   -P gzip \
-#                                                   -P libboost-devel \
-#                                                   -P libboost_python-devel \
-#                                                   -P m4 \
-#                                                   -P make \
-#                                                   -P patch \
-#                                                   -P perl \
-#                                                   -P tar \
-#                                                   -P unzip \
-#                                                   -P zip
+/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P autoconf \
+                                                   -P automake \
+                                                   -P bash \
+                                                   -P binutils \
+                                                   -P coreutils \
+                                                   -P curl \
+                                                   -P git \
+                                                   -P gzip \
+                                                   -P libboost-devel \
+                                                   -P libboost_python-devel \
+                                                   -P m4 \
+                                                   -P make \
+                                                   -P patch \
+                                                   -P perl \
+                                                   -P tar \
+                                                   -P unzip \
+                                                   -P zip
 
 WORKING_DIR=/vagrant
 
@@ -51,8 +51,8 @@ sed -i -e 's/ -mno-cygwin//g' /cygdrive/c/Python27/Lib/distutils/cygwinccompiler
 
 
 # see: https://github.com/kpdyer/fteproxy/issues/73
-#sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/io.h -e 's/off64_t/_off64_t/g'
-#sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/unistd.h -e 's/off_t/_off_t/g'
+sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/io.h -e 's/off64_t/_off64_t/g'
+sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/unistd.h -e 's/off_t/_off_t/g'
 
 
 # see: https://github.com/kpdyer/fteproxy/issues/78
