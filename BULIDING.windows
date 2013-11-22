@@ -38,7 +38,7 @@
 #                                                   -P unzip \
 #                                                   -P zip
 
-WORKING_DIR=/cygdrive/e/vagrant
+WORKING_DIR=/vagrant
 
 echo "export PATH=/cygdrive/c/MinGW/bin:/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH" >> ~/.bashrc
 export PATH=/cygdrive/c/MinGW/bin:/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH
