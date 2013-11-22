@@ -49,7 +49,7 @@ echo "compiler=mingw32" >> /cygdrive/c/Python27/Lib/distutils/distutils.cfg
 
 
 # see: https://github.com/kpdyer/fteproxy/issues/72
-sed -i -e 's/ -mno-cygwin//g' /cygdrive/c/Python27/Lib/distutils/cygwinccompiler.py
+#sed -i -e 's/ -mno-cygwin//g' /cygdrive/c/Python27/Lib/distutils/cygwinccompiler.py
 
 
 # see: https://github.com/kpdyer/fteproxy/issues/73
@@ -60,26 +60,26 @@ sed -i -e 's/ -mno-cygwin//g' /cygdrive/c/Python27/Lib/distutils/cygwinccompiler
 # see: https://github.com/kpdyer/fteproxy/issues/78
 # see: https://github.com/kpdyer/fteproxy/issues/80
 #ln -s /usr/include/boost /cygdrive/c/Python27/include/boost
-ln -s /usr/local/include/gmp.h /cygdrive/c/Python27/include/gmp.h
-ln -s /usr/local/include/gmpxx.h /cygdrive/c/Python27/include/gmpxx.h
-ln -s /usr/local/include/mpir.h /cygdrive/c/Python27/include/mpir.h
-ln -s /usr/local/include/mpfr.h /cygdrive/c/Python27/include/mpfr.h
-ln -s /usr/local/include/mpc.h /cygdrive/c/Python27/include/mpc.h
+#ln -s /usr/local/include/gmp.h /cygdrive/c/Python27/include/gmp.h
+#ln -s /usr/local/include/gmpxx.h /cygdrive/c/Python27/include/gmpxx.h
+#ln -s /usr/local/include/mpir.h /cygdrive/c/Python27/include/mpir.h
+#ln -s /usr/local/include/mpfr.h /cygdrive/c/Python27/include/mpfr.h
+#ln -s /usr/local/include/mpc.h /cygdrive/c/Python27/include/mpc.h
 
 #ln -s /usr/lib/libboost_python-mt.dll.a /cygdrive/c/Python27/libs/libboost_python-mt.dll.a
 #ln -s /usr/lib/libboost_system-mt.dll.a /cygdrive/c/Python27/libs/libboost_system-mt.dll.a
 #ln -s /usr/lib/libboost_filesystem-mt.dll.a /cygdrive/c/Python27/libs/libboost_filesystem-mt.dll.a
-ln -s /usr/i686-pc-mingw32/sys-root/mingw/lib/libmsvcr90.a /cygdrive/c/Python27/libs/libmsvcr90.a
-ln -s /usr/local/lib/libgmp.a /cygdrive/c/Python27/libs/libgmp.a
-ln -s /usr/local/lib/libgmp.la /cygdrive/c/Python27/libs/libgmp.la
-ln -s /usr/local/lib/libgmpxx.a /cygdrive/c/Python27/libs/libgmpxx.a
-ln -s /usr/local/lib/libgmpxx.la /cygdrive/c/Python27/libs/libgmpxx.la
-ln -s /usr/local/lib/libmpir.a /cygdrive/c/Python27/libs/libmpir.a
-ln -s /usr/local/lib/libmpir.la /cygdrive/c/Python27/libs/libmpir.la
-ln -s /usr/local/lib/libmpfr.a /cygdrive/c/Python27/libs/libmpfr.a
-ln -s /usr/local/lib/libmpfr.la /cygdrive/c/Python27/libs/libmpfr.la
-ln -s /usr/local/lib/libmpc.a /cygdrive/c/Python27/libs/libmpc.a
-ln -s /usr/local/lib/libmpc.la /cygdrive/c/Python27/libs/libmpc.la
+#ln -s /usr/i686-pc-mingw32/sys-root/mingw/lib/libmsvcr90.a /cygdrive/c/Python27/libs/libmsvcr90.a
+#ln -s /usr/local/lib/libgmp.a /cygdrive/c/Python27/libs/libgmp.a
+#ln -s /usr/local/lib/libgmp.la /cygdrive/c/Python27/libs/libgmp.la
+#ln -s /usr/local/lib/libgmpxx.a /cygdrive/c/Python27/libs/libgmpxx.a
+#ln -s /usr/local/lib/libgmpxx.la /cygdrive/c/Python27/libs/libgmpxx.la
+#ln -s /usr/local/lib/libmpir.a /cygdrive/c/Python27/libs/libmpir.a
+#ln -s /usr/local/lib/libmpir.la /cygdrive/c/Python27/libs/libmpir.la
+#ln -s /usr/local/lib/libmpfr.a /cygdrive/c/Python27/libs/libmpfr.a
+#ln -s /usr/local/lib/libmpfr.la /cygdrive/c/Python27/libs/libmpfr.la
+#ln -s /usr/local/lib/libmpc.a /cygdrive/c/Python27/libs/libmpc.a
+#ln -s /usr/local/lib/libmpc.la /cygdrive/c/Python27/libs/libmpc.la
 
 
 mkdir -p $WORKING_DIR
@@ -109,14 +109,14 @@ make -j`nproc`
 make install
 
 
-cd $WORKING_DIR
-curl https://gmpy.googlecode.com/files/gmpy2-2.0.2.zip > gmpy2-2.0.2.zip
-unzip gmpy2-2.0.2.zip
-cd gmpy2-2.0.2
-python setup.py build
-python setup.py install
+#cd $WORKING_DIR
+#curl https://gmpy.googlecode.com/files/gmpy2-2.0.2.zip > gmpy2-2.0.2.zip
+#unzip gmpy2-2.0.2.zip
+#cd gmpy2-2.0.2
+#python setup.py build
+#python setup.py install
 
-
+pip install gmpy2
 pip install pycrypto
 pip install obfsproxy
 pip install pyptlib
