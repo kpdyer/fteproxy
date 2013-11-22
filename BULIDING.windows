@@ -16,27 +16,28 @@
 # install pywin32: http://sourceforge.net/projects/pywin32/files/pywin32/Build%20218/pywin32-218.win32-py2.7.exe/download
 
 
-/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P autoconf \
-                                                   -P automake \
-                                                   -P bash \
-                                                   -P binutils \
-                                                   -P coreutils \
-                                                   -P curl \
-                                                   -P git \
-                                                   -P gzip \
-                                                   -P libboost-devel \
-                                                   -P libboost_python-devel \
-                                                   -P m4 \
-                                                   -P make \
-                                                   -P mingw-gcc-core \
-                                                   -P mingw-gcc-g++ \
-                                                   -P mingw-runtime \
-                                                   -P patch \
-                                                   -P perl \
-                                                   -P tar \
-                                                   -P unzip \
-                                                   -P zip
+#/cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P autoconf \
+#                                                   -P automake \
+#                                                   -P bash \
+#                                                   -P binutils \
+#                                                   -P coreutils \
+#                                                   -P curl \
+#                                                   -P git \
+#                                                   -P gzip \
+#                                                   -P libboost-devel \
+#                                                   -P libboost_python-devel \
+#                                                   -P m4 \
+#                                                   -P make \
+#                                                   -P mingw-gcc-core \
+#                                                   -P mingw-gcc-g++ \
+#                                                   -P mingw-runtime \
+#                                                   -P patch \
+#                                                   -P perl \
+#                                                   -P tar \
+#                                                   -P unzip \
+#                                                   -P zip
 
+WORKING_DIR=/cygdrive/e/vagrant
 
 echo "export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH" >> ~/.bashrc
 export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH
@@ -88,21 +89,24 @@ ln -s /usr/local/lib/libmpc.a /cygdrive/c/Python27/libs/libmpc.a
 ln -s /usr/local/lib/libmpc.la /cygdrive/c/Python27/libs/libmpc.la
 
 
-cd /vagrant
+mkdir -p $WORKING_DIR
+
+
+cd $WORKING_DIR
 curl https://pypi.python.org/packages/source/s/setuptools/setuptools-1.1.6.tar.gz > setuptools-1.1.6.tar.gz
 tar zxvf setuptools-1.1.6.tar.gz
 cd setuptools-1.1.6
 python setup.py install
 
 
-cd /vagrant
+cd $WORKING_DIR
 curl https://pypi.python.org/packages/source/p/pip/pip-1.4.1.tar.gz > pip-1.4.1.tar.gz
 tar zxvf pip-1.4.1.tar.gz
 cd pip-1.4.1
 python setup.py install
 
 
-cd /vagrant
+cd $WORKING_DIR
 curl http://www.mpir.org/mpir-2.6.0.tar.bz2 > mpir-2.6.0.tar.bz2
 bzip2 -d mpir-2.6.0.tar.bz2
 tar xvf mpir-2.6.0.tar
@@ -112,7 +116,7 @@ make -j`nproc`
 make install
 
 
-cd /vagrant
+cd $WORKING_DIR
 curl https://gmpy.googlecode.com/files/gmpy2-2.0.2.zip > gmpy2-2.0.2.zip
 unzip gmpy2-2.0.2.zip
 cd gmpy2-2.0.2
