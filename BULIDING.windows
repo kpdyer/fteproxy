@@ -39,12 +39,8 @@
 
 WORKING_DIR=/cygdrive/e/vagrant
 
-echo "export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH" >> ~/.bashrc
-export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH
-                               
-
-ln -s /usr/bin/i686-pc-mingw32-gcc /usr/bin/gcc
-ln -s /usr/bin/i686-pc-mingw32-g++ /usr/bin/g++
+echo "export PATH=/cygdrive/c/MinGW/bin:/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH" >> ~/.bashrc
+export PATH=/cygdrive/c/MinGW/bin:/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH
 
 
 # see: https://github.com/kpdyer/fteproxy/issues/71
