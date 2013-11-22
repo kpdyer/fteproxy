@@ -17,6 +17,10 @@
 # install mingw-get: https://sourceforge.net/projects/mingw/files/Installer
 #   * via mingw-get install: gcc, g++, gmp
 
+
+WORKING_DIR=/vagrant
+
+
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P autoconf \
                                                    -P automake \
                                                    -P bash \
@@ -35,7 +39,6 @@
                                                    -P unzip \
                                                    -P zip
 
-WORKING_DIR=/vagrant
 
 echo "export PATH=/cygdrive/c/MinGW/bin:/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH" >> ~/.bashrc
 export PATH=/cygdrive/c/MinGW/bin:/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH
@@ -51,33 +54,8 @@ sed -i -e 's/ -mno-cygwin//g' /cygdrive/c/Python27/Lib/distutils/cygwinccompiler
 
 
 # see: https://github.com/kpdyer/fteproxy/issues/73
-sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/io.h -e 's/off64_t/_off64_t/g'
-sed -i /usr/i686-pc-mingw32/sys-root/mingw/include/unistd.h -e 's/off_t/_off_t/g'
-
-
-# see: https://github.com/kpdyer/fteproxy/issues/78
-# see: https://github.com/kpdyer/fteproxy/issues/80
-#ln -s /usr/include/boost /cygdrive/c/Python27/include/boost
-#ln -s /usr/local/include/gmp.h /cygdrive/c/Python27/include/gmp.h
-#ln -s /usr/local/include/gmpxx.h /cygdrive/c/Python27/include/gmpxx.h
-#ln -s /usr/local/include/mpir.h /cygdrive/c/Python27/include/mpir.h
-#ln -s /usr/local/include/mpfr.h /cygdrive/c/Python27/include/mpfr.h
-#ln -s /usr/local/include/mpc.h /cygdrive/c/Python27/include/mpc.h
-
-#ln -s /usr/lib/libboost_python-mt.dll.a /cygdrive/c/Python27/libs/libboost_python-mt.dll.a
-#ln -s /usr/lib/libboost_system-mt.dll.a /cygdrive/c/Python27/libs/libboost_system-mt.dll.a
-#ln -s /usr/lib/libboost_filesystem-mt.dll.a /cygdrive/c/Python27/libs/libboost_filesystem-mt.dll.a
-#ln -s /usr/i686-pc-mingw32/sys-root/mingw/lib/libmsvcr90.a /cygdrive/c/Python27/libs/libmsvcr90.a
-#ln -s /usr/local/lib/libgmp.a /cygdrive/c/Python27/libs/libgmp.a
-#ln -s /usr/local/lib/libgmp.la /cygdrive/c/Python27/libs/libgmp.la
-#ln -s /usr/local/lib/libgmpxx.a /cygdrive/c/Python27/libs/libgmpxx.a
-#ln -s /usr/local/lib/libgmpxx.la /cygdrive/c/Python27/libs/libgmpxx.la
-#ln -s /usr/local/lib/libmpir.a /cygdrive/c/Python27/libs/libmpir.a
-#ln -s /usr/local/lib/libmpir.la /cygdrive/c/Python27/libs/libmpir.la
-#ln -s /usr/local/lib/libmpfr.a /cygdrive/c/Python27/libs/libmpfr.a
-#ln -s /usr/local/lib/libmpfr.la /cygdrive/c/Python27/libs/libmpfr.la
-#ln -s /usr/local/lib/libmpc.a /cygdrive/c/Python27/libs/libmpc.a
-#ln -s /usr/local/lib/libmpc.la /cygdrive/c/Python27/libs/libmpc.la
+sed -i /cygdrive/c/MinGW/include/io.h -e 's/off64_t/_off64_t/g'
+sed -i /cygdrive/c/MinGW/include/unistd.h -e 's/off_t/_off_t/g'
 
 
 mkdir -p $WORKING_DIR
@@ -96,23 +74,6 @@ tar zxvf pip-1.4.1.tar.gz
 cd pip-1.4.1
 python setup.py install
 
-
-#cd $WORKING_DIR
-#curl http://www.mpir.org/mpir-2.6.0.tar.bz2 > mpir-2.6.0.tar.bz2
-#bzip2 -d mpir-2.6.0.tar.bz2
-#tar xvf mpir-2.6.0.tar
-#cd mpir-2.6.0
-#./configure --build=mingw32 --enable-cxx --enable-shared --disable-static
-#make -j`nproc`
-#make install
-
-
-#cd $WORKING_DIR
-#curl https://gmpy.googlecode.com/files/gmpy2-2.0.2.zip > gmpy2-2.0.2.zip
-#unzip gmpy2-2.0.2.zip
-#cd gmpy2-2.0.2
-#python setup.py build
-#python setup.py install
 
 pip install gmpy
 pip install pycrypto
