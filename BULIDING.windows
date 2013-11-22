@@ -41,7 +41,7 @@ WORKING_DIR=/cygdrive/e/vagrant
 
 echo "export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH" >> ~/.bashrc
 export PATH=/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH
-                                                      
+                               
 
 ln -s /usr/bin/i686-pc-mingw32-gcc /usr/bin/gcc
 ln -s /usr/bin/i686-pc-mingw32-g++ /usr/bin/g++
@@ -53,7 +53,7 @@ echo "compiler=mingw32" >> /cygdrive/c/Python27/Lib/distutils/distutils.cfg
 
 
 # see: https://github.com/kpdyer/fteproxy/issues/72
-#sed -i -e 's/ -mno-cygwin//g' /cygdrive/c/Python27/Lib/distutils/cygwinccompiler.py
+sed -i -e 's/ -mno-cygwin//g' /cygdrive/c/Python27/Lib/distutils/cygwinccompiler.py
 
 
 # see: https://github.com/kpdyer/fteproxy/issues/73
@@ -108,7 +108,7 @@ curl http://www.mpir.org/mpir-2.6.0.tar.bz2 > mpir-2.6.0.tar.bz2
 bzip2 -d mpir-2.6.0.tar.bz2
 tar xvf mpir-2.6.0.tar
 cd mpir-2.6.0
-./configure --build=mingw32
+./configure --build=mingw32 --enable-cxx --enable-shared --disable-static
 make -j`nproc`
 make install
 
