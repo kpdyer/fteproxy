@@ -70,14 +70,6 @@ mkdir -p $WORKING_DIR
 
 
 cd $WORKING_DIR
-curl http://hivelocity.dl.sourceforge.net/project/boost/boost/1.55.0/boost_1_55_0.tar.gz > boost_1_55_0.tar.gz
-tar zxvf boost_1_55_0.tar.gz
-cd boost_1_55_0
-./bootstrap.sh --with-toolset=mingw
-./b2 -j`nproc` --with-python
-
-
-cd $WORKING_DIR
 curl https://pypi.python.org/packages/source/s/setuptools/setuptools-1.1.6.tar.gz > setuptools-1.1.6.tar.gz
 tar zxvf setuptools-1.1.6.tar.gz
 cd setuptools-1.1.6
