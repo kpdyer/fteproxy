@@ -27,6 +27,7 @@ WORKING_DIR=/vagrant
                                                    -P binutils \
                                                    -P coreutils \
                                                    -P curl \
+                                                   -P cygwin \
                                                    -P git \
                                                    -P gzip \
                                                    -P libboost-devel \
@@ -56,6 +57,10 @@ sed -i -e 's/ -mno-cygwin//g' /cygdrive/c/Python27/Lib/distutils/cygwinccompiler
 # see: https://github.com/kpdyer/fteproxy/issues/73
 sed -i /cygdrive/c/MinGW/include/io.h -e 's/off64_t/_off64_t/g'
 sed -i /cygdrive/c/MinGW/include/unistd.h -e 's/off_t/_off_t/g'
+
+
+cp /usr/include/dlfcn.h /cygdrive/c
+cp /usr/include/sys/mman.h /cygdrive/c/MinGW/include/sys/
 
 
 mkdir -p $WORKING_DIR
