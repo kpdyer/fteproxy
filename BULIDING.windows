@@ -114,7 +114,7 @@ python setup.py install
 #python setup.py build
 #python setup.py install
 
-pip install gmpy2
+pip install gmpy
 pip install pycrypto
 pip install obfsproxy
 pip install pyptlib
