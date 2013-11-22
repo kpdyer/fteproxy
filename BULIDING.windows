@@ -29,9 +29,6 @@
 #                                                   -P libboost_python-devel \
 #                                                   -P m4 \
 #                                                   -P make \
-#                                                   -P mingw-gcc-core \
-#                                                   -P mingw-gcc-g++ \
-#                                                   -P mingw-runtime \
 #                                                   -P patch \
 #                                                   -P perl \
 #                                                   -P tar \
@@ -50,7 +47,7 @@ echo "compiler=mingw32" >> /cygdrive/c/Python27/Lib/distutils/distutils.cfg
 
 
 # see: https://github.com/kpdyer/fteproxy/issues/72
-#sed -i -e 's/ -mno-cygwin//g' /cygdrive/c/Python27/Lib/distutils/cygwinccompiler.py
+sed -i -e 's/ -mno-cygwin//g' /cygdrive/c/Python27/Lib/distutils/cygwinccompiler.py
 
 
 # see: https://github.com/kpdyer/fteproxy/issues/73
