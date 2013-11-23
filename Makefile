@@ -35,7 +35,7 @@ install:
 	@echo "###########################################################"
 	@echo ""
 
-fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/libre2.a bin/fstcompile bin/fstprint bin/fstminimize
+fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/libre2.a
 	python setup.py build_ext --inplace
 
 $(THIRD_PARTY_DIR)/re2/obj/libre2.a: bin/fstminimize bin/fstprint bin/fstcompile
@@ -45,7 +45,7 @@ $(THIRD_PARTY_DIR)/re2/obj/libre2.a: bin/fstminimize bin/fstprint bin/fstcompile
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-002.patch
 	cd $(RE2_DIR) && $(MAKE) obj/libre2.a
 
-$(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize:
+openfst:
 	cd $(THIRD_PARTY_DIR) && curl $(OPENFST_TGZ) > openfst-$(OPENFST_VERSION).tar.gz
 	cd $(THIRD_PARTY_DIR) && tar zxvf openfst-$(OPENFST_VERSION).tar.gz
 	cd $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION) && ./configure --enable-fast-install --disable-dependency-tracking --disable-shared --enable-static --prefix=$(PREFIX)
@@ -78,9 +78,9 @@ phantom:
 	
 dist: all
 
-bin/fstminimize: $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize
+bin/fstminimize: openfst
 	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize bin/
-bin/fstcompile: $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstcompile
+bin/fstcompile: openfst
 	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstcompile bin/
-bin/fstprint: $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstprint
+bin/fstprint: openfst
 	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstprint bin/
