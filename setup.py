@@ -6,7 +6,10 @@ from distutils.core import Extension
 import os
 
 if os.name=='nt':
-    boost_libs = ['boost_python-mt','boost_system-mt','boost_filesystem-mt']
+    boost_libs = ['boost_python-mgw48-1_45',
+                  'boost_filesystem-mgw48-1_45',
+                  'boost_system-mgw48-1_45',
+                 ]
     extra_compile_args = ['-O3',
                           '-D_FORTIFY_SOURCE',
                           '-fPIE',
@@ -25,12 +28,13 @@ fte_cDFA = Extension('fte.cDFA',
                      library_dirs=['thirdparty/re2/obj'],
                      extra_compile_args=extra_compile_args,
                      extra_link_args=['-fPIC',
-                                      'thirdparty/re2/obj/libre2.a'
+                                      'thirdparty/re2/obj/libre2.a',
+                                      '-LC:\Boost\lib',
                                       ],
                      libraries=['gmp',
                                 'gmpxx',
-                                're2',
-                                'python2.7',
+                                're2','pthread',
+                                'python27',
                                 ]+boost_libs,
                      sources=['fte/cDFA.cc'])
 
