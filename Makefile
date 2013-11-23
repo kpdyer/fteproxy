@@ -45,7 +45,7 @@ $(THIRD_PARTY_DIR)/re2/obj/libre2.a: bin/fstminimize bin/fstprint bin/fstcompile
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-002.patch
 	cd $(RE2_DIR) && $(MAKE) obj/libre2.a
 
-openfst:
+thirdpart/openfst-$(OPENFST_VERSION):
 	cd $(THIRD_PARTY_DIR) && curl $(OPENFST_TGZ) > openfst-$(OPENFST_VERSION).tar.gz
 	cd $(THIRD_PARTY_DIR) && tar zxvf openfst-$(OPENFST_VERSION).tar.gz
 	cd $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION) && ./configure --enable-fast-install --disable-dependency-tracking --disable-shared --enable-static --prefix=$(PREFIX)
@@ -78,9 +78,9 @@ phantom:
 	
 dist: all
 
-bin/fstminimize: openfst
+bin/fstminimize: thirdpart/openfst-$(OPENFST_VERSION)
 	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstminimize bin/
-bin/fstcompile: openfst
+bin/fstcompile: thirdpart/openfst-$(OPENFST_VERSION)
 	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstcompile bin/
-bin/fstprint: openfst
+bin/fstprint: thirdpart/openfst-$(OPENFST_VERSION)
 	cp $(THIRD_PARTY_DIR)/openfst-$(OPENFST_VERSION)/src/bin/fstprint bin/
