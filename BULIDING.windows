@@ -43,8 +43,8 @@ WORKING_DIR=/vagrant
                                                    -P zip
 
 
-echo "export PATH=/cygdrive/c/MinGW/bin:/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH" >> ~/.bashrc
-export PATH=/cygdrive/c/MinGW/bin:/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH
+echo "export PATH=/cygdrive/c/boost/lib:/cygdrive/c/MinGW/bin:/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH" >> ~/.bashrc
+export PATH=/cygdrive/c/boost/lib:/cygdrive/c/MinGW/bin:/cygdrive/c/Python27:/cygdrive/c/Python27/Scripts:/usr/bin:$PATH
 
 
 # see: https://github.com/kpdyer/fteproxy/issues/71
