@@ -23,7 +23,7 @@ all: fte/cDFA
 	cd dist && cp fteproxy fteproxy-$(FTEPROXY_VERSION)/
 	cp README.md dist/fteproxy-$(FTEPROXY_VERSION)
 	cp COPYING dist/fteproxy-$(FTEPROXY_VERSION)
-ifneq (, $(findstring mingw, $(SYS)))
+ifneq (, $(findstring windows, $(PLATFORM)))
 	cp C:\\Windows\\System32\\msvcp100.dll dist/fteproxy-$(FTEPROXY_VERSION)
 	cp C:\\Windows\\System32\\msvcr100.dll dist/fteproxy-$(FTEPROXY_VERSION)
 	cp C:\\openfst\\lib\\openfst.dll dist/fteproxy-$(FTEPROXY_VERSION)
