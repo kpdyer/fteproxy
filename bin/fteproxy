@@ -77,8 +77,7 @@ This is free software, and you are welcome to redistribute it under certain cond
         elif self._args.mode == 'server':
             fte.conf.setValue('runtime.mode', 'server')
         else:
-            parser.print_help()
-            sys.exit(1)
+            fte.conf.setValue('runtime.mode', 'client')
         if self._args.client_ip:
             fte.conf.setValue('runtime.client.ip', self._args.client_ip)
         if self._args.client_port:

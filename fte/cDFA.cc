@@ -345,8 +345,8 @@ std::string attFstMinimize(std::string fst_path, std::string str_dfa)
     
 #ifdef _WIN32
     // create the destinations for our working files
-    std::string temp_dir = "c:/tmp"; // need to figure out proper path
-    std::string temp_file = "fteproxy"; // need better random function
+    std::string temp_dir = "."; // need to figure out proper path
+    std::string temp_file = "000000"; // need better random function
 #else
     // create the destinations for our working files
     std::string temp_dir = boost::filesystem::temp_directory_path().native();
