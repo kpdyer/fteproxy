@@ -29,6 +29,7 @@ brew install python.rb --build-from-source
 brew install boost --build-from-source
 brew install gmp
 brew install git
+brew install upx
 
 sudo easy_install pip
 sudo pip install --upgrade pip
