@@ -24,13 +24,12 @@ import glob
 import argparse
 import threading
 
-encoding = sys.getfilesystemencoding()
 if hasattr(sys, "frozen"):
     sys.path.append(
-        os.path.abspath(os.path.join(os.path.dirname(unicode(sys.executable, encoding)))))
+        os.path.abspath(os.path.join(os.path.dirname(sys.executable))))
 else:
     sys.path.append(
-        os.path.abspath(os.path.join(os.path.dirname(unicode(__file__, encoding)), '..')))
+        os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import fte
 import fte.conf
