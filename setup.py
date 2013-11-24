@@ -4,8 +4,9 @@ from distutils.core import setup
 from distutils.core import Extension
 
 import os
-import py2exe
 import glob
+if os.name=='nt':
+    import py2exe
 
 if os.name=='nt':
     boost_libs = ['boost_python-mgw48-1_45',
