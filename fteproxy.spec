@@ -28,5 +28,5 @@ exe = EXE(pyz,
           name='fteproxy',
           debug=False,
           strip=False,
-          upx=False,
+          upx=True,
           console=True )
