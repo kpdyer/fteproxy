@@ -29,23 +29,37 @@ def setValue(key, value):
     conf[key] = value
 
 
+def we_are_frozen():
+    # All of the modules are built-in to the interpreter, e.g., by py2exe
+    return hasattr(sys, "frozen")
+
 def module_path():
-    return os.path.dirname(__file__)
+    encoding = sys.getfilesystemencoding()
+    if we_are_frozen():
+        return os.path.dirname(unicode(sys.executable, encoding))
+    else:
+        return os.path.dirname(unicode(__file__, encoding))
 
 
 conf = {}
 
 
 """The base path for the location of the fte.* modules."""
-conf['general.base_dir'] = os.path.abspath(os.path.join(module_path()))
+conf['general.base_dir'] = module_path()
 
 
 """Directory containing binary executables"""
-conf['general.bin_dir'] = os.path.abspath(os.path.join(module_path(),'..','bin'))
+if we_are_frozen():
+    conf['general.bin_dir'] = os.path.join(module_path())
+else:
+    conf['general.bin_dir'] = os.path.join(module_path(),'..','bin')
 
 
 """The path for fte *.json definition files."""
-conf['general.defs_dir'] = os.path.abspath(os.path.join(module_path(),'..','fte','defs'))
+if we_are_frozen():
+    conf['general.defs_dir'] = os.path.join(module_path(),'fte','defs')
+else:
+    conf['general.defs_dir'] = os.path.join(module_path(),'..','fte','defs')
 
 
 """The location that we store *.pid files, such that we can kill FTE from the command line."""

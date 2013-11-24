@@ -345,7 +345,7 @@ std::string attFstMinimize(std::string fst_path, std::string str_dfa)
     
 #ifdef _WIN32
     // create the destinations for our working files
-    std::string temp_dir = "."; // need to figure out proper path
+    std::string temp_dir = ""; // need to figure out proper path
     std::string temp_file = "000000"; // need better random function
 #else
     // create the destinations for our working files
@@ -365,6 +365,20 @@ std::string attFstMinimize(std::string fst_path, std::string str_dfa)
     dfa_stream.close();
 
     std::string cmd;
+
+#ifdef _WIN32
+    // convert our ATT DFA string to an FST
+    cmd = fst_path + "\\fstcompile.exe " + abspath_dfa + " " + abspath_fst;
+    system(cmd.c_str());
+
+    // convert our FST to a minmized FST
+    cmd = fst_path + "\\fstminimize.exe " + abspath_fst + " " + abspath_fst_min;
+    system(cmd.c_str());
+
+    // covert our minimized FST to an ATT FST string
+    cmd = fst_path + "\\fstprint.exe " + abspath_fst_min + " " + abspath_dfa_min;
+    system(cmd.c_str());
+#else
     // convert our ATT DFA string to an FST
     cmd = fst_path + "/fstcompile " + abspath_dfa + " " + abspath_fst;
     system(cmd.c_str());
@@ -376,6 +390,7 @@ std::string attFstMinimize(std::string fst_path, std::string str_dfa)
     // covert our minimized FST to an ATT FST string
     cmd = fst_path + "/fstprint " + abspath_fst_min + " " + abspath_dfa_min;
     system(cmd.c_str());
+#endif
 
     // read the contents of of the file at abspath_dfa_min to our retval
     std::ifstream dfa_min_stream(abspath_dfa_min.c_str());

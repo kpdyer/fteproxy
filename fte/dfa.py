@@ -100,8 +100,8 @@ def from_regex(regex, max_len):
     regex = str(regex)
     max_len = int(max_len)
 
-    att_fst = fte.cDFA.attFstFromRegex(regex)
-    att_fst = fte.cDFA.attFstMinimize(fst_path, att_fst)
+    att_fst = fte.cDFA.attFstFromRegex(str(regex))
+    att_fst = fte.cDFA.attFstMinimize(str(fst_path), str(att_fst))
     att_fst = att_fst.strip()
 
     dfa = fte.cDFA.DFA(att_fst, max_len)

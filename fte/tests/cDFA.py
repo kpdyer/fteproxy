@@ -17,6 +17,7 @@
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
 
+import os
 import unittest
 
 import fte.conf
@@ -26,16 +27,18 @@ import fte.cDFA
 class TestcDFA(unittest.TestCase):
 
     def testMakeDFA(self):
-        fst_path = fte.conf.getValue('general.bin_dir')
+        base_dir = fte.conf.getValue('general.base_dir')
         for i in range(1, 6):
-            with open('fte/tests/dfas/test' + str(i) + '.regex') as fh:
+            regex_file = os.path.join(base_dir,'fte/tests/dfas/test' + str(i) + '.regex')
+            with open(regex_file) as fh:
                 regex = fh.read()
 
-            with open('fte/tests/dfas/test' + str(i) + '.dfa') as fh:
+            dfa_file = os.path.join(base_dir,'fte/tests/dfas/test' + str(i) + '.dfa')
+            with open(dfa_file) as fh:
                 expected_fst = fh.read()
 
-            actual_fst = fte.cDFA.attFstFromRegex(regex)
-            actual_fst = fte.cDFA.attFstMinimize(fst_path, actual_fst)
+            actual_fst = fte.cDFA.attFstFromRegex(str(regex))
+            actual_fst = fte.cDFA.attFstMinimize(str(base_dir), str(actual_fst))
             actual_fst = actual_fst.strip()
 
             self.assertEquals(actual_fst, expected_fst)

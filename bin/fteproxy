@@ -24,8 +24,13 @@ import glob
 import argparse
 import threading
 
-sys.path.append(
-    os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')))
+encoding = sys.getfilesystemencoding()
+if hasattr(sys, "frozen"):
+    sys.path.append(
+        os.path.abspath(os.path.join(os.path.dirname(unicode(sys.executable, encoding)))))
+else:
+    sys.path.append(
+        os.path.abspath(os.path.join(os.path.dirname(unicode(__file__, encoding)), '..')))
 
 import fte
 import fte.conf
@@ -424,6 +429,8 @@ def main():
             main.stop()
     except KeyboardInterrupt:
         pass
+    except IOError:
+        pass
     finally:
         if fte.conf.getValue('runtime.mode'):
             pid_file = os.path.join(fte.conf.getValue('general.pid_dir'
@@ -443,3 +450,4 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
 
     main()
+    sys.exit(0)

@@ -19,15 +19,27 @@ OPENFST_TGZ=http://www.openfst.org/twiki/pub/FST/FstDownload/openfst-$(OPENFST_V
 
 all: fte/cDFA
 	mkdir -p dist/fteproxy-$(FTEPROXY_VERSION)
+ifneq (, $(findstring windows, $(PLATFORM)))
+	python setup.py py2exe
+	cd dist && mv *.exe fteproxy-$(FTEPROXY_VERSION)/
+	cd dist && mv *.zip fteproxy-$(FTEPROXY_VERSION)/
+else
 	pyinstaller fteproxy.spec
-	cd dist && cp fteproxy fteproxy-$(FTEPROXY_VERSION)/
+	cd dist && mv fteproxy fteproxy-$(FTEPROXY_VERSION)/fteproxy
+endif
+
 	cp README.md dist/fteproxy-$(FTEPROXY_VERSION)
 	cp COPYING dist/fteproxy-$(FTEPROXY_VERSION)
-ifneq (, $(findstring windows, $(PLATFORM)))
-	cp C:\\Windows\\System32\\msvcp100.dll dist/fteproxy-$(FTEPROXY_VERSION)
-	cp C:\\Windows\\System32\\msvcr100.dll dist/fteproxy-$(FTEPROXY_VERSION)
-	cp C:\\openfst\\lib\\openfst.dll dist/fteproxy-$(FTEPROXY_VERSION)
-endif
+
+	cp bin/fst* dist/fteproxy-$(FTEPROXY_VERSION)/
+
+	mkdir -p dist/fteproxy-$(FTEPROXY_VERSION)/fte/defs
+	cp fte/defs/*.json dist/fteproxy-$(FTEPROXY_VERSION)/fte/defs/
+
+	mkdir -p dist/fteproxy-$(FTEPROXY_VERSION)/fte/tests/dfas
+	cp fte/tests/dfas/*.dfa dist/fteproxy-$(FTEPROXY_VERSION)/fte/tests/dfas
+	cp fte/tests/dfas/*.regex dist/fteproxy-$(FTEPROXY_VERSION)/fte/tests/dfas
+
 	cd dist && tar cvf fteproxy-$(FTEPROXY_VERSION).tar fteproxy-$(FTEPROXY_VERSION)
 	cd dist && gzip -9 fteproxy-$(FTEPROXY_VERSION).tar
 

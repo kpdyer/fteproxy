@@ -4,6 +4,8 @@ from distutils.core import setup
 from distutils.core import Extension
 
 import os
+import py2exe
+import glob
 
 if os.name=='nt':
     boost_libs = ['boost_python-mgw48-1_45',
@@ -29,7 +31,7 @@ fte_cDFA = Extension('fte.cDFA',
                      extra_compile_args=extra_compile_args,
                      extra_link_args=['-fPIC',
                                       'thirdparty/re2/obj/libre2.a',
-                                      '-LC:\Boost\lib',
+                                      '-LC:\\Boost\\lib',
                                       ],
                      libraries=['gmp',
                                 'gmpxx',
@@ -39,6 +41,12 @@ fte_cDFA = Extension('fte.cDFA',
                      sources=['fte/cDFA.cc'])
 
 setup(name='Format-Transforming Encrypion (FTE)',
+      console=['./bin/fteproxy'],
+      options={"py2exe":{
+                        "optimize":2,
+                        "bundle_files":1,
+                        }
+              },
       version='0.2.0',
       description='FTE',
       author='Kevin P. Dyer',
@@ -47,6 +55,7 @@ setup(name='Format-Transforming Encrypion (FTE)',
       packages=['fte',
                 'fte.defs',
                 'fte.tests',
+                'fte.tests.dfas',
                 ],
       scripts=['bin/fteproxy',
                'bin/socksproxy'],
