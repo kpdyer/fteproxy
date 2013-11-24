@@ -9,16 +9,17 @@ if os.name=='nt':
     import py2exe
 
 if os.name=='nt':
-    boost_libs = ['boost_python-mgw48-1_45',
+    libraries = ['boost_python-mgw48-1_45',
                   'boost_filesystem-mgw48-1_45',
                   'boost_system-mgw48-1_45',
+                  'python27',
                  ]
     extra_compile_args = ['-O3',
                           '-D_FORTIFY_SOURCE',
                           '-fPIE',
                          ]
 else:
-    boost_libs = ['boost_python','boost_system','boost_filesystem']
+    libraries = ['boost_python','boost_system','boost_filesystem','python2.7']
     extra_compile_args = ['-O3',
                           '-fstack-protector-all',
                           '-D_FORTIFY_SOURCE',
@@ -37,8 +38,7 @@ fte_cDFA = Extension('fte.cDFA',
                      libraries=['gmp',
                                 'gmpxx',
                                 're2','pthread',
-                                'python27',
-                                ]+boost_libs,
+                                ]+libraries,
                      sources=['fte/cDFA.cc'])
 
 setup(name='Format-Transforming Encrypion (FTE)',
