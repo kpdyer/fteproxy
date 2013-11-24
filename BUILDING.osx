@@ -14,7 +14,7 @@
 export PATH="/usr/local/bin:/usr/local/share/python:${PATH}"
 
 # install homebrew
-# ruby -e "$(curl -fsSL https://raw.github.com/mxcl/homebrew/go/install)"
+ruby -e "$(curl -fsSL https://raw.github.com/mxcl/homebrew/go/install)"
 
 # see: https://github.com/kpdyer/fteproxy/issues/64
 sudo sed -i -e 's/march=native/march=core2/g' /usr/local/Library/ENV/4.3/cc
