@@ -21,8 +21,7 @@ all: fte/cDFA
 	mkdir -p dist/fteproxy-$(FTEPROXY_VERSION)
 ifneq (, $(findstring windows, $(PLATFORM)))
 	python setup.py py2exe
-	cd dist && mv *.exe fteproxy-$(FTEPROXY_VERSION)/
-	cd dist && mv *.zip fteproxy-$(FTEPROXY_VERSION)/
+	cd dist && mv -f *.exe fteproxy-$(FTEPROXY_VERSION)/
 else
 	pyinstaller fteproxy.spec
 	cd dist && mv fteproxy fteproxy-$(FTEPROXY_VERSION)/fteproxy
