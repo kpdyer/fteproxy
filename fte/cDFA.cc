@@ -368,15 +368,15 @@ std::string attFstMinimize(std::string fst_path, std::string str_dfa)
 
 #ifdef _WIN32
     // convert our ATT DFA string to an FST
-    cmd = fst_path + "\\fstcompile.exe " + abspath_dfa + " " + abspath_fst;
+    cmd = "\"" + fst_path + "\\fstcompile.exe\" " + abspath_dfa + " " + abspath_fst;
     system(cmd.c_str());
 
     // convert our FST to a minmized FST
-    cmd = fst_path + "\\fstminimize.exe " + abspath_fst + " " + abspath_fst_min;
+    cmd = "\"" + fst_path + "\\fstminimize.exe\" " + abspath_fst + " " + abspath_fst_min;
     system(cmd.c_str());
 
     // covert our minimized FST to an ATT FST string
-    cmd = fst_path + "\\fstprint.exe " + abspath_fst_min + " " + abspath_dfa_min;
+    cmd = "\"" + fst_path + "\\fstprint.exe\" " + abspath_fst_min + " " + abspath_dfa_min;
     system(cmd.c_str());
 #else
     // convert our ATT DFA string to an FST
