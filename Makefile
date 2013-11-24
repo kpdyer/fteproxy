@@ -23,6 +23,8 @@ ifneq (, $(findstring windows, $(PLATFORM)))
 	python setup.py py2exe
 	cd dist && mv -f *.exe fteproxy-$(FTEPROXY_VERSION)/
 	cp C:\\openfst\\lib\\openfst.dll dist/fteproxy-$(FTEPROXY_VERSION)/
+	cp C:\\Windows\\System32\\msvcp100.dll dist/fteproxy-$(FTEPROXY_VERSION)/
+	cp C:\\Windows\\System32\\msvcr100.dll dist/fteproxy-$(FTEPROXY_VERSION)/
 else
 	pyinstaller fteproxy.spec
 	cd dist && mv fteproxy fteproxy-$(FTEPROXY_VERSION)/fteproxy
