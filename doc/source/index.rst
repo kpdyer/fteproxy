@@ -1,7 +1,7 @@
 fteproxy Documentation
 =======================
 
-Format-Transforming Encryption (FTE) is a stategy for communicating using
+Format-Transforming Encryption (FTE) is a strategy for communicating using
 strings defined by compact regular expressions.
 FTE is well-positioned to circumvent regex-based DPI systems.
 

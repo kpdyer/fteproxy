@@ -51,7 +51,7 @@ def long_to_bytes(N, blocksize=1):
 
 
 def bytes_to_long(bytestring):
-    """Given a ``bytestring`` returns its integer represenation ``N``.
+    """Given a ``bytestring`` returns its integer representation ``N``.
     """
 
     bytestring = '\x00' + bytestring

@@ -37,7 +37,7 @@ class TestEncoders(unittest.TestCase):
     def setUpClass(self):
         encrypter = fte.encrypter.Encrypter()
         fte.conf.setValue('runtime.mode', 'client')
-        self.recoder_layers_info = []
+        self.record_layers_info = []
         self.record_layers_outgoing = []
         self.record_layers_incoming = []
         definitions = fte.defs.load_definitions()
@@ -49,7 +49,7 @@ class TestEncoders(unittest.TestCase):
                 encrypter=encrypter, encoder=regex_encoder)
             decoder = fte.record_layer.Decoder(
                 decrypter=encrypter, decoder=regex_encoder)
-            self.recoder_layers_info.append(language)
+            self.record_layers_info.append(language)
             self.record_layers_outgoing.append(encoder)
             self.record_layers_incoming.append(decoder)
 
@@ -71,7 +71,7 @@ class TestEncoders(unittest.TestCase):
                     if not data:
                         break
                     Y += data
-                self.assertEquals(P, Y, (self.recoder_layers_info[i],
+                self.assertEquals(P, Y, (self.record_layers_info[i],
                                   P, Y))
 
     def testReclayer_concat(self):
@@ -96,7 +96,7 @@ class TestEncoders(unittest.TestCase):
                     if not data:
                         break
                     Y += data
-                self.assertEquals(ptxt, Y, self.recoder_layers_info[i])
+                self.assertEquals(ptxt, Y, self.record_layers_info[i])
 
 
 if __name__ == '__main__':

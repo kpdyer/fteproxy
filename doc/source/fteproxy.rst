@@ -51,7 +51,7 @@ The ``fteproxy`` command-line application usage:
 Example Usage
 -------------
 
-Starting the ``fteproxy`` client with the default configuration paramters.
+Starting the ``fteproxy`` client with the default configuration parameters.
 
 .. code-block:: none
 
@@ -70,7 +70,7 @@ and ``YYY`` for downstream communications.
 
     fteproxy --mode client --upstream-format XXX --downstream-format YYY
 
-Starting the ``fteproxy`` server, binding to port ``8888`` on all intefaces.
+Starting the ``fteproxy`` server, binding to port ``8888`` on all interfaces.
 
 .. code-block:: none
 

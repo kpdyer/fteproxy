@@ -27,11 +27,11 @@ import fte.logger
 
 class worker(threading.Thread):
 
-    """``fte.relay.worker`` is repsonsible for relaying data between two sockets. Given ``socket1`` and
+    """``fte.relay.worker`` is responsible for relaying data between two sockets. Given ``socket1`` and
     ``socket2``, the worker will forward all data
     from ``socket1`` to ``socket2``, and ``socket2`` to ``socket1``. This class is a subclass of
     threading.Thread and does not start relaying until start() is called. The run
-    method terimates when either ``socket1`` or ``socket2`` is dected to be closed.
+    method terminates when either ``socket1`` or ``socket2`` is detected to be closed.
     """
 
     def __init__(self, socket1, socket2):
@@ -43,7 +43,7 @@ class worker(threading.Thread):
         """It's the responsibility of run to forward data from ``socket1`` to
         ``socket2`` and from ``socket2`` to ``socket1``. The ``run()`` met6od
         terminates and closes both sockets if ``fte.io.recvall_from_socket``
-        returns a negative regults for ``success``.
+        returns a negative results for ``success``.
         """
 
         try:
@@ -120,7 +120,7 @@ class listener(threading.Thread):
             except socket.timeout:
                 continue
             except socket.error:
-                fte.logger.error("socket.error reecived in fte.relay")
+                fte.logger.error("socket.error received in fte.relay")
                 continue
 
     def stop(self):

@@ -97,7 +97,7 @@ conf['runtime.fte.relay.socket_timeout'] = 0.001
 conf['runtime.fte.negotiate.timeout'] = 5
 
 
-"""The maxium number of bytes to sgement for an outgoing message."""
+"""The maximum number of bytes to segment for an outgoing message."""
 conf['runtime.fte.record_layer.max_cell_size'] = 2 ** 15
 
 

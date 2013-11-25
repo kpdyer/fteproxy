@@ -75,7 +75,7 @@ def recvall_from_socket(sock,
 
 def close_socket(sock, lock=None):
     """Given socket ``sock`` closes the socket for reading and writing.
-    If the optional ``lock`` paramter is provided, protects all accesses
+    If the optional ``lock`` parameter is provided, protects all accesses
     to ``sock`` with ``lock``.
     """
 

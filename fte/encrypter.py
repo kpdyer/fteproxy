@@ -96,8 +96,8 @@ class Encrypter(object):
         self._ecb_enc_K2 = AES.new(self.K2, AES.MODE_ECB)
 
     def encrypt(self, plaintext):
-        """Given ``plaintext``, returns a ``ciphertext`` encrypted with an authentiated-encryption scheme, using the keys specified in ``__init__``.
-        Ciphertext expansion is deterministic, the ouput ciphertext is always 42 bytes longer than the input ``plaintext``.
+        """Given ``plaintext``, returns a ``ciphertext`` encrypted with an authenticated-encryption scheme, using the keys specified in ``__init__``.
+        Ciphertext expansion is deterministic, the output ciphertext is always 42 bytes longer than the input ``plaintext``.
         The input ``plaintext`` can be ``''``.
 
         Raises ``PlaintextTypeError`` if input plaintext is not a string.

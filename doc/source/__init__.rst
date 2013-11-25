@@ -6,7 +6,7 @@ Overview
 --------
 
 The ``fte.wrap_socket`` function is useful for rapidly integrating FTE
-into existing applications. The interface is inspred by ``ssl.wrap_socket`` [1].
+into existing applications. The interface is inspired by ``ssl.wrap_socket`` [1].
 
 .. [1] http://docs.python.org/2/library/ssl.html
 

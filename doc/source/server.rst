@@ -26,7 +26,7 @@ Interface
 Examples
 --------
 
-Start the FTE server with default configuration paramters.
+Start the FTE server with default configuration parameters.
 
 .. code-block:: python
 

@@ -343,9 +343,9 @@ def wrap_socket(sock,
     The parameter ``outgoing_regex`` specifies the format of the messages
     to send via the socket. The ``outgoing_max_len`` parameter specifies the
     maximum length of the strings in ``outgoing_regex``.
-    The paramters ``incoming_regex`` and ``incoming_max_len`` are defined
+    The parameters ``incoming_regex`` and ``incoming_max_len`` are defined
     similarly.
-    The optional paramters ``K1`` and ``K2`` specify 128-bit keys to be used
+    The optional parameters ``K1`` and ``K2`` specify 128-bit keys to be used
     in FTE's underlying AE scheme. If specified, these values must be 16-byte
     hex strings.
     """

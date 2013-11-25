@@ -43,7 +43,7 @@ class Encoder:
         """Pop data off the FIFO buffer. We pop at most
         ``runtime.fte.record_layer.max_cell_size``
         bytes. The returned value is encrypted with ``encrypter`` then encoded
-        with ``encoder`` specied in ``__init__``.
+        with ``encoder`` specified in ``__init__``.
         """
 
         retval = ''
@@ -77,7 +77,7 @@ class Decoder:
         """Pop data off the FIFO buffer. We return at most
         ``runtime.fte.record_layer.max_cell_size``
         bytes. The returned value is decoded with ``encoder`` then decrypted
-        with ``decrypter`` specied in ``__init__``.
+        with ``decrypter`` specified in ``__init__``.
         """
 
         retval = ''

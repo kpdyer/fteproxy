@@ -7,7 +7,7 @@ It's the responsibility of the client listener to broker incoming/
 outgoing connections on the client-side of an FTE setup.
 Incoming connections are not encapsulated by FTE, as they
 are from a client-side application, such as Firefox. Outgoing connections
-will be destined to an FTE server. They will be encapsuled by FTE.
+will be destined to an FTE server. They will be encapsulated by FTE.
 
 The ``fte.client.listener`` class extends ``fte.relay.listener``.
 See ``fte.relay.listener`` for more information, which is also the base class
@@ -26,7 +26,7 @@ Interface
 Examples
 --------
 
-Start the FTE client with default configuration paramters.
+Start the FTE client with default configuration parameters.
 
 .. code-block:: python
 
