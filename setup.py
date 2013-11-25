@@ -18,6 +18,10 @@ if os.name=='nt':
                           '-D_FORTIFY_SOURCE',
                           '-fPIE',
                          ]
+    extra_link_args=['-fPIC',
+                     'thirdparty/re2/obj/libre2.a',
+                     '-LC:\\Boost\\lib',
+                    ]
 else:
     libraries = ['boost_python','boost_system','boost_filesystem','python2.7']
     extra_compile_args = ['-O3',
@@ -25,16 +29,16 @@ else:
                           '-D_FORTIFY_SOURCE',
                           '-fPIE',
                          ]
+    extra_link_args=['-fPIC',
+                     'thirdparty/re2/obj/libre2.a',
+                    ]
     
 fte_cDFA = Extension('fte.cDFA',
                      include_dirs=['fte',
                                    'thirdparty/re2'],
                      library_dirs=['thirdparty/re2/obj'],
                      extra_compile_args=extra_compile_args,
-                     extra_link_args=['-fPIC',
-                                      'thirdparty/re2/obj/libre2.a',
-                                      '-LC:\\Boost\\lib',
-                                      ],
+                     extra_link_args=extra_link_args,
                      libraries=['gmp',
                                 'gmpxx',
                                 're2','pthread',
