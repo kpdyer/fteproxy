@@ -125,7 +125,8 @@ class RegexEncoderObject(object):
 
         insuffientCovertextLen = (len(covertext) < self._max_len)
         if insuffientCovertextLen:
-            raise DecodeFailureError("Covertext is shorter than self._max_len, can't decode.")
+            raise DecodeFailureError(
+                "Covertext is shorter than self._max_len, can't decode.")
 
         maximumBytesToRank = int(math.floor(self.getCapacity() / 8.0))
 

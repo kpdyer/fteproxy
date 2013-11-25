@@ -109,7 +109,8 @@ class listener(threading.Thread):
 
                 new_stream = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 new_stream.connect((self._remote_ip, self._remote_port))
-                fte.logger.debug("New outgoing connection established: " + str((self._remote_ip, self._remote_port)))
+                fte.logger.debug("New outgoing connection established: " +
+                                 str((self._remote_ip, self._remote_port)))
 
                 conn = self.onNewIncomingConnection(conn)
                 new_stream = self.onNewOutgoingConnection(new_stream)

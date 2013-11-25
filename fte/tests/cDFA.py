@@ -29,16 +29,19 @@ class TestcDFA(unittest.TestCase):
     def testMakeDFA(self):
         base_dir = fte.conf.getValue('general.base_dir')
         for i in range(1, 6):
-            regex_file = os.path.join(base_dir,'fte/tests/dfas/test' + str(i) + '.regex')
+            regex_file = os.path.join(
+                base_dir, 'fte/tests/dfas/test' + str(i) + '.regex')
             with open(regex_file) as fh:
                 regex = fh.read()
 
-            dfa_file = os.path.join(base_dir,'fte/tests/dfas/test' + str(i) + '.dfa')
+            dfa_file = os.path.join(
+                base_dir, 'fte/tests/dfas/test' + str(i) + '.dfa')
             with open(dfa_file) as fh:
                 expected_fst = fh.read()
 
             actual_fst = fte.cDFA.attFstFromRegex(str(regex))
-            actual_fst = fte.cDFA.attFstMinimize(str(base_dir), str(actual_fst))
+            actual_fst = fte.cDFA.attFstMinimize(
+                str(base_dir), str(actual_fst))
             actual_fst = actual_fst.strip()
 
             self.assertEquals(actual_fst, expected_fst)

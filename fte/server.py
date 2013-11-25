@@ -37,11 +37,12 @@ class listener(fte.relay.listener):
 
         return socket
 
+
 class SocksProxyV4(multiprocessing.Process):
 
     def __init__(self, proxyIP, proxyPort):
         multiprocessing.Process.__init__(self)
-        
+
         self._proxyIP = proxyIP
         self._proxyPort = proxyPort
         self._event = multiprocessing.Event()

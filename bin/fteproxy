@@ -38,6 +38,7 @@ import fte.client
 
 FTE_PT_NAME = 'fte'
 
+
 class FTEMain(threading.Thread):
 
     def __init__(self, args):
@@ -120,7 +121,7 @@ This is free software, and you are welcome to redistribute it under certain cond
 
         with open(pid_file, 'w') as f:
             f.write(str(os.getpid()))
-        
+
         if fte.conf.getValue('runtime.mode') == 'client':
             incoming_regex = fte.defs.getRegex(self._args.downstream_format)
             incoming_max_len = fte.defs.getMaxLen(self._args.downstream_format)
@@ -132,10 +133,10 @@ This is free software, and you are welcome to redistribute it under certain cond
             if self._args.managed:
                 do_managed_client()
             else:
-    
+
                 if not self._args.quiet:
                     print 'Client ready!'
-                
+
                 local_ip = fte.conf.getValue('runtime.client.ip')
                 local_port = fte.conf.getValue('runtime.client.port')
                 remote_ip = fte.conf.getValue('runtime.server.ip')
@@ -178,17 +179,17 @@ This is free software, and you are welcome to redistribute it under certain cond
 def do_managed_client():
 
     from twisted.internet import reactor, error
-    
+
     import obfsproxy.common.transport_config as transport_config
     #import obfsproxy.network.launch_transport as launch_transport
     import obfsproxy.transports.transports as transports
     import obfsproxy.common.log as logging
-    
+
     from pyptlib.client import ClientTransportPlugin
     from pyptlib.config import EnvError
-    
+
     import pprint
-    
+
     log = logging.get_obfslogger()
 
     """Start the managed-proxy protocol as a client."""
@@ -202,15 +203,18 @@ def do_managed_client():
         log.warning("Client managed-proxy protocol failed (%s)." % err)
         return
 
-    log.debug("pyptlib gave us the following data:\n'%s'", pprint.pformat(ptclient.getDebugData()))
+    log.debug("pyptlib gave us the following data:\n'%s'",
+              pprint.pformat(ptclient.getDebugData()))
 
     for transport in ptclient.getTransports():
-        # Will hold configuration parameters for the pluggable transport module.
+        # Will hold configuration parameters for the pluggable transport
+        # module.
         pt_config = transport_config.TransportConfig()
         pt_config.setStateLocation(ptclient.config.getStateLocation())
 
         try:
-            addrport = fte.launch_transport_listener(transport, None, 'socks', None, pt_config)
+            addrport = fte.launch_transport_listener(
+                transport, None, 'socks', None, pt_config)
         except transports.TransportNotFound:
             log.warning("Could not find transport '%s'" % transport)
             ptclient.reportMethodError(transport, "Could not find transport.")
@@ -221,7 +225,8 @@ def do_managed_client():
             continue
 
         should_start_event_loop = True
-        log.debug("Successfully launched '%s' at '%s'" % (transport, log.safe_addr_str(str(addrport))))
+        log.debug("Successfully launched '%s' at '%s'" %
+                  (transport, log.safe_addr_str(str(addrport))))
         ptclient.reportMethodSuccess(transport, "socks4", addrport, None, None)
 
     ptclient.reportMethodsEnd()
@@ -235,19 +240,19 @@ def do_managed_client():
 
 def do_managed_server():
     from twisted.internet import reactor, error
-    
+
     from pyptlib.server import ServerTransportPlugin
     from pyptlib.config import EnvError
-    
+
     import obfsproxy.transports.transports as transports
     #import obfsproxy.network.launch_transport as launch_transport
     import obfsproxy.common.log as logging
     import obfsproxy.common.transport_config as transport_config
-    
+
     import pprint
-    
+
     log = logging.get_obfslogger()
-    
+
     """Start the managed-proxy protocol as a server."""
 
     should_start_event_loop = False
@@ -259,7 +264,8 @@ def do_managed_server():
         log.warning("Server managed-proxy protocol failed (%s)." % err)
         return
 
-    log.debug("pyptlib gave us the following data:\n'%s'", pprint.pformat(ptserver.getDebugData()))
+    log.debug("pyptlib gave us the following data:\n'%s'",
+              pprint.pformat(ptserver.getDebugData()))
 
     ext_orport = ptserver.config.getExtendedORPort()
     authcookie = ptserver.config.getAuthCookieFile()
@@ -267,7 +273,8 @@ def do_managed_server():
     server_transport_options = ptserver.config.getServerTransportOptions()
     for transport, transport_bindaddr in ptserver.getBindAddresses().items():
 
-        # Will hold configuration parameters for the pluggable transport module.
+        # Will hold configuration parameters for the pluggable transport
+        # module.
         pt_config = transport_config.TransportConfig()
         pt_config.setStateLocation(ptserver.config.getStateLocation())
         transport_options = ""
@@ -278,17 +285,17 @@ def do_managed_server():
         try:
             if ext_orport:
                 addrport = fte.launch_transport_listener(transport,
-                                                                      transport_bindaddr,
-                                                                      'ext_server',
-                                                                      ext_orport,
-                                                                      pt_config,
-                                                                      ext_or_cookie_file=authcookie)
+                                                         transport_bindaddr,
+                                                         'ext_server',
+                                                         ext_orport,
+                                                         pt_config,
+                                                         ext_or_cookie_file=authcookie)
             else:
                 addrport = fte.launch_transport_listener(transport,
-                                                                      transport_bindaddr,
-                                                                      'server',
-                                                                      orport,
-                                                                      pt_config)
+                                                         transport_bindaddr,
+                                                         'server',
+                                                         orport,
+                                                         pt_config)
         except transports.TransportNotFound:
             log.warning("Could not find transport '%s'" % transport)
             ptserver.reportMethodError(transport, "Could not find transport.")
@@ -300,10 +307,13 @@ def do_managed_server():
 
         should_start_event_loop = True
 
-        extra_log = "" # Include server transport options in the log message if we got 'em
+        # Include server transport options in the log message if we got 'em
+        extra_log = ""
         if transport_options:
-            extra_log = " (server transport options: '%s')" % str(transport_options)
-        log.debug("Successfully launched '%s' at '%s'%s" % (transport, log.safe_addr_str(str(addrport)), extra_log))
+            extra_log = " (server transport options: '%s')" % str(
+                transport_options)
+        log.debug("Successfully launched '%s' at '%s'%s" %
+                  (transport, log.safe_addr_str(str(addrport)), extra_log))
 
         # Report success for this transport.
         # (We leave the 'options' as None and let pyptlib handle the
@@ -418,7 +428,7 @@ def main():
     try:
         args = get_args()
         main = FTEMain(args)
-        if args.managed:# and args.mode=="client":
+        if args.managed:  # and args.mode=="client":
             main.run()
         else:
             main.daemon = True

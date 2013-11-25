@@ -28,7 +28,7 @@ class InvalidRegexName(Exception):
 
 def load_definitions():
     # TODO: Cache file, such that we don't have to reload each time
-    
+
     def_dir = os.path.join(fte.conf.getValue('general.defs_dir'))
     def_file = fte.conf.getValue('fte.defs.release') + '.json'
     def_abspath = os.path.join(def_dir, def_file)

@@ -18,12 +18,12 @@
 
 
 def info(msg):
-    pass#print msg
+    pass  # print msg
 
 
 def debug(msg):
-    pass#print msg
+    pass  # print msg
 
 
 def error(msg):
-    pass#print msg
+    pass  # print msg
