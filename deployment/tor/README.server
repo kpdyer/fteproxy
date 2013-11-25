@@ -15,7 +15,7 @@ gpg --export A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89 | sudo apt-key add -
 sudo apt-get update
 sudo apt-get -y install tor
 sudo apt-get -y install deb.torproject.org-keyring
-sudo cp $BUILD_DIR/fteproxy/tor/torrc.server /etc/tor/torrc
+sudo curl https://raw.github.com/kpdyer/fteproxy/master/deployment/tor/torrc.server > /etc/tor/torrc
 
 # download+install fte
 cd $TMP_DIR
