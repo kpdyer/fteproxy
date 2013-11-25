@@ -11,26 +11,23 @@
 # enable password-less sudo
 # enable ssh access
 
+WORKING_DIR=/vagrant
+
 export PATH="/usr/local/bin:/usr/local/share/python:${PATH}"
 
 # install homebrew
 ruby -e "$(curl -fsSL https://raw.github.com/mxcl/homebrew/go/install)"
 
 # see: https://github.com/kpdyer/fteproxy/issues/64
-sudo sed -i -e 's/march=native/march=core2/g' /usr/local/Library/ENV/4.3/cc
+# sudo sed -i -e 's/march=native/march=core2/g' /usr/local/Library/ENV/4.3/cc
+sudo sed -i -e 's/march=native/march=core2/g' /usr/local/Library/Homebrew/extend/ENV/super.rb
 
-# see: https://github.com/kpdyer/fteproxy/issues/65
-brew install wget
-wget https://raw.github.com/mxcl/homebrew/master/Library/Formula/python.rb
-sudo sed -i -e 's/enable-ipv6/disable-ipv6/g' python.rb
-brew install python.rb --build-from-source
-
+brew install python --build-from-source
 brew install boost --build-from-source
 brew install gmp
 brew install git
 brew install upx
 
-sudo easy_install pip
 sudo pip install --upgrade pip
 sudo pip install --upgrade setuptools
 sudo pip install gmpy
@@ -41,10 +38,10 @@ sudo pip install pyinstaller
 # see: https://github.com/kpdyer/fteproxy/issues/66
 sudo touch /usr/local/lib/python2.7/site-packages/zope/__init__.py
 
+cd $WORKING_DIR
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
-
 # see: https://github.com/kpdyer/fteproxy/issues/67
-make -j`nproc` fte/cDFA.so
+make -j`nproc` fte/cDFA
 install_name_tool -change /System/Library/Frameworks/Python.framework/Versions/2.7/Python /usr/local/Cellar/python/2.7.6/Frameworks/Python.framework/Python fte/cDFA.so
 make
