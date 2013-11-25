@@ -23,7 +23,10 @@ if os.name=='nt':
                      '-LC:\\Boost\\lib',
                     ]
 else:
-    libraries = ['boost_python','boost_system','boost_filesystem','python2.7']
+    libraries = ['boost_python',
+                 'boost_system',
+                 'boost_filesystem',
+                 'python2.7']
     extra_compile_args = ['-O3',
                           '-fstack-protector-all',
                           '-D_FORTIFY_SOURCE',
@@ -45,27 +48,43 @@ fte_cDFA = Extension('fte.cDFA',
                                 ]+libraries,
                      sources=['fte/cDFA.cc'])
 
-setup(name='Format-Transforming Encrypion (FTE)',
-      console=['./bin/fteproxy'],
-      zipfile=None,
-      options={"py2exe":{
-                        "optimize":2,
-                        "compressed":True,
-                        "bundle_files":1,
-                        }
-              },
-      version='0.2.0',
-      description='FTE',
-      author='Kevin P. Dyer',
-      author_email='kpdyer@gmail.com',
-      url='https://github.com/redjack/fte-proxy',
-      packages=['fte',
-                'fte.defs',
-                'fte.tests',
-                'fte.tests.dfas',
-                ],
-      scripts=['bin/fteproxy',
-               'bin/socksproxy'],
-      package_data={'fte.defs': ['*.json', 'fte/defs/*.json']},
-      ext_modules=[fte_cDFA],
-      )
+if os.name == 'nt':
+    setup(name='Format-Transforming Encrypion (FTE)',
+          console=['./bin/fteproxy'],
+          zipfile=None,
+          options={"py2exe":{
+                            "optimize":2,
+                            "compressed":True,
+                            "bundle_files":1,
+                            }
+                  },
+          version='0.2.0',
+          description='FTE',
+          author='Kevin P. Dyer',
+          author_email='kpdyer@gmail.com',
+          url='https://github.com/redjack/fte-proxy',
+          packages=['fte',
+                    'fte.defs',
+                    'fte.tests',
+                    'fte.tests.dfas',
+                    ],
+          scripts=['bin/fteproxy',
+                   'bin/socksproxy'],
+          ext_modules=[fte_cDFA],
+          )
+else:
+    setup(name='Format-Transforming Encrypion (FTE)',
+          version='0.2.0',
+          description='FTE',
+          author='Kevin P. Dyer',
+          author_email='kpdyer@gmail.com',
+          url='https://github.com/redjack/fte-proxy',
+          packages=['fte',
+                    'fte.defs',
+                    'fte.tests',
+                    'fte.tests.dfas',
+                    ],
+          scripts=['bin/fteproxy',
+                   'bin/socksproxy'],
+          ext_modules=[fte_cDFA],
+          )
