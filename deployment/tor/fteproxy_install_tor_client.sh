@@ -1,8 +1,8 @@
 #!/bin/sh
 
-if [[ $UID -ne 0 ]]; then
-  echo "$0 must be run as root"
-  exit 1
+if [ "$(id -u)" != "0" ]; then
+   echo "This script must be run as root" 1>&2
+   exit 1
 fi
 
 # Assumes Tor is not already installed, will overwrite existing configuration.
