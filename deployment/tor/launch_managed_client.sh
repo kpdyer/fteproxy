@@ -7,4 +7,4 @@ export TOR_PT_STATE_LOCATION=/tmp
 export TOR_PT_MANAGED_TRANSPORT_VER=1
 export TOR_PT_CLIENT_TRANSPORTS=fte
 
-fteproxy --mode client --managed
+/usr/local/fteproxy/bin/fteproxy --mode client --managed
