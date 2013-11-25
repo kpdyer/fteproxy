@@ -25,6 +25,8 @@ mkdir -p /usr/local/fteproxy/bin
 cp fteproxy-$FTEPROXY_VERSION-linux-$ARCH/{fteproxy,fst*} /usr/local/fteproxy/bin/
 cp -rfv fteproxy-$FTEPROXY_VERSION-linux-$ARCH/fte /usr/local/fteproxy/bin/
 cp fteproxy-$FTEPROXY_VERSION-linux-$ARCH/{README.md,COPYING} /usr/local/fteproxy/
+rm $TMP_DIR/fteproxy-$FTEPROXY_VERSION-linux-$ARCH.tar.gz
+rm -rf $TMP_DIR/fteproxy-$FTEPROXY_VERSION-linux-$ARCH
 
 # restart tor to pickup fte changes
 service tor restart
