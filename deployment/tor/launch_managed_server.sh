@@ -13,4 +13,4 @@ export TOR_PT_ORPORT=127.0.0.1:8081
 export TOR_PT_SERVER_BINDADDR=fte-0.0.0.0:8080
 export TOR_PT_SERVER_TRANSPORTS=fte
 
-fteproxy --mode server --managed
+/usr/local/fteproxy/bin/fteproxy --mode server --managed
