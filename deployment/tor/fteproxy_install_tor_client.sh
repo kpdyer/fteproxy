@@ -22,9 +22,9 @@ cd $TMP_DIR
 curl https://fteproxy.org/dist/fteproxy/linux/fteproxy-$FTEPROXY_VERSION-linux-$ARCH.tar.gz > fteproxy-$FTEPROXY_VERSION-linux-$ARCH.tar.gz
 tar zxvf fteproxy-$FTEPROXY_VERSION-linux-$ARCH.tar.gz
 mkdir -p /usr/local/fteproxy/bin
-cp fteproxy-$FTEPROXY_VERSION-linux-$ARCH/{fteproxy,fst*} /usr/local/fteproxy/bin/
+cp fteproxy-$FTEPROXY_VERSION-linux-$ARCH/fteproxy /usr/local/fteproxy/bin/
+cp fteproxy-$FTEPROXY_VERSION-linux-$ARCH/fst* /usr/local/fteproxy/bin/
 cp -rfv fteproxy-$FTEPROXY_VERSION-linux-$ARCH/fte /usr/local/fteproxy/bin/
-cp fteproxy-$FTEPROXY_VERSION-linux-$ARCH/{README.md,COPYING} /usr/local/fteproxy/
 rm $TMP_DIR/fteproxy-$FTEPROXY_VERSION-linux-$ARCH.tar.gz
 rm -rf $TMP_DIR/fteproxy-$FTEPROXY_VERSION-linux-$ARCH
 
