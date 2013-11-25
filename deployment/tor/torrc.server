@@ -7,4 +7,4 @@ PublishServerDescriptor 0
 # ContactInfo [SET ME!]
 
 ServerTransportListenAddr fte 0.0.0.0:8080
-ServerTransportPlugin fte exec /usr/local/bin/fteproxy --managed --mode server
+ServerTransportPlugin fte exec /usr/local/fteproxy/bin/fteproxy --managed --mode server
