@@ -21,7 +21,7 @@ sudo cp $BUILD_DIR/fteproxy/tor/torrc.client /etc/tor/torrc
 cd $TMP_DIR
 curl https://fteproxy.org/dist/fteproxy/linux/fteproxy-$FTEPROXY_VERSION-linux-$ARCH.tar.gz > fteproxy-$FTEPROXY_VERSION-linux-$ARCH.tar.gz
 tar zxvf fteproxy-$FTEPROXY_VERSION-linux-$ARCH.tar.gz
-sudo cp fteproxy-$FTEPROXY_VERSION-linux-$ARCH/fteproxy /usr/local/bin/
+sudo cp -rfv fteproxy-$FTEPROXY_VERSION-linux-$ARCH/fteproxy /usr/local/fteproxy
 
 # restart tor to pickup fte changes
 sudo service tor restart
