@@ -335,79 +335,6 @@ std::string attFstFromRegex(std::string str_regex)
     return retval;
 }
 
-std::string attFstMinimize(std::string fst_path, std::string str_dfa)
-{
-    // TODO: Throw exception if fstcompile, fstminimize or fstprint don't exist in system path
-    // TODO: Throw exception if we fail to generate abspath_dfa_min
-    // TODO: Throw exception if we can't remove() the generated files
-
-    std::string retval;
-    
-#ifdef _WIN32
-    // create the destinations for our working files
-    std::string temp_dir = ""; // need to figure out proper path
-    std::string temp_file = "000000"; // need better random function
-#else
-    // create the destinations for our working files
-    std::string temp_dir = boost::filesystem::temp_directory_path().native();
-    std::string temp_file = boost::filesystem::unique_path().native();
-#endif
-
-    std::string abspath_dfa     = temp_dir+ "/" + temp_file + ".dfa";
-    std::string abspath_fst     = temp_dir+ "/" + temp_file + ".fst";
-    std::string abspath_fst_min = temp_dir+ "/" + temp_file + ".min.fst";
-    std::string abspath_dfa_min = temp_dir+ "/" + temp_file + ".min.dfa";
-
-    // write our input DFA to disk
-    std::ofstream dfa_stream;
-    dfa_stream.open (abspath_dfa.c_str());
-    dfa_stream << str_dfa;
-    dfa_stream.close();
-
-    std::string cmd;
-
-#ifdef _WIN32
-    // convert our ATT DFA string to an FST
-    cmd = "\"" + fst_path + "\\fstcompile.exe\" " + abspath_dfa + " " + abspath_fst;
-    system(cmd.c_str());
-
-    // convert our FST to a minmized FST
-    cmd = "\"" + fst_path + "\\fstminimize.exe\" " + abspath_fst + " " + abspath_fst_min;
-    system(cmd.c_str());
-
-    // covert our minimized FST to an ATT FST string
-    cmd = "\"" + fst_path + "\\fstprint.exe\" " + abspath_fst_min + " " + abspath_dfa_min;
-    system(cmd.c_str());
-#else
-    // convert our ATT DFA string to an FST
-    cmd = fst_path + "/fstcompile " + abspath_dfa + " " + abspath_fst;
-    system(cmd.c_str());
-
-    // convert our FST to a minmized FST
-    cmd = fst_path + "/fstminimize " + abspath_fst + " " + abspath_fst_min;
-    system(cmd.c_str());
-
-    // covert our minimized FST to an ATT FST string
-    cmd = fst_path + "/fstprint " + abspath_fst_min + " " + abspath_dfa_min;
-    system(cmd.c_str());
-#endif
-
-    // read the contents of of the file at abspath_dfa_min to our retval
-    std::ifstream dfa_min_stream(abspath_dfa_min.c_str());
-    std::stringstream buffer;
-    buffer << dfa_min_stream.rdbuf();
-    retval = std::string(buffer.str());
-    dfa_min_stream.close();
-
-    // cleanup
-    remove( abspath_dfa.c_str() );
-    remove( abspath_fst.c_str() );
-    remove( abspath_fst_min.c_str() );
-    remove( abspath_dfa_min.c_str() );
-
-    return retval;
-}
-
 BOOST_PYTHON_MODULE(cDFA)
 {
     boost::python::class_<DFA>("DFA",boost::python::init<std::string,int32_t>())
@@ -416,5 +343,4 @@ BOOST_PYTHON_MODULE(cDFA)
     .def("getNumWordsInLanguage", &DFA::getNumWordsInLanguage);
 
     boost::python::def("attFstFromRegex",attFstFromRegex);
-    boost::python::def("attFstMinimize",attFstMinimize);
 }

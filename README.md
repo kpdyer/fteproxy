@@ -21,7 +21,6 @@ Dependencies
 Dependencies for building from source:
 * Standard build tools: gcc/g++/make/etc.
 * Python 2.7: http://python.org/
-* OpenFst: http://openfst.org/
 * GMP: http://gmplib.org/
 * gmpy: https://code.google.com/p/gmpy/
 * PyCrypto: https://www.dlitz.net/software/pycrypto/

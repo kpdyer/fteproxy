@@ -97,6 +97,3 @@ public:
 // given an input perl-compatiable regular-expression
 // returns an ATT FST formatted DFA
 std::string attFstFromRegex(std::string);
-
-// given an ATT FST formatted DFA returns its minimized representation
-std::string attFstMinimize(std::string, std::string);
