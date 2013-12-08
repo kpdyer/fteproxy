@@ -16,17 +16,16 @@
 #include <Python.h>
 
 #include <map>
+#include <unordered_set>
 
 #include <gmpxx.h>
 
-#include <boost/multi_array.hpp>
-#include <boost/unordered_set.hpp>
-
-typedef boost::multi_array<char, 1> array_type_char_t1;
-typedef boost::multi_array<bool, 1> array_type_bool_t1;
-typedef boost::multi_array<uint32_t, 1> array_type_uint32_t1;
-typedef boost::multi_array<uint32_t, 2> array_type_uint32_t2;
-typedef boost::multi_array<mpz_class, 2> array_type_mpz_t2;
+typedef std::vector<char> array_type_char_t1;
+typedef std::vector<bool> array_type_bool_t1;
+typedef std::vector<uint32_t> array_type_uint32_t1;
+typedef std::vector< std::vector<uint32_t> > array_type_uint32_t2;
+typedef std::vector< std::vector<mpz_class> > array_type_mpz_t2;
+typedef std::vector< std::string > array_type_string_t1;
 
 // copied from gmpy
 // allows us to use gmp.mpz objects in python for input to our unrank function
@@ -66,7 +65,7 @@ private:
     array_type_bool_t1 _delta_dense;
 
     // the set of final states in our DFA
-    boost::unordered_set<uint32_t> _final_states;
+    std::unordered_set<uint32_t> _final_states;
 
     // buildTable builds a mapping from [q, i] -> n
     //   q: a state in our DFA

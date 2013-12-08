@@ -17,6 +17,7 @@ if os.name == 'nt':
     extra_compile_args = ['-O3',
                           '-D_FORTIFY_SOURCE',
                           '-fPIE',
+                          '-std=c++11',
                           ]
     extra_link_args = ['-fPIC',
                        'thirdparty/re2/obj/libre2.a',
@@ -31,6 +32,7 @@ else:
                           '-fstack-protector-all',
                           '-D_FORTIFY_SOURCE',
                           '-fPIE',
+                          '-std=c++11',
                           ]
     extra_link_args = ['-fPIC',
                        'thirdparty/re2/obj/libre2.a',

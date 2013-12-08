@@ -18,11 +18,9 @@
 #include <iostream>
 #include <fstream>
 
-#include <boost/filesystem.hpp>
 #include <boost/python/module.hpp>
 #include <boost/python/def.hpp>
 #include <boost/python/class.hpp>
-#include <boost/algorithm/string.hpp>
 
 #include "re2/re2.h"
 #include "re2/regexp.h"
@@ -30,14 +28,23 @@
 
 int _CRT_MT = 1;
 
-typedef vector< std::string > split_vector_type;
-
 // TODO: figure out a way around this rotN hack
 static std:: string rotN(int n, std::string s) {
     for (uint32_t i = 0; i <= s.size(); i++) {
         s[i] = s[i] + n;
     }
     return s;
+}
+
+array_type_string_t1 tokenize( std::string line, char delim ) {
+    array_type_string_t1 retval;
+    
+    std::istringstream iss(line);
+    std::string fragment;
+    while(std::getline(iss, fragment, delim))
+        retval.push_back(fragment);
+    
+    return retval;
 }
 
 /*
@@ -53,19 +60,17 @@ DFA::DFA(std::string dfa_str, uint32_t max_len)
 {
     // construct the _start_state, _final_states and symbols/states of our DFA
     std::vector<uint32_t> symbols;
-    boost::unordered_set<uint32_t> states;
+    std::unordered_set<uint32_t> states;
     std::string line;
     std::istringstream myfile(dfa_str);
     while ( getline (myfile,line) )
     {
         if (line.empty()) break;
 
-        split_vector_type SplitVec;
-        boost::split( SplitVec, line, boost::is_any_of("\t") );
-
-        if (SplitVec.size() == 4) {
-            uint32_t current_state = strtol(SplitVec[0].c_str(),NULL,10);
-            uint32_t symbol = strtol(SplitVec[2].c_str(),NULL,10);
+        array_type_string_t1 split_vec = tokenize( line, '\t' );
+        if (split_vec.size() == 4) {
+            uint32_t current_state = strtol(split_vec[0].c_str(),NULL,10);
+            uint32_t symbol = strtol(split_vec[2].c_str(),NULL,10);
             states.insert( current_state );
 
             if (find(symbols.begin(), symbols.end(), symbol)==symbols.end()) {
@@ -75,8 +80,8 @@ DFA::DFA(std::string dfa_str, uint32_t max_len)
             if ( _start_state == -1 ) {
                 _start_state = current_state;
             }
-        } else if (SplitVec.size()==1) {
-            uint32_t final_state = strtol(SplitVec[0].c_str(),NULL,10);
+        } else if (split_vec.size()==1) {
+            uint32_t final_state = strtol(split_vec[0].c_str(),NULL,10);
             _final_states.insert( final_state );
             states.insert( final_state );
         } else {
@@ -98,8 +103,9 @@ DFA::DFA(std::string dfa_str, uint32_t max_len)
     }
 
     // intialize all transitions in our DFA to our dead state
-    _delta.resize(boost::extents[_num_states][_num_symbols]);
+    _delta.resize(_num_states);
     for (j=0; j<_num_states; j++) {
+        _delta[j].resize(_num_symbols);
         for (k=0; k < _num_symbols; k++) {
             _delta[j][k] = _num_states - 1;
         }
@@ -109,13 +115,11 @@ DFA::DFA(std::string dfa_str, uint32_t max_len)
     std::istringstream myfile2(dfa_str);
     while ( getline (myfile2,line) )
     {
-        split_vector_type SplitVec;
-        boost::split( SplitVec, line, boost::is_any_of("\t") );
-
-        if (SplitVec.size() == 4) {
-            uint32_t current_state = strtol(SplitVec[0].c_str(),NULL,10);
-            uint32_t symbol = strtol(SplitVec[2].c_str(),NULL,10);
-            uint32_t new_state = strtol(SplitVec[1].c_str(),NULL,10);
+        array_type_string_t1 split_vec = tokenize( line, '\t' );
+        if (split_vec.size() == 4) {
+            uint32_t current_state = strtol(split_vec[0].c_str(),NULL,10);
+            uint32_t symbol = strtol(split_vec[2].c_str(),NULL,10);
+            uint32_t new_state = strtol(split_vec[1].c_str(),NULL,10);
 
             symbol = _sigma_reverse[symbol];
 
@@ -123,7 +127,7 @@ DFA::DFA(std::string dfa_str, uint32_t max_len)
         }
     }
 
-    _delta_dense.resize(boost::extents[_num_states]);
+    _delta_dense.resize(_num_states);
     uint32_t q, a;
     for (q=0; q < _num_states; q++ ) {
         _delta_dense[q] = true;
@@ -148,16 +152,16 @@ void DFA::_buildTable() {
     uint32_t a;
 
     // ensure our table _T is the correct size
-    _T.resize(boost::extents[_num_states][_max_len+1]);
-    
-    for (i=0; i<=_max_len; i++) {
-        for (q=0; q<_num_states; q++) {
+    _T.resize(_num_states);
+    for (q=0; q<_num_states; q++) {
+        _T[q].resize(_max_len+1);
+        for (i=0; i<=_max_len; i++) {
                 _T[q][i] = 0;
         }
     }
 
     // set all _T[q][0] = 1 for all states in _final_states
-    boost::unordered_set<uint32_t>::iterator state;
+    std::unordered_set<uint32_t>::iterator state;
     for (state=_final_states.begin(); state!=_final_states.end(); state++) {
         _T[*state][0] = 1;
     }
@@ -236,7 +240,7 @@ void DFA::rank( std::string X_in, PyObject * C_out ) {
 
     // covert the input symbols in X_in into their numeric representation
     uint32_t i;
-    array_type_uint32_t1 X(boost::extents[X_in.size()]);
+    array_type_uint32_t1 X( X_in.size() );
     for (i=0; i<X_in.size(); i++) {
         X[i] = _sigma_reverse[X_in.at(i)];
     }
