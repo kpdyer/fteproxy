@@ -45,7 +45,10 @@ conf = {}
 
 
 """The base path for the location of the fte.* modules."""
-conf['general.base_dir'] = module_path()
+if we_are_frozen():
+    conf['general.base_dir'] = module_path()
+else:
+    conf['general.base_dir'] = os.path.join(module_path(), '..')
 
 
 """Directory containing binary executables"""

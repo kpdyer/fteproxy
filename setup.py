@@ -9,33 +9,22 @@ if os.name == 'nt':
     import py2exe
 
 if os.name == 'nt':
-    libraries = ['boost_python-mgw48-1_45',
-                 'boost_filesystem-mgw48-1_45',
-                 'boost_system-mgw48-1_45',
-                 'python27',
+    libraries = ['python27',
                  ]
     extra_compile_args = ['-O3',
-                          '-D_FORTIFY_SOURCE',
                           '-fPIE',
                           '-std=c++11',
                           ]
-    extra_link_args = ['-fPIC',
-                       'thirdparty/re2/obj/libre2.a',
-                       '-LC:\\Boost\\lib',
-                       ]
+    extra_link_args = [ 'thirdparty/re2/obj/libre2.a',
+                      ]
 else:
-    libraries = ['boost_python',
-                 'boost_system',
-                 'boost_filesystem',
-                 'python2.7']
+    libraries = ['python2.7']
     extra_compile_args = ['-O3',
                           '-fstack-protector-all',
-                          '-D_FORTIFY_SOURCE',
                           '-fPIE',
                           '-std=c++11',
                           ]
-    extra_link_args = ['-fPIC',
-                       'thirdparty/re2/obj/libre2.a',
+    extra_link_args = ['thirdparty/re2/obj/libre2.a',
                        ]
 
 fte_cDFA = Extension('fte.cDFA',
@@ -46,7 +35,7 @@ fte_cDFA = Extension('fte.cDFA',
                      extra_link_args=extra_link_args,
                      libraries=['gmp',
                                 'gmpxx',
-                                're2', 'pthread',
+                                're2',
                                 ] + libraries,
                      sources=['fte/cDFA.cc'])
 

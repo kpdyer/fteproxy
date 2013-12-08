@@ -14,6 +14,7 @@
 // along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <Python.h>
+#include <structmember.h>
 
 #include <map>
 #include <unordered_set>
@@ -95,4 +96,4 @@ public:
 
 // given an input perl-compatiable regular-expression
 // returns an ATT FST formatted DFA
-std::string attFstFromRegex(std::string);
+static PyObject * fte_cDFA_attFstFromRegex(PyObject*, PyObject*);

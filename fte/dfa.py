@@ -65,7 +65,7 @@ class DFA(object):
         """
 
         c = gmpy.mpz(0)
-        self._dfa.rank(X, c)
+        self._dfa.rank(str(X), c)
         c -= self._offset
         return c
 
@@ -79,7 +79,6 @@ class DFA(object):
         c = gmpy.mpz(c)
         c += self._offset
         X = self._dfa.unrank(c)
-
         return str(X)
 
     def getCapacity(self):

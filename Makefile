@@ -55,25 +55,21 @@ fte/cDFA: $(THIRD_PARTY_DIR)/re2/obj/libre2.a
 	python setup.py build_ext --inplace
 
 $(THIRD_PARTY_DIR)/re2/obj/libre2.a: $(THIRD_PARTY_DIR)/re2-$(RE2_VERSION).tgz
+	cd $(THIRD_PARTY_DIR) && tar zxvf re2-$(RE2_VERSION).tgz
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-001.patch
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-002.patch
 	cd $(RE2_DIR) && $(MAKE) obj/libre2.a
 
 $(THIRD_PARTY_DIR)/re2-$(RE2_VERSION).tgz:
 	cd $(THIRD_PARTY_DIR) && curl $(RE2_TGZ) > re2-$(RE2_VERSION).tgz
-	cd $(THIRD_PARTY_DIR) && tar zxvf re2-$(RE2_VERSION).tgz
 
 
 clean:
-	@find . -name "*.pyc" -exec rm {} \;
 	@rm -rvf build
 	@rm -rvf dist
 	@rm -rvf $(THIRD_PARTY_DIR)/re2
-	@rm -vf $(THIRD_PARTY_DIR)/*.tgz
-	@rm -vf src/*.o
 	@rm -vf fte/*.so
 	@rm -vf fte/*.pyd
-	@cd doc && $(MAKE) clean
 
 
 test:

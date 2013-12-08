@@ -30,12 +30,12 @@ class TestcDFA(unittest.TestCase):
         base_dir = fte.conf.getValue('general.base_dir')
         for i in range(1, 6):
             regex_file = os.path.join(
-                base_dir, '..', 'fte/tests/dfas/test' + str(i) + '.regex')
+                base_dir, 'fte/tests/dfas/test' + str(i) + '.regex')
             with open(regex_file) as fh:
                 regex = fh.read()
 
             dfa_file = os.path.join(
-                base_dir, '..', 'fte/tests/dfas/test' + str(i) + '.dfa')
+                base_dir, 'fte/tests/dfas/test' + str(i) + '.dfa')
             with open(dfa_file) as fh:
                 expected_fst = fh.read()
 

@@ -18,10 +18,6 @@
 #include <iostream>
 #include <fstream>
 
-#include <boost/python/module.hpp>
-#include <boost/python/def.hpp>
-#include <boost/python/class.hpp>
-
 #include "re2/re2.h"
 #include "re2/regexp.h"
 #include "re2/prog.h"
@@ -57,13 +53,13 @@ DFA::DFA(std::string dfa_str, uint32_t max_len)
       _start_state(-1),
       _num_states(0),
       _num_symbols(0)
-{
+{    
     // construct the _start_state, _final_states and symbols/states of our DFA
     std::vector<uint32_t> symbols;
     std::unordered_set<uint32_t> states;
     std::string line;
-    std::istringstream myfile(dfa_str);
-    while ( getline (myfile,line) )
+    std::istringstream my_str_stream(dfa_str);
+    while ( getline (my_str_stream,line) )
     {
         if (line.empty()) break;
 
@@ -112,8 +108,8 @@ DFA::DFA(std::string dfa_str, uint32_t max_len)
     }
 
     // fill our our transition function delta
-    std::istringstream myfile2(dfa_str);
-    while ( getline (myfile2,line) )
+    std::istringstream my_str_stream2(dfa_str);
+    while ( getline (my_str_stream2,line) )
     {
         array_type_string_t1 split_vec = tokenize( line, '\t' );
         if (split_vec.size() == 4) {
@@ -308,11 +304,15 @@ PyObject* DFA::getNumWordsInLanguage( uint32_t min_word_length,
     return retval;
 }
 
-std::string attFstFromRegex(std::string str_regex)
+static PyObject * fte_cDFA_attFstFromRegex(PyObject *self, PyObject *args)
 {
     // TODO: Throw exception if DFA is not generated correctly (how do we determine this case?)
     // TODO: Identify when DFA has >N states, then throw exception
 
+    const char *regex;
+    if (!PyArg_ParseTuple(args, "s", &regex))
+        return NULL;
+    
     std::string retval;
 
     // specify compile flags for re2
@@ -328,7 +328,7 @@ std::string attFstFromRegex(std::string str_regex)
 
     // compile regex to DFA
     RE2::Options opt;
-    re2::Regexp* re = re2::Regexp::Parse( str_regex, re_flags, &status );
+    re2::Regexp* re = re2::Regexp::Parse( regex, re_flags, &status );
     re2::Prog* prog = re->CompileToProg( opt.max_mem() );
     retval = prog->PrintEntireDFA( re2::Prog::kFullMatch );
 
@@ -336,15 +336,175 @@ std::string attFstFromRegex(std::string str_regex)
     delete prog;
     re->Decref();
 
+    return Py_BuildValue("s", retval.c_str());
+}
+
+
+
+
+
+
+
+
+
+typedef struct {
+    PyObject_HEAD
+    DFA *obj;
+} DFAObject;
+
+static void
+fte_cDFA_DFA_dealloc(PyObject* self)
+{
+    PyObject_Del(self);
+}
+
+static PyObject * fte_cDFA_DFA__rank(PyObject *self, PyObject *args) {
+    char* word;
+    Py_ssize_t len;
+    PyObject* c_out;
+    
+    if (!PyArg_ParseTuple(args, "s#O", &word, &len, &c_out))
+        return NULL;
+    
+    std::string str_word = "";
+    uint32_t max = len;
+    str_word.append(word, max);
+    
+    DFAObject *oip = (DFAObject*)self;
+    DFA *dfa = oip->obj;
+    
+    dfa->rank(str_word, c_out);
+    
+    return Py_None;
+}
+
+static PyObject * fte_cDFA_DFA__unrank(PyObject *self, PyObject *args) {
+    PyObject* c_out;
+    
+    if (!PyArg_ParseTuple(args, "O", &c_out))
+        return NULL;
+    
+    DFAObject *oip = (DFAObject*)self;
+    DFA *dfa = oip->obj;
+    
+    std::string retval = dfa->unrank(c_out);
+    
+    return Py_BuildValue("s#", retval.c_str(), retval.length());
+}
+
+static PyObject * fte_cDFA_DFA__getNumWordsInLanguage(PyObject *self, PyObject *args) {
+    int32_t min;
+    int32_t max;
+    
+    if (!PyArg_ParseTuple(args, "ii", &min, &max))
+        return NULL;
+    
+    DFAObject *oip = (DFAObject*)self;
+    DFA *dfa = oip->obj;
+    
+    PyObject* retval = dfa->getNumWordsInLanguage(min, max);
+    
     return retval;
 }
 
-BOOST_PYTHON_MODULE(cDFA)
-{
-    boost::python::class_<DFA>("DFA",boost::python::init<std::string,int32_t>())
-    .def("rank", &DFA::rank)
-    .def("unrank", &DFA::unrank)
-    .def("getNumWordsInLanguage", &DFA::getNumWordsInLanguage);
+static PyMethodDef erpamethods[] = {
+    {"rank",  fte_cDFA_DFA__rank, METH_VARARGS, NULL},
+    {"unrank",  fte_cDFA_DFA__unrank, METH_VARARGS, NULL},
+    {"getNumWordsInLanguage",  fte_cDFA_DFA__getNumWordsInLanguage, METH_VARARGS, NULL},
+    {NULL, NULL, 0, NULL}
+};
 
-    boost::python::def("attFstFromRegex",attFstFromRegex);
+static PyMethodDef ftecDFAMethods[] = {
+    {"attFstFromRegex",  fte_cDFA_attFstFromRegex, METH_VARARGS, NULL},
+    //{"DFA",  fte_cDFA_new_DFA, METH_VARARGS, NULL},
+    {NULL, NULL, 0, NULL}
+};
+
+static PyObject *
+DFA_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+    DFAObject *self;
+
+    self = (DFAObject *)type->tp_alloc(type, 0);
+
+    return (PyObject *)self;
+}
+
+static int
+DFA_init(DFAObject *self, PyObject *args, PyObject *kwds)
+{
+    const char *regex;
+    int32_t max_len;
+    
+    if (!PyArg_ParseTuple(args, "si", &regex, &max_len))
+        return NULL;
+    
+    std::string str_regex = std::string(regex);
+    
+    DFA *dfa = new DFA(str_regex, max_len);
+    self->obj = dfa;
+    
+    return 0;
+}
+
+static PyTypeObject fte_cDFA_DFAType = {
+    PyObject_HEAD_INIT(NULL)
+    0,
+    "fte.cDFA.DFA",
+    sizeof(DFAObject),
+    0,
+    fte_cDFA_DFA_dealloc, /*tp_dealloc*/
+    0,          /*tp_print*/
+    0,          /*tp_getattr*/
+    0,          /*tp_setattr*/
+    0,          /*tp_compare*/
+    0,          /*tp_repr*/
+    0,          /*tp_as_number*/
+    0,          /*tp_as_sequence*/
+    0,          /*tp_as_mapping*/
+    0,          /*tp_hash */
+    0,					/* tp_call */
+    0,					/* tp_str */
+    0,  				/* tp_getattro */
+    0,					/* tp_setattro */
+    0,					/* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /*tp_flags*/
+    0,				/* tp_doc */
+    0,				/* tp_traverse */
+    0,					/* tp_clear */
+    0,					/* tp_richcompare */
+    0,					/* tp_weaklistoffset */
+    0,					/* tp_iter */
+    0,					/* tp_iternext */
+    erpamethods,					/* tp_methods */
+    0,				/* tp_members */
+    0,					/* tp_getset */
+    0,					/* tp_base */
+    0,					/* tp_dict */
+    0,			/* tp_descr_get */
+    0,					/* tp_descr_set */
+    0,					/* tp_dictoffset */
+    (initproc)DFA_init,				/* tp_init */
+    0,			/* tp_alloc */
+    DFA_new,			/* tp_new */
+    0,			/* tp_free */
+};
+
+#ifndef PyMODINIT_FUNC	/* declarations for DLL import/export */
+#define PyMODINIT_FUNC void
+#endif
+PyMODINIT_FUNC
+initcDFA(void)
+{
+    PyObject *m;
+    
+    if (PyType_Ready(&fte_cDFA_DFAType) < 0)
+        return;
+    
+    m = Py_InitModule("fte.cDFA", ftecDFAMethods);
+    if (m == NULL)
+        return;
+    
+    Py_INCREF(&fte_cDFA_DFAType);
+    PyModule_AddObject(m, "DFA", (PyObject *)&fte_cDFA_DFAType);
 }

@@ -25,7 +25,6 @@ Dependencies for building from source:
 * gmpy: https://code.google.com/p/gmpy/
 * PyCrypto: https://www.dlitz.net/software/pycrypto/
 * Twisted: http://twistedmatrix.com/trac/
-* boost (python, system, filesystem): http://www.boost.org/
 * obfsproxy: https://pypi.python.org/pypi/obfsproxy
 * pyptlib: https://pypi.python.org/pypi/pyptlib
 
