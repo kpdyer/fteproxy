@@ -93,7 +93,7 @@ conf['runtime.proxy.port'] = 8081
 
 
 """The default socket timeout."""
-conf['runtime.fte.relay.socket_timeout'] = 0.001
+conf['runtime.fte.relay.socket_timeout'] = 0.0001
 
 
 """The default timeout when establishing a new FTE socket."""
@@ -101,7 +101,7 @@ conf['runtime.fte.negotiate.timeout'] = 5
 
 
 """The maximum number of bytes to segment for an outgoing message."""
-conf['runtime.fte.record_layer.max_cell_size'] = 2 ** 15
+conf['runtime.fte.record_layer.max_cell_size'] = 2 ** 14
 
 
 """The default client-to-server language."""
@@ -117,7 +117,7 @@ conf['runtime.fte.encrypter.key'] = 'FF' * 16 + '00' * 16
 
 
 """The default max_len parameter to use for buildTable."""
-conf['fte.default_max_len'] = 256
+conf['fte.default_max_len'] = 128
 
 
 """The default definitions file to use."""

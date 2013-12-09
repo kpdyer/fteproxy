@@ -66,7 +66,7 @@ class DFA(object):
 
         c = gmpy.mpz(0)
         self._dfa.rank(str(X), c)
-        c -= self._offset
+
         return c
 
     def unrank(self, c):
@@ -76,9 +76,8 @@ class DFA(object):
         if c > (self._words_in_slice - 1):
             raise IntegerOutOfRangeException()
 
-        c = gmpy.mpz(c)
-        c += self._offset
-        X = self._dfa.unrank(c)
+        X = self._dfa.unrank(gmpy.mpz(c))
+        
         return str(X)
 
     def getCapacity(self):
@@ -89,6 +88,10 @@ class DFA(object):
         """
 
         return self._capacity
+    
+    def getNumWordsInSlice(self, n):
+        return self._dfa.getNumWordsInLanguage(n, n)
+    
 
 
 def attFstFromRegex(regex):

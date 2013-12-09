@@ -16,7 +16,6 @@
 # You should have received a copy of the GNU General Public License
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: Change test to not be dependent upon remote server
 
 import os
 import time
@@ -25,9 +24,10 @@ import socket
 import fte.defs
 
 
-BYTES_TO_SEND = 2 ** 20
+BYTES_TO_SEND = 2 ** 21
 BLOCK_SIZE = 2 ** 12
 TRIALS = 1
+TIMEOUT = 60
 BIND_IP = '127.0.0.1'
 
 
@@ -51,7 +51,9 @@ def main():
             if language.endswith('request'):
                 format = language[:-8]
                 elapsed, bytesSent = doTest(format)
-                print '+', format, str(1.0*bytesSent/elapsed/(2**20)*(2**3))+'Mbps'
+                throughput = 1.0*bytesSent/elapsed/(2**20)*(2**3)
+                throughput = round(throughput,2)
+                print '+', format+':', str(throughput)+' Mbps ('+str(round(elapsed,2))+'s)' 
             
     os.system("./bin/fteproxy --quiet --mode server --stop")
 
@@ -95,7 +97,7 @@ def doTest(format):
             elapsed = time.time() - startTimer
             [is_alive, data] = fte.network_io.recvall_from_socket(conn)
             actual += data
-            if (actual == expected) or elapsed>30 or not is_alive:
+            if (actual == expected) or elapsed>TIMEOUT or not is_alive:
                 break
     finally:
         assert actual == expected, ((actual[:32], expected[:32]), (actual[-32:], expected[-32:]))
