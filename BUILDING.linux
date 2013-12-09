@@ -12,12 +12,12 @@ sudo apt-get -y install build-essential \
                         python-dev \
                         libgmp-dev \
                         python-pip
-sudo pip install twisted
-sudo pip install gmpy
-sudo pip install pycrypto
-sudo pip install obfsproxy
-sudo pip install pyptlib
-sudo pip install pyinstaller
+sudo pip install twisted \
+                 gmpy \
+                 pycrypto \
+                 obfsproxy \
+                 pyptlib \
+                 pyinstaller
 
 # fteproxy
 git clone https://github.com/kpdyer/fteproxy.git
