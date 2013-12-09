@@ -38,19 +38,6 @@ endif
 	cd dist && tar cvf fteproxy-$(FTEPROXY_VERSION).tar fteproxy-$(FTEPROXY_VERSION)
 	cd dist && gzip -9 fteproxy-$(FTEPROXY_VERSION).tar
 
-install:
-	@test -s dist/fteproxy || { echo "Please run \"make\" first."; exit 1; }
-	cp dist/fteproxy $(PREFIX)/bin/
-	@echo ""
-	@echo "###########################################################"
-	@echo "#"
-	@echo "# Installation complete!!"
-	@echo "# "
-	@echo "# !!! For fteproxy to work, you must ensure $(PREFIX) is in your PATH!"
-	@echo "#"
-	@echo "###########################################################"
-	@echo ""
-
 fte/cDFA: $(THIRD_PARTY_DIR)/re2/obj/libre2.a
 	python setup.py build_ext --inplace
 

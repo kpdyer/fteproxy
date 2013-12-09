@@ -340,9 +340,6 @@ def test():
     import fte.tests.relay
     import fte.tests.dfa
     import fte.tests.cDFA
-    
-    import yappi
-    yappi.start()
 
     suite_encoder = unittest.TestLoader().loadTestsFromTestCase(
         fte.tests.encoder.TestEncoders)
@@ -369,8 +366,6 @@ def test():
     ]
     alltests = unittest.TestSuite(suites)
     unittest.TextTestRunner(verbosity=2, failfast=True).run(alltests)
-    
-    yappi.print_stats(sort_type=yappi.SORTTYPE_TTOT)
 
 
 def get_args():
@@ -416,7 +411,7 @@ def get_args():
                                                   ))
     parser.add_argument('--quiet', action='store_true', default=False)
     parser.add_argument('--release',
-                        help='Definitions file to use, specified as YYYYMMDD'
+                        help='Definitions file to use, specified as YYYYMMDD',
                         default=fte.conf.getValue('fte.defs.release'))
     parser.add_argument('--managed',
                         help="Start in managed mode, for use with Tor. --server parameters ignored.",

@@ -24,9 +24,9 @@ Dependencies for building from source:
 * GMP: http://gmplib.org/
 * gmpy: https://code.google.com/p/gmpy/
 * PyCrypto: https://www.dlitz.net/software/pycrypto/
-* Twisted: http://twistedmatrix.com/trac/
-* obfsproxy: https://pypi.python.org/pypi/obfsproxy
 * pyptlib: https://pypi.python.org/pypi/pyptlib
+* obfsproxy: https://pypi.python.org/pypi/obfsproxy
+* Twisted: http://twistedmatrix.com/trac/
 
 Building
 -----------
@@ -39,7 +39,7 @@ Once all dependencies are installed, it's as simple as:
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
 make
-sudo make install
+./bin/fteproxy [args]
 ```
 
 Documentation

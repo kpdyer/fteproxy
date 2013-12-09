@@ -30,7 +30,6 @@ fte_cDFA = Extension('fte.cDFA',
                      extra_link_args=['thirdparty/re2/obj/libre2.a'],
                      libraries=['gmp',
                                 'gmpxx',
-                                're2',
                                 ] + libraries,
                      sources=['fte/cDFA.cc'])
 
