@@ -39,7 +39,7 @@ Once all dependencies are installed, it's as simple as:
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
 make
-./bin/fteproxy [args]
+./bin/fteproxy
 ```
 
 Documentation
