@@ -23,10 +23,10 @@ ruby -e "$(curl -fsSL https://raw.github.com/mxcl/homebrew/go/install)"
 # sudo sed -i -e 's/march=native/march=core2/g' /usr/local/Library/ENV/4.3/cc
 sudo sed -i -e 's/march=native/march=core2/g' /usr/local/Library/Homebrew/extend/ENV/super.rb
 
-brew install python --build-from-source \
-             gmp \
-             git \
-             upx
+brew install --build-from-source python
+brew install --build-from-source gmp
+brew install --build-from-source git
+brew install --build-from-source upx
              
 sudo pip install --upgrade pip \
                            setuptools \
