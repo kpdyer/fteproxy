@@ -10,11 +10,11 @@ sudo apt-get -y install m4
 sudo apt-get -y install upx
 sudo apt-get -y install git
 sudo apt-get -y install python-dev
-sudo apt-get -y install python-gmpy
-sudo apt-get -y install python-crypto
-sudo apt-get -y install python-twisted
 sudo apt-get -y install libgmp-dev
 sudo apt-get -y install python-pip
+sudo pip install twisted
+sudo pip install gmpy
+sudo pip install pycrypto
 sudo pip install obfsproxy
 sudo pip install pyptlib
 sudo pip install pyinstaller
