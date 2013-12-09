@@ -5,7 +5,7 @@ ifneq (, $(findstring cygwin, $(PLATFORM_LOWER)))
 PLATFORM='windows'
 endif
 ARCH=$(shell arch)
-FTEPROXY_VERSION=0.2.0-$(PLATFORM_LOWER)-$(ARCH)
+FTEPROXY_VERSION=`cat VERSION`-$(PLATFORM_LOWER)-$(ARCH)
 
 THIRD_PARTY_DIR=thirdparty
 
