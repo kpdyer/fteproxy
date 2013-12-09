@@ -47,7 +47,7 @@ class TestRelay(unittest.TestCase):
 
         self._server.start()
         self._client.start()
-        
+
         time.sleep(0.1)
 
     def tearDown(self):

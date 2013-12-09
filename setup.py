@@ -13,7 +13,7 @@ with open('VERSION') as fh:
 if os.name == 'nt':
     libraries = ['python27']
     extra_compile_args = ['-Ofast',
-                          #'-fstack-protector-all', # failes on mingw32
+                          # '-fstack-protector-all', # failes on mingw32
                           '-fPIE',
                           '-fPIC',
                           '-std=c++11',
@@ -34,11 +34,11 @@ fte_cDFA = Extension('fte.cDFA',
                      extra_compile_args=extra_compile_args,
                      extra_link_args=['thirdparty/re2/obj/libre2.a',
                                       #'-Wl,--strip-all'
-                                     ],
+                                      ],
                      libraries=['gmp',
                                 'gmpxx',
                                 ] + libraries,
-                     sources=['fte/rank_unrank.cc','fte/cDFA.cc'])
+                     sources=['fte/rank_unrank.cc', 'fte/cDFA.cc'])
 
 if os.name == 'nt':
     setup(name='Format-Transforming Encrypion (FTE)',

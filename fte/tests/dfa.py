@@ -22,7 +22,7 @@ import random
 
 import fte.dfa
 
-NUM_TRIALS = 2**10
+NUM_TRIALS = 2 ** 10
 
 MAX_LEN = 512
 _regexs = [

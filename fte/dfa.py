@@ -77,7 +77,7 @@ class DFA(object):
             raise IntegerOutOfRangeException()
 
         X = self._cDFA.unrank(gmpy.mpz(c))
-        
+
         return str(X)
 
     def getCapacity(self):
@@ -88,11 +88,10 @@ class DFA(object):
         """
 
         return self._capacity
-    
+
     def getNumWordsInSlice(self, n):
         """Returns the number of words in the language of length ``n``"""
         return self._cDFA.getNumWordsInLanguage(n, n)
-    
 
 
 def _attFstFromRegex(regex):

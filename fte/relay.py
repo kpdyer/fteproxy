@@ -48,13 +48,15 @@ class worker(threading.Thread):
 
         try:
             while True:
-                [success, _data] = fte.network_io.recvall_from_socket(self._socket1)
+                [success, _data] = fte.network_io.recvall_from_socket(
+                    self._socket1)
                 if not success:
                     break
                 if _data:
                     fte.network_io.sendall_to_socket(self._socket2, _data)
 
-                [success, _data] = fte.network_io.recvall_from_socket(self._socket2)
+                [success, _data] = fte.network_io.recvall_from_socket(
+                    self._socket2)
                 if not success:
                     break
                 if _data:
@@ -128,7 +130,7 @@ class listener(threading.Thread):
         """
         self._running = False
         fte.network_io.close_socket(self._sock,
-                            lock=self._sock_lock)
+                                    lock=self._sock_lock)
 
     def onNewIncomingConnection(self, socket):
         """``onNewIncomingConnection`` returns the socket unmodified, by default we do not need to
