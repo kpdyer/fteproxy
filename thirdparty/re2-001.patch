@@ -68,7 +68,7 @@ diff -urBNs re2/re2/dfa.cc re2/re2/dfa.cc
 +  for (int i = 0; i < q.size(); i++) {
 +    //if (i>5000) { retval = "ERROR: DFA has more than 5000 states."; break; }
 +    State* s = q[i];
-+    for (int c = 0; c < 257; c++) {
++    for (int c = 0; c < 256; c++) {
 +      State* ns = RunStateOnByteUnlocked(s, c);
 +      if (ns > SpecialStateMax && queued.find(ns) == queued.end()) {
 +        queued.insert(ns);

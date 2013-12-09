@@ -41,13 +41,13 @@ class IntegerOutOfRangeException(Exception):
 
 class DFA(object):
 
-    def __init__(self, dfa, max_len):
-        self._dfa = dfa
+    def __init__(self, cDFA, max_len):
+        self._cDFA = cDFA
         self.max_len = max_len
 
-        self._words_in_language = self._dfa.getNumWordsInLanguage(
+        self._words_in_language = self._cDFA.getNumWordsInLanguage(
             0, self.max_len)
-        self._words_in_slice = self._dfa.getNumWordsInLanguage(
+        self._words_in_slice = self._cDFA.getNumWordsInLanguage(
             self.max_len, self.max_len)
 
         self._offset = self._words_in_language - self._words_in_slice
@@ -65,7 +65,7 @@ class DFA(object):
         """
 
         c = gmpy.mpz(0)
-        self._dfa.rank(str(X), c)
+        self._cDFA.rank(str(X), c)
 
         return c
 
@@ -76,7 +76,7 @@ class DFA(object):
         if c > (self._words_in_slice - 1):
             raise IntegerOutOfRangeException()
 
-        X = self._dfa.unrank(gmpy.mpz(c))
+        X = self._cDFA.unrank(gmpy.mpz(c))
         
         return str(X)
 
@@ -90,31 +90,31 @@ class DFA(object):
         return self._capacity
     
     def getNumWordsInSlice(self, n):
-        return self._dfa.getNumWordsInLanguage(n, n)
+        """Returns the number of words in the language of length ``n``"""
+        return self._cDFA.getNumWordsInLanguage(n, n)
     
 
 
-def attFstFromRegex(regex):
+def _attFstFromRegex(regex):
     """Inputs a perl-compatible regular expression and outputs a minimized AT&T-formatted finite state transducer"""
 
     att_fst = fte.cDFA.attFstFromRegex(str(regex))
-    att_fst = attFstMinimize(att_fst)
     att_fst = att_fst.strip()
 
     return att_fst
 
 
-def attFstMinimize(att_fst):
+def _attFstMinimize(att_fst):
     """On input of an AT&T-formatted finite-state transducer, returns a transducer that accepts the same languge with the minimal amount of states."""
 
-    automata = attFstToFTEAutomata(att_fst)
+    automata = _attFstToFTEAutomata(att_fst)
     automata.minimize()
-    retval = FTEAutomataToAttFst(automata)
+    retval = _FTEAutomataToAttFst(automata)
 
     return retval
 
 
-def attFstToFTEAutomata(att_fst):
+def _attFstToFTEAutomata(att_fst):
     """On input of an AT&T-formatted finite-state transducer, returns an ``fte.automata.DFA`` that accepts the same language.
     All state names in the input transducer are assumed to be non-negative integers."""
 
@@ -172,7 +172,7 @@ def attFstToFTEAutomata(att_fst):
     return dfa
 
 
-def FTEAutomataToAttFst(dfa):
+def _FTEAutomataToAttFst(dfa):
     """On input of an ``fte.automata.DFA``, returns an AT&T-formatted finite-state transducer that accepts the same language."""
 
     stateMappingTable = []
@@ -250,7 +250,8 @@ def from_regex(regex, max_len):
     regex = str(regex)
     max_len = int(max_len)
 
-    att_fst = attFstFromRegex(regex)
+    att_fst = _attFstFromRegex(regex)
+    att_fst = _attFstMinimize(att_fst)
 
     dfa = fte.cDFA.DFA(att_fst, max_len)
     retval = DFA(dfa, max_len)

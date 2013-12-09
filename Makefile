@@ -54,10 +54,9 @@ $(THIRD_PARTY_DIR)/re2-$(RE2_VERSION).tgz:
 clean:
 	@rm -rvf build
 	@rm -rvf dist
-	@rm -rvf $(THIRD_PARTY_DIR)/re2
 	@rm -vf fte/*.so
 	@rm -vf fte/*.pyd
-	@rm -vf fte/*.pyc
+	@rm -rvf *.pyc
 
 
 test:

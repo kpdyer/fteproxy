@@ -5,7 +5,7 @@
  
  CXX=g++
 -CXXFLAGS=-Wall -O3 -g -pthread  # can override
-+CXXFLAGS=-Wall -Os -pthread -fPIC # can override
++CXXFLAGS=-Wall -Ofast -pthread -fPIC # can override
  RE2_CXXFLAGS=-Wno-sign-compare -c -I. $(CCPCRE)  # required
  LDFLAGS=-pthread
  AR=ar

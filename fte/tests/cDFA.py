@@ -39,7 +39,8 @@ class TestcDFA(unittest.TestCase):
             with open(dfa_file) as fh:
                 expected_fst = fh.read()
 
-            actual_fst = fte.dfa.attFstFromRegex(regex)
+            actual_fst = fte.dfa._attFstFromRegex(regex)
+            actual_fst = fte.dfa._attFstMinimize(actual_fst)
 
             self.assertEquals(actual_fst, expected_fst)
 
