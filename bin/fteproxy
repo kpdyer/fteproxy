@@ -104,6 +104,8 @@ This is free software, and you are welcome to redistribute it under certain cond
         if self._args.upstream_format:
             fte.conf.setValue('runtime.state.upstream_language',
                               self._args.upstream_format)
+        if self._args.release:
+            fte.conf.setValue('fte.defs.release', self._args.release)
         if self._args.key:
             if len(self._args.key) != 64:
                 print 'Invalid key length: ' + str(len(self._args.key)) + ', should be 64'
@@ -413,6 +415,9 @@ def get_args():
                         default=fte.conf.getValue('runtime.proxy.port'
                                                   ))
     parser.add_argument('--quiet', action='store_true', default=False)
+    parser.add_argument('--release',
+                        help='Definitions file to use, specified as YYYYMMDD'
+                        default=fte.conf.getValue('fte.defs.release'))
     parser.add_argument('--managed',
                         help="Start in managed mode, for use with Tor. --server parameters ignored.",
                         action='store_true',
