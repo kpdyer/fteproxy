@@ -5,7 +5,6 @@ ifneq (, $(findstring cygwin, $(PLATFORM_LOWER)))
 PLATFORM='windows'
 endif
 ARCH=$(shell arch)
-
 VERSION=$(shell cat VERSION)
 FTEPROXY_RELEASE=$(VERSION)-$(PLATFORM_LOWER)-$(ARCH)
 
