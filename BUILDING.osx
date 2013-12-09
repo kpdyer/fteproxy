@@ -23,26 +23,14 @@ ruby -e "$(curl -fsSL https://raw.github.com/mxcl/homebrew/go/install)"
 # sudo sed -i -e 's/march=native/march=core2/g' /usr/local/Library/ENV/4.3/cc
 sudo sed -i -e 's/march=native/march=core2/g' /usr/local/Library/Homebrew/extend/ENV/super.rb
 
-brew install gmp \
+brew install python \
+             gmp \
              git \
              upx
-
-
-cd $WORKING_DIR
-curl https://pypi.python.org/packages/source/s/setuptools/setuptools-1.1.6.tar.gz > setuptools-1.1.6.tar.gz
-tar zxvf setuptools-1.1.6.tar.gz
-cd setuptools-1.1.6
-sudo python setup.py install
-
-
-cd $WORKING_DIR
-curl https://pypi.python.org/packages/source/p/pip/pip-1.4.1.tar.gz > pip-1.4.1.tar.gz
-tar zxvf pip-1.4.1.tar.gz
-cd pip-1.4.1
-sudo python setup.py install
-
-
-sudo pip install --upgrade twisted \
+             
+sudo pip install --upgrade pip \
+                           setuptools \
+                           twisted \
                            gmpy \
                            pycrypto \
                            obfsproxy \
@@ -55,4 +43,8 @@ sudo touch /usr/local/lib/python2.7/site-packages/zope/__init__.py
 cd $WORKING_DIR
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
-make -j`nproc`
+
+# see: https://github.com/kpdyer/fteproxy/issues/67
+make fte/cDFA
+install_name_tool -change /System/Library/Frameworks/Python.framework/Versions/2.7/Python /usr/local/Cellar/python/2.7.6/Frameworks/Python.framework/Python fte/cDFA.so
+make
