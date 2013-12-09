@@ -12,13 +12,13 @@ with open('VERSION') as fh:
 
 if os.name == 'nt':
     libraries = ['python27']
-    extra_compile_args = ['-Ofast',
+    extra_compile_args = ['-Os',
                           '-fPIE',
                           '-std=c++11',
                           ]
 else:
     libraries = ['python2.7']
-    extra_compile_args = ['-Ofast',
+    extra_compile_args = ['-Os',
                           '-fstack-protector-all',
                           '-fPIE',
                           '-std=c++11',
