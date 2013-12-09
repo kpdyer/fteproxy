@@ -81,7 +81,7 @@ diff -urBNs re2/re2/dfa.cc re2/re2/dfa.cc
 +          unsigned int s_addr_int32;
 +          unsigned int ns_addr_int32;
 +          
-+          snprintf(c_str, sizeof(c_str), "%d", c+1);
++          snprintf(c_str, sizeof(c_str), "%d", c);
 +          snprintf(s_addr_str, sizeof(s_addr_str), "%p", s);
 +          snprintf(ns_addr_str, sizeof(ns_addr_str), "%p", ns);
 +          

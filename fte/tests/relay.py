@@ -23,7 +23,7 @@ import random
 import unittest
 import traceback
 
-import fte.io
+import fte.network_io
 import fte.relay
 import fte.client
 import fte.server
@@ -47,8 +47,6 @@ class TestRelay(unittest.TestCase):
 
         self._server.start()
         self._client.start()
-
-        time.sleep(0.01)
 
     def tearDown(self):
         self._server.stop()
@@ -101,11 +99,11 @@ class TestRelay(unittest.TestCase):
             print traceback.print_exc()
         finally:
             if proxy_socket:
-                fte.io.close_socket(proxy_socket)
+                fte.network_io.close_socket(proxy_socket)
             if server_conn:
-                fte.io.close_socket(server_conn)
+                fte.network_io.close_socket(server_conn)
             if client_socket:
-                fte.io.close_socket(client_socket)
+                fte.network_io.close_socket(client_socket)
 
             self.assertEquals(expected_msg, actual_msg)
 

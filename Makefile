@@ -70,6 +70,7 @@ clean:
 	@rm -rvf $(THIRD_PARTY_DIR)/re2
 	@rm -vf fte/*.so
 	@rm -vf fte/*.pyd
+	@rm -vf fte/*.pyc
 
 
 test:

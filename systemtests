@@ -36,7 +36,7 @@ class ListenerNotListening(Exception):
 def main():
     print 'System tests:'
     
-    os.system("./dist/fteproxy --quiet --mode server" \
+    os.system("./bin/fteproxy --quiet --mode server" \
                     + " --server_ip " + BIND_IP + " --server_port 8080" \
                     + " --proxy_ip " + BIND_IP + "  --proxy_port 8081 &")
     
@@ -50,7 +50,7 @@ def main():
                 elapsed, bytesSent = doTest(format)
                 print '+', format, str(1.0*bytesSent/elapsed/(2**20)*(2**3))+'Mbps'
             
-    os.system("./dist/fteproxy --quiet --mode server --stop")
+    os.system("./bin/fteproxy --quiet --mode server --stop")
 
 
 def doTest(format):
@@ -60,7 +60,7 @@ def doTest(format):
     try:
         killall()
         
-        os.system("./dist/fteproxy --quiet --mode client" \
+        os.system("./bin/fteproxy --quiet --mode client" \
                         + " --upstream-format " + format + "-request" \
                         + " --downstream-format " + format + "-response" \
                         + " --client_ip " + BIND_IP + " --client_port 8079" \
@@ -91,7 +91,7 @@ def doTest(format):
                 bytessent = new_stream.send(expectedbuf[:BLOCK_SIZE])
                 expectedbuf = expectedbuf[bytessent:]
             elapsed = time.time() - startTimer
-            [is_alive, data] = fte.io.recvall_from_socket(conn)
+            [is_alive, data] = fte.network_io.recvall_from_socket(conn)
             actual += data
             if (actual == expected) or elapsed>30 or not is_alive:
                 break
@@ -104,7 +104,7 @@ def doTest(format):
 
 
 def killall():
-    os.system("./dist/fteproxy --quiet --mode client --stop")
+    os.system("./bin/fteproxy --quiet --mode client --stop")
 
 
 def filesAreEquivalent(fileA, fileB):

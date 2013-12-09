@@ -21,7 +21,7 @@ import threading
 
 import fte.conf
 import fte.encoder
-import fte.io
+import fte.network_io
 import fte.logger
 
 
@@ -42,26 +42,26 @@ class worker(threading.Thread):
     def run(self):
         """It's the responsibility of run to forward data from ``socket1`` to
         ``socket2`` and from ``socket2`` to ``socket1``. The ``run()`` met6od
-        terminates and closes both sockets if ``fte.io.recvall_from_socket``
+        terminates and closes both sockets if ``fte.network_io.recvall_from_socket``
         returns a negative results for ``success``.
         """
 
         try:
             while True:
-                [success, _data] = fte.io.recvall_from_socket(self._socket1)
+                [success, _data] = fte.network_io.recvall_from_socket(self._socket1)
                 if not success:
                     break
                 if _data:
-                    fte.io.sendall_to_socket(self._socket2, _data)
+                    fte.network_io.sendall_to_socket(self._socket2, _data)
 
-                [success, _data] = fte.io.recvall_from_socket(self._socket2)
+                [success, _data] = fte.network_io.recvall_from_socket(self._socket2)
                 if not success:
                     break
                 if _data:
-                    fte.io.sendall_to_socket(self._socket1, _data)
+                    fte.network_io.sendall_to_socket(self._socket1, _data)
         finally:
-            fte.io.close_socket(self._socket1)
-            fte.io.close_socket(self._socket2)
+            fte.network_io.close_socket(self._socket1)
+            fte.network_io.close_socket(self._socket2)
 
 
 class listener(threading.Thread):
@@ -127,7 +127,7 @@ class listener(threading.Thread):
         """Terminate the thread and stop listening on ``local_ip:local_port``.
         """
         self._running = False
-        fte.io.close_socket(self._sock,
+        fte.network_io.close_socket(self._sock,
                             lock=self._sock_lock)
 
     def onNewIncomingConnection(self, socket):

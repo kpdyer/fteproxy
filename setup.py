@@ -9,30 +9,25 @@ if os.name == 'nt':
     import py2exe
 
 if os.name == 'nt':
-    libraries = ['python27',
-                 ]
-    extra_compile_args = ['-O3',
+    libraries = ['python27']
+    extra_compile_args = ['-Ofast',
                           '-fPIE',
                           '-std=c++11',
                           ]
-    extra_link_args = [ 'thirdparty/re2/obj/libre2.a',
-                      ]
 else:
     libraries = ['python2.7']
-    extra_compile_args = ['-O3',
+    extra_compile_args = ['-Ofast',
                           '-fstack-protector-all',
                           '-fPIE',
                           '-std=c++11',
                           ]
-    extra_link_args = ['thirdparty/re2/obj/libre2.a',
-                       ]
 
 fte_cDFA = Extension('fte.cDFA',
                      include_dirs=['fte',
                                    'thirdparty/re2'],
                      library_dirs=['thirdparty/re2/obj'],
                      extra_compile_args=extra_compile_args,
-                     extra_link_args=extra_link_args,
+                     extra_link_args=['thirdparty/re2/obj/libre2.a'],
                      libraries=['gmp',
                                 'gmpxx',
                                 're2',
@@ -54,13 +49,6 @@ if os.name == 'nt':
           author='Kevin P. Dyer',
           author_email='kpdyer@gmail.com',
           url='https://github.com/redjack/fte-proxy',
-          packages=['fte',
-                    'fte.defs',
-                    'fte.tests',
-                    'fte.tests.dfas',
-                    ],
-          scripts=['bin/fteproxy',
-                   'bin/socksproxy'],
           ext_modules=[fte_cDFA],
           )
 else:
@@ -70,12 +58,5 @@ else:
           author='Kevin P. Dyer',
           author_email='kpdyer@gmail.com',
           url='https://github.com/redjack/fte-proxy',
-          packages=['fte',
-                    'fte.defs',
-                    'fte.tests',
-                    'fte.tests.dfas',
-                    ],
-          scripts=['bin/fteproxy',
-                   'bin/socksproxy'],
           ext_modules=[fte_cDFA],
           )

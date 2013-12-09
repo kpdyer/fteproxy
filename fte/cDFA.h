@@ -17,6 +17,7 @@
 #include <structmember.h>
 
 #include <map>
+#include <vector>
 #include <unordered_set>
 
 #include <gmpxx.h>
@@ -37,9 +38,6 @@ typedef struct {
     Py_hash_t hash_cache;
 } PympzObject;
 #define Pympz_AS_MPZ(obj) (((PympzObject *)(obj))->z)
-
-// the initialization function for our fte.dfa module
-void dfainit();
 
 class DFA {
 private:
@@ -83,17 +81,17 @@ public:
     // our unrank function an int -> str mapping
     // given an integer i, return the ith lexicographically ordered string in
     // the language accepted by the DFA
-    std::string unrank( PyObject* );
+    std::string unrank( mpz_class );
 
     // our rank function performs the inverse operation of unrank
     // we have the output PyObject as an input for performance
-    void rank( std::string, PyObject* );
+    mpz_class rank( std::string );
 
     // given integers [n,m] returns the number of words accepted by the
     // DFA that are at least length n and no greater than length m
-    PyObject* getNumWordsInLanguage( uint32_t, uint32_t );
+    mpz_class getNumWordsInLanguage( uint32_t, uint32_t );
 };
 
 // given an input perl-compatiable regular-expression
 // returns an ATT FST formatted DFA
-static PyObject * fte_cDFA_attFstFromRegex(PyObject*, PyObject*);
+static std::string attFstFromRegex(std::string);
