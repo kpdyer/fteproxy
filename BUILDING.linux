@@ -4,20 +4,20 @@
 
 # depdendencies
 sudo apt-get update
-sudo apt-get -y install build-essential
-sudo apt-get -y install curl
-sudo apt-get -y install m4
-sudo apt-get -y install upx
-sudo apt-get -y install git
-sudo apt-get -y install python-dev
-sudo apt-get -y install libgmp-dev
-sudo apt-get -y install python-pip
-sudo pip install twisted
-sudo pip install gmpy
-sudo pip install pycrypto
-sudo pip install obfsproxy
-sudo pip install pyptlib
-sudo pip install pyinstaller
+sudo apt-get -y install build-essential \
+                        curl \
+                        m4 \
+                        upx \
+                        git \
+                        python-dev \
+                        libgmp-dev \
+                        python-pip
+sudo pip install twisted \
+                 gmpy \
+                 pycrypto \
+                 obfsproxy \
+                 pyptlib \
+                 pyinstaller
 
 # fteproxy
 git clone https://github.com/kpdyer/fteproxy.git
