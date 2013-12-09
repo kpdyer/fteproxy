@@ -181,7 +181,6 @@ def do_managed_client():
     from twisted.internet import reactor, error
 
     import obfsproxy.common.transport_config as transport_config
-    #import obfsproxy.network.launch_transport as launch_transport
     import obfsproxy.transports.transports as transports
     import obfsproxy.common.log as logging
 
@@ -339,6 +338,9 @@ def test():
     import fte.tests.relay
     import fte.tests.dfa
     import fte.tests.cDFA
+    
+    import yappi
+    yappi.start()
 
     suite_encoder = unittest.TestLoader().loadTestsFromTestCase(
         fte.tests.encoder.TestEncoders)
@@ -365,6 +367,8 @@ def test():
     ]
     alltests = unittest.TestSuite(suites)
     unittest.TextTestRunner(verbosity=2, failfast=True).run(alltests)
+    
+    yappi.print_stats(sort_type=yappi.SORTTYPE_TTOT)
 
 
 def get_args():

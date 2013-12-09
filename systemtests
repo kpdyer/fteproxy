@@ -25,6 +25,9 @@ import socket
 import fte.defs
 
 
+BYTES_TO_SEND = 2 ** 20
+BLOCK_SIZE = 2 ** 12
+TRIALS = 1
 BIND_IP = '127.0.0.1'
 
 
@@ -44,7 +47,7 @@ def main():
     
     languages = fte.defs.load_definitions().keys()
     for language in languages:
-        for i in range(10):
+        for i in range(TRIALS):
             if language.endswith('request'):
                 format = language[:-8]
                 elapsed, bytesSent = doTest(format)
@@ -77,15 +80,14 @@ def doTest(format):
         new_stream.connect((BIND_IP, 8079))
         
         conn, addr = sock.accept()
-        
-        bytesSent = 2 ** 16
+       
+        bytesSent = BYTES_TO_SEND
         expected = id_generator(bytesSent)
         elapsed = -1
         success = True
         actual = ''
-        startTimer = time.time()
-        BLOCK_SIZE = 2 ** 12
         expectedbuf = expected
+        startTimer = time.time()
         while success:
             if expectedbuf:
                 bytessent = new_stream.send(expectedbuf[:BLOCK_SIZE])

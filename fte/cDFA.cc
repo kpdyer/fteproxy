@@ -326,7 +326,8 @@ DFA_dealloc(PyObject* self)
     DFAObject *pDFAObject = (DFAObject*)self;
     if (pDFAObject->obj != NULL)
         delete pDFAObject->obj;
-    PyObject_Del(self);
+    if (self != NULL)
+        PyObject_Del(self);
 }
 
 
@@ -347,8 +348,9 @@ static PyObject * DFA__rank(PyObject *self, PyObject *args) {
     mpz_class result = pDFAObject->obj->rank(str_word);
     
     mpz_set(Pympz_AS_MPZ(c_out), result.get_mpz_t());
+    Py_INCREF(c_out);
 
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 
@@ -363,9 +365,12 @@ static PyObject * DFA__unrank(PyObject *self, PyObject *args) {
     if (pDFAObject->obj == NULL)
         return NULL;
     mpz_class to_unrank = mpz_class( Pympz_AS_MPZ(c_out) );
-    std::string retval = pDFAObject->obj->unrank(to_unrank);
+    std::string result = pDFAObject->obj->unrank(to_unrank);
 
-    return Py_BuildValue("s#", retval.c_str(), retval.length());
+    PyObject* retval = Py_BuildValue("s#", result.c_str(), result.length());
+    Py_INCREF(retval);
+    
+    return retval;
 }
 
 
@@ -391,6 +396,7 @@ static PyObject * DFA__getNumWordsInLanguage(PyObject *self, PyObject *args) {
     char *num_words_str = new char[num_words_str_len + 1];
     strcpy(num_words_str, num_words.get_str().c_str());
     retval = PyLong_FromString(num_words_str, NULL, base);
+    Py_INCREF(retval);
     
     // cleanup
     delete [] num_words_str;
@@ -406,9 +412,11 @@ __attFstFromRegex(PyObject *self, PyObject *args) {
     if (!PyArg_ParseTuple(args, "s", &regex))
         return NULL;
     
-    std::string retval = attFstFromRegex(std::string(regex));
+    std::string result = attFstFromRegex(std::string(regex));
+    PyObject* retval = Py_BuildValue("s", result.c_str());
+    Py_INCREF(retval);
     
-    return Py_BuildValue("s", retval.c_str());
+    return retval;
 }
 
 
@@ -416,8 +424,7 @@ __attFstFromRegex(PyObject *self, PyObject *args) {
 static PyObject *
 DFA_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-    DFAObject *self;
-    self = (DFAObject *)type->tp_alloc(type, 0);
+    DFAObject *self = (DFAObject *)type->tp_alloc(type, 0);
     return (PyObject *)self;
 }
 

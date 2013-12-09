@@ -24,6 +24,9 @@ import fte.bit_ops
 import fte.defs
 
 
+NUM_TRIALS = 2**12
+
+
 class TestEncoders(unittest.TestCase):
 
     def testRegexEncoderRequest(self):
@@ -36,9 +39,11 @@ class TestEncoders(unittest.TestCase):
             self.doTestEncoder(encoder, 1)
             self.doTestEncoder(encoder, 2)
             self.doTestEncoder(encoder, 4)
+            self.doTestEncoder(encoder, 8)
+            self.doTestEncoder(encoder, 16)
 
     def doTestEncoder(self, encoder, factor=1):
-        for i in range(2 ** 7):
+        for i in range(NUM_TRIALS):
             N = int(encoder.getCapacity() * factor)
             C = random.randint(0, (1 << N) - 1)
             C = fte.bit_ops.long_to_bytes(C)
