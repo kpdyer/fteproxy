@@ -8,7 +8,6 @@ WORKING_DIR=/vagrant
 sudo apt-get update
 sudo apt-get -y --no-install-recommends install build-essential \
                         curl \
-                        m4 \
                         upx \
                         git \
                         python-dev \

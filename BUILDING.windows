@@ -29,7 +29,6 @@ WORKING_DIR=/vagrant
                                                    -P cygwin \
                                                    -P git \
                                                    -P gzip \
-                                                   -P m4 \
                                                    -P make \
                                                    -P patch \
                                                    -P perl \
@@ -73,11 +72,12 @@ cd pip-1.4.1
 python setup.py install
 
 
-pip install gmpy
-pip install pycrypto
-pip install obfsproxy
-pip install pyptlib
-pip install pyinstaller
+sudo pip install --upgrade twisted \
+                           gmpy \
+                           pycrypto \
+                           obfsproxy \
+                           pyptlib \
+                           pyinstaller
 
 
 # see: https://github.com/kpdyer/fteproxy/issues/66

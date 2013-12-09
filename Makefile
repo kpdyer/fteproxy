@@ -1,4 +1,3 @@
-PREFIX=/usr/local
 PLATFORM=$(shell uname)
 PLATFORM_LOWER=$(shell echo $(PLATFORM) | tr A-Z a-z)
 ifneq (, $(findstring cygwin, $(PLATFORM_LOWER)))
@@ -64,10 +63,6 @@ clean:
 test:
 	@PATH=./bin:$(PATH) ./unittests
 	@PATH=./bin:$(PATH) ./systemtests
-
-
-uninstall:
-	@rm -fv /usr/local/bin/fteproxy
 
 
 doc: phantom

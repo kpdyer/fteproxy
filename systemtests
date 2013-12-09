@@ -24,9 +24,9 @@ import socket
 import fte.defs
 
 
-BYTES_TO_SEND = 2 ** 21
+BYTES_TO_SEND = 2 ** 16
 BLOCK_SIZE = 2 ** 12
-TRIALS = 1
+TRIALS = 3
 TIMEOUT = 60
 BIND_IP = '127.0.0.1'
 
