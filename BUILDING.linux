@@ -4,14 +4,14 @@
 
 # depdendencies
 sudo apt-get update
-sudo apt-get -y install build-essential
-sudo apt-get -y install curl
-sudo apt-get -y install m4
-sudo apt-get -y install upx
-sudo apt-get -y install git
-sudo apt-get -y install python-dev
-sudo apt-get -y install libgmp-dev
-sudo apt-get -y install python-pip
+sudo apt-get -y install build-essential \
+                        curl \
+                        m4 \
+                        upx \
+                        git \
+                        python-dev \
+                        libgmp-dev \
+                        python-pip
 sudo pip install twisted
 sudo pip install gmpy
 sudo pip install pycrypto
