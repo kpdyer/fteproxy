@@ -29,10 +29,12 @@ brew install upx
 
 sudo pip install --upgrade pip
 sudo pip install --upgrade setuptools
-sudo pip install gmpy
-sudo pip install obfsproxy
-sudo pip install pyptlib
-sudo pip install pyinstaller
+sudo pip install twisted \
+                 gmpy \
+                 pycrypto \
+                 obfsproxy \
+                 pyptlib \
+                 pyinstaller
 
 # see: https://github.com/kpdyer/fteproxy/issues/66
 sudo touch /usr/local/lib/python2.7/site-packages/zope/__init__.py
