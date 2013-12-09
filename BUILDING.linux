@@ -6,7 +6,7 @@ WORKING_DIR=/vagrant
 
 # depdendencies
 sudo apt-get update
-sudo apt-get -y install build-essential \
+sudo apt-get -y --no-install-recommends install build-essential \
                         curl \
                         m4 \
                         upx \
