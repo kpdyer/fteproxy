@@ -22,7 +22,7 @@ sudo pip install twisted \
                  pyinstaller
 
 # see: https://github.com/kpdyer/fteproxy/issues/66
-sudo touch /usr/local/lib/python2.7/site-packages/zope/__init__.py
+sudo touch /usr/local/lib/python2.7/dist-packages/zope/__init__.py
 
 # fteproxy
 cd $WORKING_DIR
