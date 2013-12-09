@@ -20,6 +20,14 @@
 #include "re2/prog.h"
 
 
+/*
+ * Please see rank_unrank.h for a detailed explantion of the
+ * methods in this file and their purpose.
+ */
+
+
+// Helper fuction. Given a string and a token, performs a python .split()
+// Returns a list of string delimnated on the token
 array_type_string_t1 tokenize( std::string line, char delim ) {
     array_type_string_t1 retval;
 
@@ -31,7 +39,7 @@ array_type_string_t1 tokenize( std::string line, char delim ) {
     return retval;
 }
 
-
+// Exceptions
 class _invalid_fst_exception_state_name: public std::exception
 {
   virtual const char* what() const throw()

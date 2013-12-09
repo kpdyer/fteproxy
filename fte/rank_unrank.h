@@ -13,6 +13,20 @@
 // You should have received a copy of the GNU General Public License
 // along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
+
+/*
+ * Please see Appendix A of "Protocol Misidentification Made Easy with Format-Transforming Encryption"
+ * url: http://dl.acm.org/citation.cfm?id=2516657
+ *
+ * and
+ *
+ * "Compression and ranking"
+ * url: http://dl.acm.org/citation.cfm?id=22194
+ * 
+ * For even more details about the functions in this file and their purpose.
+ */
+
+
 #ifndef _RANK_UNRANK_H
 #define _RANK_UNRANK_H
 
@@ -35,7 +49,7 @@ private:
     // the maximum value for which buildTable is computed
     uint32_t _max_len;
 
-    // the integer of our DFA start state
+    // our DFA start state
     uint32_t _start_state;
 
     // the number of states in our DFA
@@ -53,13 +67,13 @@ private:
     // the reverse mapping of sigma, chars -> ints
     std::map<char, uint32_t> _sigma_reverse;
 
-    // our states
+    // the states in our DFA
     unordered_set_uint32_t1 _states;
     
     // our transitions table
     array_type_uint32_t2 _delta;
 
-    // a lookup table used for performance gain
+    // a lookup table used for additional performance gain
     // for each state we detect if all outgoing transitions are to the same state
     array_type_bool_t1 _delta_dense;
 
@@ -80,6 +94,7 @@ private:
     // _T is our cached table, the output of buildTable
     array_type_mpz_t2 _T;
 public:
+    // The constructor of our rank/urank DFA class
     DFA( const std::string, const uint32_t );
 
     // our unrank function an int -> str mapping
@@ -96,8 +111,8 @@ public:
     mpz_class getNumWordsInLanguage( const uint32_t, const uint32_t );
 };
 
-// given an input perl-compatiable regular-expression
-// returns an ATT FST formatted DFA
+// given a perl-compatiable regular-expression
+// returns a (non-minimized) ATT FST formatted DFA
 std::string attFstFromRegex( const std::string );
 
 #endif /* _RANK_UNRANK_H */
