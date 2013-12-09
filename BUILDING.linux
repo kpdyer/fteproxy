@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Tested on Debian 7.1.0, Ubuntu 12.04/12.10/13.04:
+# Tested on Debian 7.1.0, Ubuntu 12.04/12.10/13.04/13.10:
 
 WORKING_DIR=/vagrant
 
