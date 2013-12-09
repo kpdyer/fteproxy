@@ -14,7 +14,7 @@ sudo apt-get -y install build-essential \
                         python-dev \
                         libgmp-dev \
                         python-pip
-sudo pip install twisted \
+sudo pip install --upgrade twisted \
                  gmpy \
                  pycrypto \
                  obfsproxy \
