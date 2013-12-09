@@ -22,13 +22,26 @@ ruby -e "$(curl -fsSL https://raw.github.com/mxcl/homebrew/go/install)"
 # sudo sed -i -e 's/march=native/march=core2/g' /usr/local/Library/ENV/4.3/cc
 sudo sed -i -e 's/march=native/march=core2/g' /usr/local/Library/Homebrew/extend/ENV/super.rb
 
-brew install python \
-             gmp \
+brew install gmp \
              git \
              upx
 
-sudo pip install --upgrade setuptools \
-                           twisted \
+
+cd $WORKING_DIR
+curl https://pypi.python.org/packages/source/s/setuptools/setuptools-1.1.6.tar.gz > setuptools-1.1.6.tar.gz
+tar zxvf setuptools-1.1.6.tar.gz
+cd setuptools-1.1.6
+python setup.py install
+
+
+cd $WORKING_DIR
+curl https://pypi.python.org/packages/source/p/pip/pip-1.4.1.tar.gz > pip-1.4.1.tar.gz
+tar zxvf pip-1.4.1.tar.gz
+cd pip-1.4.1
+python setup.py install
+
+
+sudo pip install --upgrade twisted \
                            gmpy \
                            pycrypto \
                            obfsproxy \
