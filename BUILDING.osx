@@ -20,7 +20,6 @@ export PATH="/usr/local/bin:/usr/local/share/python:${PATH}"
 ruby -e "$(curl -fsSL https://raw.github.com/mxcl/homebrew/go/install)"
 
 # see: https://github.com/kpdyer/fteproxy/issues/64
-# sudo sed -i -e 's/march=native/march=core2/g' /usr/local/Library/ENV/4.3/cc
 sudo sed -i -e 's/march=native/march=core2/g' /usr/local/Library/Homebrew/extend/ENV/super.rb
 
 brew install --build-from-source python
