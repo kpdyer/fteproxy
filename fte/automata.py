@@ -9,8 +9,6 @@
 #  Contact: andrewbadr@gmail.com
 #  Code contributions are welcome.
 
-from copy import copy
-
 
 class DFA:
 

@@ -61,7 +61,6 @@ This is free software, and you are welcome to redistribute it under certain cond
         if self._args.stop:
             if not self._args.mode:
                 print '--mode keyword is required with --stop'
-                parser.print_help()
                 sys.exit(1)
             if self._args.mode in ['client', 'server']:
                 pid_files_path = \

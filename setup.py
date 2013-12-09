@@ -4,9 +4,11 @@ from distutils.core import setup
 from distutils.core import Extension
 
 import os
-import glob
 if os.name == 'nt':
     import py2exe
+
+with open('VERSION') as fh:
+    FTEPROXY_RELEASE = fh.read().strip()
 
 if os.name == 'nt':
     libraries = ['python27']
@@ -43,7 +45,7 @@ if os.name == 'nt':
               "bundle_files": 1,
           }
           },
-          version='0.2.0',
+          version=FTEPROXY_RELEASE,
           description='FTE',
           author='Kevin P. Dyer',
           author_email='kpdyer@gmail.com',
@@ -52,7 +54,7 @@ if os.name == 'nt':
           )
 else:
     setup(name='Format-Transforming Encrypion (FTE)',
-          version='0.2.0',
+          version=FTEPROXY_RELEASE,
           description='FTE',
           author='Kevin P. Dyer',
           author_email='kpdyer@gmail.com',

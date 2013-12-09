@@ -7,7 +7,7 @@ fi
 
 # Assumes Tor is not already installed, will overwrite existing configuration.
 
-FTEPROXY_VERSION=0.2.0
+FTEPROXY_VERSION=0.2.1
 ARCH=`arch`
 TMP_DIR=/tmp
 CODENAME=`lsb_release -sc`

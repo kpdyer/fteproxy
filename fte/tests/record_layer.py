@@ -16,10 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with FTE.  If not, see <http://www.gnu.org/licenses/>.
 
-import sys
-import threading
 import unittest
-
 
 import fte.encoder
 import fte.encrypter
