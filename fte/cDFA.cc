@@ -125,7 +125,7 @@ static PyObject * DFA__getNumWordsInLanguage(PyObject *self, PyObject *args) {
 
     // Convert the resulting integer to a string.
     // -- Is there a better way?
-    uint8_t base = 10;
+    uint16_t base = 10;
     uint16_t num_words_str_len = num_words.get_str().length();
     char *num_words_str = new char[num_words_str_len + 1];
     strcpy(num_words_str, num_words.get_str().c_str());

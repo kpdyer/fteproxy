@@ -38,47 +38,48 @@
 
 typedef std::vector<char> array_type_char_t1;
 typedef std::vector<bool> array_type_bool_t1;
-typedef std::vector<uint32_t> array_type_uint32_t1;
-typedef std::tr1::unordered_set<uint32_t> unordered_set_uint32_t1;
-typedef std::vector< std::vector<uint32_t> > array_type_uint32_t2;
+typedef std::vector<uint16_t> array_type_uint16_t1;
+typedef std::tr1::unordered_set<uint16_t> unordered_set_uint16_t1;
+typedef std::vector< std::vector<uint16_t> > array_type_uint16_t2;
 typedef std::vector< std::vector<mpz_class> > array_type_mpz_t2;
 typedef std::vector< std::string > array_type_string_t1;
 
 class DFA {
+
 private:
     // the maximum value for which buildTable is computed
-    uint32_t _max_len;
+    uint16_t _max_len;
 
     // our DFA start state
-    uint32_t _start_state;
+    uint16_t _start_state;
 
     // the number of states in our DFA
-    uint32_t _num_states;
+    uint16_t _num_states;
 
     // the number of symbols in our DFA alphabet
-    uint32_t _num_symbols;
+    uint16_t _num_symbols;
 
     // the symbols of our DFA alphabet
-    array_type_uint32_t1 _symbols;
+    array_type_uint16_t1 _symbols;
     
     // our mapping between integers and the symbols in our alphabet; ints -> chars
-    std::map<uint32_t, char> _sigma;
+    std::map<uint16_t, char> _sigma;
 
     // the reverse mapping of sigma, chars -> ints
-    std::map<char, uint32_t> _sigma_reverse;
+    std::map<char, uint16_t> _sigma_reverse;
 
     // the states in our DFA
-    unordered_set_uint32_t1 _states;
+    unordered_set_uint16_t1 _states;
     
     // our transitions table
-    array_type_uint32_t2 _delta;
+    array_type_uint16_t2 _delta;
 
     // a lookup table used for additional performance gain
     // for each state we detect if all outgoing transitions are to the same state
     array_type_bool_t1 _delta_dense;
 
     // the set of final states in our DFA
-    unordered_set_uint32_t1 _final_states;
+    unordered_set_uint16_t1 _final_states;
 
     // buildTable builds a mapping from [q, i] -> n
     //   q: a state in our DFA
@@ -93,9 +94,10 @@ private:
 
     // _T is our cached table, the output of buildTable
     array_type_mpz_t2 _T;
+
 public:
     // The constructor of our rank/urank DFA class
-    DFA( const std::string, const uint32_t );
+    DFA( const std::string, const uint16_t );
 
     // our unrank function an int -> str mapping
     // given an integer i, return the ith lexicographically ordered string in
@@ -108,7 +110,7 @@ public:
 
     // given integers [n,m] returns the number of words accepted by the
     // DFA that are at least length n and no greater than length m
-    mpz_class getNumWordsInLanguage( const uint32_t, const uint32_t );
+    mpz_class getNumWordsInLanguage( const uint16_t, const uint16_t );
 };
 
 // given a perl-compatiable regular-expression

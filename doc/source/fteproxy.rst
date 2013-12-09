@@ -17,8 +17,8 @@ The ``fteproxy`` command-line application usage:
                     [--client_ip CLIENT_IP] [--client_port CLIENT_PORT]
                     [--server_ip SERVER_IP] [--server_port SERVER_PORT]
                     [--proxy_ip PROXY_IP] [--proxy_port PROXY_PORT] [--quiet]
-                    [--key KEY]
-
+                    [--release RELEASE] [--managed] [--key KEY]
+    
     optional arguments:
       -h, --help            show this help message and exit
       --mode (client|server|test)
@@ -35,7 +35,7 @@ The ``fteproxy`` command-line application usage:
       --client_port CLIENT_PORT
                             Client-side listening port (default: 8079)
       --server_ip SERVER_IP
-                            Server-side listening IP (default: tor.fte-proxy.org)
+                            Server-side listening IP (default: 127.0.0.1)
       --server_port SERVER_PORT
                             Server-side listening port (default: 8080)
       --proxy_ip PROXY_IP   Forwarding-proxy (SOCKS) listening IP (default:
@@ -44,6 +44,10 @@ The ``fteproxy`` command-line application usage:
                             Forwarding-proxy (SOCKS) listening port (default:
                             8081)
       --quiet
+      --release RELEASE     Definitions file to use, specified as YYYYMMDD
+                            (default: 20131110)
+      --managed             Start in managed mode, for use with Tor. --server
+                            parameters ignored. (default: False)
       --key KEY             Cryptographic key, hex, must be exactly 64 characters
                             (default: FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000
                             00000000000000000000)
