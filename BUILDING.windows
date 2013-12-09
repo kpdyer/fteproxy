@@ -18,7 +18,6 @@
 
 
 WORKING_DIR=/vagrant
-FTEPROXY_TAG=fc78847976e83c20f4e19d0b0cd613c3e49d8a18
 
 /cygdrive/c/Users/vagrant/Desktop/setup-x86.exe -q -P autoconf \
                                                    -P automake \
@@ -87,5 +86,4 @@ touch /cygdrive/c/Python27/Lib/site-packages/zope/__init__.py
 cd $WORKING_DIR
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
-git checkout $FTEPROXY_TAG
 make -j`nproc`
