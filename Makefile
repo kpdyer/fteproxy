@@ -5,7 +5,9 @@ ifneq (, $(findstring cygwin, $(PLATFORM_LOWER)))
 PLATFORM='windows'
 endif
 ARCH=$(shell arch)
-FTEPROXY_VERSION=0.2.0-$(PLATFORM_LOWER)-$(ARCH)
+
+VERSION=$(shell cat VERSION)
+FTEPROXY_RELEASE=$(VERSION)-$(PLATFORM_LOWER)-$(ARCH)
 
 THIRD_PARTY_DIR=thirdparty
 
@@ -14,29 +16,29 @@ RE2_TGZ=https://re2.googlecode.com/files/re2-$(RE2_VERSION).tgz
 RE2_DIR=$(THIRD_PARTY_DIR)/re2
 
 all: fte/cDFA
-	mkdir -p dist/fteproxy-$(FTEPROXY_VERSION)
+	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)
 ifneq (, $(findstring windows, $(PLATFORM)))
 	python setup.py py2exe
-	cd dist && mv -f *.exe fteproxy-$(FTEPROXY_VERSION)/
-	cp C:\\Windows\\System32\\msvcp100.dll dist/fteproxy-$(FTEPROXY_VERSION)/
-	cp C:\\Windows\\System32\\msvcr100.dll dist/fteproxy-$(FTEPROXY_VERSION)/
+	cd dist && mv -f *.exe fteproxy-$(FTEPROXY_RELEASE)/
+	cp C:\\Windows\\System32\\msvcp100.dll dist/fteproxy-$(FTEPROXY_RELEASE)/
+	cp C:\\Windows\\System32\\msvcr100.dll dist/fteproxy-$(FTEPROXY_RELEASE)/
 else
 	pyinstaller fteproxy.spec
-	cd dist && mv fteproxy fteproxy-$(FTEPROXY_VERSION)/fteproxy
+	cd dist && mv fteproxy fteproxy-$(FTEPROXY_RELEASE)/fteproxy
 endif
 
-	cp README.md dist/fteproxy-$(FTEPROXY_VERSION)
-	cp COPYING dist/fteproxy-$(FTEPROXY_VERSION)
+	cp README.md dist/fteproxy-$(FTEPROXY_RELEASE)
+	cp COPYING dist/fteproxy-$(FTEPROXY_RELEASE)
 
-	mkdir -p dist/fteproxy-$(FTEPROXY_VERSION)/fte/defs
-	cp fte/defs/*.json dist/fteproxy-$(FTEPROXY_VERSION)/fte/defs/
+	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)/fte/defs
+	cp fte/defs/*.json dist/fteproxy-$(FTEPROXY_RELEASE)/fte/defs/
 
-	mkdir -p dist/fteproxy-$(FTEPROXY_VERSION)/fte/tests/dfas
-	cp fte/tests/dfas/*.dfa dist/fteproxy-$(FTEPROXY_VERSION)/fte/tests/dfas
-	cp fte/tests/dfas/*.regex dist/fteproxy-$(FTEPROXY_VERSION)/fte/tests/dfas
+	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)/fte/tests/dfas
+	cp fte/tests/dfas/*.dfa dist/fteproxy-$(FTEPROXY_RELEASE)/fte/tests/dfas
+	cp fte/tests/dfas/*.regex dist/fteproxy-$(FTEPROXY_RELEASE)/fte/tests/dfas
 
-	cd dist && tar cvf fteproxy-$(FTEPROXY_VERSION).tar fteproxy-$(FTEPROXY_VERSION)
-	cd dist && gzip -9 fteproxy-$(FTEPROXY_VERSION).tar
+	cd dist && tar cvf fteproxy-$(FTEPROXY_RELEASE).tar fteproxy-$(FTEPROXY_RELEASE)
+	cd dist && gzip -9 fteproxy-$(FTEPROXY_RELEASE).tar
 
 fte/cDFA: $(THIRD_PARTY_DIR)/re2/obj/libre2.a
 	python setup.py build_ext --inplace
