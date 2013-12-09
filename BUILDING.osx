@@ -4,7 +4,7 @@
 # !!! Do not run this script in your primary development enviroment.
 
 # update system software
-# sudo softwareupdate --install --all
+sudo softwareupdate --install --all
 
 # install xcode
 # install xcode command line tools
