@@ -25,7 +25,6 @@ WORKING_DIR=/vagrant
                                                    -P binutils \
                                                    -P coreutils \
                                                    -P curl \
-                                                   -P cygwin \
                                                    -P git \
                                                    -P gzip \
                                                    -P make \
