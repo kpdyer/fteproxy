@@ -3,7 +3,6 @@
 # Tested on Debian 7.1.0, Ubuntu 12.04/12.10/13.04/13.10:
 
 WORKING_DIR=/vagrant
-FTEPROXY_TAG=fc78847976e83c20f4e19d0b0cd613c3e49d8a18
 
 # depdendencies
 sudo apt-get update
@@ -28,5 +27,4 @@ sudo touch /usr/local/lib/python2.7/dist-packages/zope/__init__.py
 cd $WORKING_DIR
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
-git checkout $FTEPROXY_TAG
 make -j`nproc`

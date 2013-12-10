@@ -18,6 +18,14 @@ if os.name == 'nt':
                           '-fPIC',
                           '-std=c++11',
                           ]
+elif os.uname()[0] == 'Darwin':
+    libraries = ['python2.7']
+    extra_compile_args = ['-Ofast',
+                          '-fstack-protector-all',
+                          '-fPIE',
+                          '-fPIC',
+                          #'-std=c++11', # no good
+                          ]
 else:
     libraries = ['python2.7']
     extra_compile_args = ['-Ofast',

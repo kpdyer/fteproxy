@@ -157,6 +157,9 @@ DFA::DFA(const std::string dfa_str, const uint16_t max_len)
 
 
 void DFA::_validate() {
+    // TODO: ensure DFA has at least one state
+    // TODO: ensure DFA has at least one symbol
+    
     // ensure we have N states, labeled 0,1,..N-1
     unordered_set_uint16_t1::iterator state;
     for (state=_states.begin(); state!=_states.end(); state++) {
