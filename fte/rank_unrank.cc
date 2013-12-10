@@ -62,7 +62,7 @@ static class _invalid_fst_exception_symbol_name: public std::exception
  *   dfa_str: a minimized ATT FST formatted DFA, see: http://www2.research.att.com/~fsmtools/fsm/man4/fsm.5.html
  *   max_len: the maxium length to compute DFA::buildTable
  */
-DFA::DFA(const std::string dfa_str, const uint16_t max_len)
+DFA::DFA(const std::string dfa_str, const uint32_t max_len)
     : _max_len(max_len),
       _start_state(0),
       _num_states(0),
@@ -78,9 +78,11 @@ DFA::DFA(const std::string dfa_str, const uint16_t max_len)
 
         array_type_string_t1 split_vec = tokenize( line, '\t' );
         if (split_vec.size() == 4) {
-            uint16_t current_state = strtol(split_vec[0].c_str(),NULL,10);
-            uint16_t symbol = strtol(split_vec[2].c_str(),NULL,10);
-            _states.insert( current_state );
+            uint32_t current_state = strtol(split_vec[0].c_str(),NULL,10);
+            uint32_t symbol = strtol(split_vec[2].c_str(),NULL,10);
+            if (find(_states.begin(), _states.end(), current_state)==_states.end()) {
+                _states.push_back( current_state );
+            }
 
             if (find(_symbols.begin(), _symbols.end(), symbol)==_symbols.end()) {
                 _symbols.push_back( symbol );
@@ -91,22 +93,26 @@ DFA::DFA(const std::string dfa_str, const uint16_t max_len)
                 startStateIsntSet = false;
             }
         } else if (split_vec.size()==1) {
-            uint16_t final_state = strtol(split_vec[0].c_str(),NULL,10);
-            _final_states.insert( final_state );
-            _states.insert( final_state );
+            uint32_t final_state = strtol(split_vec[0].c_str(),NULL,10);
+            if (find(_final_states.begin(), _final_states.end(), final_state)==_final_states.end()) {
+                _final_states.push_back( final_state );
+            }
+            if (find(_states.begin(), _states.end(), final_state)==_states.end()) {
+                _states.push_back( final_state );
+            }
         } else {
             // TODO: throw exception because we don't understand the file format
         }
 
     }
-    _states.insert( _states.size() ); // extra for the "dead" state
+    _states.push_back( _states.size() ); // extra for the "dead" state
 
     _num_symbols = _symbols.size();
     _num_states = _states.size();
 
     // build up our sigma/sigma_reverse tables which enable mappings between
     // bytes/integers
-    uint16_t j, k;
+    uint32_t j, k;
     for (j=0; j<_num_symbols; j++) {
         _sigma[j] = (char)(_symbols[j]);
         _sigma_reverse[(char)(_symbols[j])] = j;
@@ -127,9 +133,9 @@ DFA::DFA(const std::string dfa_str, const uint16_t max_len)
     {
         array_type_string_t1 split_vec = tokenize( line, '\t' );
         if (split_vec.size() == 4) {
-            uint16_t current_state = strtol(split_vec[0].c_str(),NULL,10);
-            uint16_t symbol = strtol(split_vec[2].c_str(),NULL,10);
-            uint16_t new_state = strtol(split_vec[1].c_str(),NULL,10);
+            uint32_t current_state = strtol(split_vec[0].c_str(),NULL,10);
+            uint32_t symbol = strtol(split_vec[2].c_str(),NULL,10);
+            uint32_t new_state = strtol(split_vec[1].c_str(),NULL,10);
 
             symbol = _sigma_reverse[symbol];
 
@@ -138,7 +144,7 @@ DFA::DFA(const std::string dfa_str, const uint16_t max_len)
     }
 
     _delta_dense.resize(_num_states);
-    uint16_t q, a;
+    uint32_t q, a;
     for (q=0; q < _num_states; q++ ) {
         _delta_dense[q] = true;
         for (a=1; a < _num_symbols; a++) {
@@ -161,7 +167,7 @@ void DFA::_validate() {
     // TODO: ensure DFA has at least one symbol
 
     // ensure we have N states, labeled 0,1,..N-1
-    unordered_set_uint16_t1::iterator state;
+    array_type_uint32_t1::iterator state;
     for (state=_states.begin(); state!=_states.end(); state++) {
         if (*state >= _states.size()) {
             throw invalid_fst_exception_state_name;
@@ -169,7 +175,7 @@ void DFA::_validate() {
     }
 
     // ensure all symbols are in the range 0,1,...,255
-    for (uint16_t i = 0; i < _symbols.size(); i++) {
+    for (uint32_t i = 0; i < _symbols.size(); i++) {
         if (_symbols[i] > 256 || _symbols[i] < 0) {
             throw invalid_fst_exception_symbol_name;
         }
@@ -179,9 +185,9 @@ void DFA::_validate() {
 void DFA::_buildTable() {
     // TODO: baild if _final_states, _delta, or _T are not initialized
 
-    uint16_t i;
-    uint16_t q;
-    uint16_t a;
+    uint32_t i;
+    uint32_t q;
+    uint32_t a;
 
     // ensure our table _T is the correct size
     _T.resize(_num_states);
@@ -193,7 +199,7 @@ void DFA::_buildTable() {
     }
 
     // set all _T[q][0] = 1 for all states in _final_states
-    unordered_set_uint16_t1::iterator state;
+    array_type_uint32_t1::iterator state;
     for (state=_final_states.begin(); state!=_final_states.end(); state++) {
         _T[*state][0] = 1;
     }
@@ -204,7 +210,7 @@ void DFA::_buildTable() {
     for (i=1; i<=_max_len; i++) {
         for (q=0; q<_delta.size(); q++) {
             for (a=0; a<_delta[0].size(); a++) {
-                uint16_t state = _delta[q][a];
+                uint32_t state = _delta[q][a];
                 _T[q][i] += _T[state][i-1];
             }
         }
@@ -224,11 +230,11 @@ std::string DFA::unrank( const mpz_class c_in ) {
 
     // subtract values values from c, while increasing n, to determine
     // the length n of the string we're ranking
-    uint16_t n = _max_len;
+    uint32_t n = _max_len;
 
     // walk the DFA subtracting values from c until we have our n symbols
-    uint16_t i, q = _start_state;
-    uint16_t chars_left, char_cursor, state_cursor;
+    uint32_t i, q = _start_state;
+    uint32_t chars_left, char_cursor, state_cursor;
     mpz_class char_index;
     for (i=1; i<=n; i++) {
         chars_left = n-i;
@@ -264,11 +270,11 @@ mpz_class DFA::rank( const std::string X_in ) {
     mpz_class retval = 0;
 
     // walk the DFA, adding values from T to c
-    uint16_t i, j;
-    uint16_t n = X_in.size();
-    uint16_t q = _start_state;
-    uint16_t state;
-    uint16_t symbol_as_int;
+    uint32_t i, j;
+    uint32_t n = X_in.size();
+    uint32_t q = _start_state;
+    uint32_t state;
+    uint32_t symbol_as_int;
     for (i=1; i<=n; i++) {
         symbol_as_int = _sigma_reverse[X_in.at(i-1)];
         if (_delta_dense[q]) {
@@ -283,21 +289,18 @@ mpz_class DFA::rank( const std::string X_in ) {
         q = _delta[q][symbol_as_int];
     }
 
-    // bail if our final state is not in _final_states
-    if (_final_states.count(q)==0) {
-        // TODO: throw exception, because we are not in a final state
-    }
+    // TODO: bail if our final state q is not in _final_states
 
     return retval;
 }
 
-mpz_class DFA::getNumWordsInLanguage( const uint16_t min_word_length,
-                                      const uint16_t max_word_length )
+mpz_class DFA::getNumWordsInLanguage( const uint32_t min_word_length,
+                                      const uint32_t max_word_length )
 {
     // count the number of words in the language of length
     // at least min_word_length and no greater than max_word_length
     mpz_class num_words = 0;
-    for (uint16_t word_length = min_word_length;
+    for (uint32_t word_length = min_word_length;
             word_length <= max_word_length;
             word_length++) {
         num_words += _T[_start_state][word_length];

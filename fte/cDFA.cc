@@ -71,7 +71,7 @@ static PyObject * DFA__rank(PyObject *self, PyObject *args) {
 
     // Copy our input word into a string.
     // We have to do the following, because we may have NUL-bytes in our strings.
-    const std::string str_word = std::string(word, (uint16_t)len);
+    const std::string str_word = std::string(word, (uint32_t)len);
 
     // Verify our environment is sane and perform ranking.
     DFAObject *pDFAObject = (DFAObject*)self;
@@ -114,8 +114,8 @@ static PyObject * DFA__unrank(PyObject *self, PyObject *args) {
 static PyObject * DFA__getNumWordsInLanguage(PyObject *self, PyObject *args) {
     PyObject* retval;
 
-    uint16_t min_val;
-    uint16_t max_val;
+    uint32_t min_val;
+    uint32_t max_val;
 
     if (!PyArg_ParseTuple(args, "ii", &min_val, &max_val))
         return NULL;
@@ -128,8 +128,8 @@ static PyObject * DFA__getNumWordsInLanguage(PyObject *self, PyObject *args) {
 
     // Convert the resulting integer to a string.
     // -- Is there a better way?
-    uint16_t base = 10;
-    uint16_t num_words_str_len = num_words.get_str().length();
+    uint32_t base = 10;
+    uint32_t num_words_str_len = num_words.get_str().length();
     char *num_words_str = new char[num_words_str_len + 1];
     strcpy(num_words_str, num_words.get_str().c_str());
     retval = PyLong_FromString(num_words_str, NULL, base);

@@ -16,7 +16,6 @@ if os.name == 'nt':
                           # '-fstack-protector-all', # failes on mingw32
                           '-fPIE',
                           '-fPIC',
-                          #'-std=c++11',
                           ]
 elif os.uname()[0] == 'Darwin':
     libraries = ['python2.7']
@@ -24,7 +23,6 @@ elif os.uname()[0] == 'Darwin':
                           '-fstack-protector-all',
                           '-fPIE',
                           '-fPIC',
-                          #'-std=c++11', # no good
                           ]
 else:
     libraries = ['python2.7']
@@ -32,7 +30,6 @@ else:
                           '-fstack-protector-all',
                           '-fPIE',
                           '-fPIC',
-                          '-std=c++11',
                           ]
 
 fte_cDFA = Extension('fte.cDFA',
@@ -42,6 +39,7 @@ fte_cDFA = Extension('fte.cDFA',
                      extra_compile_args=extra_compile_args,
                      extra_link_args=['thirdparty/re2/obj/libre2.a',
                                       '-pthread',
+                                      '-Wl,--strip-all',
                                       ],
                      libraries=['gmp',
                                 'gmpxx',
