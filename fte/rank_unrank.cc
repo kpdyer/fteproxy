@@ -42,18 +42,18 @@ array_type_string_t1 tokenize( std::string line, char delim ) {
 // Exceptions
 static class _invalid_fst_exception_state_name: public std::exception
 {
-  virtual const char* what() const throw()
-  {
-    return "Invalid DFA format: DFA has N states, and a state that is not in the range 0,1,...,N-1.";
-  }
+    virtual const char* what() const throw()
+    {
+        return "Invalid DFA format: DFA has N states, and a state that is not in the range 0,1,...,N-1.";
+    }
 } invalid_fst_exception_state_name;
 
 static class _invalid_fst_exception_symbol_name: public std::exception
 {
-  virtual const char* what() const throw()
-  {
-    return "Invalid DFA format: DFA has symbol that is not in the range 0,1,...,255.";
-  }
+    virtual const char* what() const throw()
+    {
+        return "Invalid DFA format: DFA has symbol that is not in the range 0,1,...,255.";
+    }
 } invalid_fst_exception_symbol_name;
 
 
@@ -148,7 +148,7 @@ DFA::DFA(const std::string dfa_str, const uint16_t max_len)
             }
         }
     }
-    
+
     DFA::_validate();
 
     // perform our precalculation to speed up (un)ranking
@@ -159,7 +159,7 @@ DFA::DFA(const std::string dfa_str, const uint16_t max_len)
 void DFA::_validate() {
     // TODO: ensure DFA has at least one state
     // TODO: ensure DFA has at least one symbol
-    
+
     // ensure we have N states, labeled 0,1,..N-1
     unordered_set_uint16_t1::iterator state;
     for (state=_states.begin(); state!=_states.end(); state++) {
@@ -167,7 +167,7 @@ void DFA::_validate() {
             throw invalid_fst_exception_state_name;
         }
     }
-    
+
     // ensure all symbols are in the range 0,1,...,255
     for (uint16_t i = 0; i < _symbols.size(); i++) {
         if (_symbols[i] > 256 || _symbols[i] < 0) {
@@ -229,12 +229,13 @@ std::string DFA::unrank( const mpz_class c_in ) {
     // walk the DFA subtracting values from c until we have our n symbols
     uint16_t i, q = _start_state;
     uint16_t chars_left, char_cursor, state_cursor;
+    mpz_class char_index;
     for (i=1; i<=n; i++) {
         chars_left = n-i;
         if (_delta_dense[q]) {
             q = _delta[q][0];
             if (_T[q][chars_left]!=0) {
-                mpz_class char_index = (c / _T[q][chars_left]);
+                char_index = (c / _T[q][chars_left]);
                 char_cursor = char_index.get_ui();
                 retval = retval + _sigma[char_cursor];
                 c = c % _T[q][chars_left];
@@ -267,8 +268,9 @@ mpz_class DFA::rank( const std::string X_in ) {
     uint16_t n = X_in.size();
     uint16_t q = _start_state;
     uint16_t state;
+    uint16_t symbol_as_int;
     for (i=1; i<=n; i++) {
-        uint8_t symbol_as_int = _sigma_reverse[X_in.at(i-1)];
+        symbol_as_int = _sigma_reverse[X_in.at(i-1)];
         if (_delta_dense[q]) {
             state = _delta[q][0];
             retval += (_T[state][n-i] * symbol_as_int);

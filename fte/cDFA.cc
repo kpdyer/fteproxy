@@ -49,7 +49,7 @@ DFA_dealloc(PyObject* self)
     DFAObject *pDFAObject = (DFAObject*)self;
     if (pDFAObject->obj != NULL)
         delete pDFAObject->obj;
-        
+
     if (self != NULL)
         PyObject_Del(self);
 }
@@ -81,7 +81,6 @@ static PyObject * DFA__rank(PyObject *self, PyObject *args) {
 
     // Set our c_out value
     mpz_set(Pympz_AS_MPZ(c_out), result.get_mpz_t());
-    Py_INCREF(c_out);
 
     Py_RETURN_NONE;
 }
@@ -104,7 +103,6 @@ static PyObject * DFA__unrank(PyObject *self, PyObject *args) {
 
     // Format our std::string as a python string and return it.
     PyObject* retval = Py_BuildValue("s#", result.c_str(), result.length());
-    Py_INCREF(retval);
 
     return retval;
 }
@@ -135,7 +133,6 @@ static PyObject * DFA__getNumWordsInLanguage(PyObject *self, PyObject *args) {
     char *num_words_str = new char[num_words_str_len + 1];
     strcpy(num_words_str, num_words.get_str().c_str());
     retval = PyLong_FromString(num_words_str, NULL, base);
-    Py_INCREF(retval);
 
     // cleanup
     delete [] num_words_str;
@@ -154,10 +151,9 @@ __attFstFromRegex(PyObject *self, PyObject *args) {
     // Convert our input char* to a string and call attFstFromRegex.
     const std::string str_regex = std::string(regex);
     std::string result = attFstFromRegex(str_regex);
-    
+
     // Return the result as a python string.
     PyObject* retval = Py_BuildValue("s", result.c_str());
-    Py_INCREF(retval);
 
     return retval;
 }
@@ -205,7 +201,8 @@ DFA_init(DFAObject *self, PyObject *args, PyObject *kwds)
     // See DFA::_validate for a list of assumptions.
     try {
         const std::string str_regex = std::string(regex);
-        self->obj = new DFA(str_regex, max_len);
+        DFA *dfa = new DFA(str_regex, max_len);
+        self->obj = dfa;
     } catch (std::exception& e) {
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return 0;

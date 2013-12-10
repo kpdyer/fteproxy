@@ -22,7 +22,7 @@
  *
  * "Compression and ranking"
  * url: http://dl.acm.org/citation.cfm?id=22194
- * 
+ *
  * For even more details about the functions in this file and their purpose.
  */
 
@@ -61,7 +61,7 @@ private:
 
     // the symbols of our DFA alphabet
     array_type_uint16_t1 _symbols;
-    
+
     // our mapping between integers and the symbols in our alphabet; ints -> chars
     std::map<uint16_t, char> _sigma;
 
@@ -70,7 +70,7 @@ private:
 
     // the states in our DFA
     unordered_set_uint16_t1 _states;
-    
+
     // our transitions table
     array_type_uint16_t2 _delta;
 
@@ -87,7 +87,7 @@ private:
     //   n: the number of words in our language that have a path to a final
     //      state that is exactly length i
     void _buildTable();
-    
+
     // Checks the properties of our DFA, to ensure that we meet all constraints.
     // Throws an exception upon failure.
     void _validate();
