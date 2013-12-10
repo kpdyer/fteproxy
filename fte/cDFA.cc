@@ -175,17 +175,32 @@ DFA_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 DFA_init(DFAObject *self, PyObject *args, PyObject *kwds)
 {
-    const char *regex;
-    uint16_t max_len;
+    // TODO: Figure out why the standard PyArg_ParseTuple pattern
+    // doesn't work.
+    // see: https://github.com/kpdyer/fteproxy/issues/94
+    //if (!PyArg_ParseTuple(args, "s#i", &regex, &len, &max_len))
+    //    return -1;
 
-    if (!PyArg_ParseTuple(args, "si", &regex, &max_len))
+    PyObject *arg0 = PyTuple_GetItem(args, 0);
+    if (!PyString_Check(arg0)) {
+        PyErr_SetString(PyExc_RuntimeError, "First argument must be a string");
         return 0;
+    }
+    const char* regex = PyString_AsString(arg0);
+
+    PyObject *arg1 = PyTuple_GetItem(args, 1);
+    if (!PyInt_Check(arg1)) {
+        PyErr_SetString(PyExc_RuntimeError, "Second argument must be an int");
+        return 0;
+    }
+    uint32_t max_len = PyInt_AsLong(arg1);
 
     // Try to initialize our DFA object.
     // An exception is thrown if the input AT&T FST is not formatted as we expect.
     // See DFA::_validate for a list of assumptions.
     try {
-        self->obj = new DFA(std::string(regex), max_len);
+        const std::string str_regex = std::string(regex);
+        self->obj = new DFA(str_regex, max_len);
     } catch (std::exception& e) {
         PyErr_SetString(PyExc_RuntimeError, e.what());
         return 0;
