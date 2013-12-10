@@ -56,7 +56,7 @@ class DFA(object):
         if self._words_in_slice == 0:
             raise LanguageIsEmptySetException()
 
-        self._capacity = int(math.floor(math.log(self._words_in_slice, 2)))
+        self._capacity = int(math.floor(math.log(self._words_in_slice, 2)))-1
 
     def rank(self, X):
         """Given a string ``X`` return ``c``, where ``c`` is the lexicographical
