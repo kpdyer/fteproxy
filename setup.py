@@ -41,7 +41,7 @@ fte_cDFA = Extension('fte.cDFA',
                      library_dirs=['thirdparty/re2/obj'],
                      extra_compile_args=extra_compile_args,
                      extra_link_args=['thirdparty/re2/obj/libre2.a',
-                                      #'-Wl,--strip-all'
+                                      '-pthread',
                                       ],
                      libraries=['gmp',
                                 'gmpxx',
