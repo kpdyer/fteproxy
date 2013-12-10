@@ -18,6 +18,11 @@
 
 #include <rank_unrank.h>
 
+/*
+ * This is a wrapper around rank_unrank.cc, to create the fte.cDFA
+ * python module.
+ */
+
 
 // Copied from gmpy source.
 // Allows us to use gmp.mpz objects in python for input to our unrank function.
