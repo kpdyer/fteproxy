@@ -16,7 +16,7 @@ if os.name == 'nt':
                           # '-fstack-protector-all', # failes on mingw32
                           '-fPIE',
                           '-fPIC',
-                          '-std=c++11',
+                          #'-std=c++11',
                           ]
 elif os.uname()[0] == 'Darwin':
     libraries = ['python2.7']
