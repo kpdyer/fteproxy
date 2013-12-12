@@ -266,6 +266,7 @@ std::string DFA::unrank( const mpz_class c_in ) {
 
 mpz_class DFA::rank( const std::string X_in ) {
     // TODO: verify that input symbols are in alphabet of DFA
+    // TODO: verify len(X) == _max_len
 
     mpz_class retval = 0;
 
