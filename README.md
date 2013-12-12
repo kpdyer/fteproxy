@@ -24,8 +24,8 @@ Dependencies for building from source:
 * GMP: http://gmplib.org/
 * gmpy: https://code.google.com/p/gmpy/
 * PyCrypto: https://www.dlitz.net/software/pycrypto/
-* pyptlib: https://pypi.python.org/pypi/pyptlib
-* obfsproxy: https://pypi.python.org/pypi/obfsproxy
+* pyptlib: https://gitweb.torproject.org/pluggable-transports/pyptlib.git
+* obfsproxy: https://gitweb.torproject.org/pluggable-transports/obfsproxy.git
 * Twisted: http://twistedmatrix.com/
 
 Building
