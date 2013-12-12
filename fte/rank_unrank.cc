@@ -298,6 +298,8 @@ mpz_class DFA::rank( const std::string X_in ) {
 mpz_class DFA::getNumWordsInLanguage( const uint32_t min_word_length,
                                       const uint32_t max_word_length )
 {
+    // TODO: verify min_word_length <= max_word_length <= _max_len
+    
     // count the number of words in the language of length
     // at least min_word_length and no greater than max_word_length
     mpz_class num_words = 0;
