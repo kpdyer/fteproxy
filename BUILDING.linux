@@ -6,19 +6,21 @@ WORKING_DIR=/vagrant
 
 # depdendencies
 sudo apt-get update
-sudo apt-get -y --no-install-recommends install build-essential \
-                        curl \
-                        upx \
-                        git \
-                        python-dev \
-                        libgmp-dev \
-                        python-pip
-sudo pip install --upgrade twisted \
-                 gmpy \
-                 pycrypto \
-                 obfsproxy \
-                 pyptlib \
-                 pyinstaller
+
+sudo apt-get -y --no-install-recommends install build-essential
+sudo apt-get -y --no-install-recommends install curl
+sudo apt-get -y --no-install-recommends install upx
+sudo apt-get -y --no-install-recommends install git
+sudo apt-get -y --no-install-recommends install python-dev
+sudo apt-get -y --no-install-recommends install libgmp-dev
+sudo apt-get -y --no-install-recommends install python-pip
+
+sudo pip install --upgrade twisted
+sudo pip install --upgrade gmpy
+sudo pip install --upgrade pycrypto
+sudo pip install --upgrade obfsproxy
+sudo pip install --upgrade pyptlib
+sudo pip install --upgrade pyinstaller
 
 # see: https://github.com/kpdyer/fteproxy/issues/66
 sudo touch /usr/local/lib/python2.7/dist-packages/zope/__init__.py
