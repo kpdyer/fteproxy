@@ -26,7 +26,7 @@ Dependencies for building from source:
 * PyCrypto: https://www.dlitz.net/software/pycrypto/
 * pyptlib: https://pypi.python.org/pypi/pyptlib
 * obfsproxy: https://pypi.python.org/pypi/obfsproxy
-* Twisted: http://twistedmatrix.com/trac/
+* Twisted: http://twistedmatrix.com/
 
 Building
 -----------
