@@ -15,6 +15,8 @@ sudo apt-get -y --no-install-recommends install python-dev
 sudo apt-get -y --no-install-recommends install libgmp-dev
 sudo apt-get -y --no-install-recommends install python-pip
 
+sudo pip install --upgrade pip
+sudo pip install --upgrade setuptools
 sudo pip install --upgrade twisted
 sudo pip install --upgrade gmpy
 sudo pip install --upgrade pycrypto
