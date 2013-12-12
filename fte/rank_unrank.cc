@@ -183,8 +183,6 @@ void DFA::_validate() {
 }
 
 void DFA::_buildTable() {
-    // TODO: baild if _final_states, _delta, or _T are not initialized
-
     uint32_t i;
     uint32_t q;
     uint32_t a;
