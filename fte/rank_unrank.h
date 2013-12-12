@@ -104,7 +104,6 @@ public:
     std::string unrank( const mpz_class );
 
     // our rank function performs the inverse operation of unrank
-    // we have the output PyObject as an input for performance
     mpz_class rank( const std::string );
 
     // given integers [n,m] returns the number of words accepted by the
