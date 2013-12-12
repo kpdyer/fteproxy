@@ -222,7 +222,6 @@ std::string DFA::unrank( const mpz_class c_in ) {
     // TODO: throw exception if input integer is not in range of pre-computed
     //       values
     // TODO: throw exception if walking DFA does not end in a final state
-    // TODO: throw exception if input integer is not PympzObject*-type
 
     std::string retval;
 
