@@ -29,7 +29,6 @@ tar zxvf fteproxy-$FTEPROXY_VERSION-linux-$ARCH.tar.gz
 mkdir -p /usr/local/fteproxy/bin
 mkdir -p /usr/local/fteproxy/doc
 cp fteproxy-$FTEPROXY_VERSION-linux-$ARCH/fteproxy /usr/local/fteproxy/bin/
-cp fteproxy-$FTEPROXY_VERSION-linux-$ARCH/fst* /usr/local/fteproxy/bin/
 cp -rfv fteproxy-$FTEPROXY_VERSION-linux-$ARCH/fte /usr/local/fteproxy/bin/
 cp fteproxy-$FTEPROXY_VERSION-linux-$ARCH/README.md /usr/local/fteproxy/doc/
 cp fteproxy-$FTEPROXY_VERSION-linux-$ARCH/COPYING /usr/local/fteproxy/doc/
