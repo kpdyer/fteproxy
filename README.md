@@ -31,7 +31,7 @@ Dependencies for building from source:
 Building
 -----------
 
-For platform-specific instructions on how to install dependencies see: BUILDING.[linux|osx|windows]. Build scripts assume that are going to be executed in a virtual machine, and should not be blindly run in your primary development environment.
+For platform-specific examples of how to install dependencies see: BUILDING.[linux|osx|windows].
 
 Once all dependencies are installed, it's as simple as:
 
