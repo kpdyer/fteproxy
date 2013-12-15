@@ -17,7 +17,6 @@
 
 # notes:
 #  * build gmp from source (plus all depdendencies)
-#  * use gmpy and not gmpy2
 
 # disable UAC
 # set IP address to 192.168.10.11
@@ -87,7 +86,6 @@ python setup.py install
 sudo pip install --upgrade pip
 sudo pip install --upgrade setuptools
 sudo pip install --upgrade twisted
-sudo pip install --upgrade gmpy
 sudo pip install --upgrade pycrypto
 sudo pip install --upgrade obfsproxy
 sudo pip install --upgrade pyptlib

@@ -71,7 +71,7 @@ This is free software, and you are welcome to redistribute it under certain cond
                     with open(pid_file) as f:
                         pid = int(f.read())
                         try:
-                            os.kill(pid, signal.SIGKILL)
+                            os.kill(pid, signal.SIGINT)
                         except OSError:
                             pass
                         os.unlink(pid_file)
@@ -367,6 +367,7 @@ def test():
     unittest.TextTestRunner(verbosity=2, failfast=True).run(alltests)
 
 
+
 def get_args():
     parser = argparse.ArgumentParser(prog='fteproxy',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -456,9 +457,14 @@ def main():
 if __name__ == '__main__':
     running = True
 
+    import yappi
+    yappi.start()
+
     def signal_handler(signal, frame):
         global running
         running = False
+        import yappi
+        yappi.print_stats(sort_type=yappi.SORTTYPE_TTOT)
     signal.signal(signal.SIGINT, signal_handler)
 
     main()

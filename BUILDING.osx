@@ -45,7 +45,6 @@ brew install --build-from-source upx
 sudo pip install --upgrade pip
 sudo pip install --upgrade setuptools
 sudo pip install --upgrade twisted
-sudo pip install --upgrade gmpy
 sudo pip install --upgrade pycrypto
 sudo pip install --upgrade obfsproxy
 sudo pip install --upgrade pyptlib

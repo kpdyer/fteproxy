@@ -15,24 +15,13 @@
 
 #include <Python.h>
 #include <structmember.h>
-
+#include <iostream>
 #include <rank_unrank.h>
 
 /*
  * This is a wrapper around rank_unrank.cc, to create the fte.cDFA
  * python module.
  */
-
-
-// Copied from gmpy source.
-// Allows us to use gmp.mpz objects in python for input to our unrank function.
-typedef long Py_hash_t;
-typedef struct {
-    PyObject_HEAD
-    mpz_t z;
-    Py_hash_t hash_cache;
-} PympzObject;
-#define Pympz_AS_MPZ(obj) (((PympzObject *)(obj))->z)
 
 
 // Our custom DFAObject for holding and transporting a DFA*.
@@ -56,17 +45,12 @@ DFA_dealloc(PyObject* self)
 
 
 // The wrapper for calling DFA::rank.
-// On input we have a (str [in], gmpy.mpz [out])
-// We break the standard pattern here of having only [in]
-// parameters, because otherwise we would have to link against gmpy,
-// which it isn't designed to do.
+// Takes a string as input and returns an integer.
 static PyObject * DFA__rank(PyObject *self, PyObject *args) {
-    // Input paramters (str, gmpy.mpz)
     char* word;
     Py_ssize_t len;
-    PyObject* c_out;
 
-    if (!PyArg_ParseTuple(args, "s#O", &word, &len, &c_out))
+    if (!PyArg_ParseTuple(args, "s#", &word, &len))
         return NULL;
 
     // Copy our input word into a string.
@@ -80,25 +64,33 @@ static PyObject * DFA__rank(PyObject *self, PyObject *args) {
     mpz_class result = pDFAObject->obj->rank(str_word);
 
     // Set our c_out value
-    mpz_set(Pympz_AS_MPZ(c_out), result.get_mpz_t());
+    uint32_t base = 10;
+    std::string to_convert = result.get_str(base);
+    PyObject *retval = PyLong_FromString((char*)(to_convert.c_str()), NULL, base);
 
-    Py_RETURN_NONE;
+    return retval;
 }
 
 
 // Wrapper for DFA::unrank.
-// On input of a gmpy.mpz, returns a string.
+// On input of an integer, returns a string.
 static PyObject * DFA__unrank(PyObject *self, PyObject *args) {
-    PyObject* c_out;
+    PyObject* c;
 
-    if (!PyArg_ParseTuple(args, "O", &c_out))
+    if (!PyArg_ParseTuple(args, "O", &c))
         return NULL;
-
+    
     // Verify our environment is sane and perform unranking.
     DFAObject *pDFAObject = (DFAObject*)self;
     if (pDFAObject->obj == NULL)
         return NULL;
-    const mpz_class to_unrank = mpz_class( Pympz_AS_MPZ(c_out) );
+    
+    PyObject* as_str = PyObject_Str(c);
+    if(!as_str) { /* error-handling to choice */ }
+    const char* the_c_str = PyString_AsString(as_str);
+    mpz_class to_unrank(the_c_str, 10);
+    Py_DECREF(as_str);
+    
     std::string result = pDFAObject->obj->unrank(to_unrank);
 
     // Format our std::string as a python string and return it.

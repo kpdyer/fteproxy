@@ -22,7 +22,6 @@ Dependencies for building from source:
 * Standard build tools: gcc/g++/make/etc.
 * Python 2.7: http://python.org/
 * GMP: http://gmplib.org/
-* gmpy: https://code.google.com/p/gmpy/
 * PyCrypto: https://www.dlitz.net/software/pycrypto/
 * pyptlib: https://gitweb.torproject.org/pluggable-transports/pyptlib.git
 * obfsproxy: https://gitweb.torproject.org/pluggable-transports/obfsproxy.git

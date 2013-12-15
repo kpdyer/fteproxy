@@ -16,11 +16,6 @@
 # You should have received a copy of the GNU General Public License
 # along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
 
-try:
-    import gmpy2 as gmpy
-except ImportError:
-    import gmpy
-
 import binascii
 import os
 
@@ -38,8 +33,9 @@ def long_to_bytes(N, blocksize=1):
     such that the return values length is a multiple of ``blocksize``.
     """
 
-    bytestring = gmpy.mpz(N).digits(16)
+    bytestring = hex(N)
     bytestring = bytestring[2:] if bytestring.startswith('0x') else bytestring
+    bytestring = bytestring[:-1] if bytestring.endswith('L') else bytestring
     bytestring = '0' + bytestring if (len(bytestring) % 2) != 0 else bytestring
     bytestring = binascii.unhexlify(bytestring)
 
@@ -55,5 +51,5 @@ def bytes_to_long(bytestring):
     """
 
     bytestring = '\x00' + bytestring
-    N = gmpy.mpz(str(bytestring)[::-1], 256)
+    N = int(bytestring.encode('hex'), 16)
     return N

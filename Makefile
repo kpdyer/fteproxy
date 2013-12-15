@@ -87,7 +87,9 @@ clean:
 	@rm -rvf dist
 	@rm -vf fte/*.so
 	@rm -vf fte/*.pyd
-	@rm -rvf *.pyc
+	@rm -vf *.pyc
+	@rm -vf */*.pyc
+	@rm -vf */*/*.pyc
 
 
 test:
