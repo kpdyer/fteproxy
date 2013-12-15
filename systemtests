@@ -23,7 +23,7 @@ import socket
 
 import fte.defs
 
-BYTES_TO_SEND = 2 ** 18
+BYTES_TO_SEND = 2 ** 20
 BLOCK_SIZE = 2 ** 12
 TRIALS = 5
 TIMEOUT = 60

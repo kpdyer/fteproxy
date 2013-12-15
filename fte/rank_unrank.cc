@@ -40,6 +40,14 @@ array_type_string_t1 tokenize( std::string line, char delim ) {
 }
 
 // Exceptions
+static class _invalid_fst_format: public std::exception
+{
+    virtual const char* what() const throw()
+    {
+        return "Invalid FST format.";
+    }
+} invalid_fst_format;
+
 static class _invalid_fst_exception_state_name: public std::exception
 {
     virtual const char* what() const throw()
@@ -56,6 +64,22 @@ static class _invalid_fst_exception_symbol_name: public std::exception
     }
 } invalid_fst_exception_symbol_name;
 
+
+static class _invalid_input_exception_not_in_final_states: public std::exception
+{
+    virtual const char* what() const throw()
+    {
+        return "Please verify your input, the string does not result in an accepting path in the DFA.";
+    }
+} invalid_input_exception_not_in_final_states;
+
+static class _symbol_not_in_sigma: public std::exception
+{
+    virtual const char* what() const throw()
+    {
+        return "Please verify your input, it contains a symbol not in the sigma of the DFA.";
+    }
+} symbol_not_in_sigma;
 
 /*
  * Parameters:
@@ -101,7 +125,7 @@ DFA::DFA(const std::string dfa_str, const uint32_t max_len)
                 _states.push_back( final_state );
             }
         } else {
-            // TODO: throw exception because we don't understand the file format
+            throw invalid_fst_format;
         }
 
     }
@@ -163,8 +187,12 @@ DFA::DFA(const std::string dfa_str, const uint32_t max_len)
 
 
 void DFA::_validate() {
-    // TODO: ensure DFA has at least one state
-    // TODO: ensure DFA has at least one symbol
+    // ensure DFA has at least one state
+    assert(_states.length()>0);
+
+    // ensure DFA has at least one symbol
+    assert(_sigma.length()>0);
+    assert(_sigma_reverse.length()>0);
 
     // ensure we have N states, labeled 0,1,..N-1
     array_type_uint32_t1::iterator state;
@@ -217,19 +245,15 @@ void DFA::_buildTable() {
 
 
 std::string DFA::unrank( const mpz_class c_in ) {
-    // TODO: throw exception if input integer is not in range of pre-computed
-    //       values
-    // TODO: throw exception if walking DFA does not end in a final state
-
     std::string retval;
 
-    mpz_class c = c_in;
-
-    // subtract values values from c, while increasing n, to determine
-    // the length n of the string we're ranking
-    uint32_t n = _fixed_slice;
+    // throw exception if input integer is not in range of pre-computed value
+    mpz_class words_in_slice = getNumWordsInLanguage( _fixed_slice, _fixed_slice );
+    assert( c_in < words_in_slice );
 
     // walk the DFA subtracting values from c until we have our n symbols
+    mpz_class c = c_in;
+    uint32_t n = _fixed_slice;
     uint32_t i, q = _start_state;
     uint32_t chars_left, char_cursor, state_cursor;
     uint32_t sigma_zero = _sigma.at(0);
@@ -237,6 +261,7 @@ std::string DFA::unrank( const mpz_class c_in ) {
     for (i=1; i<=n; i++) {
         chars_left = n-i;
         if (_delta_dense.at(q)) {
+            // our optimized version, when _delta[q][i] is equal to n for all symbols i
             q = _delta.at(q).at(0);
             if (_T.at(q).at(chars_left)!=0) {
                 char_index = (c / _T.at(q).at(chars_left));
@@ -247,6 +272,7 @@ std::string DFA::unrank( const mpz_class c_in ) {
                 retval += sigma_zero;
             }
         } else {
+            // traditional goldberg-sipser ranking
             char_cursor = 0;
             state_cursor = _delta.at(q).at(char_cursor);
             while (c >= _T.at(state_cursor).at(chars_left)) {
@@ -259,27 +285,41 @@ std::string DFA::unrank( const mpz_class c_in ) {
         }
     }
 
+    // bail if our last state q is not in _final_states
+    if (find(_final_states.begin(),
+             _final_states.end(), q)==_final_states.end()) {
+        throw invalid_input_exception_not_in_final_states;
+    }
+
     return retval;
 }
 
 mpz_class DFA::rank( const std::string X_in ) {
-    // TODO: verify that input symbols are in alphabet of DFA
-    // TODO: verify len(X) == _fixed_slice
-
     mpz_class retval = 0;
 
-    // walk the DFA, adding values from T to c
-    uint32_t i, j;
+    // verify len(X) == _fixe_slice
+    assert(X_in.length()==_fixed_slice);
+
+    // walk the DFA, adding values from _T to c
+    uint32_t i;
+    uint32_t j;
     uint32_t n = X_in.size();
+    uint32_t symbol_as_int;
     uint32_t q = _start_state;
     uint32_t state;
-    uint32_t symbol_as_int;
     for (i=1; i<=n; i++) {
-        symbol_as_int = _sigma_reverse.at(X_in.at(i-1));
+        try {
+            symbol_as_int = _sigma_reverse.at(X_in.at(i-1));
+        } catch (int e) {
+            throw symbol_not_in_sigma;
+        }
+
         if (_delta_dense.at(q)) {
+            // our optimized version, when _delta[q][i] is equal to n for all symbols i
             state = _delta.at(q).at(0);
             retval += (_T.at(state).at(n-i) * symbol_as_int);
         } else {
+            // traditional goldberg-sipser ranking
             for (j=1; j<=symbol_as_int; j++) {
                 state = _delta.at(q).at(j-1);
                 retval += _T.at(state).at(n-i);
@@ -288,7 +328,11 @@ mpz_class DFA::rank( const std::string X_in ) {
         q = _delta.at(q).at(symbol_as_int);
     }
 
-    // TODO: bail if our final state q is not in _final_states
+    // bail if our last state q is not in _final_states
+    if (find(_final_states.begin(),
+             _final_states.end(), q)==_final_states.end()) {
+        throw invalid_input_exception_not_in_final_states;
+    }
 
     return retval;
 }
@@ -296,7 +340,10 @@ mpz_class DFA::rank( const std::string X_in ) {
 mpz_class DFA::getNumWordsInLanguage( const uint32_t min_word_length,
                                       const uint32_t max_word_length )
 {
-    // TODO: verify min_word_length <= max_word_length <= _fixed_slice
+    // verify min_word_length <= max_word_length <= _fixed_slice
+    assert(0<=min_word_length);
+    assert(min_word_length<=max_word_length);
+    assert(max_word_length<=_fixed_slice);
 
     // count the number of words in the language of length
     // at least min_word_length and no greater than max_word_length
@@ -311,9 +358,6 @@ mpz_class DFA::getNumWordsInLanguage( const uint32_t min_word_length,
 
 std::string attFstFromRegex( const std::string regex )
 {
-    // TODO: Throw exception if DFA is not generated correctly (how do we determine this case?)
-    // TODO: Identify when DFA has >N states, then throw exception
-
     std::string retval;
 
     // specify compile flags for re2
