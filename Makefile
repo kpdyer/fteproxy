@@ -28,7 +28,19 @@ RE2_VERSION=20131024
 RE2_TGZ=https://re2.googlecode.com/files/re2-$(RE2_VERSION).tgz
 RE2_DIR=$(THIRD_PARTY_DIR)/re2
 
-all: fte/cDFA
+all: clean dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz
+
+ifneq (, $(findstring windows, $(PLATFORM)))
+bin: fte/cDFA.pyd
+else
+bin: fte/cDFA.so
+endif
+
+ifneq (, $(findstring windows, $(PLATFORM)))
+dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz: fte/cDFA.pyd
+else
+dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz: fte/cDFA.so
+endif
 	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)
 ifneq (, $(findstring windows, $(PLATFORM)))
 	python setup.py py2exe
@@ -53,7 +65,11 @@ endif
 	cd dist && tar cvf fteproxy-$(FTEPROXY_RELEASE).tar fteproxy-$(FTEPROXY_RELEASE)
 	cd dist && gzip -9 fteproxy-$(FTEPROXY_RELEASE).tar
 
-fte/cDFA: $(THIRD_PARTY_DIR)/re2/obj/libre2.a
+ifneq (, $(findstring windows, $(PLATFORM)))
+fte/cDFA.pyd: $(THIRD_PARTY_DIR)/re2/obj/libre2.a
+else
+fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/libre2.a
+endif
 	python setup.py build_ext --inplace
 
 $(THIRD_PARTY_DIR)/re2/obj/libre2.a: $(THIRD_PARTY_DIR)/re2-$(RE2_VERSION).tgz
