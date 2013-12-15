@@ -327,14 +327,23 @@ std::string attFstFromRegex( const std::string regex )
     re2::RegexpStatus status;
 
     // compile regex to DFA
-    RE2::Options opt;
-    re2::Regexp* re = re2::Regexp::Parse( regex, re_flags, &status );
-    re2::Prog* prog = re->CompileToProg( opt.max_mem() );
-    retval = prog->PrintEntireDFA( re2::Prog::kFullMatch );
+    re2::Regexp* re = NULL;
+    re2::Prog* prog = NULL;
+
+    try {
+        RE2::Options opt;
+        re2::Regexp* re = re2::Regexp::Parse( regex, re_flags, &status );
+        re2::Prog* prog = re->CompileToProg( opt.max_mem() );
+        retval = prog->PrintEntireDFA( re2::Prog::kFullMatch );
+    } catch (int e) {
+        // do nothing, we return the empty string
+    }
 
     // cleanup
-    delete prog;
-    re->Decref();
+    if (prog!=NULL)
+        delete prog;
+    if (re!=NULL)
+        re->Decref();
 
     return retval;
 }
