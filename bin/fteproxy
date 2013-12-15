@@ -245,7 +245,6 @@ def do_managed_server():
     from pyptlib.config import EnvError
 
     import obfsproxy.transports.transports as transports
-    #import obfsproxy.network.launch_transport as launch_transport
     import obfsproxy.common.log as logging
     import obfsproxy.common.transport_config as transport_config
 
@@ -431,7 +430,7 @@ def main():
     try:
         args = get_args()
         main = FTEMain(args)
-        if args.managed:  # and args.mode=="client":
+        if args.managed:
             main.run()
         else:
             main.daemon = True
