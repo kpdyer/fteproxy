@@ -44,10 +44,10 @@ brew install --build-from-source upx
 
 sudo pip install --upgrade pip
 sudo pip install --upgrade setuptools
-sudo pip install --upgrade twisted
-sudo pip install --upgrade pycrypto
-sudo pip install --upgrade obfsproxy
-sudo pip install --upgrade pyptlib
+sudo CFLAGS="-Ofast" pip install --upgrade twisted
+sudo CFLAGS="-Ofast" pip install --upgrade pycrypto
+sudo CFLAGS="-Ofast" pip install --upgrade obfsproxy
+sudo CFLAGS="-Ofast" pip install --upgrade pyptlib
 sudo pip install --upgrade pyinstaller
 
 # see: https://github.com/kpdyer/fteproxy/issues/66

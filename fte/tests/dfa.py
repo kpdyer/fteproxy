@@ -44,15 +44,5 @@ class TestDFA(unittest.TestCase):
                 M = dfa.rank(X)
                 self.assertEquals(N, M)
 
-    def testUnrank1(self):
-        dfa = fte.dfa.from_regex("^TESTTEST$", 8)
-        self.assertEquals(dfa.unrank(0), "TESTTEST")
-        try:
-            dfa.unrank(1)
-            self.fail(
-                "IntegerOutOfRangeException not thrown when unranking out-of-bounds int")
-        except fte.dfa.IntegerOutOfRangeException:
-            pass
-
 if __name__ == '__main__':
     unittest.main()

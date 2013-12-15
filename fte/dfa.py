@@ -65,9 +65,6 @@ class DFA(object):
         """The inverse of ``rank``.
         """
 
-        if c > (self._words_in_slice - 1):
-            raise IntegerOutOfRangeException()
-
         return self._cDFA.unrank(c)
 
     def getCapacity(self):

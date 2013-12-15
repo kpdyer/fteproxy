@@ -114,8 +114,8 @@ DFA::DFA(const std::string dfa_str, const uint32_t max_len)
     // bytes/integers
     uint32_t j, k;
     for (j=0; j<_num_symbols; j++) {
-        _sigma[j] = (char)(_symbols.at(j));
-        _sigma_reverse[(char)(_symbols.at(j))] = j;
+        _sigma.insert( std::pair<uint32_t,char>( j, (char)(_symbols.at(j))) );
+        _sigma_reverse.insert( std::pair<char,uint32_t>((char)(_symbols.at(j)), j) );
     }
 
     // intialize all transitions in our DFA to our dead state
@@ -137,7 +137,7 @@ DFA::DFA(const std::string dfa_str, const uint32_t max_len)
             uint32_t symbol = strtol(split_vec.at(2).c_str(),NULL,10);
             uint32_t new_state = strtol(split_vec.at(1).c_str(),NULL,10);
 
-            symbol = _sigma_reverse[symbol];
+            symbol = _sigma_reverse.at(symbol);
 
             _delta.at(current_state).at(symbol) = new_state;
         }
@@ -232,6 +232,7 @@ std::string DFA::unrank( const mpz_class c_in ) {
     // walk the DFA subtracting values from c until we have our n symbols
     uint32_t i, q = _start_state;
     uint32_t chars_left, char_cursor, state_cursor;
+    uint32_t sigma_zero = _sigma.at(0);
     mpz_class char_index;
     for (i=1; i<=n; i++) {
         chars_left = n-i;
@@ -240,10 +241,10 @@ std::string DFA::unrank( const mpz_class c_in ) {
             if (_T.at(q).at(chars_left)!=0) {
                 char_index = (c / _T.at(q).at(chars_left));
                 char_cursor = char_index.get_ui();
-                retval = retval + _sigma[char_cursor];
+                retval = retval + _sigma.at(char_cursor);
                 c = c % _T.at(q).at(chars_left);
             } else {
-                retval += _sigma[0];
+                retval += sigma_zero;
             }
         } else {
             char_cursor = 0;
@@ -253,7 +254,7 @@ std::string DFA::unrank( const mpz_class c_in ) {
                 char_cursor += 1;
                 state_cursor =_delta.at(q).at(char_cursor);
             }
-            retval += _sigma[char_cursor];
+            retval += _sigma.at(char_cursor);
             q = state_cursor;
         }
     }
@@ -274,7 +275,7 @@ mpz_class DFA::rank( const std::string X_in ) {
     uint32_t state;
     uint32_t symbol_as_int;
     for (i=1; i<=n; i++) {
-        symbol_as_int = _sigma_reverse[X_in.at(i-1)];
+        symbol_as_int = _sigma_reverse.at(X_in.at(i-1));
         if (_delta_dense.at(q)) {
             state = _delta.at(q).at(0);
             retval += (_T.at(state).at(n-i) * symbol_as_int);
@@ -296,7 +297,7 @@ mpz_class DFA::getNumWordsInLanguage( const uint32_t min_word_length,
                                       const uint32_t max_word_length )
 {
     // TODO: verify min_word_length <= max_word_length <= _fixed_slice
-    
+
     // count the number of words in the language of length
     // at least min_word_length and no greater than max_word_length
     mpz_class num_words = 0;

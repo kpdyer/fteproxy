@@ -339,6 +339,9 @@ def test():
     import fte.tests.dfa
     import fte.tests.cDFA
 
+    import yappi
+    yappi.start()
+
     suite_encoder = unittest.TestLoader().loadTestsFromTestCase(
         fte.tests.encoder.TestEncoders)
     suite_encrypter = unittest.TestLoader().loadTestsFromTestCase(
@@ -365,6 +368,7 @@ def test():
     alltests = unittest.TestSuite(suites)
     unittest.TextTestRunner(verbosity=2, failfast=True).run(alltests)
 
+    yappi.print_stats(sort_type=yappi.SORTTYPE_TTOT)
 
 def get_args():
     parser = argparse.ArgumentParser(prog='fteproxy',

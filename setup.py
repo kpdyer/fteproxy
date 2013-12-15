@@ -49,8 +49,10 @@ else:
 
 fte_cDFA = Extension('fte.cDFA',
                      include_dirs=['fte',
-                                   'thirdparty/re2'],
-                     library_dirs=['thirdparty/re2/obj'],
+                                   'thirdparty/re2',
+                                  ],
+                     library_dirs=['thirdparty/re2/obj',
+                                  ],
                      extra_compile_args=extra_compile_args,
                      extra_link_args=['thirdparty/re2/obj/libre2.a',
                                       '-pthread',
@@ -58,7 +60,7 @@ fte_cDFA = Extension('fte.cDFA',
                                       ],
                      libraries=['gmp',
                                 'gmpxx',
-                                ] + libraries,
+                               ] + libraries,
                      sources=['fte/rank_unrank.cc', 'fte/cDFA.cc'])
 
 if os.name == 'nt':

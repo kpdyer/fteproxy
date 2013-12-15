@@ -48,19 +48,20 @@ DFA_dealloc(PyObject* self)
 // Takes a string as input and returns an integer.
 static PyObject * DFA__rank(PyObject *self, PyObject *args) {
     char* word;
-    Py_ssize_t len;
+    uint32_t len;
 
     if (!PyArg_ParseTuple(args, "s#", &word, &len))
         return NULL;
 
     // Copy our input word into a string.
     // We have to do the following, because we may have NUL-bytes in our strings.
-    const std::string str_word = std::string(word, (uint32_t)len);
+    const std::string str_word = std::string(word, len);
 
     // Verify our environment is sane and perform ranking.
     DFAObject *pDFAObject = (DFAObject*)self;
     if (pDFAObject->obj == NULL)
         return NULL;
+
     mpz_class result = pDFAObject->obj->rank(str_word);
 
     // Set our c_out value
@@ -79,18 +80,20 @@ static PyObject * DFA__unrank(PyObject *self, PyObject *args) {
 
     if (!PyArg_ParseTuple(args, "O", &c))
         return NULL;
-    
+
     // Verify our environment is sane and perform unranking.
     DFAObject *pDFAObject = (DFAObject*)self;
     if (pDFAObject->obj == NULL)
         return NULL;
-    
+
     PyObject* as_str = PyObject_Str(c);
-    if(!as_str) { /* error-handling to choice */ }
+    if(!as_str) {
+        /* error-handling to choice */
+    }
     const char* the_c_str = PyString_AsString(as_str);
     mpz_class to_unrank(the_c_str, 10);
     Py_DECREF(as_str);
-    
+
     std::string result = pDFAObject->obj->unrank(to_unrank);
 
     // Format our std::string as a python string and return it.
