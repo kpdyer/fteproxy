@@ -4,15 +4,15 @@
 Overview
 --------
 It's the responsibility of the client listener to broker incoming/
-outgoing connections on the client-side of an FTE setup.
+outgoing connections on the client-side of an fteproxy setup.
 Incoming connections are not encapsulated by FTE, as they
 are from a client-side application, such as Firefox. Outgoing connections
-will be destined to an FTE server. They will be encapsulated by FTE.
+will be destined to an fteproxy server. They will be encapsulated by fteproxy.
 
 The ``fte.client.listener`` class extends ``fte.relay.listener``.
 See ``fte.relay.listener`` for more information, which is also the base class
 for ``fte.server.listener``. The ``fte.relay.listener`` class extends
-``threading.Thread``, hence we invoke the FTE client via fte.listener.client.start().
+``threading.Thread``, hence we invoke the fteproxy client via fte.listener.client.start().
 
 
 Interface
@@ -26,7 +26,7 @@ Interface
 Examples
 --------
 
-Start the FTE client with default configuration parameters.
+Start the fteproxy client with default configuration parameters.
 
 .. code-block:: python
 
@@ -37,7 +37,7 @@ Start the FTE client with default configuration parameters.
     client.join(10) # run for 10 seconds
     client.stop()
 
-Start the FTE client listening on client-side port ``127.0.0.1:8888``.
+Start the fteproxy client listening on client-side port ``127.0.0.1:8888``.
 
 .. code-block:: python
 
@@ -52,7 +52,7 @@ Start the FTE client listening on client-side port ``127.0.0.1:8888``.
     client.join(10) # run for 10 seconds
     client.stop()
 
-Start the FTE client and connect to remote server ``myfteserver:80``.
+Start the fteproxy client and connect to remote server ``myfteserver:80``.
 
 .. code-block:: python
 

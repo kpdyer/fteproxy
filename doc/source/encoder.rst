@@ -5,7 +5,7 @@ Overview
 --------
 
 The core class that performs encoding/decoding w.r.t. an input ``regex``.
-Used internally for FTE and should not be invoked directly.
+Used internally for fteproxy and should not be invoked directly.
 
 Interface
 ---------

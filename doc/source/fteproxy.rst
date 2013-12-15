@@ -1,7 +1,7 @@
 ``fteproxy``
 ************
 
-The ``fteproxy`` command-line application is used to start an FTE client or
+The ``fteproxy`` command-line application is used to start an fteproxy client or
 server.
 
 Parameters

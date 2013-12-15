@@ -3,12 +3,12 @@ fteproxy Documentation
 
 Format-Transforming Encryption (FTE) is a strategy for communicating using
 strings defined by compact regular expressions.
-FTE is well-positioned to circumvent regex-based DPI systems.
+fteproxy is well-positioned to circumvent regex-based DPI systems.
 
 ``fteproxy`` Command Line Application
 -------------------------------------
 
-The ``fteproxy`` command-line application can be used to run and FTE proxy client
+The ``fteproxy`` command-line application can be used to run and fteproxy proxy client
 or server.
 
 .. toctree::
@@ -17,10 +17,10 @@ or server.
    fteproxy.rst
 
 
-FTE Wrapper for Socket Objects
+fteproxy Wrapper for Socket Objects
 ------------------------------
 
-The FTE socket wrapper is useful for rapidly integrating FTE into existing
+The fteproxy socket wrapper is useful for rapidly integrating fteproxy into existing
 socket-powered applications.
 
 .. toctree::
@@ -29,10 +29,10 @@ socket-powered applications.
    __init__.rst
 
 
-FTE API
+fteproxy API
 -------
 
-The FTE API contains the essential building blocks for constructing the FTE
+The fteproxy API contains the essential building blocks for constructing the FTE
 socket wrapper and fteproxy command line application.
 
 .. toctree::

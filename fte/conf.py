@@ -1,20 +1,20 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# This file is part of FTE.
+# This file is part of fteproxy.
 #
-# FTE is free software: you can redistribute it and/or modify
+# fteproxy is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# FTE is distributed in the hope that it will be useful,
+# fteproxy is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with FTE.  If not, see <http://www.gnu.org/licenses/>.
+# along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
 import sys
@@ -65,7 +65,7 @@ else:
     conf['general.defs_dir'] = os.path.join(module_path(), '..', 'fte', 'defs')
 
 
-"""The location that we store *.pid files, such that we can kill FTE from the command line."""
+"""The location that we store *.pid files, such that we can kill fteproxy from the command line."""
 conf['general.pid_dir'] = tempfile.gettempdir()
 
 
@@ -82,12 +82,12 @@ conf['runtime.client.ip'] = '127.0.0.1'
 conf['runtime.client.port'] = 8079
 
 
-"""Our server-side ip:port to listen for connections from FTE clients"""
+"""Our server-side ip:port to listen for connections from fteproxy clients"""
 conf['runtime.server.ip'] = '127.0.0.1'
 conf['runtime.server.port'] = 8080
 
 
-"""Our proxy server, where the FTE server forwards outgoing connections."""
+"""Our proxy server, where the fteproxy server forwards outgoing connections."""
 conf['runtime.proxy.ip'] = '127.0.0.1'
 conf['runtime.proxy.port'] = 8081
 
@@ -96,7 +96,7 @@ conf['runtime.proxy.port'] = 8081
 conf['runtime.fte.relay.socket_timeout'] = 0.001
 
 
-"""The default timeout when establishing a new FTE socket."""
+"""The default timeout when establishing a new fteproxy socket."""
 conf['runtime.fte.negotiate.timeout'] = 5
 
 

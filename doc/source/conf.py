@@ -188,7 +188,7 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-    ('index', 'Format-TransformingEncryptionFTE.tex', u'fteproxy Documentation',
+    ('index', 'Format-TransformingEncryptionfteproxy.tex', u'fteproxy Documentation',
      u'Kevin P. Dyer', 'manual'),
 ]
 

@@ -5,7 +5,7 @@ Overview
 --------
 
 The ``fte.encrypter`` module implements an authenticated encryption (AE) scheme designed to be used with the initial release of the Format-Transforming Encryption (FTE) Proxy.
-An AE scheme used with with the FTE proxy must have the following four properties.
+An AE scheme used with with the fteproxy proxy must have the following four properties.
 
 - Stateless
 - Randomized

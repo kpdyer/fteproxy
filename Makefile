@@ -1,3 +1,18 @@
+# This file is part of fteproxy.
+#
+# fteproxy is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# fteproxy is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
+
 PLATFORM=$(shell uname)
 PLATFORM_LOWER=$(shell echo $(PLATFORM) | tr A-Z a-z)
 ifneq (, $(findstring cygwin, $(PLATFORM_LOWER)))
@@ -42,13 +57,13 @@ fte/cDFA: $(THIRD_PARTY_DIR)/re2/obj/libre2.a
 	python setup.py build_ext --inplace
 
 $(THIRD_PARTY_DIR)/re2/obj/libre2.a: $(THIRD_PARTY_DIR)/re2-$(RE2_VERSION).tgz
-	cd $(THIRD_PARTY_DIR) && tar zxvf re2-$(RE2_VERSION).tgz
-	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-001.patch
-	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-002.patch
 	cd $(RE2_DIR) && $(MAKE) obj/libre2.a
 
 $(THIRD_PARTY_DIR)/re2-$(RE2_VERSION).tgz:
 	cd $(THIRD_PARTY_DIR) && curl $(RE2_TGZ) > re2-$(RE2_VERSION).tgz
+	cd $(THIRD_PARTY_DIR) && tar zxvf re2-$(RE2_VERSION).tgz
+	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-001.patch
+	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-002.patch
 
 
 clean:

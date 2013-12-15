@@ -4,7 +4,7 @@
 Overview
 --------
 
-This is a class used internally by FTE and should not be invoked directly.
+This is a class used internally by fteproxy and should not be invoked directly.
 
 Interface
 ---------

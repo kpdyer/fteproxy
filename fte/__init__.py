@@ -1,20 +1,20 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# This file is part of FTE.
+# This file is part of fteproxy.
 #
-# FTE is free software: you can redistribute it and/or modify
+# fteproxy is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# FTE is distributed in the hope that it will be useful,
+# fteproxy is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with FTE.  If not, see <http://www.gnu.org/licenses/>.
+# along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
 
 import socket
 import string
@@ -337,7 +337,7 @@ def wrap_socket(sock,
                 outgoing_regex=None, outgoing_max_len=-1,
                 incoming_regex=None, incoming_max_len=-1,
                 K1=None, K2=None):
-    """``fte.wrap_socket`` turns an existing socket into an FTE socket.
+    """``fte.wrap_socket`` turns an existing socket into an fteproxy socket.
 
     The input parameter ``sock`` is the socket to wrap.
     The parameter ``outgoing_regex`` specifies the format of the messages
@@ -401,7 +401,7 @@ class FTETransport(FTEHelper, obfsproxy.transports.base.BaseTransport):
         self._preNegotiationBuffer_incoming = ''
 
     def receivedDownstream(self, data, circuit):
-        """decode FTE stream"""
+        """decode fteproxy stream"""
 
         try:
             data = data.read()
@@ -419,7 +419,7 @@ class FTETransport(FTEHelper, obfsproxy.transports.base.BaseTransport):
             pass
 
     def receivedUpstream(self, data, circuit):
-        """encode FTE stream"""
+        """encode fteproxy stream"""
         to_send = self._processSend()
         if to_send:
             circuit.downstream.write(to_send)

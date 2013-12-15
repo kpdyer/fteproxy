@@ -1,4 +1,4 @@
-Low-Level FTE API
+Low-Level fteproxy API
 *****************
 
 High-level Client/Server modules:
