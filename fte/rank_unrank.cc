@@ -63,7 +63,7 @@ static class _invalid_fst_exception_symbol_name: public std::exception
  *   max_len: the maxium length to compute DFA::buildTable
  */
 DFA::DFA(const std::string dfa_str, const uint32_t max_len)
-    : _max_len(max_len),
+    : _fixed_slice(max_len),
       _start_state(0),
       _num_states(0),
       _num_symbols(0)
@@ -190,8 +190,8 @@ void DFA::_buildTable() {
     // ensure our table _T is the correct size
     _T.resize(_num_states);
     for (q=0; q<_num_states; q++) {
-        _T.at(q).resize(_max_len+1);
-        for (i=0; i<=_max_len; i++) {
+        _T.at(q).resize(_fixed_slice+1);
+        for (i=0; i<=_fixed_slice; i++) {
             _T.at(q).at(i) = 0;
         }
     }
@@ -205,7 +205,7 @@ void DFA::_buildTable() {
     // walk through our table _T
     // we want each entry _T.at(q).at(i) to contain the number of strings that start
     // from state q, terminate in a final state, and are of length i
-    for (i=1; i<=_max_len; i++) {
+    for (i=1; i<=_fixed_slice; i++) {
         for (q=0; q<_delta.size(); q++) {
             for (a=0; a<_delta.at(0).size(); a++) {
                 uint32_t state = _delta.at(q).at(a);
@@ -227,7 +227,7 @@ std::string DFA::unrank( const mpz_class c_in ) {
 
     // subtract values values from c, while increasing n, to determine
     // the length n of the string we're ranking
-    uint32_t n = _max_len;
+    uint32_t n = _fixed_slice;
 
     // walk the DFA subtracting values from c until we have our n symbols
     uint32_t i, q = _start_state;
@@ -263,7 +263,7 @@ std::string DFA::unrank( const mpz_class c_in ) {
 
 mpz_class DFA::rank( const std::string X_in ) {
     // TODO: verify that input symbols are in alphabet of DFA
-    // TODO: verify len(X) == _max_len
+    // TODO: verify len(X) == _fixed_slice
 
     mpz_class retval = 0;
 
@@ -295,7 +295,7 @@ mpz_class DFA::rank( const std::string X_in ) {
 mpz_class DFA::getNumWordsInLanguage( const uint32_t min_word_length,
                                       const uint32_t max_word_length )
 {
-    // TODO: verify min_word_length <= max_word_length <= _max_len
+    // TODO: verify min_word_length <= max_word_length <= _fixed_slice
     
     // count the number of words in the language of length
     // at least min_word_length and no greater than max_word_length

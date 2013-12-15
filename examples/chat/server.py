@@ -10,9 +10,9 @@ PORT = 50007              # Arbitrary non-privileged port
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s = fte.wrap_socket(s,
                     outgoing_regex=server_client_regex,
-                    outgoing_max_len=256,
+                    outgoing_fixed_slice=256,
                     incoming_regex=client_server_regex,
-                    incoming_max_len=256)
+                    incoming_fixed_slice=256)
 s.bind((HOST, PORT))
 s.listen(1)
 conn, addr = s.accept()

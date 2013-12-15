@@ -54,6 +54,6 @@ def getMaxLen(format_name):
     try:
         max_len = definitions[format_name]['max_len']
     except KeyError:
-        max_len = fte.conf.getValue('fte.default_max_len')
+        max_len = fte.conf.getValue('fte.default_fixed_slice')
 
     return max_len

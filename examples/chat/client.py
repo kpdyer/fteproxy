@@ -10,9 +10,9 @@ PORT = 50007              # The same port as used by the server
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s = fte.wrap_socket(s,
                     outgoing_regex=client_server_regex,
-                    outgoing_max_len=256,
+                    outgoing_fixed_slice=256,
                     incoming_regex=server_client_regex,
-                    incoming_max_len=256)
+                    incoming_fixed_slice=256)
 s.connect((HOST, PORT))
 s.sendall('Hello, world')
 data = s.recv(1024)

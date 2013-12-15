@@ -125,11 +125,11 @@ This is free software, and you are welcome to redistribute it under certain cond
 
         if fte.conf.getValue('runtime.mode') == 'client':
             incoming_regex = fte.defs.getRegex(self._args.downstream_format)
-            incoming_max_len = fte.defs.getMaxLen(self._args.downstream_format)
-            fte.encoder.RegexEncoder(incoming_regex, incoming_max_len)
+            incoming_fixed_slice = fte.defs.getMaxLen(self._args.downstream_format)
+            fte.encoder.RegexEncoder(incoming_regex, incoming_fixed_slice)
             outgoing_regex = fte.defs.getRegex(self._args.upstream_format)
-            outgoing_max_len = fte.defs.getMaxLen(self._args.upstream_format)
-            fte.encoder.RegexEncoder(outgoing_regex, outgoing_max_len)
+            outgoing_fixed_slice = fte.defs.getMaxLen(self._args.upstream_format)
+            fte.encoder.RegexEncoder(outgoing_regex, outgoing_fixed_slice)
 
             if self._args.managed:
                 do_managed_client()
@@ -367,7 +367,6 @@ def test():
     unittest.TextTestRunner(verbosity=2, failfast=True).run(alltests)
 
 
-
 def get_args():
     parser = argparse.ArgumentParser(prog='fteproxy',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -457,14 +456,9 @@ def main():
 if __name__ == '__main__':
     running = True
 
-    import yappi
-    yappi.start()
-
     def signal_handler(signal, frame):
         global running
         running = False
-        import yappi
-        yappi.print_stats(sort_type=yappi.SORTTYPE_TTOT)
     signal.signal(signal.SIGINT, signal_handler)
 
     main()

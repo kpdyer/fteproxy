@@ -47,7 +47,7 @@ class DFA {
 
 private:
     // the maximum value for which buildTable is computed
-    uint32_t _max_len;
+    uint32_t _fixed_slice;
 
     // our DFA start state
     uint32_t _start_state;

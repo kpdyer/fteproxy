@@ -64,8 +64,8 @@ class RegexEncoderObject(object):
 
     def __init__(self, regex, max_len):
         self._regex = regex
-        self._max_len = max_len
-        self._dfa = fte.dfa.from_regex(self._regex, self._max_len)
+        self._fixed_slice = max_len
+        self._dfa = fte.dfa.from_regex(self._regex, self._fixed_slice)
         self._encrypter = fte.encrypter.Encrypter()
 
     def getCapacity(self):
@@ -123,14 +123,14 @@ class RegexEncoderObject(object):
         if not isinstance(covertext, str):
             raise InvalidInputException('Input must be of type string.')
 
-        insufficient = (len(covertext) < self._max_len)
+        insufficient = (len(covertext) < self._fixed_slice)
         if insufficient:
             raise DecodeFailureError(
-                "Covertext is shorter than self._max_len, can't decode.")
+                "Covertext is shorter than self._fixed_slice, can't decode.")
 
         maximumBytesToRank = int(math.floor(self.getCapacity() / 8.0))
 
-        rank_payload = self._dfa.rank(covertext[:self._max_len])
+        rank_payload = self._dfa.rank(covertext[:self._fixed_slice])
         X = fte.bit_ops.long_to_bytes(rank_payload)
 
         X = string.rjust(X, maximumBytesToRank, '\x00')
@@ -141,6 +141,6 @@ class RegexEncoderObject(object):
             msg_len_header[:RegexEncoderObject._COVERTEXT_HEADER_LEN_PLAINTEXT])
 
         retval = X[16:16 + msg_len]
-        retval += covertext[self._max_len:]
+        retval += covertext[self._fixed_slice:]
 
         return retval

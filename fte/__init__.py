@@ -110,10 +110,10 @@ class NegotiationManager(object):
                     continue
 
                 incoming_regex = fte.defs.getRegex(incoming_language)
-                incoming_max_len = fte.defs.getMaxLen(incoming_language)
+                incoming_fixed_slice = fte.defs.getMaxLen(incoming_language)
 
                 incoming_decoder = fte.encoder.RegexEncoder(incoming_regex,
-                                                            incoming_max_len)
+                                                            incoming_fixed_slice)
                 decoder = fte.record_layer.Decoder(decrypter=encrypter,
                                                    decoder=incoming_decoder)
 
@@ -128,21 +128,21 @@ class NegotiationManager(object):
         raise NegotiationFailedException()
 
     def _init_encoders(self, encrypter,
-                       outgoing_regex, outgoing_max_len,
-                       incoming_regex, incoming_max_len):
+                       outgoing_regex, outgoing_fixed_slice,
+                       incoming_regex, incoming_fixed_slice):
 
         encoder = None
         decoder = None
 
-        if outgoing_regex != None and outgoing_max_len != -1:
+        if outgoing_regex != None and outgoing_fixed_slice != -1:
             outgoing_encoder = fte.encoder.RegexEncoder(outgoing_regex,
-                                                        outgoing_max_len)
+                                                        outgoing_fixed_slice)
             encoder = fte.record_layer.Encoder(encrypter=encrypter,
                                                encoder=outgoing_encoder)
 
-        if incoming_regex != None and incoming_max_len != -1:
+        if incoming_regex != None and incoming_fixed_slice != -1:
             incoming_decoder = fte.encoder.RegexEncoder(incoming_regex,
-                                                        incoming_max_len)
+                                                        incoming_fixed_slice)
             decoder = fte.record_layer.Decoder(decrypter=encrypter,
                                                decoder=incoming_decoder)
 
@@ -160,10 +160,10 @@ class NegotiationManager(object):
         return data
 
     def makeClientNegotiationCell(self, encrypter,
-                                  outgoing_regex, outgoing_max_len,
-                                  incoming_regex, incoming_max_len):
+                                  outgoing_regex, outgoing_fixed_slice,
+                                  incoming_regex, incoming_fixed_slice):
         [encoder, decoder] = self._init_encoders(
-            encrypter, outgoing_regex, outgoing_max_len, incoming_regex, incoming_max_len)
+            encrypter, outgoing_regex, outgoing_fixed_slice, incoming_regex, incoming_fixed_slice)
         return self._makeNegotiationCell(encoder)
 
     def doServerSideNegotiation(self, encrypter, data):
@@ -176,12 +176,12 @@ class NegotiationManager(object):
         incoming_language = negotiate.getLanguage() + '-request'
 
         outgoing_regex = fte.defs.getRegex(outgoing_language)
-        outgoing_max_len = fte.defs.getMaxLen(outgoing_language)
+        outgoing_fixed_slice = fte.defs.getMaxLen(outgoing_language)
         incoming_regex = fte.defs.getRegex(incoming_language)
-        incoming_max_len = fte.defs.getMaxLen(incoming_language)
+        incoming_fixed_slice = fte.defs.getMaxLen(incoming_language)
 
         [encoder, decoder] = self._init_encoders(
-            encrypter, outgoing_regex, outgoing_max_len, incoming_regex, incoming_max_len)
+            encrypter, outgoing_regex, outgoing_fixed_slice, incoming_regex, incoming_fixed_slice)
 
         decoder.push(remaining_buffer)
 
@@ -213,15 +213,15 @@ class FTEHelper(object):
             [encoder, decoder] = self._negotiation_manager._init_encoders(
                 self._encrypter,
                 self._outgoing_regex,
-                self._outgoing_max_len,
+                self._outgoing_fixed_slice,
                 self._incoming_regex,
-                self._incoming_max_len)
+                self._incoming_fixed_slice)
             self._encoder = encoder
             self._decoder = decoder
             negotiation_cell = self._negotiation_manager.makeClientNegotiationCell(
                 self._encrypter,
-                self._outgoing_regex, self._outgoing_max_len,
-                self._incoming_regex, self._incoming_max_len)
+                self._outgoing_regex, self._outgoing_fixed_slice,
+                self._incoming_regex, self._incoming_fixed_slice)
             retval = negotiation_cell
             self._negotiationComplete = True
         return retval
@@ -230,15 +230,15 @@ class FTEHelper(object):
 class _FTESocketWrapper(FTEHelper, object):
 
     def __init__(self, _socket,
-                 outgoing_regex=None, outgoing_max_len=-1,
-                 incoming_regex=None, incoming_max_len=-1,
+                 outgoing_regex=None, outgoing_fixed_slice=-1,
+                 incoming_regex=None, incoming_fixed_slice=-1,
                  K1=None, K2=None):
 
         self._socket = _socket
         self._outgoing_regex = outgoing_regex
-        self._outgoing_max_len = outgoing_max_len
+        self._outgoing_fixed_slice = outgoing_fixed_slice
         self._incoming_regex = incoming_regex
-        self._incoming_max_len = incoming_max_len
+        self._incoming_fixed_slice = incoming_fixed_slice
         self._K1 = K1
         self._K2 = K2
 
@@ -320,8 +320,8 @@ class _FTESocketWrapper(FTEHelper, object):
     def accept(self):
         conn, addr = self._socket.accept()
         conn = _FTESocketWrapper(conn,
-                                 self._outgoing_regex, self._outgoing_max_len,
-                                 self._incoming_regex, self._incoming_max_len,
+                                 self._outgoing_regex, self._outgoing_fixed_slice,
+                                 self._incoming_regex, self._incoming_fixed_slice,
                                  self._K1, self._K2)
 
         return conn, addr
@@ -334,16 +334,16 @@ class _FTESocketWrapper(FTEHelper, object):
 
 
 def wrap_socket(sock,
-                outgoing_regex=None, outgoing_max_len=-1,
-                incoming_regex=None, incoming_max_len=-1,
+                outgoing_regex=None, outgoing_fixed_slice=-1,
+                incoming_regex=None, incoming_fixed_slice=-1,
                 K1=None, K2=None):
     """``fte.wrap_socket`` turns an existing socket into an fteproxy socket.
 
     The input parameter ``sock`` is the socket to wrap.
     The parameter ``outgoing_regex`` specifies the format of the messages
-    to send via the socket. The ``outgoing_max_len`` parameter specifies the
+    to send via the socket. The ``outgoing_fixed_slice`` parameter specifies the
     maximum length of the strings in ``outgoing_regex``.
-    The parameters ``incoming_regex`` and ``incoming_max_len`` are defined
+    The parameters ``incoming_regex`` and ``incoming_fixed_slice`` are defined
     similarly.
     The optional parameters ``K1`` and ``K2`` specify 128-bit keys to be used
     in FTE's underlying AE scheme. If specified, these values must be 16-byte
@@ -355,8 +355,8 @@ def wrap_socket(sock,
 
     socket_wrapped = _FTESocketWrapper(
         sock,
-        outgoing_regex, outgoing_max_len,
-        incoming_regex, incoming_max_len,
+        outgoing_regex, outgoing_fixed_slice,
+        incoming_regex, incoming_fixed_slice,
         K1, K2)
     return socket_wrapped
 
@@ -380,14 +380,14 @@ class FTETransport(FTEHelper, obfsproxy.transports.base.BaseTransport):
             incoming_language = fte.conf.getValue(
                 'runtime.state.downstream_language')
             self._outgoing_regex = fte.defs.getRegex(outgoing_language)
-            self._outgoing_max_len = fte.defs.getMaxLen(outgoing_language)
+            self._outgoing_fixed_slice = fte.defs.getMaxLen(outgoing_language)
             self._incoming_regex = fte.defs.getRegex(incoming_language)
-            self._incoming_max_len = fte.defs.getMaxLen(incoming_language)
+            self._incoming_fixed_slice = fte.defs.getMaxLen(incoming_language)
         else:
             self._outgoing_regex = None
-            self._outgoing_max_len = -1
+            self._outgoing_fixed_slice = -1
             self._incoming_regex = None
-            self._incoming_max_len = -1
+            self._incoming_fixed_slice = -1
 
         self._K1 = fte.conf.getValue('runtime.fte.encrypter.key')[0:16]
         self._K2 = fte.conf.getValue('runtime.fte.encrypter.key')[16:32]
