@@ -27,21 +27,21 @@ with open('VERSION') as fh:
 
 if os.name == 'nt':
     libraries = ['python27']
-    extra_compile_args = ['-Ofast',
+    extra_compile_args = ['-O3',
                           # '-fstack-protector-all', # failes on mingw32
                           '-fPIE',
                           '-fPIC',
                           ]
 elif os.uname()[0] == 'Darwin':
     libraries = ['python2.7']
-    extra_compile_args = ['-Ofast',
+    extra_compile_args = ['-O3',
                           '-fstack-protector-all',
                           '-fPIE',
                           '-fPIC',
                           ]
 else:
     libraries = ['python2.7']
-    extra_compile_args = ['-Ofast',
+    extra_compile_args = ['-O3',
                           '-fstack-protector-all',
                           '-fPIE',
                           '-fPIC',
