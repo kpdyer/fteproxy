@@ -40,6 +40,22 @@ array_type_string_t1 tokenize( std::string line, char delim ) {
 }
 
 // Exceptions
+static class _invalid_rank_input: public std::exception
+{
+    virtual const char* what() const throw()
+    {
+        return "Invalid rank input: ensure integer is within the correct range.";
+    }
+} invalid_rank_input;
+
+static class _invalid_unrank_input: public std::exception
+{
+    virtual const char* what() const throw()
+    {
+        return "Invalid unrank input: ensure string is exactly fixed length sizee.";
+    }
+} invalid_unrank_input;
+
 static class _invalid_fst_format: public std::exception
 {
     virtual const char* what() const throw()
@@ -188,11 +204,14 @@ DFA::DFA(const std::string dfa_str, const uint32_t max_len)
 
 void DFA::_validate() {
     // ensure DFA has at least one state
-    assert(_states.length()>0);
+    if (_states.length()==0)
+        throw invalid_fst_format;
 
     // ensure DFA has at least one symbol
-    assert(_sigma.length()>0);
-    assert(_sigma_reverse.length()>0);
+    if (_sigma.length()==0)
+        throw invalid_fst_format;
+    if (_sigma_reverse.length()>0)
+        throw invalid_fst_format;
 
     // ensure we have N states, labeled 0,1,..N-1
     array_type_uint32_t1::iterator state;
@@ -249,7 +268,8 @@ std::string DFA::unrank( const mpz_class c_in ) {
 
     // throw exception if input integer is not in range of pre-computed value
     mpz_class words_in_slice = getNumWordsInLanguage( _fixed_slice, _fixed_slice );
-    assert( c_in < words_in_slice );
+    if ( c_in > words_in_slice )
+        throw invalid_unrank_input;
 
     // walk the DFA subtracting values from c until we have our n symbols
     mpz_class c = c_in;
@@ -298,7 +318,8 @@ mpz_class DFA::rank( const std::string X_in ) {
     mpz_class retval = 0;
 
     // verify len(X) == _fixe_slice
-    assert(X_in.length()==_fixed_slice);
+    if (X_in.length()!=_fixed_slice);
+        throw invalid_rank_input;
 
     // walk the DFA, adding values from _T to c
     uint32_t i;
