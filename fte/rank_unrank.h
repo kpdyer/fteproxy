@@ -23,7 +23,7 @@
  * "Compression and ranking"
  * url: http://dl.acm.org/citation.cfm?id=22194
  *
- * For even more details about the functions in this file and their purpose.
+ * for details about (un)ranking for regular languages.
  */
 
 
@@ -92,6 +92,8 @@ private:
     void _validate();
 
     // _T is our cached table, the output of buildTable
+    // For a state q and integer i, the value _T[q][i] is the number of unique
+    // accepting paths of length exactly i from state q.
     array_type_mpz_t2 _T;
 
 public:
