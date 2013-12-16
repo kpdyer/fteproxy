@@ -88,7 +88,7 @@ static PyObject * DFA__unrank(PyObject *self, PyObject *args) {
 
     PyObject* as_str = PyObject_Str(c);
     if(!as_str) {
-        /* error-handling to choice */
+        return NULL;
     }
     const char* the_c_str = PyString_AsString(as_str);
     mpz_class to_unrank(the_c_str, 10);
