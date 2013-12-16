@@ -25,7 +25,7 @@ import fte.defs
 
 BYTES_TO_SEND = 2 ** 20
 BLOCK_SIZE = 2 ** 12
-TRIALS = 5
+TRIALS = 10
 TIMEOUT = 60
 BIND_IP = '127.0.0.1'
 
@@ -108,6 +108,7 @@ def doTest(format):
 
 def killall():
     os.system("./bin/fteproxy --quiet --mode client --stop")
+    time.sleep(1)
 
 
 def filesAreEquivalent(fileA, fileB):

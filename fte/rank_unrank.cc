@@ -140,8 +140,10 @@ DFA::DFA(const std::string dfa_str, const uint32_t max_len)
             if (find(_states.begin(), _states.end(), final_state)==_states.end()) {
                 _states.push_back( final_state );
             }
-        } else {
+        } else if (split_vec.size()>0) {
             throw invalid_fst_format;
+        } else {
+            // blank line, ignore
         }
 
     }
@@ -204,13 +206,13 @@ DFA::DFA(const std::string dfa_str, const uint32_t max_len)
 
 void DFA::_validate() {
     // ensure DFA has at least one state
-    if (_states.length()==0)
+    if (_states.size()==0)
         throw invalid_fst_format;
 
     // ensure DFA has at least one symbol
-    if (_sigma.length()==0)
+    if (_sigma.size()==0)
         throw invalid_fst_format;
-    if (_sigma_reverse.length()>0)
+    if (_sigma_reverse.size()==0)
         throw invalid_fst_format;
 
     // ensure we have N states, labeled 0,1,..N-1
@@ -317,8 +319,8 @@ std::string DFA::unrank( const mpz_class c_in ) {
 mpz_class DFA::rank( const std::string X_in ) {
     mpz_class retval = 0;
 
-    // verify len(X) == _fixe_slice
-    if (X_in.length()!=_fixed_slice);
+    // verify len(X) is what we expect
+    if (X_in.length()!=_fixed_slice)
         throw invalid_rank_input;
 
     // walk the DFA, adding values from _T to c

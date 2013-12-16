@@ -7,11 +7,11 @@
     },
     "manual-smb-request": {
         "regex": "^\\x00\\x00\\x00\\x7c\\xFF\\x53\\x4d\\x42[\\x25\\x72]\\x00\\x00\\x00\\x00\\C{115}$",
-        "max_len": 128
+        "fixed_slice": 128
     },
     "manual-smb-response": {
         "regex": "^\\x00\\x00\\x00\\x7c\\xFF\\x53\\x4d\\x42[\\x25\\x72]\\x00\\x00\\x00\\x00\\C{115}$",
-        "max_len": 128
+        "fixed_slice": 128
     },
     "manual-ssh-request": {
         "regex": "^SSH\\-2\\.0\\C*$"
