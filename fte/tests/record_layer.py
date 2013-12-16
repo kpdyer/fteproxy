@@ -40,8 +40,8 @@ class TestEncoders(unittest.TestCase):
         definitions = fte.defs.load_definitions()
         for language in definitions.keys():
             regex = fte.defs.getRegex(language)
-            max_len = fte.defs.getMaxLen(language)
-            regex_encoder = fte.encoder.RegexEncoder(regex, max_len)
+            fixed_slice = fte.defs.getFixedSlice(language)
+            regex_encoder = fte.encoder.RegexEncoder(regex, fixed_slice)
             encoder = fte.record_layer.Encoder(
                 encrypter=encrypter, encoder=regex_encoder)
             decoder = fte.record_layer.Decoder(

@@ -33,10 +33,10 @@ class listener(fte.relay.listener):
             'runtime.state.downstream_language')
 
         outgoing_regex = fte.defs.getRegex(outgoing_language)
-        outgoing_fixed_slice = fte.defs.getMaxLen(outgoing_language)
+        outgoing_fixed_slice = fte.defs.getFixedSlice(outgoing_language)
 
         incoming_regex = fte.defs.getRegex(incoming_language)
-        incoming_fixed_slice = fte.defs.getMaxLen(incoming_language)
+        incoming_fixed_slice = fte.defs.getFixedSlice(incoming_language)
 
         socket = fte.wrap_socket(socket,
                                  outgoing_regex, outgoing_fixed_slice,

@@ -49,11 +49,11 @@ def getRegex(format_name):
     return regex
 
 
-def getMaxLen(format_name):
+def getFixedSlice(format_name):
     definitions = load_definitions()
     try:
-        max_len = definitions[format_name]['max_len']
+        fixed_slice = definitions[format_name]['fixed_slice']
     except KeyError:
-        max_len = fte.conf.getValue('fte.default_fixed_slice')
+        fixed_slice = fte.conf.getValue('fte.default_fixed_slice')
 
-    return max_len
+    return fixed_slice

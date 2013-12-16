@@ -110,7 +110,7 @@ class NegotiationManager(object):
                     continue
 
                 incoming_regex = fte.defs.getRegex(incoming_language)
-                incoming_fixed_slice = fte.defs.getMaxLen(incoming_language)
+                incoming_fixed_slice = fte.defs.getFixedSlice(incoming_language)
 
                 incoming_decoder = fte.encoder.RegexEncoder(incoming_regex,
                                                             incoming_fixed_slice)
@@ -176,9 +176,9 @@ class NegotiationManager(object):
         incoming_language = negotiate.getLanguage() + '-request'
 
         outgoing_regex = fte.defs.getRegex(outgoing_language)
-        outgoing_fixed_slice = fte.defs.getMaxLen(outgoing_language)
+        outgoing_fixed_slice = fte.defs.getFixedSlice(outgoing_language)
         incoming_regex = fte.defs.getRegex(incoming_language)
-        incoming_fixed_slice = fte.defs.getMaxLen(incoming_language)
+        incoming_fixed_slice = fte.defs.getFixedSlice(incoming_language)
 
         [encoder, decoder] = self._init_encoders(
             encrypter, outgoing_regex, outgoing_fixed_slice, incoming_regex, incoming_fixed_slice)
@@ -380,9 +380,9 @@ class FTETransport(FTEHelper, obfsproxy.transports.base.BaseTransport):
             incoming_language = fte.conf.getValue(
                 'runtime.state.downstream_language')
             self._outgoing_regex = fte.defs.getRegex(outgoing_language)
-            self._outgoing_fixed_slice = fte.defs.getMaxLen(outgoing_language)
+            self._outgoing_fixed_slice = fte.defs.getFixedSlice(outgoing_language)
             self._incoming_regex = fte.defs.getRegex(incoming_language)
-            self._incoming_fixed_slice = fte.defs.getMaxLen(incoming_language)
+            self._incoming_fixed_slice = fte.defs.getFixedSlice(incoming_language)
         else:
             self._outgoing_regex = None
             self._outgoing_fixed_slice = -1

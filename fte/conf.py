@@ -116,7 +116,7 @@ conf['runtime.state.downstream_language'] = 'manual-http-response'
 conf['runtime.fte.encrypter.key'] = 'FF' * 16 + '00' * 16
 
 
-"""The default max_len parameter to use for buildTable."""
+"""The default fixed_slice parameter to use for buildTable."""
 conf['fte.default_fixed_slice'] = 256
 
 
