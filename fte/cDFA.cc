@@ -62,7 +62,13 @@ static PyObject * DFA__rank(PyObject *self, PyObject *args) {
     if (pDFAObject->obj == NULL)
         return NULL;
 
-    mpz_class result = pDFAObject->obj->rank(str_word);
+    mpz_class result;
+    try {
+        result = pDFAObject->obj->rank(str_word);
+    } catch (std::exception& e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return 0;
+    }
 
     // Set our c_out value
     uint32_t base = 10;
@@ -94,7 +100,13 @@ static PyObject * DFA__unrank(PyObject *self, PyObject *args) {
     mpz_class to_unrank(the_c_str, 10);
     Py_DECREF(as_str);
 
-    std::string result = pDFAObject->obj->unrank(to_unrank);
+    std::string result;
+    try {
+        result = pDFAObject->obj->unrank(to_unrank);
+    } catch (std::exception& e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return 0;
+    }
 
     // Format our std::string as a python string and return it.
     PyObject* retval = Py_BuildValue("s#", result.c_str(), result.length());
