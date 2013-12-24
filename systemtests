@@ -19,13 +19,19 @@
 
 import os
 import time
+import copy
 import socket
 
 import fte.defs
 
-BYTES_TO_SEND = 2 ** 20
+import string
+import random
+
+
+BYTES_TO_SEND = 2 ** 18
+INNER_TRIALS = 2 ** 4
 BLOCK_SIZE = 2 ** 12
-TRIALS = 10
+TRIALS = 2
 TIMEOUT = 60
 BIND_IP = '127.0.0.1'
 
@@ -34,6 +40,8 @@ class ListenerNotListening(Exception):
     pass
 
 
+def id_generator(size, chars=string.ascii_uppercase + string.digits):
+    return ''.join(random.choice(chars) for x in range(size))
 
 def main():
     print 'System tests:'
@@ -54,7 +62,7 @@ def main():
                 throughput = round(throughput,2)
                 print '+', format+':', str(throughput)+' Mbps ('+str(round(elapsed,2))+'s)' 
             
-    os.system("./bin/fteproxy --quiet --mode server --stop")
+    #os.system("./bin/fteproxy --quiet --mode server --stop")
 
 
 def doTest(format):
@@ -75,32 +83,59 @@ def doTest(format):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind((BIND_IP, 8081))
-        sock.listen(10)
+        sock.listen(100)
         
         new_stream = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         new_stream.connect((BIND_IP, 8079))
         
         conn, addr = sock.accept()
        
-        bytesSent = BYTES_TO_SEND
-        expected = id_generator(bytesSent)
-        elapsed = -1
-        success = True
-        actual = ''
-        expectedbuf = expected
         startTimer = time.time()
-        while success:
-            if expectedbuf:
-                bytessent = new_stream.send(expectedbuf[:BLOCK_SIZE])
-                expectedbuf = expectedbuf[bytessent:]
-            elapsed = time.time() - startTimer
-            [is_alive, data] = fte.network_io.recvall_from_socket(conn)
-            actual += data
-            if (actual == expected) or elapsed>TIMEOUT or not is_alive:
-                break
+        expected = id_generator(BYTES_TO_SEND)
+        elapsed = -1
+        for i in range(INNER_TRIALS):
+            bytesSent += BYTES_TO_SEND
+            actual = ''
+            expectedbuf = expected
+            while True:
+                time.sleep(0.0001)
+                if expectedbuf:
+                    bytessent = new_stream.send(expectedbuf[:BLOCK_SIZE])
+                    expectedbuf = expectedbuf[bytessent:]
+                [is_alive, data] = fte.network_io.recvall_from_socket(conn)
+                actual += data
+                if (actual == expected):
+                    break
+                if elapsed>TIMEOUT or not is_alive:
+                    raise Exception("test failed")
+        elapsed = time.time() - startTimer
+
+        try:
+            conn.shutdown(socket.SHUT_RDRW)
+        except:
+            pass
+        try:
+            conn.close()
+        except:
+            pass
+        try:
+            new_stream.shutdown(socket.SHUT_RDRW)
+        except:
+            pass
+        try:
+            new_stream.close()
+        except:
+            pass
+        try:
+            sock.shutdown(socket.SHUT_RDRW)
+        except:
+            pass
+        try:
+            sock.close()
+        except:
+            pass
     finally:
-        assert actual == expected, ((actual[:32], expected[:32]), (actual[-32:], expected[-32:]))
-        killall()
+        pass#killall()
     
     
     return elapsed, bytesSent
@@ -121,27 +156,7 @@ def filesAreEquivalent(fileA, fileB):
     return (contentsFileA == contentsFileB)
 
 
-def which(program):
-    def is_exe(fpath):
-        isFile = os.path.isfile(fpath)
-        isExecutable = os.access(fpath, os.X_OK)
-        return isFile and isExecutable
-    
-    fpath, fname = os.path.split(program)
-    if fpath:
-        if is_exe(program):
-            return program
-    else:
-        for path in os.environ["PATH"].split(os.pathsep):
-            path = path.strip('"')
-            exe_file = os.path.join(path, program)
-            if is_exe(exe_file):
-                return exe_file
-
-    return None
-
-
-def waitForListener(ip, port, maxWait=30):
+def waitForListener(ip, port, maxWait=60):
     startTime = time.time()
     
     success = False
@@ -161,9 +176,9 @@ def waitForListener(ip, port, maxWait=30):
             
     if not success:
         raise ListenerNotListening()
-            
+
     time.sleep(1)
-    
+            
     return success
 
 

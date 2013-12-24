@@ -121,4 +121,4 @@ conf['fte.default_fixed_slice'] = 256
 
 
 """The default definitions file to use."""
-conf['fte.defs.release'] = '20131110'
+conf['fte.defs.release'] = '20131224'
