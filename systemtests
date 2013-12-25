@@ -31,7 +31,7 @@ import random
 BYTES_TO_SEND = 2 ** 18
 INNER_TRIALS = 2 ** 4
 BLOCK_SIZE = 2 ** 12
-TRIALS = 2
+TRIALS = 2 ** 2
 TIMEOUT = 60
 BIND_IP = '127.0.0.1'
 
@@ -62,7 +62,7 @@ def main():
                 throughput = round(throughput,2)
                 print '+', format+':', str(throughput)+' Mbps ('+str(round(elapsed,2))+'s)' 
             
-    #os.system("./bin/fteproxy --quiet --mode server --stop")
+    os.system("./bin/fteproxy --quiet --mode server --stop")
 
 
 def doTest(format):
@@ -102,6 +102,10 @@ def doTest(format):
                 if expectedbuf:
                     bytessent = new_stream.send(expectedbuf[:BLOCK_SIZE])
                     expectedbuf = expectedbuf[bytessent:]
+                else:
+                    break
+            while True:
+                time.sleep(0.0001)
                 [is_alive, data] = fte.network_io.recvall_from_socket(conn)
                 actual += data
                 if (actual == expected):
@@ -135,7 +139,7 @@ def doTest(format):
         except:
             pass
     finally:
-        pass#killall()
+        killall()
     
     
     return elapsed, bytesSent
