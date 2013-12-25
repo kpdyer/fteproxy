@@ -79,11 +79,10 @@ class Decoder:
 
         self._buffer += data
 
-    def pop(self):
-        """Pop data off the FIFO buffer. We return at most
-        ``runtime.fte.record_layer.max_cell_size``
-        bytes. The returned value is decoded with ``encoder`` then decrypted
-        with ``decrypter`` specified in ``__init__``.
+    def pop(self, oneCell=False):
+        """Pop data off the FIFO buffer.
+        The returned value is decoded with ``_decoder`` then decrypted
+        with ``_decrypter`` specified in ``__init__``.
         """
 
         retval = ''
@@ -99,5 +98,11 @@ class Decoder:
                 break
             except fte.encrypter.RecoverableDecryptionError:
                 break
+            except fte.encrypter.UnrecoverableDecryptionError:
+                break
+            except:
+                break
+            finally:
+                if oneCell: break
 
         return retval

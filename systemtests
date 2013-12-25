@@ -28,10 +28,10 @@ import string
 import random
 
 
-BYTES_TO_SEND = 2 ** 18
-INNER_TRIALS = 2 ** 4
+BYTES_TO_SEND = 2 ** 20
+INNER_TRIALS = 2 ** 3
 BLOCK_SIZE = 2 ** 12
-TRIALS = 2 ** 2
+TRIALS = 2 ** 4
 TIMEOUT = 60
 BIND_IP = '127.0.0.1'
 

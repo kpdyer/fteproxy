@@ -118,7 +118,7 @@ class NegotiationManager(object):
                                                    decoder=incoming_decoder)
 
                 decoder.push(data)
-                negotiate_cell = decoder.pop()
+                negotiate_cell = decoder.pop(oneCell=True)
                 NegotiateCell().fromString(negotiate_cell)
 
                 return [negotiate_cell, decoder._buffer]
