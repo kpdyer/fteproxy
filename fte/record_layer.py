@@ -16,12 +16,12 @@
 # You should have received a copy of the GNU General Public License
 # along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
 
+import time
 
 import fte.conf
 
 
 MAX_CELL_SIZE = fte.conf.getValue('runtime.fte.record_layer.max_cell_size')
-
 
 class Encoder:
 
@@ -45,14 +45,21 @@ class Encoder:
         bytes. The returned value is encrypted with ``encrypter`` then encoded
         with ``encoder`` specified in ``__init__``.
         """
-
         retval = ''
 
-        outgoing_msg = self._buffer[:MAX_CELL_SIZE]
-        self._buffer = self._buffer[MAX_CELL_SIZE:]
-        if outgoing_msg:
-            retval = self._encrypter.encrypt(outgoing_msg)
-            retval = self._encoder.encode(retval)
+        ciphertexts = []
+        while len(self._buffer)>0:
+            plaintext = self._buffer[:MAX_CELL_SIZE]
+            self._buffer = self._buffer[MAX_CELL_SIZE:]
+            ciphertext = self._encrypter.encrypt(plaintext)
+            ciphertexts.append(ciphertext)
+        
+        covertexts = []
+        for ciphertext in ciphertexts:
+            covertext = self._encoder.encode(ciphertext)
+            covertexts.append(covertext)
+        
+        retval = ''.join(covertexts)
 
         return retval
 
@@ -81,17 +88,17 @@ class Decoder:
         """
 
         retval = ''
-
-        if self._buffer:
+        
+        while len(self._buffer)>0:
             try:
                 incoming_msg = self._decoder.decode(self._buffer)
                 to_take = self._decrypter.getCiphertextLen(incoming_msg)
-                to_decrypt = incoming_msg[:to_take]
-                retval = self._decrypter.decrypt(to_decrypt)
+                ciphertext = incoming_msg[:to_take]
+                retval += self._decrypter.decrypt(ciphertext)
                 self._buffer = incoming_msg[to_take:]
             except fte.encoder.DecodeFailureError:
-                pass
+                break
             except fte.encrypter.RecoverableDecryptionError:
-                pass
+                break
 
         return retval
