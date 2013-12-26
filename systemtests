@@ -28,10 +28,10 @@ import string
 import random
 
 
-BYTES_TO_SEND = 2 ** 20
-INNER_TRIALS = 2 ** 3
+BYTES_TO_SEND = 2 ** 18
+INNER_TRIALS = 2 ** 6
 BLOCK_SIZE = 2 ** 12
-TRIALS = 2 ** 4
+TRIALS = 2 ** 0
 TIMEOUT = 60
 BIND_IP = '127.0.0.1'
 
@@ -58,7 +58,7 @@ def main():
             if language.endswith('request'):
                 format = language[:-8]
                 elapsed, bytesSent = doTest(format)
-                throughput = 1.0*bytesSent/elapsed/(2**20)*(2**3)
+                throughput = ((1.0*bytesSent/elapsed)/(2**20))*(2**3)
                 throughput = round(throughput,2)
                 print '+', format+':', str(throughput)+' Mbps ('+str(round(elapsed,2))+'s)' 
             
@@ -108,6 +108,7 @@ def doTest(format):
                 time.sleep(0.0001)
                 [is_alive, data] = fte.network_io.recvall_from_socket(conn)
                 actual += data
+                #print ['XXX', len(actual), len(expected)]
                 if (actual == expected):
                     break
                 if elapsed>TIMEOUT or not is_alive:

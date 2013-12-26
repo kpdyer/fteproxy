@@ -117,7 +117,7 @@ conf['runtime.fte.encrypter.key'] = 'FF' * 16 + '00' * 16
 
 
 """The default fixed_slice parameter to use for buildTable."""
-conf['fte.default_fixed_slice'] = 256
+conf['fte.default_fixed_slice'] = 2 ** 7
 
 
 """The default definitions file to use."""

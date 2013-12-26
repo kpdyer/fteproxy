@@ -87,18 +87,16 @@ static PyObject * DFA__unrank(PyObject *self, PyObject *args) {
     if (!PyArg_ParseTuple(args, "O", &c))
         return NULL;
 
+    //PyNumber to mpz_class
+    int base = 16;
+    PyObject* b64 = PyNumber_ToBase(c, base);
+    const char* the_c_str = PyString_AsString(b64);
+    mpz_class to_unrank(the_c_str, 0);
+    
     // Verify our environment is sane and perform unranking.
     DFAObject *pDFAObject = (DFAObject*)self;
     if (pDFAObject->obj == NULL)
         return NULL;
-
-    PyObject* as_str = PyObject_Str(c);
-    if(!as_str) {
-        return NULL;
-    }
-    const char* the_c_str = PyString_AsString(as_str);
-    mpz_class to_unrank(the_c_str, 10);
-    Py_DECREF(as_str);
 
     std::string result;
     try {

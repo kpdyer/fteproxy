@@ -39,9 +39,9 @@ def recvall_from_socket(sock,
     retval = ''
     is_alive = False
 
-    _incoming_timeout = sock.gettimeout()
-    sock.settimeout(socket_timeout)
     try:
+        _incoming_timeout = sock.gettimeout()
+        sock.settimeout(socket_timeout)
         ready = select.select([sock], [], [sock], select_timeout)
         if ready[0]:
             while True:
@@ -68,7 +68,10 @@ def recvall_from_socket(sock,
     except select.error:
         is_alive = (len(retval) > 0)
     finally:
-        sock.settimeout(_incoming_timeout)
+        try:
+            sock.settimeout(_incoming_timeout)
+        except:
+            pass
 
     return [is_alive, retval]
 

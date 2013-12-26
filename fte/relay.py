@@ -54,16 +54,8 @@ class worker(threading.Thread):
                     break
                 if _data:
                     fte.network_io.sendall_to_socket(self._socket2, _data)
-
-                [success, _data] = fte.network_io.recvall_from_socket(
-                    self._socket2)
-                if not success:
-                    break
-                if _data:
-                    fte.network_io.sendall_to_socket(self._socket1, _data)
         finally:
             fte.network_io.close_socket(self._socket1)
-            fte.network_io.close_socket(self._socket2)
 
 
 class listener(threading.Thread):
@@ -117,8 +109,10 @@ class listener(threading.Thread):
                 conn = self.onNewIncomingConnection(conn)
                 new_stream = self.onNewOutgoingConnection(new_stream)
 
-                w = worker(conn, new_stream)
-                w.start()
+                w1 = worker(conn, new_stream)
+                w2 = worker(new_stream, conn)
+                w1.start()
+                w2.start()
             except socket.timeout:
                 continue
             except socket.error:

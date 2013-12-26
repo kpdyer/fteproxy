@@ -275,36 +275,48 @@ std::string DFA::unrank( const mpz_class c_in ) {
 
     // walk the DFA subtracting values from c until we have our n symbols
     mpz_class c = c_in;
-    uint32_t n = _fixed_slice;
-    uint32_t i, q = _start_state;
-    uint32_t chars_left, char_cursor, state_cursor;
-    uint32_t sigma_zero = _sigma.at(0);
-    mpz_class char_index;
-    for (i=1; i<=n; i++) {
-        chars_left = n-i;
+    uint32_t i = 0;
+    uint32_t q = _start_state;
+    uint32_t char_cursor = 0;
+    uint32_t state = 0;
+    mpz_class char_index = 0;
+    for (i=1; i<=_fixed_slice; i++) {
         if (_delta_dense.at(q)) {
             // our optimized version, when _delta[q][i] is equal to n for all symbols i
-            q = _delta.at(q).at(0);
-            if (_T.at(q).at(chars_left)!=0) {
-                char_index = (c / _T.at(q).at(chars_left));
-                char_cursor = char_index.get_ui();
-                retval = retval + _sigma.at(char_cursor);
-                c = c % _T.at(q).at(chars_left);
-            } else {
-                retval += sigma_zero;
-            }
+            state = _delta.at(q).at(0);
+            
+            // We do the following two lines with a single call
+            // to mpz_fdiv_qr, which is much faster.
+            // char_index = (c / _T.at(state).at(_fixed_slice-i));
+            // c = c % _T.at(state).at(_fixed_slice-i);
+            mpz_fdiv_qr( char_index.get_mpz_t(),
+                         c.get_mpz_t(),
+                         c.get_mpz_t(),
+                         _T.at(state).at(_fixed_slice-i).get_mpz_t() );
+            
+            char_cursor = char_index.get_ui();
         } else {
             // traditional goldberg-sipser ranking
             char_cursor = 0;
-            state_cursor = _delta.at(q).at(char_cursor);
-            while (c >= _T.at(state_cursor).at(chars_left)) {
-                c -= _T.at(state_cursor).at(chars_left);
+            state = _delta.at(q).at(char_cursor);
+            
+            // A call to mpz_cmp is faster than using >= directly.
+            // while (c >= _T.at(state).at(n-i)) {
+            while (mpz_cmp( c.get_mpz_t(),
+                            _T.at(state).at(_fixed_slice-i).get_mpz_t() )>=0) {
+                
+                // Much faster to call mpz_sub, than -=.
+                // c -= _T.at(state).at(n-i);
+                mpz_sub( c.get_mpz_t(),
+                         c.get_mpz_t(),
+                         _T.at(state).at(_fixed_slice-i).get_mpz_t() );
+                
                 char_cursor += 1;
-                state_cursor =_delta.at(q).at(char_cursor);
+                state =_delta.at(q).at(char_cursor);
             }
-            retval += _sigma.at(char_cursor);
-            q = state_cursor;
         }
+        retval += _sigma.at(char_cursor);
+        q = state;
     }
 
     // bail if our last state q is not in _final_states
@@ -320,16 +332,18 @@ mpz_class DFA::rank( const std::string X_in ) {
     mpz_class retval = 0;
 
     // verify len(X) is what we expect
-    if (X_in.length()!=_fixed_slice)
+    if (X_in.length()!=_fixed_slice) {
         throw invalid_rank_input;
+    }
 
     // walk the DFA, adding values from _T to c
-    uint32_t i;
-    uint32_t j;
+    uint32_t i = 0;
+    uint32_t j = 0;
     uint32_t n = X_in.size();
-    uint32_t symbol_as_int;
+    uint32_t symbol_as_int = 0;
     uint32_t q = _start_state;
-    uint32_t state;
+    uint32_t state = 0;
+    mpz_class tmp = 0;
     for (i=1; i<=n; i++) {
         try {
             symbol_as_int = _sigma_reverse.at(X_in.at(i-1));
@@ -340,12 +354,29 @@ mpz_class DFA::rank( const std::string X_in ) {
         if (_delta_dense.at(q)) {
             // our optimized version, when _delta[q][i] is equal to n for all symbols i
             state = _delta.at(q).at(0);
-            retval += (_T.at(state).at(n-i) * symbol_as_int);
+            
+            // Orders of magnitude faster to use mpz_mul_ui,
+            // compared to *.
+            // tmp = _T.at(state).at(n-i) * symbol_as_int
+            mpz_mul_ui( tmp.get_mpz_t(),
+                        _T.at(state).at(n-i).get_mpz_t(),
+                        symbol_as_int );
+            
+            // mpz_add is faster than +=
+            //retval += tmp.get_mpz_t();
+            mpz_add( retval.get_mpz_t(),
+                     retval.get_mpz_t(),
+                     tmp.get_mpz_t() );
         } else {
             // traditional goldberg-sipser ranking
             for (j=1; j<=symbol_as_int; j++) {
                 state = _delta.at(q).at(j-1);
-                retval += _T.at(state).at(n-i);
+                
+                // mpz_add is faster than +=
+                //retval += _T.at(state).at(n-i);
+                mpz_add( retval.get_mpz_t(),
+                         retval.get_mpz_t(),
+                         _T.at(state).at(n-i).get_mpz_t() );
             }
         }
         q = _delta.at(q).at(symbol_as_int);

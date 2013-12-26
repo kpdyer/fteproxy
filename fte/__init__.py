@@ -258,6 +258,16 @@ class _FTESocketWrapper(FTEHelper, object):
         return self._socket.fileno()
 
     def recv(self, bufsize):
+        ### <HACK>
+        # Required to deal with case when client attempts to recv
+        # before sending. This checks to ensure that a negotiate
+        # cell is sent no matter what the client does first.
+        to_send = self._processSend()
+        if to_send:
+            numbytes = self._socket.send(to_send)
+            assert numbytes == len(to_send)
+        ### </HACK>
+            
         try:
             while True:
                 data = self._socket.recv(bufsize)
