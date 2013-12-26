@@ -15,7 +15,7 @@
 
 #include <Python.h>
 #include <structmember.h>
-#include <iostream>
+
 #include <rank_unrank.h>
 
 /*
