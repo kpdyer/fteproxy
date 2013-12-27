@@ -328,25 +328,25 @@ std::string DFA::unrank( const mpz_class c_in ) {
     return retval;
 }
 
-mpz_class DFA::rank( const std::string X_in ) {
+mpz_class DFA::rank( const std::string X ) {
     mpz_class retval = 0;
 
     // verify len(X) is what we expect
-    if (X_in.length()!=_fixed_slice) {
+    if (X.length()!=_fixed_slice) {
         throw invalid_rank_input;
     }
 
     // walk the DFA, adding values from _T to c
     uint32_t i = 0;
     uint32_t j = 0;
-    uint32_t n = X_in.size();
+    uint32_t n = X.size();
     uint32_t symbol_as_int = 0;
     uint32_t q = _start_state;
     uint32_t state = 0;
     mpz_class tmp = 0;
     for (i=1; i<=n; i++) {
         try {
-            symbol_as_int = _sigma_reverse.at(X_in.at(i-1));
+            symbol_as_int = _sigma_reverse.at(X.at(i-1));
         } catch (int e) {
             throw symbol_not_in_sigma;
         }
