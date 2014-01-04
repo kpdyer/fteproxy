@@ -26,7 +26,5 @@ PROXY_PORT=8081
 # start server-side netcat listener
 netcat -k -l -p $PROXY_PORT
 
-echo "Ready!"
-
 # start client-side netcat pusher in another window
 # nc $CLIENT_IP $CLIENT_PORT
