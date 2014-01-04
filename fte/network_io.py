@@ -19,7 +19,10 @@ def sendall_to_socket(sock, msg, socket_timeout=0.01):
     except socket.error:
         totalsent = -1
     finally:
-        sock.settimeout(_incoming_timeout)
+        try:
+            sock.settimeout(_incoming_timeout)
+        except:
+            pass
 
     return totalsent
 
