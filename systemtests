@@ -65,7 +65,7 @@ def main():
             upstream_regex = fte.defs.getRegex(language_name + '-request')
             downstream_regex = fte.defs.getRegex(language_name + '-response')
 
-            print ' + SUCESS, format_name="' + language_name + '"'
+            print ' + SUCCESS, format_name="' + language_name + '"'
             print '    - client-server regex: "' + upstream_regex + '"'
             print '    - server-client regex: "' + downstream_regex + '"'
             print '    - test duration: ' + str(round(elapsed, 2)) + " seconds"
