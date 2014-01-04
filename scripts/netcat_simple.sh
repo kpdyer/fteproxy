@@ -10,4 +10,4 @@
 netcat -k -l -p 8081
 
 # start client-side netcat pusher in another window
-# nc $CLIENT_IP $CLIENT_PORT
+# nc localhost 8079
