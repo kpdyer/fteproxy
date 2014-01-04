@@ -83,6 +83,10 @@ def random_string(size):
 
 
 def doTest(language_name):
+    """Given the ``language_name``, start the fteproxy client and pump
+    ``BYTES_TO_SEND*TIRALS`` bytes via the fteproxy client and server.
+    """
+    
     elapsed = -1
     bytesSent = 0
 
@@ -100,23 +104,23 @@ def doTest(language_name):
         conn, addr = sock.accept()
 
         startTimer = time.time()
-        expected = random_string(BYTES_TO_SEND)
+        expected_msg = random_string(BYTES_TO_SEND)
         elapsed = -1
         for i in range(TRIALS):
             bytesSent += BYTES_TO_SEND
-            actual = ''
-            expectedbuf = expected
+            actual_msg = ''
+            expected_buffer = expected_msg
             while True:
-                if expectedbuf:
-                    bytessent = new_stream.send(expectedbuf[:BLOCK_SIZE])
-                    expectedbuf = expectedbuf[bytessent:]
+                if expected_buffer:
+                    bytessent = new_stream.send(expected_buffer[:BLOCK_SIZE])
+                    expected_buffer = expected_buffer[bytessent:]
                 else:
                     break
             while True:
                 time.sleep(0.00001)
                 [is_alive, data] = fte.network_io.recvall_from_socket(conn)
-                actual += data
-                if (actual == expected):
+                actual_msg += data
+                if (actual_msg == expected_msg):
                     break
                 if elapsed > TIMEOUT or not is_alive:
                     raise Exception(
