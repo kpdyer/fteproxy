@@ -38,6 +38,9 @@ import fte.client
 
 FTE_PT_NAME = 'fte'
 
+VERSION_FILE = os.path.join(fte.conf.getValue('general.base_dir'), 'VERSION')
+with open(VERSION_FILE) as fh:
+    FTEPROXY_VERSION = fh.read().strip()    
 
 class FTEMain(threading.Thread):
 
@@ -49,6 +52,10 @@ class FTEMain(threading.Thread):
         self._client = None
         self._server = None
 
+        if self._args.version:
+            print FTEPROXY_VERSION
+            sys.exit(0)
+            
         if not self._args.quiet and not self._args.managed:
             print """fteproxy Copyright (C) 2012-2013 Kevin P. Dyer <kdyer@cs.pdx.edu>
 This program comes with ABSOLUTELY NO WARRANTY.
@@ -368,6 +375,8 @@ def test():
 def get_args():
     parser = argparse.ArgumentParser(prog='fteproxy',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--version', action='store_true', default=False,
+                        help='Output the version of fteproxy, then quit.')
     parser.add_argument('--mode',
                         default='client',
                         metavar='(client|server|test)',
@@ -406,12 +415,13 @@ def get_args():
                         help='Forwarding-proxy (SOCKS) listening port',
                         default=fte.conf.getValue('runtime.proxy.port'
                                                   ))
-    parser.add_argument('--quiet', action='store_true', default=False)
+    parser.add_argument('--quiet', action='store_true', default=False,
+                        help='Be completely silent. Print nothing.')
     parser.add_argument('--release',
                         help='Definitions file to use, specified as YYYYMMDD',
                         default=fte.conf.getValue('fte.defs.release'))
     parser.add_argument('--managed',
-                        help="Start in managed mode, for use with Tor. --server parameters ignored.",
+                        help="Start in pluggable transport managed mode, for use with Tor.",
                         action='store_true',
                         default=False)
     parser.add_argument('--key',
