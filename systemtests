@@ -65,7 +65,7 @@ def main():
             upstream_regex = fte.defs.getRegex(language_name + '-request')
             downstream_regex = fte.defs.getRegex(language_name + '-response')
 
-            print ' + format_name="' + language_name + '"'
+            print ' + SUCESS, format_name="' + language_name + '"'
             print '    - client-server regex: "' + upstream_regex + '"'
             print '    - server-client regex: "' + downstream_regex + '"'
             print '    - test duration: ' + str(round(elapsed, 2)) + " seconds"
@@ -73,7 +73,7 @@ def main():
 
     stop_server()
 
-    print "****** SUCCESS!!"
+    print "****** ALL TESTS COMPLETE, SUCCESS!!"
 
 
 def random_string(size):
