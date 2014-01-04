@@ -20,12 +20,12 @@ Dependencies
 
 Dependencies for building from source:
 * Standard build tools: gcc/g++/make/etc.
-* Python 2.7: http://python.org/
-* GMP: http://gmplib.org/
-* PyCrypto: https://www.dlitz.net/software/pycrypto/
-* pyptlib: https://gitweb.torproject.org/pluggable-transports/pyptlib.git
-* obfsproxy: https://gitweb.torproject.org/pluggable-transports/obfsproxy.git
-* Twisted: http://twistedmatrix.com/
+* Python 2.7.x: http://python.org/
+* GMP 5.1.x: http://gmplib.org/
+* PyCrypto 2.6.x: https://www.dlitz.net/software/pycrypto/
+* pyptlib 0.0.5: https://gitweb.torproject.org/pluggable-transports/pyptlib.git
+* obfsproxy 0.2.4: https://gitweb.torproject.org/pluggable-transports/obfsproxy.git
+* Twisted 13.2.x: http://twistedmatrix.com/
 
 Building
 -----------
