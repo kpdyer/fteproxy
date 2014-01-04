@@ -43,7 +43,7 @@ def main():
     """Start an fteproxy server.
     Iterate through the FTE formats available to fteproxy.
     For each format, spawn a client using that format, connect to the fteproxy server and pump data through the connection.
-    Verify the data successfully traversed the client and server, and output performance statistics.
+    Verify the data successfully traversed the client and server, upon success output performance statistics.
     """
 
     def_dir = os.path.join(fte.conf.getValue('general.defs_dir'))
