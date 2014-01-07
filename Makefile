@@ -25,7 +25,6 @@ FTEPROXY_RELEASE=$(VERSION)-$(PLATFORM_LOWER)-$(ARCH)
 THIRD_PARTY_DIR=thirdparty
 
 RE2_VERSION=20131024
-RE2_TGZ=https://re2.googlecode.com/files/re2-$(RE2_VERSION).tgz
 RE2_DIR=$(THIRD_PARTY_DIR)/re2
 
 all: clean dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz
@@ -72,11 +71,10 @@ fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/libre2.a
 endif
 	python setup.py build_ext --inplace
 
-$(THIRD_PARTY_DIR)/re2/obj/libre2.a: $(THIRD_PARTY_DIR)/re2-$(RE2_VERSION).tgz
+$(THIRD_PARTY_DIR)/re2/obj/libre2.a: $(RE2_DIR)
 	cd $(RE2_DIR) && $(MAKE) obj/libre2.a
 
-$(THIRD_PARTY_DIR)/re2-$(RE2_VERSION).tgz:
-	cd $(THIRD_PARTY_DIR) && curl $(RE2_TGZ) > re2-$(RE2_VERSION).tgz
+$(RE2_DIR):
 	cd $(THIRD_PARTY_DIR) && tar zxvf re2-$(RE2_VERSION).tgz
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-001.patch
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-002.patch
