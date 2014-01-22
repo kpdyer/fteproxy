@@ -61,6 +61,7 @@ endif
 
 	cp README.md dist/fteproxy-$(FTEPROXY_RELEASE)
 	cp COPYING dist/fteproxy-$(FTEPROXY_RELEASE)
+	cp fte/VERSION dist/fteproxy-$(FTEPROXY_RELEASE)/fte
 
 	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)/fte/defs
 	cp fte/defs/*.json dist/fteproxy-$(FTEPROXY_RELEASE)/fte/defs/
