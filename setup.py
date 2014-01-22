@@ -22,29 +22,23 @@ import os
 if os.name == 'nt':
     import py2exe
 
-with open('VERSION') as fh:
+with open('fte/VERSION') as fh:
     FTEPROXY_RELEASE = fh.read().strip()
 
-if os.name == 'nt':
-    libraries = ['python27']
+if os.name == 'nt': # windows
     extra_compile_args = ['-O3',
                           # '-fstack-protector-all', # failes on mingw32
                           '-fPIE',
-                          '-fPIC',
                           ]
-elif os.uname()[0] == 'Darwin':
-    libraries = ['python2.7']
+elif os.uname()[0] == 'Darwin': # OSX
     extra_compile_args = ['-O3',
                           '-fstack-protector-all',
                           '-fPIE',
-                          '-fPIC',
                           ]
-else:
-    libraries = ['python2.7']
+else: # Linux
     extra_compile_args = ['-O3',
                           '-fstack-protector-all',
                           '-fPIE',
-                          '-fPIC',
                           ]
 
 fte_cDFA = Extension('fte.cDFA',
@@ -55,15 +49,14 @@ fte_cDFA = Extension('fte.cDFA',
                                   ],
                      extra_compile_args=extra_compile_args,
                      extra_link_args=['thirdparty/re2/obj/libre2.a',
-                                      '-pthread',
                                       '-Wl,--strip-all',
                                       ],
                      libraries=['gmp',
                                 'gmpxx',
-                               ] + libraries,
+                               ],
                      sources=['fte/rank_unrank.cc', 'fte/cDFA.cc'])
 
-if os.name == 'nt':
+if os.name == 'nt': # windows
     setup(name='Format-Transforming Encrypion (FTE)',
           console=['./bin/fteproxy'],
           zipfile=None,
@@ -80,7 +73,7 @@ if os.name == 'nt':
           url='https://github.com/redjack/fte-proxy',
           ext_modules=[fte_cDFA],
           )
-else:
+else: # all others
     setup(name='Format-Transforming Encrypion (FTE)',
           version=FTEPROXY_RELEASE,
           description='FTE',
