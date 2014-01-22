@@ -22,6 +22,8 @@ ARCH=$(shell arch)
 VERSION=$(shell cat fte/VERSION)
 FTEPROXY_RELEASE=$(VERSION)-$(PLATFORM_LOWER)-$(ARCH)
 
+FTEPROXY_SRC=https://github.com/kpdyer/fteproxy/archive/master.zip
+
 THIRD_PARTY_DIR=thirdparty
 
 RE2_VERSION=20131024
@@ -39,6 +41,7 @@ else
 bin: fte/cDFA.so
 endif
 
+src: dist/fteproxy-$(VERSION)-src.tar.gz
 dist: dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz
 ifneq (, $(findstring windows, $(PLATFORM)))
 dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz: fte/cDFA.pyd
@@ -68,6 +71,21 @@ endif
 
 	cd dist && tar cvf fteproxy-$(FTEPROXY_RELEASE).tar fteproxy-$(FTEPROXY_RELEASE)
 	cd dist && gzip -9 fteproxy-$(FTEPROXY_RELEASE).tar
+	cd dist && rm -rf fteproxy-$(FTEPROXY_RELEASE)
+
+dist/fteproxy-$(VERSION)-src.tar.gz: dist/fteproxy-master
+	cd dist && mv fteproxy-master fteproxy-$(VERSION)-src
+	cd dist && tar cvf fteproxy-$(VERSION)-src.tar fteproxy-$(VERSION)-src
+	cd dist && gzip -9 fteproxy-$(VERSION)-src.tar
+	cd dist && rm -rf fteproxy-$(VERSION)-src
+	cd dist && rm master.zip
+
+dist/fteproxy-master: dist/master.zip
+	cd dist && unzip master.zip
+
+dist/master.zip:
+	mkdir -p dist
+	cd dist && wget $(FTEPROXY_SRC)
 
 ifneq (, $(findstring windows, $(PLATFORM)))
 fte/cDFA.pyd: $(THIRD_PARTY_DIR)/re2/obj/libre2.a
