@@ -52,7 +52,6 @@ fte_cDFA = Extension('fte.cDFA',
                                       '-Wl,--strip-all',
                                       ],
                      libraries=['gmp',
-                                'gmpxx',
                                ],
                      sources=['fte/rank_unrank.cc', 'fte/cDFA.cc'])
 
