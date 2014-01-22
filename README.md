@@ -11,7 +11,7 @@ Overview
 fteproxy provides transport-layer protection to resist keyword filtering, censorship and discrimantory routing policies.
 Its job is to relay datastreams, such as web browsing traffic, by encoding the stream into messages that satisfy a user-specified regular expression. 
 
-fteproxy is powered by Format-Transforming Encryption [1] and was presented as CCS 2013.
+fteproxy is powered by Format-Transforming Encryption [1] and was presented at CCS 2013.
 
 [1] https://eprint.iacr.org/2012/494
 
