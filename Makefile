@@ -27,7 +27,11 @@ THIRD_PARTY_DIR=thirdparty
 RE2_VERSION=20131024
 RE2_DIR=$(THIRD_PARTY_DIR)/re2
 
-all: clean dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz
+ifneq (, $(findstring windows, $(PLATFORM)))
+all: fte/cDFA.pyd
+else
+all: fte/cDFA.so
+endif
 
 ifneq (, $(findstring windows, $(PLATFORM)))
 bin: fte/cDFA.pyd
@@ -35,6 +39,7 @@ else
 bin: fte/cDFA.so
 endif
 
+dist: dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz
 ifneq (, $(findstring windows, $(PLATFORM)))
 dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz: fte/cDFA.pyd
 else
