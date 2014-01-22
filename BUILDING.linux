@@ -44,4 +44,4 @@ sudo touch /usr/local/lib/python2.7/dist-packages/zope/__init__.py
 cd $WORKING_DIR
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
-make -j`nproc`
+make dist
