@@ -98,4 +98,4 @@ touch /cygdrive/c/Python27/Lib/site-packages/zope/__init__.py
 cd $WORKING_DIR
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
-make -j`nproc`
+make dist
