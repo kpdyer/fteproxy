@@ -72,6 +72,12 @@ if os.name == 'nt': # windows
           author_email='kpdyer@gmail.com',
           url='https://github.com/redjack/fte-proxy',
           ext_modules=[fte_cDFA],
+          install_requires=[
+               "obfsproxy",
+               "pyptlib",
+               "pycrypto",
+               "twisted",
+          ],
           )
 else: # all others
     setup(name='Format-Transforming Encrypion (FTE)',
