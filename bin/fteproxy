@@ -38,7 +38,7 @@ import fte.client
 
 FTE_PT_NAME = 'fte'
 
-VERSION_FILE = os.path.join(fte.conf.getValue('general.base_dir'), 'VERSION')
+VERSION_FILE = os.path.join(fte.conf.getValue('general.base_dir'), 'fte', 'VERSION')
 with open(VERSION_FILE) as fh:
     FTEPROXY_VERSION = fh.read().strip()    
 
