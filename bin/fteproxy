@@ -57,7 +57,7 @@ class FTEMain(threading.Thread):
             sys.exit(0)
             
         if not self._args.quiet and not self._args.managed:
-            print """fteproxy Copyright (C) 2012-2013 Kevin P. Dyer <kdyer@cs.pdx.edu>
+            print """fteproxy Copyright (C) 2012-2014 Kevin P. Dyer <kdyer@cs.pdx.edu>
 This program comes with ABSOLUTELY NO WARRANTY.
 This is free software, and you are welcome to redistribute it under certain conditions.
 """
