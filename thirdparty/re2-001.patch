@@ -140,38 +140,3 @@ diff -urBNs re2/re2/prog.h re2/re2/prog.h
  
    // Compute byte map.
    void ComputeByteMap();
-diff -urBNs re2/re2/re2.cc re2/re2/re2.cc
---- re2/re2/re2.cc	2012-11-27 10:00:16.000000000 +0000
-+++ re2/re2/re2.cc	2013-10-24 00:49:42.889584294 +0000
-@@ -33,7 +33,7 @@
- 
- // This will trigger LNK2005 error in MSVC.
- #ifndef COMPILER_MSVC
--const int RE2::Options::kDefaultMaxMem;  // initialized in re2.h
-+const int64_t RE2::Options::kDefaultMaxMem;  // initialized in re2.h
- #endif  // COMPILER_MSVC
- 
- RE2::Options::Options(RE2::CannedOptions opt)
-diff -urBNs re2/re2/re2.h re2/re2/re2.h
---- re2/re2/re2.h	2012-10-21 13:15:03.000000000 +0000
-+++ re2/re2/re2.h	2013-10-24 00:49:42.901584293 +0000
-@@ -552,7 +552,7 @@
-     // If this happens too often, RE2 falls back on the NFA implementation.
- 
-     // For now, make the default budget something close to Code Search.
--    static const int kDefaultMaxMem = 8<<20;
-+    static const int64_t kDefaultMaxMem = ((int64_t)1)<<40;
- 
-     enum Encoding {
-       EncodingUTF8 = 1,
-@@ -599,8 +599,8 @@
-     bool log_errors() const { return log_errors_; }
-     void set_log_errors(bool b) { log_errors_ = b; }
- 
--    int max_mem() const { return max_mem_; }
--    void set_max_mem(int m) { max_mem_ = m; }
-+    int64_t max_mem() const { return max_mem_; }
-+    void set_max_mem(int64_t m) { max_mem_ = m; }
- 
-     bool literal() const { return literal_; }
-     void set_literal(bool b) { literal_ = b; }

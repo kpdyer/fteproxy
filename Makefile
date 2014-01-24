@@ -23,26 +23,16 @@ VERSION=$(shell cat fte/VERSION)
 FTEPROXY_RELEASE=$(VERSION)-$(PLATFORM_LOWER)-$(ARCH)
 
 FTEPROXY_SRC=https://github.com/kpdyer/fteproxy/archive/master.zip
-
 THIRD_PARTY_DIR=thirdparty
-
 RE2_VERSION=20131024
+RE2_VERSION_WIN32=20110930
 RE2_DIR=$(THIRD_PARTY_DIR)/re2
 
-ifneq (, $(findstring windows, $(PLATFORM)))
-all: fte/cDFA.pyd
-else
+
 all: fte/cDFA.so
-endif
-
-ifneq (, $(findstring windows, $(PLATFORM)))
-bin: fte/cDFA.pyd
-else
-bin: fte/cDFA.so
-endif
-
-src: dist/fteproxy-$(VERSION)-src.tar.gz
+win32: $(RE2_DIR)-win32 fte/cDFA.pyd
 dist: dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz
+
 ifneq (, $(findstring windows, $(PLATFORM)))
 dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz: fte/cDFA.pyd
 else
@@ -76,35 +66,36 @@ endif
 	cd dist && gzip -9 fteproxy-$(FTEPROXY_RELEASE).tar
 	cd dist && rm -rf fteproxy-$(FTEPROXY_RELEASE)
 
+src: dist/fteproxy-$(VERSION)-src.tar.gz
 dist/fteproxy-$(VERSION)-src.tar.gz: dist/fteproxy-master
 	cd dist && mv fteproxy-master fteproxy-$(VERSION)-src
 	cd dist && tar cvf fteproxy-$(VERSION)-src.tar fteproxy-$(VERSION)-src
 	cd dist && gzip -9 fteproxy-$(VERSION)-src.tar
 	cd dist && rm -rf fteproxy-$(VERSION)-src
 	cd dist && rm master.zip
-
 dist/fteproxy-master: dist/master.zip
 	cd dist && unzip master.zip
-
 dist/master.zip:
 	mkdir -p dist
 	cd dist && wget $(FTEPROXY_SRC)
 
-ifneq (, $(findstring windows, $(PLATFORM)))
 fte/cDFA.pyd: $(THIRD_PARTY_DIR)/re2/obj/libre2.a
-else
+	python setup.py build_ext --inplace
 fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/libre2.a
-endif
 	python setup.py build_ext --inplace
 
 $(THIRD_PARTY_DIR)/re2/obj/libre2.a: $(RE2_DIR)
 	cd $(RE2_DIR) && $(MAKE) obj/libre2.a
 
 $(RE2_DIR):
-	cd $(THIRD_PARTY_DIR) && tar zxvf re2-$(RE2_VERSION).tgz
+	cd $(THIRD_PARTY_DIR) && tar zxvf re2-$(RE2_VERSION)-src-linux.tgz
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-001.patch
-	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-002.patch
 
+$(RE2_DIR)-win32:
+	cd $(THIRD_PARTY_DIR) && unzip re2-$(RE2_VERSION_WIN32)-src-win32.zip
+	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-001.patch
+	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-003.patch
+	touch $(RE2_DIR)-win32
 
 clean:
 	@rm -rvf build

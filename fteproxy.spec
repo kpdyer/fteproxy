@@ -16,7 +16,7 @@
 # along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
 
 a = Analysis(['./bin/fteproxy'],
-             pathex=['.','fte'],
+             pathex=['.'],
              hiddenimports=[],
              hookspath=None,
              runtime_hooks=None,
