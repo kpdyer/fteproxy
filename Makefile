@@ -28,9 +28,8 @@ RE2_VERSION=20131024
 RE2_VERSION_WIN32=20110930
 RE2_DIR=$(THIRD_PARTY_DIR)/re2
 
-
 all: fte/cDFA.so
-win32: $(RE2_DIR)-win32 fte/cDFA.pyd
+win32: $(RE2_DIR)-win32
 dist: dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz
 
 ifneq (, $(findstring windows, $(PLATFORM)))
@@ -79,8 +78,8 @@ dist/master.zip:
 	mkdir -p dist
 	cd dist && wget $(FTEPROXY_SRC)
 
-fte/cDFA.pyd: $(THIRD_PARTY_DIR)/re2/obj/libre2.a
-	python setup.py build_ext --inplace
+#fte/cDFA.pyd: $(THIRD_PARTY_DIR)/re2/obj/libre2.a
+#	python.exe setup.py build_ext --inplace -c mingw32
 fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/libre2.a
 	python setup.py build_ext --inplace
 
@@ -90,6 +89,7 @@ $(THIRD_PARTY_DIR)/re2/obj/libre2.a: $(RE2_DIR)
 $(RE2_DIR):
 	cd $(THIRD_PARTY_DIR) && tar zxvf re2-$(RE2_VERSION)-src-linux.tgz
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-001.patch
+	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-002.patch
 
 $(RE2_DIR)-win32:
 	cd $(THIRD_PARTY_DIR) && unzip re2-$(RE2_VERSION_WIN32)-src-win32.zip
