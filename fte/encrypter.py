@@ -64,7 +64,7 @@ class Encrypter(object):
 
     """On initialization, accepts optional keys ``K1`` and ``K2`` which much be exactly 16 bytes each.
     Object is a stateless encryption scheme with ``encrypt`` and ``decrypt`` functions.
-    See [missing reference] for a description of the scheme.
+    See https://kpdyer.com/publications/ccs2013-fte.pdf for a description of the scheme.
 
     If ``K1`` is not specified, its default value is ``0xffffffffffffffffffffffffffffffff``.
     If ``K2`` is not specified, its default value is ``0x00000000000000000000000000000000``.
