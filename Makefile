@@ -90,6 +90,7 @@ $(RE2_DIR):
 	cd $(THIRD_PARTY_DIR) && tar zxvf re2-$(RE2_VERSION)-src-linux.tgz
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-001.patch
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-002.patch
+	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-004.patch
 
 $(RE2_DIR)-win32:
 	cd $(THIRD_PARTY_DIR) && unzip re2-$(RE2_VERSION_WIN32)-src-win32.zip
