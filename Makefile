@@ -24,7 +24,7 @@ FTEPROXY_RELEASE=$(VERSION)-$(PLATFORM_LOWER)-$(ARCH)
 
 FTEPROXY_SRC=https://github.com/kpdyer/fteproxy/archive/master.zip
 THIRD_PARTY_DIR=thirdparty
-RE2_VERSION=20131024
+RE2_VERSION=20140111
 RE2_VERSION_WIN32=20110930
 RE2_DIR=$(THIRD_PARTY_DIR)/re2
 
@@ -89,7 +89,6 @@ $(THIRD_PARTY_DIR)/re2/obj/libre2.a: $(RE2_DIR)
 $(RE2_DIR):
 	cd $(THIRD_PARTY_DIR) && tar zxvf re2-$(RE2_VERSION)-src-linux.tgz
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-001.patch
-	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-002.patch
 
 $(RE2_DIR)-win32:
 	cd $(THIRD_PARTY_DIR) && unzip re2-$(RE2_VERSION_WIN32)-src-win32.zip
