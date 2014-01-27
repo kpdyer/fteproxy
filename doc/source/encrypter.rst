@@ -12,7 +12,8 @@ An AE scheme used with with the fteproxy proxy must have the following four prop
 - Provably secure
 - Output of ``encrypt`` must be uniformly random
 
-For more details about the scheme and its design, please see [missing reference].
+For more details about the scheme and its design, please see
+https://kpdyer.com/publications/ccs2013-fte.pdf.
 
 Interface
 ---------
@@ -52,7 +53,7 @@ two completely different ciphertexts.
     >>> C.encode('hex')
     'b369b9eb369260154ca687eba71c7c188af56579bb8b3ac4f6aee646cab1e4aaf51928a18321805ea1cdfd3227'
     
-If you do wish to supply your own keys, you can may specify ``K1`` and/or ``K1`` in the construction of ``fte.encrypter.Encrypter``.
+If you do wish to supply your own keys, you can may specify ``K1`` and/or ``K2`` in the construction of ``fte.encrypter.Encrypter``.
     
 .. code-block:: python
 

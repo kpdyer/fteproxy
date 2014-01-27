@@ -41,9 +41,9 @@ class worker(threading.Thread):
 
     def run(self):
         """It's the responsibility of run to forward data from ``socket1`` to
-        ``socket2`` and from ``socket2`` to ``socket1``. The ``run()`` met6od
+        ``socket2`` and from ``socket2`` to ``socket1``. The ``run()`` method
         terminates and closes both sockets if ``fte.network_io.recvall_from_socket``
-        returns a negative results for ``success``.
+        returns a negative result for ``success``.
         """
 
         try:
@@ -60,7 +60,7 @@ class worker(threading.Thread):
 
 class listener(threading.Thread):
 
-    """It's he responsibility of ``fte.relay.listener`` to bind to
+    """It's the responsibility of ``fte.relay.listener`` to bind to
     ``local_ip:local_port``. Once bound it will then relay all incoming connections
     to ``remote_ip:remote_port``.
     All new incoming connections are wrapped with ``onNewIncomingConnection``.
