@@ -84,7 +84,7 @@ fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/libre2.a
 	python setup.py build_ext --inplace
 
 $(THIRD_PARTY_DIR)/re2/obj/libre2.a: $(RE2_DIR)
-	cd $(RE2_DIR) && $(MAKE) obj/libre2.a
+	cd $(RE2_DIR) && CXXFLAGS="-Wall -O3 -fPIC -pthread" $(MAKE) obj/libre2.a
 
 $(RE2_DIR):
 	cd $(THIRD_PARTY_DIR) && tar zxvf re2-$(RE2_VERSION)-src-linux.tgz
