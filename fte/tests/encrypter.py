@@ -21,7 +21,7 @@ import random
 
 import fte.encrypter
 
-TRIALS = 2 ** 12
+TRIALS = 2 ** 8
 
 class TestEncoders(unittest.TestCase):
 

@@ -22,9 +22,9 @@ import random
 
 import fte.dfa
 
-NUM_TRIALS = 2 ** 10
+NUM_TRIALS = 2 ** 8
 
-MAX_LEN = 512
+MAX_LEN = 256
 _regexs = [
     '^\C+$',
     '^(0|1)+$',

@@ -24,7 +24,7 @@ import fte.bit_ops
 import fte.defs
 
 
-NUM_TRIALS = 2 ** 12
+NUM_TRIALS = 2 ** 8
 
 
 class TestEncoders(unittest.TestCase):
@@ -38,9 +38,6 @@ class TestEncoders(unittest.TestCase):
             self.doTestEncoder(encoder, 0.5)
             self.doTestEncoder(encoder, 1)
             self.doTestEncoder(encoder, 2)
-            self.doTestEncoder(encoder, 4)
-            self.doTestEncoder(encoder, 8)
-            self.doTestEncoder(encoder, 16)
 
     def doTestEncoder(self, encoder, factor=1):
         for i in range(NUM_TRIALS):
