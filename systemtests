@@ -139,6 +139,7 @@ def doTest(language_name):
 def start_client(language_name):
     """Start our fteproxy client, block until it's ready."""
 
+
     os.system("./bin/fteproxy --quiet --mode client"
               + " --upstream-format " + language_name + "-request"
               + " --downstream-format " + language_name + "-response"
@@ -165,11 +166,15 @@ def stop_client():
 
     os.system("./bin/fteproxy --quiet --mode client --stop")
 
+    time.sleep(1)
+
 
 def stop_server():
     """Stop our fteproxy server."""
 
     os.system("./bin/fteproxy --quiet --mode server --stop")
+
+    time.sleep(1)
 
 
 class ListenerNotReady(Exception):

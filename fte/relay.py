@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
 
+import time
 import socket
 import threading
 
@@ -47,6 +48,7 @@ class worker(threading.Thread):
         """
 
         try:
+            throttle = fte.conf.getValue('runtime.fte.relay.throttle')
             while True:
                 [success, _data] = fte.network_io.recvall_from_socket(
                     self._socket1)
@@ -54,6 +56,8 @@ class worker(threading.Thread):
                     break
                 if _data:
                     fte.network_io.sendall_to_socket(self._socket2, _data)
+                else:
+                    time.sleep(throttle)
         finally:
             fte.network_io.close_socket(self._socket1)
 

@@ -92,8 +92,12 @@ conf['runtime.proxy.ip'] = '127.0.0.1'
 conf['runtime.proxy.port'] = 8081
 
 
-"""The default socket timeout."""
-conf['runtime.fte.relay.socket_timeout'] = 0.001
+"""The default socket accept timeout."""
+conf['runtime.fte.relay.socket_timeout'] = 0.25
+
+
+"""The default penalty after polling for network data, and not recieving anything."""
+conf['runtime.fte.relay.throttle'] = 0.01
 
 
 """The default timeout when establishing a new fteproxy socket."""
