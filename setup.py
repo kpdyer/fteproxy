@@ -29,8 +29,10 @@ with open('fte/VERSION') as fh:
 fte_cDFA = Extension('fte.cDFA',
                      include_dirs=['fte',
                                    'thirdparty/re2',
+                                   'thirdparty/gmp/include',
                                   ],
                      library_dirs=['thirdparty/re2/obj',
+                                   'thirdparty/gmp/bin',
                                   ],
                      extra_compile_args=['-O3',
                                         #'-fstack-protector-all', # doesn't work on windows
