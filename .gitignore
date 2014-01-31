@@ -1,3 +1,6 @@
 build
 fte/cDFA.so
 thirdparty/re2
+fte/*.pyc
+fte/tests/*.pyc
+fte/defs/*.pyc
