@@ -29,18 +29,17 @@ with open('fte/VERSION') as fh:
 fte_cDFA = Extension('fte.cDFA',
                      include_dirs=['fte',
                                    'thirdparty/re2',
-                                   'thirdparty/gmp/include',
                                   ],
                      library_dirs=['thirdparty/re2/obj',
-                                   'thirdparty/gmp/lib',
                                   ],
                      extra_compile_args=['-O3',
                                         #'-fstack-protector-all', # doesn't work on windows
                                         '-fPIE',
                                         ],
                      extra_link_args=['thirdparty/re2/obj/libre2.a',
+                                      '-Wl,-undefined,dynamic_lookup',
                                       ],
-                     libraries=['gmp',
+                     libraries=['gmp','gmpxx'
                                ],
                      sources=['fte/rank_unrank.cc', 'fte/cDFA.cc'])
 
@@ -53,9 +52,6 @@ setup(name='Format-Transforming Encrypion (FTE)',
       console=['./bin/fteproxy'],
       zipfile=None,
       options={"py2exe": {
-          "optimize": 2,
-          "compressed": True,
-          "bundle_files": 1,
       }
       },
       version=FTEPROXY_RELEASE,

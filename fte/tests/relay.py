@@ -57,8 +57,8 @@ class TestRelay(unittest.TestCase):
     def testOneStream(self):
         self._testStream()
 
-    def testOneHundredSerialStreams(self):
-        for i in range(100):
+    def testTenSerialStreams(self):
+        for i in range(10):
             self._testStream()
 
     def _testStream(self):
