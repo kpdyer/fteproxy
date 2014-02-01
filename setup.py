@@ -27,9 +27,9 @@ with open('fte/VERSION') as fh:
     FTEPROXY_RELEASE = fh.read().strip()
 
 if os.name == 'nt':
-    libraries = ['gmp', 'gmpxx']
-else:
     libraries = ['gmp.dll', 'gmpxx.dll']
+else:
+    libraries = ['gmp', 'gmpxx']
 
 fte_cDFA = Extension('fte.cDFA',
                      include_dirs=['fte',
