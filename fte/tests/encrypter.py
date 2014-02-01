@@ -23,6 +23,7 @@ import fte.encrypter
 
 TRIALS = 2 ** 8
 
+
 class TestEncoders(unittest.TestCase):
 
     def setUp(self):

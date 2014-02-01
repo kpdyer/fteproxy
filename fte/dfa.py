@@ -34,6 +34,7 @@ class LanguageIsEmptySetException(Exception):
 class IntegerOutOfRangeException(Exception):
     pass
 
+
 class InvalidRegexParametersException(Exception):
     pass
 
@@ -54,7 +55,7 @@ class DFA(object):
         if self._words_in_slice == 0:
             raise LanguageIsEmptySetException()
 
-        self._capacity = int(math.floor(math.log(self._words_in_slice, 2)))-1
+        self._capacity = int(math.floor(math.log(self._words_in_slice, 2))) - 1
 
     def rank(self, X):
         """Given a string ``X`` return ``c``, where ``c`` is the lexicographical
@@ -235,6 +236,7 @@ def _FTEAutomataToAttFst(dfa):
 
 _instance = {}
 
+
 def from_regex(regex, fixed_slice):
     """Given an input ``regex`` and integer ``fixed_slice`` constructs an
     ``fte.dfa.DFA()`` object that can be used to ``(un)rank`` into the language
@@ -248,11 +250,11 @@ def from_regex(regex, fixed_slice):
     if not _instance.get((regex, fixed_slice)):
         att_fst = _attFstFromRegex(regex)
         att_fst = _attFstMinimize(att_fst)
-    
+
         # the following can throw an exception, but don't catch it
         # as we want the exception to let the user know their
         # paramters may be bad
         dfa = fte.cDFA.DFA(att_fst, fixed_slice)
         _instance[(regex, fixed_slice)] = DFA(dfa, fixed_slice)
-        
+
     return _instance[(regex, fixed_slice)]

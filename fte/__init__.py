@@ -110,7 +110,8 @@ class NegotiationManager(object):
                     continue
 
                 incoming_regex = fte.defs.getRegex(incoming_language)
-                incoming_fixed_slice = fte.defs.getFixedSlice(incoming_language)
+                incoming_fixed_slice = fte.defs.getFixedSlice(
+                    incoming_language)
 
                 incoming_decoder = fte.encoder.RegexEncoder(incoming_regex,
                                                             incoming_fixed_slice)
@@ -258,7 +259,7 @@ class _FTESocketWrapper(FTEHelper, object):
         return self._socket.fileno()
 
     def recv(self, bufsize):
-        ### <HACK>
+        # <HACK>
         # Required to deal with case when client attempts to recv
         # before sending. This checks to ensure that a negotiate
         # cell is sent no matter what the client does first.
@@ -266,8 +267,8 @@ class _FTESocketWrapper(FTEHelper, object):
         if to_send:
             numbytes = self._socket.send(to_send)
             assert numbytes == len(to_send)
-        ### </HACK>
-            
+        # </HACK>
+
         try:
             while True:
                 data = self._socket.recv(bufsize)
@@ -390,9 +391,11 @@ class FTETransport(FTEHelper, obfsproxy.transports.base.BaseTransport):
             incoming_language = fte.conf.getValue(
                 'runtime.state.downstream_language')
             self._outgoing_regex = fte.defs.getRegex(outgoing_language)
-            self._outgoing_fixed_slice = fte.defs.getFixedSlice(outgoing_language)
+            self._outgoing_fixed_slice = fte.defs.getFixedSlice(
+                outgoing_language)
             self._incoming_regex = fte.defs.getRegex(incoming_language)
-            self._incoming_fixed_slice = fte.defs.getFixedSlice(incoming_language)
+            self._incoming_fixed_slice = fte.defs.getFixedSlice(
+                incoming_language)
         else:
             self._outgoing_regex = None
             self._outgoing_fixed_slice = -1

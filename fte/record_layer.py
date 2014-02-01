@@ -22,6 +22,7 @@ import fte.conf
 
 MAX_CELL_SIZE = fte.conf.getValue('runtime.fte.record_layer.max_cell_size')
 
+
 class Encoder:
 
     def __init__(
@@ -47,17 +48,17 @@ class Encoder:
         retval = ''
 
         ciphertexts = []
-        while len(self._buffer)>0:
+        while len(self._buffer) > 0:
             plaintext = self._buffer[:MAX_CELL_SIZE]
             self._buffer = self._buffer[MAX_CELL_SIZE:]
             ciphertext = self._encrypter.encrypt(plaintext)
             ciphertexts.append(ciphertext)
-        
+
         covertexts = []
         for ciphertext in ciphertexts:
             covertext = self._encoder.encode(ciphertext)
             covertexts.append(covertext)
-        
+
         retval = ''.join(covertexts)
 
         return retval
@@ -86,8 +87,8 @@ class Decoder:
         """
 
         retval = ''
-        
-        while len(self._buffer)>0:
+
+        while len(self._buffer) > 0:
             try:
                 incoming_msg = self._decoder.decode(self._buffer)
                 to_take = self._decrypter.getCiphertextLen(incoming_msg)
@@ -103,6 +104,7 @@ class Decoder:
             except:
                 break
             finally:
-                if oneCell: break
+                if oneCell:
+                    break
 
         return retval

@@ -54,7 +54,8 @@ class RegexEncoder(object):
     def __new__(self, regex, fixed_slice):
         global _instance
         if not _instance.get((regex, fixed_slice)):
-            _instance[(regex, fixed_slice)] = RegexEncoderObject(regex, fixed_slice)
+            _instance[(regex, fixed_slice)] = RegexEncoderObject(
+                regex, fixed_slice)
         return _instance[(regex, fixed_slice)]
 
 
