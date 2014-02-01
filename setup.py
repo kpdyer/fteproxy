@@ -26,13 +26,18 @@ if os.name == 'nt':
 with open('fte/VERSION') as fh:
     FTEPROXY_RELEASE = fh.read().strip()
 
+if os.name == 'nt':
+    libraries = ['gmp', 'gmpxx']
+else:
+    libraries = ['gmp.dll', 'gmpxx.dll']
+
 fte_cDFA = Extension('fte.cDFA',
                      include_dirs=['fte',
                                    'thirdparty/re2',
                                    'thirdparty/gmp/include',
                                   ],
                      library_dirs=['thirdparty/re2/obj',
-                                   'thirdparty/gmp/bin',
+                                   'thirdparty/gmp/lib',
                                   ],
                      extra_compile_args=['-O3',
                                         #'-fstack-protector-all', # doesn't work on windows
@@ -41,8 +46,7 @@ fte_cDFA = Extension('fte.cDFA',
                      extra_link_args=['thirdparty/re2/obj/libre2.a',
                                       '-Wl,-undefined,dynamic_lookup',
                                       ],
-                     libraries=['gmp','gmpxx'
-                               ],
+                     libraries=libraries,
                      sources=['fte/rank_unrank.cc', 'fte/cDFA.cc'])
 
 if sys.argv[1]=='py2exe':
