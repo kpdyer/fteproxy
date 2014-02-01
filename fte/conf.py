@@ -105,7 +105,7 @@ conf['runtime.fte.negotiate.timeout'] = 5
 
 
 """The maximum number of bytes to segment for an outgoing message."""
-conf['runtime.fte.record_layer.max_cell_size'] = 2 ** 14
+conf['runtime.fte.record_layer.max_cell_size'] = 2 ** 17
 
 
 """The default client-to-server language."""
