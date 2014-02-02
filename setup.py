@@ -67,10 +67,4 @@ setup(name='Format-Transforming Encrypion (FTE)',
       author_email='kpdyer@gmail.com',
       url='https://github.com/redjack/fte-proxy',
       ext_modules=ext_modules,
-      install_requires=[
-           "obfsproxy",
-           "pyptlib",
-           "pycrypto",
-           "twisted",
-      ],
       )
