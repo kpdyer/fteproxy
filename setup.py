@@ -54,7 +54,7 @@ if sys.argv[1]=='py2exe':
 else:
     ext_modules = [fte_cDFA]
 
-setup(name='Format-Transforming Encrypion (FTE)',
+setup(name='fteproxy',
       console=['./bin/fteproxy'],
       zipfile : "fteproxy.zip",
       options={"py2exe": {
@@ -62,9 +62,9 @@ setup(name='Format-Transforming Encrypion (FTE)',
                          }
       },
       version=FTEPROXY_RELEASE,
-      description='FTE',
+      description='programmable proxy for censorship circumvention',
       author='Kevin P. Dyer',
       author_email='kpdyer@gmail.com',
-      url='https://github.com/redjack/fte-proxy',
+      url='https://github.com/kpdyer/fteproxy',
       ext_modules=ext_modules,
       )
