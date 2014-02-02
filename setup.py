@@ -56,7 +56,7 @@ else:
 
 setup(name='fteproxy',
       console=['./bin/fteproxy'],
-      zipfile : "fteproxy.zip",
+      zipfile="fteproxy.zip",
       options={"py2exe": {
              "includes": ["twisted", "pyptlib", "Crypto"],
                          }
