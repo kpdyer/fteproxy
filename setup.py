@@ -56,9 +56,10 @@ else:
 
 setup(name='Format-Transforming Encrypion (FTE)',
       console=['./bin/fteproxy'],
-      zipfile=None,
+      zipfile : "fteproxy.zip",
       options={"py2exe": {
-      }
+             "includes": ["twisted", "pyptlib", "Crypto"],
+                         }
       },
       version=FTEPROXY_RELEASE,
       description='FTE',
