@@ -17,14 +17,13 @@
 # along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
 
 import binascii
-import os
 
+import Crypto.Random
 
 def random_bytes(N):
     """Given an input integer ``N``, ``random_bytes`` returns a string of exactly ``N`` uniformly-random bytes.
-    Calls ``os.urandom`` to get the random bytes.
     """
-    return os.urandom(N)
+    return Crypto.Random.get_random_bytes(N)
 
 
 def long_to_bytes(N, blocksize=1):
