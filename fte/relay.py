@@ -55,11 +55,14 @@ class worker(threading.Thread):
                 if not success:
                     break
                 if _data:
-                    fte.network_io.sendall_to_socket(self._socket2, _data)
+                    totalsent = fte.network_io.sendall_to_socket(self._socket2, _data)
+                    if totalsent <= 0:
+                        break
                 else:
                     time.sleep(throttle)
         finally:
             fte.network_io.close_socket(self._socket1)
+            fte.network_io.close_socket(self._socket2)
 
 
 class listener(threading.Thread):

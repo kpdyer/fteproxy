@@ -19,7 +19,6 @@
 import socket
 import string
 
-import fte.network_io
 import fte.conf
 import fte.defs
 import fte.encoder
