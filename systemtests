@@ -29,7 +29,7 @@ import fte.network_io
 
 
 BYTES_TO_SEND = 2 ** 18
-TRIALS = 2 ** 6
+TRIALS = 2 ** 8
 BLOCK_SIZE = 2 ** 12
 TIMEOUT = 60
 

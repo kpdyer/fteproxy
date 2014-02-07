@@ -2,15 +2,13 @@ import select
 import socket
 
 
-def sendall_to_socket(sock, msg, socket_timeout=0.01):
+def sendall_to_socket(sock, msg):
     """Given a socket ``sock`` and ``msg`` does a best effort to send
     ``msg`` on ``sock`` as quickly as possible.
     """
 
     totalsent = 0
     try:
-        _incoming_timeout = sock.gettimeout()
-        sock.settimeout(socket_timeout)
         while totalsent < len(msg):
             sent = sock.send(msg[totalsent:])
             if sent == 0:
@@ -18,19 +16,13 @@ def sendall_to_socket(sock, msg, socket_timeout=0.01):
             totalsent = totalsent + sent
     except socket.error:
         totalsent = -1
-    finally:
-        try:
-            sock.settimeout(_incoming_timeout)
-        except:
-            pass
 
     return totalsent
 
 
 def recvall_from_socket(sock,
                         bufsize=2 ** 17,
-                        socket_timeout=0.01,
-                        select_timeout=0.01):
+                        timeout=0.01):
     """Give ``sock``, does a best effort to pull data from ``sock``.
     By default, fails quickly if ``sock`` is closed or has no data ready.
     The return value ``is_alive`` reports if ``sock`` is still alive.
@@ -43,22 +35,14 @@ def recvall_from_socket(sock,
     is_alive = False
 
     try:
-        _incoming_timeout = sock.gettimeout()
-        sock.settimeout(socket_timeout)
-        ready = select.select([sock], [], [sock], select_timeout)
+        ready = select.select([sock], [], [sock], timeout)
         if ready[0]:
-            while True:
-                _data = sock.recv(bufsize)
-                if _data:
-                    retval += _data
-                    is_alive = True
-                    if len(retval) >= bufsize:
-                        break
-                    else:
-                        continue
-                else:
-                    is_alive = (len(retval) > 0)
-                    break
+            _data = sock.recv(bufsize)
+            if _data:
+                retval += _data
+                is_alive = True
+            else:
+                is_alive = (len(retval) > 0)
         elif ready[2]:
             is_alive = (len(retval) > 0)
         else:
@@ -70,11 +54,6 @@ def recvall_from_socket(sock,
         is_alive = (len(retval) > 0)
     except select.error:
         is_alive = (len(retval) > 0)
-    finally:
-        try:
-            sock.settimeout(_incoming_timeout)
-        except:
-            pass
 
     return [is_alive, retval]
 
