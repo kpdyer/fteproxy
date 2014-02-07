@@ -93,7 +93,7 @@ conf['runtime.proxy.port'] = 8081
 
 
 """The default socket accept timeout."""
-conf['runtime.fte.relay.socket_timeout'] = 0.25
+conf['runtime.fte.relay.socket_timeout'] = 0.05
 
 
 """The default penalty after polling for network data, and not recieving anything."""

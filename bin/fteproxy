@@ -450,7 +450,7 @@ def main():
             main.daemon = True
             main.start()
             while running and main.is_alive():
-                main.join(timeout=1)
+                main.join(timeout=0.5)
             main.stop()
     except KeyboardInterrupt:
         pass
