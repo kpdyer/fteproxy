@@ -103,6 +103,8 @@ def doTest(language_name):
 
         conn, addr = sock.accept()
 
+        conn.settimeout(0.1)
+
         startTimer = time.time()
         expected_msg = random_string(BYTES_TO_SEND)
         elapsed = -1
