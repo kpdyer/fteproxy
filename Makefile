@@ -93,7 +93,7 @@ $(RE2_DIR):
 $(RE2_DIR)-win32:
 	cd $(THIRD_PARTY_DIR) && unzip re2-$(RE2_VERSION_WIN32)-src-win32.zip
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-001.patch
-	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-003.patch
+#	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-003.patch
 	touch $(RE2_DIR)-win32
 
 clean:
