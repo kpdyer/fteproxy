@@ -78,8 +78,8 @@ dist/master.zip:
 	mkdir -p dist
 	cd dist && wget $(FTEPROXY_SRC)
 
-#fte/cDFA.pyd: $(THIRD_PARTY_DIR)/re2/obj/libre2.a
-#	python.exe setup.py build_ext --inplace -c mingw32
+fte/cDFA.pyd: win32 $(THIRD_PARTY_DIR)/re2/obj/libre2.a
+	python.exe setup.py build_ext --inplace -c mingw32
 fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/libre2.a
 	python setup.py build_ext --inplace
 
