@@ -41,6 +41,8 @@ endif
 ifneq (, $(findstring windows, $(PLATFORM)))
 	python setup.py py2exe
 	cd dist && mv -f *.exe fteproxy-$(FTEPROXY_RELEASE)/
+	cd dist && mv -f *.zip fteproxy-$(FTEPROXY_RELEASE)/
+	cd dist && mv -f *.pyd fteproxy-$(FTEPROXY_RELEASE)/
 	cp C:\\Windows\\System32\\msvcp100.dll dist/fteproxy-$(FTEPROXY_RELEASE)/
 	cp C:\\Windows\\System32\\msvcr100.dll dist/fteproxy-$(FTEPROXY_RELEASE)/
 else
