@@ -25,6 +25,8 @@ endif
 ARCH=$(shell arch)
 
 # Cross-compile
+dist-all: dist-windows dist-osx dist-linux-i386 dist-linux-x86_64
+
 dist-windows:
 	CROSS_COMPILE=1 \
 	WINDOWS_BUILD=1 \
