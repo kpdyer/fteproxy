@@ -1,6 +1,0 @@
-UseBridges 1
-SocksPort 127.0.0.1:8079
-
-ClientTransportPlugin fte exec /usr/local/fteproxy/bin/fteproxy --managed --mode client
-
-Bridge fte bridges.fteproxy.org:8080

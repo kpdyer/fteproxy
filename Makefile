@@ -2,7 +2,7 @@
 #
 # fteproxy is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
+# the Free Software Foundation,either version 3 of the License,or
 # (at your option) any later version.
 #
 # fteproxy is distributed in the hope that it will be useful,
@@ -11,34 +11,90 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
+# along with fteproxy.  If not,see <http://www.gnu.org/licenses/>.
 
+
+# Automatically figure out what we're doing
+CROSS_COMPILE=0
 PLATFORM=$(shell uname)
 PLATFORM_LOWER=$(shell echo $(PLATFORM) | tr A-Z a-z)
-ifneq (, $(findstring cygwin, $(PLATFORM_LOWER)))
+ifneq (,$(findstring cygwin,$(PLATFORM_LOWER)))
 PLATFORM='windows'
+WINDOWS_BUILD=1
 endif
 ARCH=$(shell arch)
-VERSION=$(shell cat fte/VERSION)
-FTEPROXY_RELEASE=$(VERSION)-$(PLATFORM_LOWER)-$(ARCH)
 
-FTEPROXY_SRC=https://github.com/kpdyer/fteproxy/archive/master.zip
+# Cross-compile
+dist-windows:
+	CROSS_COMPILE=1 \
+	WINDOWS_BUILD=1 \
+	PLATFORM='windows' \
+	ARCH='i386' \
+	BINARY_ARCHIVE=dist/fteproxy-$(FTEPROXY_RELEASE).zip \
+	CDFA_BINARY=fte/cDFA.pyd \
+	make do-dist-windows
+	
+dist-osx:
+	CROSS_COMPILE=1 \
+	PLATFORM='darwin' \
+	ARCH='i686' \
+	make do-dist-osx
+	
+dist-linux-i386:
+	CROSS_COMPILE=1 \
+	PLATFORM='linux' \
+	ARCH='i386' \
+	make do-dist-linux-i386
+	
+dist-linux-x86_64:
+	CROSS_COMPILE=1 \
+	PLATFORM='linux' \
+	ARCH='x86_64' \
+	make do-dist-linux-x86_64
+	
+VERSION=$(shell cat fte/VERSION)
+FTEPROXY_RELEASE=$(VERSION)-$(PLATFORM)-$(ARCH)
 THIRD_PARTY_DIR=thirdparty
 RE2_VERSION=20140111
 RE2_VERSION_WIN32=20110930
 RE2_DIR=$(THIRD_PARTY_DIR)/re2
+PYTHON=python
+BINARY_ARCHIVE=dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz
+CDFA_BINARY=fte/cDFA.so
 
-all: fte/cDFA.so
-win32: $(RE2_DIR)-win32
-dist: dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz
-
-ifneq (, $(findstring windows, $(PLATFORM)))
-dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz: fte/cDFA.pyd
-else
-dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz: fte/cDFA.so
+ifeq ($(WINDOWS_BUILD),1)
+BINARY_ARCHIVE=dist/fteproxy-$(FTEPROXY_RELEASE).zip
+CDFA_BINARY=fte/cDFA.pyd
 endif
+	
+
+# Our high-level targets that can be called directly
+do-dist: $(BINARY_ARCHIVE)
+do-dist-windows: $(BINARY_ARCHIVE)
+do-dist-osx: $(BINARY_ARCHIVE)
+do-dist-linux-i386: $(BINARY_ARCHIVE)
+do-dist-linux-x86_64: $(BINARY_ARCHIVE)
+
+clean:
+	@rm -rvf build
+	@rm -rvf dist
+	@rm -vf fte/*.so
+	@rm -vf fte/*.pyd
+	@rm -vf *.pyc
+	@rm -vf */*.pyc
+	@rm -vf */*/*.pyc
+	@rm -rvf $(THIRD_PARTY_DIR)/re2
+	
+test:
+	@PATH=./bin:$(PATH) ./unittests
+	@PATH=./bin:$(PATH) ./systemtests
+
+
+# Supporting targets
+$(BINARY_ARCHIVE): $(CDFA_BINARY)
 	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)
-ifneq (, $(findstring windows, $(PLATFORM)))
+	
+ifeq ($(WINDOWS_BUILD),1)
 	python setup.py py2exe
 	cd dist && mv -f *.exe fteproxy-$(FTEPROXY_RELEASE)/
 	cd dist && mv -f *.zip fteproxy-$(FTEPROXY_RELEASE)/
@@ -67,50 +123,34 @@ endif
 	cd dist && gzip -9 fteproxy-$(FTEPROXY_RELEASE).tar
 	cd dist && rm -rf fteproxy-$(FTEPROXY_RELEASE)
 
-src: dist/fteproxy-$(VERSION)-src.tar.gz
-dist/fteproxy-$(VERSION)-src.tar.gz: dist/fteproxy-master
-	cd dist && mv fteproxy-master fteproxy-$(VERSION)-src
-	cd dist && tar cvf fteproxy-$(VERSION)-src.tar fteproxy-$(VERSION)-src
-	cd dist && gzip -9 fteproxy-$(VERSION)-src.tar
-	cd dist && rm -rf fteproxy-$(VERSION)-src
-	cd dist && rm master.zip
-dist/fteproxy-master: dist/master.zip
-	cd dist && unzip master.zip
-dist/master.zip:
-	mkdir -p dist
-	cd dist && wget $(FTEPROXY_SRC)
 
-fte/cDFA.pyd: win32 $(THIRD_PARTY_DIR)/re2/obj/libre2.a
-	python.exe setup.py build_ext --inplace -c mingw32
-fte/cDFA.so: $(THIRD_PARTY_DIR)/re2/obj/libre2.a
-	python setup.py build_ext --inplace
+$(CDFA_BINARY): $(THIRD_PARTY_DIR)/re2/obj/libre2.a
+ifeq ($(WINDOWS_BUILD),1)
+	$(PYTHON) setup.py build_ext --inplace -c mingw32
+else
+	$(PYTHON) setup.py build_ext --inplace
+endif
+
 
 $(THIRD_PARTY_DIR)/re2/obj/libre2.a: $(RE2_DIR)
-	cd $(RE2_DIR) && CXXFLAGS="-Wall -O3 -fPIC -pthread $(CXXFLAGS)" $(MAKE) obj/libre2.a
+	cd $(RE2_DIR) && $(MAKE) obj/libre2.a
+
 
 $(RE2_DIR):
-	cd $(THIRD_PARTY_DIR) && tar zxvf re2-$(RE2_VERSION)-src-linux.tgz
-	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-001.patch
-
-$(RE2_DIR)-win32:
+ifeq ($(WINDOWS_BUILD),1)
 	cd $(THIRD_PARTY_DIR) && unzip re2-$(RE2_VERSION_WIN32)-src-win32.zip
-	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-001.patch
-#	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-003.patch
-	touch $(RE2_DIR)-win32
+	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-core.patch
 
-clean:
-	@rm -rvf build
-	@rm -rvf dist
-	@rm -vf fte/*.so
-	@rm -vf fte/*.pyd
-	@rm -vf *.pyc
-	@rm -vf */*.pyc
-	@rm -vf */*/*.pyc
+ifeq ($(CROSS_COMPILE),1)
+	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-crosscompile.patch
+else
+	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-mingw.patch
+endif
 
-
-test:
-	@PATH=./bin:$(PATH) ./unittests
-	@PATH=./bin:$(PATH) ./systemtests
+else
+	cd $(THIRD_PARTY_DIR) && tar zxvf re2-$(RE2_VERSION)-src-linux.tgz
+	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-core.patch
+endif
 
 
 doc: phantom

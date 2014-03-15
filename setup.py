@@ -40,7 +40,6 @@ fte_cDFA = Extension('fte.cDFA',
                                    'thirdparty/gmp/lib',
                                   ],
                      extra_compile_args=['-O3',
-                                        #'-fstack-protector-all', # doesn't work on windows
                                         '-fPIE',
                                         ],
                      extra_link_args=['thirdparty/re2/obj/libre2.a',

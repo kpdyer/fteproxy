@@ -1,0 +1,33 @@
+--- re2/Makefile	2011-09-30 21:57:40.000000000 +0000
++++ re2-modded/Makefile	2014-01-24 03:10:56.968401711 +0000
+@@ -9,13 +9,13 @@
+ # CCPCRE=-I/usr/local/include -DUSEPCRE
+ # LDPCRE=-L/usr/local/lib -lpcre
+ 
+-CC=g++
+-CXXFLAGS=-Wall -O3 -g -pthread  # can override
++CC=i686-w64-mingw32-gcc
++CXX=i686-w64-mingw32-g++
++CXXFLAGS=-Wall -O3 -g -DNO_THREADS  # can override
+ RE2_CXXFLAGS=-Wno-sign-compare -c -I. $(CCPCRE)  # required
+-LDFLAGS=-pthread
+-AR=ar
++AR=i686-w64-mingw32-ar
+ ARFLAGS=rsc
+-NM=nm
++NM=i686-w64-mingw32-nm
+ NMFLAGS=-p
+ 
+ # Variables mandated by GNU, the arbiter of all good taste on the internet.
+@@ -38,9 +38,9 @@
+ # REBUILD_TABLES=1
+ 
+ ifeq ($(shell uname),Darwin)
+-MAKE_SHARED_LIBRARY=g++ -dynamiclib $(LDFLAGS) -exported_symbols_list libre2.symbols.darwin
++MAKE_SHARED_LIBRARY=i686-w64-mingw32-g++ -dynamiclib $(LDFLAGS) -exported_symbols_list libre2.symbols.darwin
+ else
+-MAKE_SHARED_LIBRARY=g++ -shared -Wl,-soname,libre2.so.$(SONAME),--version-script=libre2.symbols $(LDFLAGS)
++MAKE_SHARED_LIBRARY=i686-w64-mingw32-g++ -shared -Wl,-soname,libre2.so.$(SONAME),--version-script=libre2.symbols $(LDFLAGS)
+ endif
+ 
+ INSTALL_HFILES=\
