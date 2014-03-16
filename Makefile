@@ -37,6 +37,10 @@ RE2_DIR=$(THIRD_PARTY_DIR)/re2
 BINARY_ARCHIVE=dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz
 CDFA_BINARY=fte/cDFA.so
 
+ifeq ($(PYTHON),)
+PYTHON="python"
+endif
+
 ifeq ($(WINDOWS_BUILD),1)
 BINARY_ARCHIVE=dist/fteproxy-$(FTEPROXY_RELEASE).zip
 CDFA_BINARY=fte/cDFA.pyd
@@ -107,7 +111,7 @@ $(BINARY_ARCHIVE): $(CDFA_BINARY)
 	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)
 	
 ifeq ($(WINDOWS_BUILD),1)
-	python setup.py py2exe
+	$(PYTHON) setup.py py2exe
 	cd dist && mv -f *.exe fteproxy-$(FTEPROXY_RELEASE)/
 	cd dist && mv -f *.zip fteproxy-$(FTEPROXY_RELEASE)/
 	cd dist && mv -f *.pyd fteproxy-$(FTEPROXY_RELEASE)/
@@ -138,9 +142,9 @@ endif
 
 $(CDFA_BINARY): $(THIRD_PARTY_DIR)/re2/obj/libre2.a
 ifeq ($(WINDOWS_BUILD),1)
-	python setup.py build_ext --inplace -c mingw32
+	$(PYTHON) setup.py build_ext --inplace -c mingw32
 else
-	python setup.py build_ext --inplace
+	$(PYTHON) setup.py build_ext --inplace
 endif
 
 
