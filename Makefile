@@ -34,15 +34,6 @@ THIRD_PARTY_DIR=thirdparty
 RE2_VERSION=20140111
 RE2_VERSION_WIN32=20110930
 RE2_DIR=$(THIRD_PARTY_DIR)/re2
-ifeq ($(PYTHONPATH32),) 
-PYTHONPATH32=/opt/python32/bin
-endif
-ifeq ($(PYTHONPATH64),) 
-PYTHONPATH64=/usr/bin
-endif
-ifeq ($(PYTHONPATH),) 
-PYTHONPATH=/usr/bin
-endif
 BINARY_ARCHIVE=dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz
 CDFA_BINARY=fte/cDFA.so
 
@@ -55,7 +46,6 @@ endif
 dist-all: dist-windows-i386 dist-osx-i686 dist-linux-i386 dist-linux-x86_64
 
 dist-windows-i386:
-	PYTHONPATH=$(PYTHONPATH) \
 	LDFLAGS="$(LDFLAGS) -m32" \
 	CFLAGS="$(CFLAGS) -m32" \
 	CXXFLAGS="$(CXXFLAGS) -m32" \
@@ -68,7 +58,6 @@ dist-windows-i386:
 	$(MAKE) do-dist-windows-i386
 	
 dist-osx-i686:
-	PYTHONPATH=$(PYTHONPATH) \
 	LDFLAGS="$(LDFLAGS) -m32" \
 	CFLAGS="$(CFLAGS) -m32" \
 	CXXFLAGS="$(CXXFLAGS) -m32" \
@@ -78,7 +67,6 @@ dist-osx-i686:
 	$(MAKE) do-dist-osx-i686
 	
 dist-linux-i386:
-	PYTHONPATH=$(PYTHONPATH32) \
 	LDFLAGS="$(LDFLAGS) -m32" \
 	CFLAGS="$(CFLAGS) -m32" \
 	CXXFLAGS="$(CXXFLAGS) -m32" \
@@ -88,7 +76,6 @@ dist-linux-i386:
 	$(MAKE) do-dist-linux-i386
 	
 dist-linux-x86_64:
-	PYTHONPATH=$(PYTHONPATH64) \
 	CROSS_COMPILE=1 \
 	PLATFORM='linux' \
 	ARCH='x86_64' \
@@ -151,9 +138,9 @@ endif
 
 $(CDFA_BINARY): $(THIRD_PARTY_DIR)/re2/obj/libre2.a
 ifeq ($(WINDOWS_BUILD),1)
-	$(PYTHONPATH)/python setup.py build_ext --inplace -c mingw32
+	python setup.py build_ext --inplace -c mingw32
 else
-	$(PYTHONPATH)/python setup.py build_ext --inplace
+	python setup.py build_ext --inplace
 endif
 
 
