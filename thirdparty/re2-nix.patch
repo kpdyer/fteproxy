@@ -1,0 +1,11 @@
+--- re2/Makefile	2014-03-15 15:14:15.008184716 -0700
++++ re2/Makefile	2014-03-15 15:14:32.336184564 -0700
+@@ -10,7 +10,7 @@
+ # LDPCRE=-L/usr/local/lib -lpcre
+ 
+ CXX?=g++
+-CXXFLAGS?=-Wall -fPIC -O3 -g -pthread # can override
++CXXFLAGS?=-Wall -O3 -g -pthread # can override
+ RE2_CXXFLAGS?=-Wno-sign-compare -c -I. $(CCPCRE)  # required
+ LDFLAGS?=
+ AR?=ar

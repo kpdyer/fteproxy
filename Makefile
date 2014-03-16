@@ -15,52 +15,34 @@
 
 
 # Automatically figure out what we're doing
+dist: do-dist
+
+ifneq ($(CROSS_COMPILE),1)
 CROSS_COMPILE=0
-PLATFORM=$(shell uname)
-PLATFORM_LOWER=$(shell echo $(PLATFORM) | tr A-Z a-z)
-ifneq (,$(findstring cygwin,$(PLATFORM_LOWER)))
+PLATFORM_UNAME=$(shell uname)
+PLATFORM=$(shell echo $(PLATFORM_UNAME) | tr A-Z a-z)
+ifneq (,$(findstring cygwin,$(PLATFORM)))
 PLATFORM='windows'
 WINDOWS_BUILD=1
 endif
 ARCH=$(shell arch)
+endif
 
-# Cross-compile
-dist-all: dist-windows dist-osx dist-linux-i386 dist-linux-x86_64
-
-dist-windows:
-	CROSS_COMPILE=1 \
-	WINDOWS_BUILD=1 \
-	PLATFORM='windows' \
-	ARCH='i386' \
-	BINARY_ARCHIVE=dist/fteproxy-$(FTEPROXY_RELEASE).zip \
-	CDFA_BINARY=fte/cDFA.pyd \
-	make do-dist-windows
-	
-dist-osx:
-	CROSS_COMPILE=1 \
-	PLATFORM='darwin' \
-	ARCH='i686' \
-	make do-dist-osx
-	
-dist-linux-i386:
-	CROSS_COMPILE=1 \
-	PLATFORM='linux' \
-	ARCH='i386' \
-	make do-dist-linux-i386
-	
-dist-linux-x86_64:
-	CROSS_COMPILE=1 \
-	PLATFORM='linux' \
-	ARCH='x86_64' \
-	make do-dist-linux-x86_64
-	
 VERSION=$(shell cat fte/VERSION)
 FTEPROXY_RELEASE=$(VERSION)-$(PLATFORM)-$(ARCH)
 THIRD_PARTY_DIR=thirdparty
 RE2_VERSION=20140111
 RE2_VERSION_WIN32=20110930
 RE2_DIR=$(THIRD_PARTY_DIR)/re2
-PYTHON=python
+ifeq ($(PYTHONPATH32),) 
+PYTHONPATH32=/opt/python32/bin
+endif
+ifeq ($(PYTHONPATH64),) 
+PYTHONPATH64=/usr/bin
+endif
+ifeq ($(PYTHONPATH),) 
+PYTHONPATH=/usr/bin
+endif
 BINARY_ARCHIVE=dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz
 CDFA_BINARY=fte/cDFA.so
 
@@ -68,18 +50,59 @@ ifeq ($(WINDOWS_BUILD),1)
 BINARY_ARCHIVE=dist/fteproxy-$(FTEPROXY_RELEASE).zip
 CDFA_BINARY=fte/cDFA.pyd
 endif
-	
 
+# Cross-compile
+dist-all: dist-windows-i386 dist-osx-i686 dist-linux-i386 dist-linux-x86_64
+
+dist-windows-i386:
+	PYTHONPATH=$(PYTHONPATH) \
+	LDFLAGS="$(LDFLAGS) -m32" \
+	CFLAGS="$(CFLAGS) -m32" \
+	CXXFLAGS="$(CXXFLAGS) -m32" \
+	CROSS_COMPILE=1 \
+	WINDOWS_BUILD=1 \
+	PLATFORM='windows' \
+	ARCH='i386' \
+	BINARY_ARCHIVE=dist/fteproxy-$(FTEPROXY_RELEASE).zip \
+	CDFA_BINARY=fte/cDFA.pyd \
+	$(MAKE) do-dist-windows-i386
+	
+dist-osx-i686:
+	PYTHONPATH=$(PYTHONPATH) \
+	LDFLAGS="$(LDFLAGS) -m32" \
+	CFLAGS="$(CFLAGS) -m32" \
+	CXXFLAGS="$(CXXFLAGS) -m32" \
+	CROSS_COMPILE=1 \
+	PLATFORM='darwin' \
+	ARCH='i686' \
+	$(MAKE) do-dist-osx-i686
+	
+dist-linux-i386:
+	PYTHONPATH=$(PYTHONPATH32) \
+	LDFLAGS="$(LDFLAGS) -m32" \
+	CFLAGS="$(CFLAGS) -m32" \
+	CXXFLAGS="$(CXXFLAGS) -m32" \
+	CROSS_COMPILE=1 \
+	PLATFORM='linux' \
+	ARCH='i386' \
+	$(MAKE) do-dist-linux-i386
+	
+dist-linux-x86_64:
+	PYTHONPATH=$(PYTHONPATH64) \
+	CROSS_COMPILE=1 \
+	PLATFORM='linux' \
+	ARCH='x86_64' \
+	$(MAKE) do-dist-linux-x86_64
+	
 # Our high-level targets that can be called directly
 do-dist: $(BINARY_ARCHIVE)
-do-dist-windows: $(BINARY_ARCHIVE)
-do-dist-osx: $(BINARY_ARCHIVE)
+do-dist-windows-i386: $(BINARY_ARCHIVE)
+do-dist-osx-i686: $(BINARY_ARCHIVE)
 do-dist-linux-i386: $(BINARY_ARCHIVE)
 do-dist-linux-x86_64: $(BINARY_ARCHIVE)
 
 clean:
 	@rm -rvf build
-	@rm -rvf dist
 	@rm -vf fte/*.so
 	@rm -vf fte/*.pyd
 	@rm -vf *.pyc
@@ -128,9 +151,9 @@ endif
 
 $(CDFA_BINARY): $(THIRD_PARTY_DIR)/re2/obj/libre2.a
 ifeq ($(WINDOWS_BUILD),1)
-	$(PYTHON) setup.py build_ext --inplace -c mingw32
+	$(PYTHONPATH)/python setup.py build_ext --inplace -c mingw32
 else
-	$(PYTHON) setup.py build_ext --inplace
+	$(PYTHONPATH)/python setup.py build_ext --inplace
 endif
 
 
@@ -152,6 +175,7 @@ endif
 else
 	cd $(THIRD_PARTY_DIR) && tar zxvf re2-$(RE2_VERSION)-src-linux.tgz
 	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-core.patch
+	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -R -i re2-nix.patch
 endif
 
 
