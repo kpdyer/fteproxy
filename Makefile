@@ -47,7 +47,7 @@ CDFA_BINARY=fte/cDFA.pyd
 endif
 
 # Cross-compile
-dist-all: dist-windows-i386 dist-osx-i686 dist-linux-i386 dist-linux-x86_64
+dist-all: dist-windows-i386 dist-osx-i386 dist-linux-i386 dist-linux-x86_64
 
 dist-windows-i386:
 	LDFLAGS="$(LDFLAGS) -m32" \
@@ -61,14 +61,14 @@ dist-windows-i386:
 	CDFA_BINARY=fte/cDFA.pyd \
 	$(MAKE) do-dist-windows-i386
 	
-dist-osx-i686:
+dist-osx-i386:
 	LDFLAGS="$(LDFLAGS) -m32" \
 	CFLAGS="$(CFLAGS) -m32" \
 	CXXFLAGS="$(CXXFLAGS) -m32" \
 	CROSS_COMPILE=1 \
 	PLATFORM='darwin' \
-	ARCH='i686' \
-	$(MAKE) do-dist-osx-i686
+	ARCH='i386' \
+	$(MAKE) do-dist-osx-i386
 	
 dist-linux-i386:
 	LDFLAGS="$(LDFLAGS) -m32" \
@@ -88,7 +88,7 @@ dist-linux-x86_64:
 # Our high-level targets that can be called directly
 do-dist: $(BINARY_ARCHIVE)
 do-dist-windows-i386: $(BINARY_ARCHIVE)
-do-dist-osx-i686: $(BINARY_ARCHIVE)
+do-dist-osx-i386: $(BINARY_ARCHIVE)
 do-dist-linux-i386: $(BINARY_ARCHIVE)
 do-dist-linux-x86_64: $(BINARY_ARCHIVE)
 
