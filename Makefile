@@ -112,9 +112,6 @@ $(BINARY_ARCHIVE): $(CDFA_BINARY)
 	
 ifeq ($(WINDOWS_BUILD),1)
 	$(PYTHON) setup.py py2exe
-	cd dist && mv -f *.exe fteproxy-$(FTEPROXY_RELEASE)/
-	cd dist && mv -f *.zip fteproxy-$(FTEPROXY_RELEASE)/
-	cd dist && mv -f *.pyd fteproxy-$(FTEPROXY_RELEASE)/
 else
 	$(PYTHON) pyinstaller fteproxy.spec
 	cd dist && mv fteproxy fteproxy-$(FTEPROXY_RELEASE)/fteproxy
