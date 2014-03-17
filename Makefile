@@ -125,7 +125,7 @@ ifeq ($(WINDOWS_BUILD),1)
 	cd dist && zip -r fteproxy-$(FTEPROXY_RELEASE).zip fteproxy-$(FTEPROXY_RELEASE)
 	cd dist && rm -rf fteproxy-$(FTEPROXY_RELEASE)
 else
-	$(PYTHON) pyinstaller fteproxy.spec
+	pyinstaller fteproxy.spec
 	cd dist && mv fteproxy fteproxy-$(FTEPROXY_RELEASE)/fteproxy
 
 	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)/fte/tests/dfas
