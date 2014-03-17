@@ -117,7 +117,6 @@ ifeq ($(WINDOWS_BUILD),1)
 	cd dist && mv *.exe fteproxy-$(FTEPROXY_RELEASE)/
 	cd dist && mv *.pyd fteproxy-$(FTEPROXY_RELEASE)/
 	cd dist && mv *.zip fteproxy-$(FTEPROXY_RELEASE)/
-	cd dist && mv fte fteproxy-$(FTEPROXY_RELEASE)/
 
 	cp README.md dist/fteproxy-$(FTEPROXY_RELEASE)
 	cp COPYING dist/fteproxy-$(FTEPROXY_RELEASE)
