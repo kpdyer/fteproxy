@@ -54,13 +54,6 @@ if sys.argv[1]=='py2exe':
 else:
     ext_modules = [fte_cDFA]
 
-data_files = [
-        ("fte", ['fte/VERSION']),        
-        ("fte/tests/dfas", glob.glob('fte/tests/dfas/*')),                
-        ("fte/tests", glob.glob('fte/tests/*.py')),                
-        ("fte/defs", glob.glob('fte/defs/*')),                
-         ]
-
 setup(name='fteproxy',
       console=['./bin/fteproxy'],
       zipfile="fteproxy.zip",
@@ -74,5 +67,4 @@ setup(name='fteproxy',
       author_email='kpdyer@gmail.com',
       url='https://github.com/kpdyer/fteproxy',
       ext_modules=ext_modules,
-      data_files=data_files,
       )

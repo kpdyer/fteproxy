@@ -122,6 +122,11 @@ ifeq ($(WINDOWS_BUILD),1)
 	cp README.md dist/fteproxy-$(FTEPROXY_RELEASE)
 	cp COPYING dist/fteproxy-$(FTEPROXY_RELEASE)
 
+	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)/fte
+	cp fte/VERSION dist/fteproxy-$(FTEPROXY_RELEASE)/fte
+	cp -rfv fte/defs dist/fteproxy-$(FTEPROXY_RELEASE)/fte
+	cp -rfv fte/tests dist/fteproxy-$(FTEPROXY_RELEASE)/fte
+
 	cd dist && zip -r fteproxy-$(FTEPROXY_RELEASE).zip fteproxy-$(FTEPROXY_RELEASE)
 	cd dist && rm -rf fteproxy-$(FTEPROXY_RELEASE)
 else
