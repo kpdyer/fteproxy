@@ -46,3 +46,9 @@ Documentation
 -------------
 
 See: https://fteproxy.org/documentation
+
+
+Author
+------
+
+Please contact Kevin P. Dyer (kdyer@cs.pdx.edu), if you have any questions.
