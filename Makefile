@@ -15,7 +15,6 @@
 
 
 # Automatically figure out what we're doing
-dist: do-dist
 
 ifneq ($(CROSS_COMPILE),1)
 CROSS_COMPILE=0
@@ -46,7 +45,10 @@ BINARY_ARCHIVE=dist/fteproxy-$(FTEPROXY_RELEASE).zip
 CDFA_BINARY=fte/cDFA.pyd
 endif
 
-# Cross-compile
+default: $(CDFA_BINARY)
+
+dist: do-dist
+
 dist-all: dist-windows-i386 dist-osx-i386 dist-linux-i386 dist-linux-x86_64
 
 dist-windows-i386:
