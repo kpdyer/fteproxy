@@ -49,6 +49,11 @@ fte_cDFA = Extension('fte.cDFA',
                      libraries=libraries,
                      sources=['fte/rank_unrank.cc', 'fte/cDFA.cc'])
 
+if sys.argv[1]=='py2exe':
+    ext_modules = []
+else:
+    ext_modules = [fte_cDFA]
+
 setup(name='fteproxy',
       console=['./bin/fteproxy'],
       zipfile="fteproxy.zip",
@@ -62,5 +67,5 @@ setup(name='fteproxy',
       author='Kevin P. Dyer',
       author_email='kpdyer@gmail.com',
       url='https://github.com/kpdyer/fteproxy',
-      ext_modules=[fte_cDFA],
+      ext_modules=ext_modules,
       )
