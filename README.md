@@ -42,11 +42,6 @@ make
 ./bin/fteproxy
 ```
 
-Cross-compile
--------------
-```gcc-mingw32```
-```python-dev```
-
 Documentation
 -------------
 

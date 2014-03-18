@@ -49,22 +49,18 @@ fte_cDFA = Extension('fte.cDFA',
                      libraries=libraries,
                      sources=['fte/rank_unrank.cc', 'fte/cDFA.cc'])
 
-if sys.argv[1]=='py2exe':
-    ext_modules = []
-else:
-    ext_modules = [fte_cDFA]
-
 setup(name='fteproxy',
       console=['./bin/fteproxy'],
       zipfile="fteproxy.zip",
       options={"py2exe": {
+             "optimize": 2,
              "includes": ["twisted", "pyptlib", "obfsproxy", "Crypto"],
                          }
       },
       version=FTEPROXY_RELEASE,
-      description='programmable proxy for censorship circumvention',
+      description='fteproxy',
       author='Kevin P. Dyer',
       author_email='kpdyer@gmail.com',
       url='https://github.com/kpdyer/fteproxy',
-      ext_modules=ext_modules,
+      ext_modules=[fte_cDFA],
       )
