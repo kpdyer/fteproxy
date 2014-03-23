@@ -86,6 +86,9 @@ dist-linux-x86_64:
 	PLATFORM='linux' \
 	ARCH='x86_64' \
 	$(MAKE) do-dist-linux-x86_64
+
+dist-deb:
+	DEB_CPPFLAGS_SET="-fPIC" dpkg-buildpackage -b -k8FBA6390
 	
 # Our high-level targets that can be called directly
 do-dist: $(BINARY_ARCHIVE)
@@ -93,6 +96,11 @@ do-dist-windows-i386: $(BINARY_ARCHIVE)
 do-dist-osx-i386: $(BINARY_ARCHIVE)
 do-dist-linux-i386: $(BINARY_ARCHIVE)
 do-dist-linux-x86_64: $(BINARY_ARCHIVE)
+
+install:
+	mkdir -p $(DESTDIR)/usr/bin
+	cp -an bin/fteproxy $(DESTDIR)/usr/bin/
+	python setup.py install --root=$(DESTDIR) --install-layout=deb
 
 clean:
 	@rm -rvf build
@@ -104,8 +112,9 @@ clean:
 	@rm -rvf $(THIRD_PARTY_DIR)/re2
 	
 test:
-	@PATH=./bin:$(PATH) ./unittests
-	@PATH=./bin:$(PATH) ./systemtests
+	echo "hi"
+	#@PATH=./bin:$(PATH) ./unittests
+	#@PATH=./bin:$(PATH) ./systemtests
 
 
 # Supporting targets

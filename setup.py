@@ -68,4 +68,6 @@ setup(name='fteproxy',
       author_email='kpdyer@gmail.com',
       url='https://github.com/kpdyer/fteproxy',
       ext_modules=ext_modules,
+      package_data={'fte':['VERSION']},
+      packages=['fte','fte.defs','fte.tests','fte.tests.dfas'],
       )
