@@ -88,7 +88,11 @@ dist-linux-x86_64:
 	$(MAKE) do-dist-linux-x86_64
 
 dist-deb:
-	DEB_CPPFLAGS_SET="-fPIC" dpkg-buildpackage -b -k8FBA6390
+	@rm -rfv debian/fteproxy
+	DEB_CPPFLAGS_SET="-fPIC" dpkg-buildpackage -b -us -uc #-k8FBA6390
+	mkdir -p dist
+	cp ../*deb dist/
+	cp ../*changes dist/
 	
 # Our high-level targets that can be called directly
 do-dist: $(BINARY_ARCHIVE)
@@ -110,11 +114,10 @@ clean:
 	@rm -vf */*.pyc
 	@rm -vf */*/*.pyc
 	@rm -rvf $(THIRD_PARTY_DIR)/re2
+	@rm -rvf debian/fteproxy
 	
 test:
-	echo "hi"
-	#@PATH=./bin:$(PATH) ./unittests
-	#@PATH=./bin:$(PATH) ./systemtests
+	@PATH=./bin:$(PATH) ./unittests
 
 
 # Supporting targets
