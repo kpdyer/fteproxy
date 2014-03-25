@@ -55,9 +55,7 @@ class worker(threading.Thread):
                 if not success:
                     break
                 if _data:
-                    totalsent = fte.network_io.sendall_to_socket(self._socket2, _data)
-                    if totalsent <= 0:
-                        break
+                    fte.network_io.sendall_to_socket(self._socket2, _data)
                 else:
                     time.sleep(throttle)
         finally:

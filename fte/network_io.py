@@ -2,22 +2,12 @@ import select
 import socket
 
 
-def sendall_to_socket(sock, msg):
+def sendall_to_socket(sock, data):
     """Given a socket ``sock`` and ``msg`` does a best effort to send
     ``msg`` on ``sock`` as quickly as possible.
     """
 
-    totalsent = 0
-    try:
-        while totalsent < len(msg):
-            sent = sock.send(msg[totalsent:])
-            if sent == 0:
-                break
-            totalsent = totalsent + sent
-    except socket.error:
-        totalsent = -1
-
-    return totalsent
+    return sock.sendall(data)
 
 
 def recvall_from_socket(sock,
@@ -69,14 +59,6 @@ def close_socket(sock, lock=None):
     to ``sock`` with ``lock``.
     """
 
-    try:
-        if lock is not None:
-            with lock:
-                sock.shutdown(socket.SHUT_RDWR)
-        else:
-            sock.shutdown(socket.SHUT_RDWR)
-    except:
-        pass
     try:
         if lock is not None:
             with lock:

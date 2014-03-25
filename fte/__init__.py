@@ -309,8 +309,7 @@ class _FTESocketWrapper(FTEHelper, object):
         return len(data)
 
     def sendall(self, data):
-        self.send(data)
-        return None
+        return self.send(data)
 
     def gettimeout(self):
         return self._socket.gettimeout()
