@@ -380,7 +380,7 @@ import twisted.internet
 
 class FTETransport(FTEHelper, obfsproxy.transports.base.BaseTransport):
 
-    def __init__(self, pt_config):
+    def __init__(self):
         self._isClient = (fte.conf.getValue('runtime.mode') == 'client')
         self._isServer = not self._isClient
         if self._isClient:
@@ -400,6 +400,8 @@ class FTETransport(FTEHelper, obfsproxy.transports.base.BaseTransport):
             self._incoming_regex = None
             self._incoming_fixed_slice = -1
 
+        self._encoder = None
+        self._decoder = None
         self._K1 = fte.conf.getValue('runtime.fte.encrypter.key')[0:16]
         self._K2 = fte.conf.getValue('runtime.fte.encrypter.key')[16:32]
         self._encrypter = fte.encrypter.Encrypter(K1=self._K1,
@@ -411,37 +413,39 @@ class FTETransport(FTEHelper, obfsproxy.transports.base.BaseTransport):
         self._preNegotiationBuffer_outgoing = ''
         self._preNegotiationBuffer_incoming = ''
 
-    def receivedDownstream(self, data, circuit):
+    def receivedDownstream(self, data):
         """decode fteproxy stream"""
 
         try:
             data = data.read()
             data = self._processRecv(data)
 
-            self._decoder.push(data)
+            if self._decoder:
+                self._decoder.push(data)
 
-            while True:
-                frag = self._decoder.pop()
-                if not frag:
-                    break
-                circuit.upstream.write(frag)
+                while True:
+                    frag = self._decoder.pop()
+                    if not frag:
+                        break
+                    self.circuit.upstream.write(frag)
 
         except ChannelNotReadyException:
             pass
 
-    def receivedUpstream(self, data, circuit):
+    def receivedUpstream(self, data):
         """encode fteproxy stream"""
         to_send = self._processSend()
         if to_send:
-            circuit.downstream.write(to_send)
+            self.circuit.downstream.write(to_send)
 
         data = data.read()
-        self._encoder.push(data)
-        while True:
-            to_send = self._encoder.pop()
-            if not to_send:
-                break
-            circuit.downstream.write(to_send)
+        if self._encoder:
+            self._encoder.push(data)
+            while True:
+                to_send = self._encoder.pop()
+                if not to_send:
+                    break
+                self.circuit.downstream.write(to_send)
 
 
 class FTETransportClient(FTETransport):
