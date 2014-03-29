@@ -20,7 +20,8 @@ OSX 10.6+
 Install homebrew: http://brew.sh/
 
 ```
-ruby -e "$(curl -fsSL https://raw.github.com/Homebrew/homebrew/go/install)"```
+ruby -e "$(curl -fsSL https://raw.github.com/Homebrew/homebrew/go/install)"
+```
 
 ```
 brew install --build-from-source python gmp git upx
