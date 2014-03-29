@@ -39,6 +39,10 @@ SERVER_PORT = 8080
 PROXY_PORT = 8081
 
 
+def executeCmd(cmd):
+    os.system(cmd)
+
+
 def main():
     """Start an fteproxy server.
     Iterate through the FTE formats available to fteproxy.
@@ -122,6 +126,7 @@ def doTest(language_name):
                 time.sleep(0.00001)
                 [is_alive, data] = fte.network_io.recvall_from_socket(conn)
                 actual_msg += data
+                assert expected_msg.startswith(actual_msg)
                 if (actual_msg == expected_msg):
                     break
                 if elapsed > TIMEOUT or not is_alive:
@@ -142,7 +147,7 @@ def start_client(language_name):
     """Start our fteproxy client, block until it's ready."""
 
 
-    os.system("./bin/fteproxy --quiet --mode client"
+    executeCmd("./bin/fteproxy --quiet --mode client"
               + " --upstream-format " + language_name + "-request"
               + " --downstream-format " + language_name + "-response"
               + " --client_ip " + BIND_IP
@@ -155,7 +160,7 @@ def start_client(language_name):
 def start_server():
     """Start our fteproxy server, block until it's ready."""
 
-    os.system("./bin/fteproxy --quiet --mode server"
+    executeCmd("./bin/fteproxy --quiet --mode server"
               + " --server_ip " + BIND_IP
               + " --server_port " + str(SERVER_PORT)
               + " --proxy_ip " + BIND_IP + "  --proxy_port " + str(PROXY_PORT) + " &")
@@ -166,7 +171,7 @@ def start_server():
 def stop_client():
     """Stop our fteproxy client."""
 
-    os.system("./bin/fteproxy --quiet --mode client --stop")
+    executeCmd("./bin/fteproxy --quiet --mode client --stop")
 
     time.sleep(1)
 
@@ -174,7 +179,7 @@ def stop_client():
 def stop_server():
     """Stop our fteproxy server."""
 
-    os.system("./bin/fteproxy --quiet --mode server --stop")
+    executeCmd("./bin/fteproxy --quiet --mode server --stop")
 
     time.sleep(1)
 

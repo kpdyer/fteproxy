@@ -288,8 +288,8 @@ class _FTESocketWrapper(FTEHelper, object):
                 if self._incoming_buffer:
                     break
 
-            retval = self._incoming_buffer[:bufsize]
-            self._incoming_buffer = self._incoming_buffer[bufsize:]
+            retval = self._incoming_buffer
+            self._incoming_buffer = ''
         except ChannelNotReadyException:
             raise socket.timeout
 

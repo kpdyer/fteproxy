@@ -118,6 +118,7 @@ clean:
 	
 test:
 	@PATH=./bin:$(PATH) ./unittests
+	@PATH=./bin:$(PATH) ./systemtests
 
 
 # Supporting targets

@@ -92,7 +92,7 @@ class listener(threading.Thread):
         self._sock.bind((self._local_ip, self._local_port))
         self._sock.listen(fte.conf.getValue('runtime.fte.relay.backlog'))
         self._sock.settimeout(
-            fte.conf.getValue('runtime.fte.relay.socket_timeout'))
+            fte.conf.getValue('runtime.fte.relay.accept_timeout'))
 
     def run(self):
         """Bind to ``local_ip:local_port`` and forward all connections to
