@@ -1,12 +1,17 @@
 fteproxy Build Instructions
 ===========================
 
-Ubuntu 10.04+
+Ubuntu/Debian
 -------------
 
+Install the following packages.
 ```
 sudo apt-get install python-dev libgmp-dev python-crypto python-twisted python-pip upx
 sudo pip install pyptlib obfsproxy
+```
+
+Then, clone and build fteproxy.
+```
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
 make
@@ -14,20 +19,38 @@ make test
 make dist
 ```
 
-OSX 10.6+
----------
+OSX
+---
 
-Install homebrew: http://brew.sh/
+Install homebrew [1], if you don't have it already.
 
 ```
 ruby -e "$(curl -fsSL https://raw.github.com/Homebrew/homebrew/go/install)"
 ```
 
+Install the following packages.
 ```
 brew install --build-from-source python gmp git upx
+pip install pyptlib obfsproxy
+```
+
+Then, clone and build fteproxy.
+```
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
 make
 make test
 make dist
 ```
+
+Windows
+-------
+
+We currently don't support native windows build.
+If you must build fteproxy on Windows, then see [2] for guidance.
+
+
+### References
+
+* [1] http://brew.sh/
+* [2] https://github.com/kpdyer/fteproxy-builder/blob/master/build/windows-i386/build_fteproxy.sh
