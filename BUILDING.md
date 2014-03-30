@@ -46,8 +46,7 @@ make dist
 Windows
 -------
 
-We currently don't support native windows build.
-If you must build fteproxy on Windows, then see [2] for guidance.
+If you must build fteproxy on Windows, please see [2] for guidance.
 
 
 ### References
