@@ -6,7 +6,7 @@ Ubuntu/Debian
 
 Install the following packages.
 ```
-sudo apt-get install python-dev libgmp-dev python-crypto python-twisted python-pip upx
+sudo apt-get install python-dev libgmp-dev python-crypto python-twisted python-pip upx git
 sudo pip install pyptlib obfsproxy
 ```
 
