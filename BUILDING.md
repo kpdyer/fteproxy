@@ -7,8 +7,10 @@ Ubuntu/Debian
 Install the following packages.
 ```
 sudo apt-get install python-dev libgmp-dev python-crypto python-twisted python-pip upx git
-sudo pip install pyptlib obfsproxy pyinstaller
+sudo pip install --upgrade pyptlib obfsproxy pyinstaller
 ```
+
+Note: If you are on Ubuntu 13.10, there is a bug with pyinstaller/pycrypto, such that binary packages do not build properly. Please install the latest development version of pyinstaller [3], instead of using pip. See [4] for more details.
 
 Then, clone and build fteproxy.
 ```
@@ -31,7 +33,7 @@ ruby -e "$(curl -fsSL https://raw.github.com/Homebrew/homebrew/go/install)"
 Install the following packages.
 ```
 brew install --build-from-source python gmp git upx
-pip install pyptlib obfsproxy pyinstaller
+pip install --upgrade pyptlib obfsproxy pyinstaller
 ```
 
 Then, clone and build fteproxy.
@@ -53,3 +55,5 @@ If you must build fteproxy on Windows, please see [2] for guidance.
 
 * [1] http://brew.sh/
 * [2] https://github.com/kpdyer/fteproxy-builder/blob/master/build/windows-i386/build_fteproxy.sh
+* [3] http://www.pyinstaller.org/
+* [4] https://github.com/kpdyer/fteproxy/issues/124

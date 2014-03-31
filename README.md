@@ -31,9 +31,9 @@ Dependencies for building from source:
 Building
 -----------
 
-For platform-specific examples of how to install dependencies see: https://github.com/kpdyer/fteproxy-builder
+For platform-specific examples of how to install dependencies see BUILDING.md.
 
-Once all dependencies are installed, it's as simple as:
+Once all dependencies are installed, building is as simple as:
 
 ```
 git clone https://github.com/kpdyer/fteproxy.git
