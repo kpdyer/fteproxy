@@ -7,7 +7,7 @@ Ubuntu/Debian
 Install the following packages.
 ```
 sudo apt-get install python-dev libgmp-dev python-crypto python-twisted python-pip upx git
-sudo pip install pyptlib obfsproxy pyinstaller
+sudo pip install --upgrade pyptlib obfsproxy pyinstaller
 ```
 
 Then, clone and build fteproxy.
@@ -31,7 +31,7 @@ ruby -e "$(curl -fsSL https://raw.github.com/Homebrew/homebrew/go/install)"
 Install the following packages.
 ```
 brew install --build-from-source python gmp git upx
-pip install pyptlib obfsproxy pyinstaller
+pip install --upgrade pyptlib obfsproxy pyinstaller
 ```
 
 Then, clone and build fteproxy.
