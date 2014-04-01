@@ -31,7 +31,7 @@ import fte.network_io
 BYTES_TO_SEND = 2 ** 18
 TRIALS = 2 ** 8
 BLOCK_SIZE = 2 ** 12
-TIMEOUT = 60
+TIMEOUT = 120
 
 BIND_IP = '127.0.0.1'
 CLIENT_PORT = 8079
