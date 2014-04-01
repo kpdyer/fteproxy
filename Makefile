@@ -117,8 +117,8 @@ clean:
 	@rm -rvf debian/fteproxy
 	
 test:
-	@PATH=./bin:$(PATH) ./unittests
-	@PATH=./bin:$(PATH) ./systemtests
+	@PATH=./bin:$(PATH) $(PYTHON) ./bin/fteproxy --mode test
+	@PATH=./bin:$(PATH) $(PYTHON) ./systemtests
 
 
 # Supporting targets
