@@ -26,16 +26,18 @@ class InvalidRegexName(Exception):
     pass
 
 _definitions = None
+
+
 def load_definitions():
     global _definitions
 
     if _definitions == None:
-       def_dir = os.path.join(fte.conf.getValue('general.defs_dir'))
-       def_file = fte.conf.getValue('fte.defs.release') + '.json'
-       def_abspath = os.path.join(def_dir, def_file)
+        def_dir = os.path.join(fte.conf.getValue('general.defs_dir'))
+        def_file = fte.conf.getValue('fte.defs.release') + '.json'
+        def_abspath = os.path.join(def_dir, def_file)
 
-       with open(def_abspath) as fh:
-           _definitions = json.load(fh)
+        with open(def_abspath) as fh:
+            _definitions = json.load(fh)
 
     return _definitions
 

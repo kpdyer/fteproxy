@@ -113,7 +113,7 @@ class listener(threading.Thread):
 
                 conn = self.onNewIncomingConnection(conn)
                 new_stream = self.onNewOutgoingConnection(new_stream)
-        
+
                 conn.settimeout(
                     fte.conf.getValue('runtime.fte.relay.socket_timeout'))
                 new_stream.settimeout(

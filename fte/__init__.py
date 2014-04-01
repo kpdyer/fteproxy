@@ -435,7 +435,7 @@ class FTETransport(FTEHelper, obfsproxy.transports.base.BaseTransport):
         except ChannelNotReadyException:
             pass
 
-    def receivedUpstream(self, data, circuit = None):
+    def receivedUpstream(self, data, circuit=None):
         """encode fteproxy stream"""
 
         circuit = self.circuit if circuit == None else circuit

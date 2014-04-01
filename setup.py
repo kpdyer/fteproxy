@@ -36,20 +36,20 @@ fte_cDFA = Extension('fte.cDFA',
                      include_dirs=['fte',
                                    'thirdparty/re2',
                                    'thirdparty/gmp/include',
-                                  ],
+                                   ],
                      library_dirs=['thirdparty/re2/obj',
                                    'thirdparty/gmp/lib',
-                                  ],
+                                   ],
                      extra_compile_args=['-O3',
-                                        '-fPIE',
-                                        ],
+                                         '-fPIE',
+                                         ],
                      extra_link_args=['thirdparty/re2/obj/libre2.a',
                                       '-Wl,-undefined,dynamic_lookup',
                                       ],
                      libraries=libraries,
                      sources=['fte/rank_unrank.cc', 'fte/cDFA.cc'])
 
-if sys.argv[1]=='py2exe':
+if sys.argv[1] == 'py2exe':
     ext_modules = []
 else:
     ext_modules = [fte_cDFA]
@@ -58,9 +58,9 @@ setup(name='fteproxy',
       console=['./bin/fteproxy'],
       zipfile="fteproxy.zip",
       options={"py2exe": {
-             "optimize": 2,
-             "includes": ["twisted", "pyptlib", "obfsproxy", "Crypto"],
-                         }
+          "optimize": 2,
+          "includes": ["twisted", "pyptlib", "obfsproxy", "Crypto"],
+      }
       },
       version=FTEPROXY_RELEASE,
       description='fteproxy',
@@ -68,9 +68,9 @@ setup(name='fteproxy',
       author_email='kpdyer@gmail.com',
       url='https://github.com/kpdyer/fteproxy',
       ext_modules=ext_modules,
-      package_data={'fte':['VERSION',
-                           'defs/*.json',
-                           'tests/dfas/*.dfa',
-                           'tests/dfas/*.regex']},
-      packages=['fte','fte.defs','fte.tests','fte.tests.dfas'],
+      package_data={'fte': ['VERSION',
+                            'defs/*.json',
+                            'tests/dfas/*.dfa',
+                            'tests/dfas/*.regex']},
+      packages=['fte', 'fte.defs', 'fte.tests', 'fte.tests.dfas'],
       )

@@ -20,6 +20,7 @@ import binascii
 
 import Crypto.Random
 
+
 def random_bytes(N):
     """Given an input integer ``N``, ``random_bytes`` returns a string of exactly ``N`` uniformly-random bytes.
     """
