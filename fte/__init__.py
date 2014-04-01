@@ -380,7 +380,8 @@ import twisted.internet
 
 class FTETransport(FTEHelper, obfsproxy.transports.base.BaseTransport):
 
-    def __init__(self):
+    def __init__(self, pt_config=None):
+        self.circuit = None
         self._isClient = (fte.conf.getValue('runtime.mode') == 'client')
         self._isServer = not self._isClient
         if self._isClient:
@@ -413,8 +414,10 @@ class FTETransport(FTEHelper, obfsproxy.transports.base.BaseTransport):
         self._preNegotiationBuffer_outgoing = ''
         self._preNegotiationBuffer_incoming = ''
 
-    def receivedDownstream(self, data):
+    def receivedDownstream(self, data, circuit=None):
         """decode fteproxy stream"""
+
+        circuit = self.circuit if circuit == None else circuit
 
         try:
             data = data.read()
@@ -427,16 +430,19 @@ class FTETransport(FTEHelper, obfsproxy.transports.base.BaseTransport):
                     frag = self._decoder.pop()
                     if not frag:
                         break
-                    self.circuit.upstream.write(frag)
+                    circuit.upstream.write(frag)
 
         except ChannelNotReadyException:
             pass
 
-    def receivedUpstream(self, data):
+    def receivedUpstream(self, data, circuit = None):
         """encode fteproxy stream"""
+
+        circuit = self.circuit if circuit == None else circuit
+
         to_send = self._processSend()
         if to_send:
-            self.circuit.downstream.write(to_send)
+            circuit.downstream.write(to_send)
 
         data = data.read()
         if self._encoder:
@@ -445,7 +451,7 @@ class FTETransport(FTEHelper, obfsproxy.transports.base.BaseTransport):
                 to_send = self._encoder.pop()
                 if not to_send:
                     break
-                self.circuit.downstream.write(to_send)
+                circuit.downstream.write(to_send)
 
 
 class FTETransportClient(FTETransport):
