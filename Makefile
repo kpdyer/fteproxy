@@ -117,7 +117,7 @@ clean:
 	@rm -rvf debian/fteproxy
 	
 test:
-	@PATH=./bin:$(PATH) $(PYTHON) ./bin/fteproxy --mode test
+	@PATH=./bin:$(PATH) $(PYTHON) ./bin/fteproxy --mode test --quiet
 	@PATH=./bin:$(PATH) $(PYTHON) ./systemtests
 
 
@@ -128,6 +128,7 @@ $(BINARY_ARCHIVE): $(CDFA_BINARY)
 ifeq ($(WINDOWS_BUILD),1)
 	$(PYTHON) setup.py py2exe
 	
+	cd dist && mv *.dll fteproxy-$(FTEPROXY_RELEASE)/
 	cd dist && mv *.exe fteproxy-$(FTEPROXY_RELEASE)/
 	cd dist && mv *.pyd fteproxy-$(FTEPROXY_RELEASE)/
 	cd dist && mv *.zip fteproxy-$(FTEPROXY_RELEASE)/
