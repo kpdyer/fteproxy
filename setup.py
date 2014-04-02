@@ -53,7 +53,8 @@ setup(name='fteproxy',
       console=['./bin/fteproxy'],
       zipfile="fteproxy.zip",
       options={"py2exe": {
-          "bundle_files": 2,
+          "bundle_files": 3,
+          "compressed": True,
       }
       },
       version=FTEPROXY_RELEASE,
