@@ -59,7 +59,7 @@ setup(name='fteproxy',
       zipfile="fteproxy.zip",
       options={"py2exe": {
           "optimize": 2,
-          "includes": ["fte.cDFA","twisted", "pyptlib", "obfsproxy", "Crypto"],
+          "includes": ["cDFA","twisted", "pyptlib", "obfsproxy", "Crypto"],
       }
       },
       version=FTEPROXY_RELEASE,
