@@ -45,6 +45,13 @@ make test
 make dist
 ```
 
+Note: if on OSX 10.9, you may experience a ```clang: warning: argument unused during compilation: '-mno-fused-madd'``` error. This can be resolved by setting the following evnironmental variables:
+
+```
+export CFLAGS=-Qunused-arguments
+export CPPFLAGS=-Qunused-arguments
+```
+
 Windows
 -------
 
