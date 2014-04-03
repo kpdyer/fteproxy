@@ -128,7 +128,6 @@ $(BINARY_ARCHIVE): $(CDFA_BINARY)
 ifeq ($(WINDOWS_BUILD),1)
 	$(PYTHON) setup.py py2exe
 	
-	cd dist && mv *.pyd fteproxy-$(FTEPROXY_RELEASE)/
 	cd dist && mv *.exe fteproxy-$(FTEPROXY_RELEASE)/
 	cd dist && mv *.zip fteproxy-$(FTEPROXY_RELEASE)/
 
