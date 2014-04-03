@@ -55,7 +55,7 @@ setup(name='fteproxy',
       options={"py2exe": {
           "bundle_files": 1,
           "compressed": False,
-          "exclude_dlls": ["w9xpopen.exe"],
+          "dll_excludes": ["w9xpopen.exe"],
       }
       },
       version=FTEPROXY_RELEASE,
