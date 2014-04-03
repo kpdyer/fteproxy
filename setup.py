@@ -56,6 +56,7 @@ setup(name='fteproxy',
           "bundle_files": 1,
           "compressed": False,
           "dll_excludes": ["w9xpopen.exe"],
+          "excludes": ['_ssl'],
       }
       },
       version=FTEPROXY_RELEASE,
