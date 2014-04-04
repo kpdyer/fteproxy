@@ -49,10 +49,15 @@ fte_cDFA = Extension('fte.cDFA',
                      libraries=libraries,
                      sources=['fte/rank_unrank.cc', 'fte/cDFA.cc'])
 
+data_files=[]
+if sys.argv[1] == 'py2exe':
+    data_files=[('.', ['libgmp-10.dll','msvcr90.dll'])]
+
+
 setup(name='fteproxy',
       console=['./bin/fteproxy'],
       zipfile="fteproxy.zip",
-      data_files=[('.', ['libgmp-10.dll','msvcr90.dll'])],
+      data_files=data_files,
       options={"py2exe": {
           "bundle_files": 1,
           "compressed": False,
