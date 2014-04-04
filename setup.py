@@ -50,7 +50,7 @@ fte_cDFA = Extension('fte.cDFA',
                      sources=['fte/rank_unrank.cc', 'fte/cDFA.cc'])
 
 data_files=[]
-if sys.argv[1] == 'py2exe':
+if os.name == 'nt':
     data_files=[('.', ['libgmp-10.dll','msvcr90.dll'])]
 
 
