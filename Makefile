@@ -131,7 +131,6 @@ ifeq ($(WINDOWS_BUILD),1)
 	cd dist && mv *.zip fteproxy-$(FTEPROXY_RELEASE)/
 	cd dist && mv *.exe fteproxy-$(FTEPROXY_RELEASE)/
 
-	cp *.dll dist/fteproxy-$(FTEPROXY_RELEASE)
 	cp README.md dist/fteproxy-$(FTEPROXY_RELEASE)
 	cp COPYING dist/fteproxy-$(FTEPROXY_RELEASE)
 
@@ -174,8 +173,8 @@ endif
 
 $(CDFA_BINARY): $(THIRD_PARTY_DIR)/re2/obj/libre2.a
 ifeq ($(WINDOWS_BUILD),1)
-	$(PYTHON) setup.py build_ext -c mingw32
 	$(PYTHON) setup.py build_ext --inplace -c mingw32
+	$(PYTHON) setup.py build_ext -c mingw32
 else
 	$(PYTHON) setup.py build_ext --inplace
 endif
