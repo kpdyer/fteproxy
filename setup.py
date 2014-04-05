@@ -49,9 +49,9 @@ fte_cDFA = Extension('fte.cDFA',
                      libraries=libraries,
                      sources=['fte/rank_unrank.cc', 'fte/cDFA.cc'])
 
-data_files=[]
+data_files = []
 if os.name == 'nt':
-    data_files=[('.', ['libgmp-10.dll','msvcr90.dll','python27.dll'])]
+    data_files = [('.', ['libgmp-10.dll', 'msvcr90.dll', 'python27.dll'])]
 
 
 setup(name='fteproxy',

@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
 
+import sys
 import socket
 import string
 
@@ -43,6 +44,17 @@ class NegotiateTimeoutException(Exception):
     """Raised when negotiation fails to complete after """ + str(fte.conf.getValue('runtime.fte.negotiate.timeout')) + """ seconds.
     """
     pass
+
+
+def fatal_error(msg):
+    if fte.conf.getValue('runtime.loglevel') <= 1:
+        print 'ERROR:', msg
+    sys.exit(1)
+
+
+def warn(msg):
+    if fte.conf.getValue('runtime.loglevel') <= 2:
+        print 'WARN:', msg
 
 
 class NegotiateCell(object):

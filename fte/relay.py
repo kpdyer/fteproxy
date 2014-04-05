@@ -23,7 +23,6 @@ import threading
 import fte.conf
 import fte.encoder
 import fte.network_io
-import fte.logger
 
 
 class worker(threading.Thread):
@@ -58,6 +57,8 @@ class worker(threading.Thread):
                     fte.network_io.sendall_to_socket(self._socket2, _data)
                 else:
                     time.sleep(throttle)
+        except Exception as e:
+            fte.warn("fte.worker terminated prematurely" + str(e))
         finally:
             fte.network_io.close_socket(self._socket1)
             fte.network_io.close_socket(self._socket2)
@@ -85,14 +86,16 @@ class listener(threading.Thread):
         self._remote_port = remote_port
 
     def _instantiateSocket(self):
-        self._sock_lock = threading.RLock()
-
-        self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._sock.bind((self._local_ip, self._local_port))
-        self._sock.listen(fte.conf.getValue('runtime.fte.relay.backlog'))
-        self._sock.settimeout(
-            fte.conf.getValue('runtime.fte.relay.accept_timeout'))
+        try:
+            self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self._sock.bind((self._local_ip, self._local_port))
+            self._sock.listen(fte.conf.getValue('runtime.fte.relay.backlog'))
+            self._sock.settimeout(
+                fte.conf.getValue('runtime.fte.relay.accept_timeout'))
+        except Exception as e:
+            fte.fatal_error('Failed to bind to ' +
+                            str((self._local_ip, self._local_port)) + ': ' + str(e))
 
     def run(self):
         """Bind to ``local_ip:local_port`` and forward all connections to
@@ -103,13 +106,10 @@ class listener(threading.Thread):
         self._running = True
         while self._running:
             try:
-                with self._sock_lock:
-                    conn, addr = self._sock.accept()
+                conn, addr = self._sock.accept()
 
                 new_stream = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 new_stream.connect((self._remote_ip, self._remote_port))
-                fte.logger.debug("New outgoing connection established: " +
-                                 str((self._remote_ip, self._remote_port)))
 
                 conn = self.onNewIncomingConnection(conn)
                 new_stream = self.onNewOutgoingConnection(new_stream)
@@ -125,16 +125,14 @@ class listener(threading.Thread):
                 w2.start()
             except socket.timeout:
                 continue
-            except socket.error:
-                fte.logger.error("socket.error received in fte.relay")
-                continue
+            except Exception as e:
+                fte.fatal_error('exception in fte.listener: ' + str(e))
 
     def stop(self):
         """Terminate the thread and stop listening on ``local_ip:local_port``.
         """
         self._running = False
-        fte.network_io.close_socket(self._sock,
-                                    lock=self._sock_lock)
+        fte.network_io.close_socket(self._sock)
 
     def onNewIncomingConnection(self, socket):
         """``onNewIncomingConnection`` returns the socket unmodified, by default we do not need to

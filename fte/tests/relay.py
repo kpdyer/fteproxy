@@ -34,6 +34,7 @@ LOCAL_INTERFACE = '127.0.0.1'
 class TestRelay(unittest.TestCase):
 
     def setUp(self):
+        time.sleep(1)
         self._server = fte.server.listener(LOCAL_INTERFACE,
                                            fte.conf.getValue(
                                                'runtime.server.port'),
@@ -97,8 +98,8 @@ class TestRelay(unittest.TestCase):
                     continue
                 except socket.error:
                     break
-        except:
-            print traceback.print_exc()
+        except Exception as e:
+            fte.fatal_error("failed to transmit data: " + str(e))
         finally:
             if proxy_socket:
                 fte.network_io.close_socket(proxy_socket)
