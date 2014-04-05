@@ -125,12 +125,15 @@ This is free software, and you are welcome to redistribute it under certain cond
                 sys.exit(1)
             fte.conf.setValue('runtime.fte.encrypter.key', binary_key)
 
-        pid_file = os.path.join(fte.conf.getValue('general.pid_dir'),
-                                '.' + fte.conf.getValue('runtime.mode')
-                                + '-' + str(os.getpid()) + '.pid')
+        try:
+            pid_file = os.path.join(fte.conf.getValue('general.pid_dir'),
+                                    '.' + fte.conf.getValue('runtime.mode')
+                                    + '-' + str(os.getpid()) + '.pid')
 
-        with open(pid_file, 'w') as f:
-            f.write(str(os.getpid()))
+            with open(pid_file, 'w') as f:
+                f.write(str(os.getpid()))
+        except IOError:
+            pass
 
         if fte.conf.getValue('runtime.mode') == 'client':
             incoming_regex = fte.defs.getRegex(self._args.downstream_format)
