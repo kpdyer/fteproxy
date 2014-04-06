@@ -53,7 +53,6 @@ setup(name='fteproxy',
       console=['./bin/fteproxy'],
       zipfile="fteproxy.zip",
       options={"py2exe": {
-          "includes": ["twisted", "obfsproxy", "pyptlib", "Crypto"],
           "dll_excludes": ["w9xpopen.exe"],
       }
       },

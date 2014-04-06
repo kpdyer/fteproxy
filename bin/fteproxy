@@ -36,6 +36,44 @@ import fte.conf
 import fte.server
 import fte.client
 
+# do_managed_client
+
+from twisted.internet import reactor, error
+
+import obfsproxy.common.transport_config as transport_config
+import obfsproxy.transports.transports as transports
+import obfsproxy.common.log as logging
+
+from pyptlib.client import ClientTransportPlugin
+from pyptlib.config import EnvError
+
+import pprint
+
+# do_managed_server
+
+from twisted.internet import reactor, error
+
+import obfsproxy.transports.transports as transports
+import obfsproxy.common.log as logging
+import obfsproxy.common.transport_config as transport_config
+
+from pyptlib.server import ServerTransportPlugin
+from pyptlib.config import EnvError
+
+import pprint
+
+# unit tests
+
+import unittest
+
+import fte.tests.encoder
+import fte.tests.encrypter
+import fte.tests.record_layer
+import fte.tests.bit_ops
+import fte.tests.relay
+import fte.tests.dfa
+import fte.tests.cDFA
+
 FTE_PT_NAME = 'fte'
 
 VERSION_FILE = os.path.join(
@@ -198,17 +236,6 @@ class FTEMain(threading.Thread):
 
 def do_managed_client():
 
-    from twisted.internet import reactor, error
-
-    import obfsproxy.common.transport_config as transport_config
-    import obfsproxy.transports.transports as transports
-    import obfsproxy.common.log as logging
-
-    from pyptlib.client import ClientTransportPlugin
-    from pyptlib.config import EnvError
-
-    import pprint
-
     log = logging.get_obfslogger()
 
     """Start the managed-proxy protocol as a client."""
@@ -258,16 +285,6 @@ def do_managed_client():
 
 
 def do_managed_server():
-    from twisted.internet import reactor, error
-
-    from pyptlib.server import ServerTransportPlugin
-    from pyptlib.config import EnvError
-
-    import obfsproxy.transports.transports as transports
-    import obfsproxy.common.log as logging
-    import obfsproxy.common.transport_config as transport_config
-
-    import pprint
 
     log = logging.get_obfslogger()
 
@@ -348,17 +365,7 @@ def do_managed_server():
 
 
 def test():
-    try:
-        import unittest
-    
-        import fte.tests.encoder
-        import fte.tests.encrypter
-        import fte.tests.record_layer
-        import fte.tests.bit_ops
-        import fte.tests.relay
-        import fte.tests.dfa
-        import fte.tests.cDFA
-    
+    try:    
         suite_encoder = unittest.TestLoader().loadTestsFromTestCase(
             fte.tests.encoder.TestEncoders)
         suite_encrypter = unittest.TestLoader().loadTestsFromTestCase(
