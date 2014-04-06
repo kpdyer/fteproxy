@@ -125,8 +125,9 @@ class listener(threading.Thread):
                 w2.start()
             except socket.timeout:
                 continue
-            except Exception as e:
-                fte.fatal_error('exception in fte.listener: ' + str(e))
+            except socket.error:
+                fte.warn('socket.error in fte.listener: ' + str(e))
+                continue
 
     def stop(self):
         """Terminate the thread and stop listening on ``local_ip:local_port``.
