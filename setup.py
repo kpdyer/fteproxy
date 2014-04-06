@@ -51,7 +51,7 @@ fte_cDFA = Extension('fte.cDFA',
 
 data_files = []
 if os.name == 'nt':
-    data_files = [('.', ['libgmp-10.dll', 'msvcr90.dll', 'python27.dll'])]
+    data_files = [('.', ['libgmp-10.dll', 'python27.dll'])]
 
 
 setup(name='fteproxy',
@@ -59,8 +59,8 @@ setup(name='fteproxy',
       zipfile="fteproxy.zip",
       data_files=data_files,
       options={"py2exe": {
-          "bundle_files": 3,
-          "compressed": False,
+          "bundle_files": 2,
+          "compressed": True,
           "dll_excludes": ["w9xpopen.exe"],
       }
       },
