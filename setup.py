@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
 
+from distutils import sysconfig
 from distutils.core import setup
 from distutils.core import Extension
 
@@ -53,6 +54,13 @@ data_files = []
 if os.name == 'nt':
     data_files = [('.', ['libgmp-10.dll', 'python27.dll'])]
 
+fte_module_path = os.path.join(sysconfig.get_python_lib(), 'fte')
+defs_module_path = os.path.join(sysconfig.get_python_lib(), 'fte', 'defs')
+dfas_module_path = os.path.join(sysconfig.get_python_lib(), 'fte', 'tests', 'dfas')
+data_files += [(fte_module_path, ['fte/VERSION'])]
+data_files += [(defs_module_path, glob.glob('fte/defs/*.json'))]
+data_files += [(dfas_module_path, glob.glob('fte/tests/dfas/*.dfa'))]
+data_files += [(dfas_module_path, glob.glob('fte/tests/dfas/*.regex'))]
 
 setup(name='fteproxy',
       console=['./bin/fteproxy'],
@@ -62,7 +70,7 @@ setup(name='fteproxy',
           "bundle_files": 2,
           "compressed": True,
           "dll_excludes": ["w9xpopen.exe"],
-      }
+        }
       },
       version=FTEPROXY_RELEASE,
       description='fteproxy',
