@@ -73,7 +73,7 @@ conf['general.pid_dir'] = tempfile.gettempdir()
 conf['runtime.mode'] = None
 
 
-"""Our loglevel = 0|1|2"""
+"""Our loglevel = 0|1|2|3"""
 conf['runtime.loglevel'] = 1
 
 
