@@ -47,7 +47,7 @@ class NegotiateTimeoutException(Exception):
 
 
 def fatal_error(msg):
-    if fte.conf.getValue('runtime.loglevel') >= 1; 
+    if fte.conf.getValue('runtime.loglevel') >= 1
         print 'ERROR:', msg
     sys.exit(1)
 
@@ -56,9 +56,11 @@ def warn(msg):
     if fte.conf.getValue('runtime.loglevel') >= 2:
         print 'WARN:', msg
 
+
 def info(msg):
     if fte.conf.getValue('runtime.loglevel') >= 3:
         print 'INFO:', msg
+
 
 class NegotiateCell(object):
     _CELL_SIZE = 64

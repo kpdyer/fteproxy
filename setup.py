@@ -56,7 +56,8 @@ if os.name == 'nt':
 
 fte_module_path = os.path.join(sysconfig.get_python_lib(), 'fte')
 defs_module_path = os.path.join(sysconfig.get_python_lib(), 'fte', 'defs')
-dfas_module_path = os.path.join(sysconfig.get_python_lib(), 'fte', 'tests', 'dfas')
+dfas_module_path = os.path.join(
+    sysconfig.get_python_lib(), 'fte', 'tests', 'dfas')
 data_files += [(fte_module_path, ['fte/VERSION'])]
 data_files += [(defs_module_path, glob.glob('fte/defs/*.json'))]
 data_files += [(dfas_module_path, glob.glob('fte/tests/dfas/*.dfa'))]
@@ -70,7 +71,7 @@ setup(name='fteproxy',
           "bundle_files": 2,
           "compressed": True,
           "dll_excludes": ["w9xpopen.exe"],
-        }
+      }
       },
       version=FTEPROXY_RELEASE,
       description='fteproxy',
