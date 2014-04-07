@@ -18,6 +18,7 @@
 
 import os
 import sys
+import tempfile
 
 
 def getValue(key):
@@ -65,7 +66,7 @@ else:
 
 
 """The location that we store *.pid files, such that we can kill fteproxy from the command line."""
-conf['general.pid_dir'] = conf['general.base_dir']
+conf['general.pid_dir'] = tempfile.gettempdir()
 
 
 """Our runtime mode: client|server|test"""
