@@ -99,6 +99,8 @@ class FTEMain(threading.Thread):
     
             if self._args.quiet:
                 fte.conf.setValue('runtime.loglevel', 0)
+            if self._args.managed:
+                fte.conf.setValue('runtime.loglevel', 0)
             if not self._args.quiet and not self._args.managed:
                 print """fteproxy Copyright (C) 2012-2014 Kevin P. Dyer <kdyer@cs.pdx.edu>
     This program comes with ABSOLUTELY NO WARRANTY.

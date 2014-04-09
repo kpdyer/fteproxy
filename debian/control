@@ -7,7 +7,7 @@ Standards-Version: 3.9.2
 Homepage: https://fteproxy.org/
 
 Package: fteproxy
-Architecture: i386 amd64
-Depends: python, libgmp-dev | libgmp32-dev | libgmp10, python-crypto, python-twisted, obfsproxy, python-pyptlib
+Architecture: any
+Depends: python, libgmp-dev, python-crypto, python-twisted, obfsproxy, python-pyptlib
 Description: programmable proxy for censorship circumvention
     fteproxy provides transport-layer protection to resist keyword filtering, censorship and discrimantory routing policies. Its job is to relay datastreams, such as web browsing traffic, by encoding the stream into messages that satisfy a user-specified regular expression.

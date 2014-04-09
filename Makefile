@@ -82,7 +82,7 @@ dist-linux-x86_64:
 
 dist-deb:
 	@rm -rfv debian/fteproxy
-	DEB_CPPFLAGS_SET="-fPIC" dpkg-buildpackage -b -us -uc #-k8FBA6390
+	DEB_CPPFLAGS_SET="-fPIC" dpkg-buildpackage -B -us -uc #-k8FBA6390
 	mkdir -p dist
 	cp ../*deb dist/
 	cp ../*changes dist/
