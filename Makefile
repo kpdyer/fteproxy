@@ -27,14 +27,10 @@ endif
 ARCH=$(shell arch)
 endif
 
-VERSION=$(shell cat fte/VERSION)
+VERSION=$(shell cat fteproxy/VERSION)
 FTEPROXY_RELEASE=$(VERSION)-$(PLATFORM)-$(ARCH)
 THIRD_PARTY_DIR=thirdparty
-RE2_VERSION=20140111
-RE2_VERSION_WIN32=20110930
-RE2_DIR=$(THIRD_PARTY_DIR)/re2
 BINARY_ARCHIVE=dist/fteproxy-$(FTEPROXY_RELEASE).tar.gz
-CDFA_BINARY=fte/cDFA.so
 
 ifeq ($(PYTHON),)
 PYTHON="python"
@@ -42,10 +38,7 @@ endif
 
 ifeq ($(WINDOWS_BUILD),1)
 BINARY_ARCHIVE=dist/fteproxy-$(FTEPROXY_RELEASE).zip
-CDFA_BINARY=fte/cDFA.pyd
 endif
-
-default: $(CDFA_BINARY)
 
 dist: do-dist
 
