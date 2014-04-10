@@ -58,8 +58,8 @@ class worker(threading.Thread):
                     fteproxy.network_io.sendall_to_socket(self._socket2, _data)
                 else:
                     time.sleep(throttle)
-        except Exception as e:
-            fteproxy.warn("fteproxy.worker terminated prematurely" + str(e))
+        #except Exception as e:
+        #    fteproxy.warn("fteproxy.worker terminated prematurely: " + str(e))
         finally:
             fteproxy.network_io.close_socket(self._socket1)
             fteproxy.network_io.close_socket(self._socket2)

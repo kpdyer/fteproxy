@@ -128,30 +128,22 @@ ifeq ($(WINDOWS_BUILD),1)
 	cp README.md dist/fteproxy-$(FTEPROXY_RELEASE)
 	cp COPYING dist/fteproxy-$(FTEPROXY_RELEASE)
 
-	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)/fte
-	cp fte/VERSION dist/fteproxy-$(FTEPROXY_RELEASE)/fte
-	cp -rfv fteproxy/defs dist/fteproxy-$(FTEPROXY_RELEASE)/fte
-	cp -rfv fteproxy/tests dist/fteproxy-$(FTEPROXY_RELEASE)/fte
+	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)/fteproxy
+	cp fteproxy/VERSION dist/fteproxy-$(FTEPROXY_RELEASE)/fteproxy
+	cp -rfv fteproxy/defs dist/fteproxy-$(FTEPROXY_RELEASE)/fteproxy
+	cp -rfv fteproxy/tests dist/fteproxy-$(FTEPROXY_RELEASE)/fteproxy
 
 	cd dist && zip -9 -r fteproxy-$(FTEPROXY_RELEASE).zip fteproxy-$(FTEPROXY_RELEASE)
 	cd dist && rm -rf fteproxy-$(FTEPROXY_RELEASE)
 else
 	pyinstaller fteproxy.spec
-	cd dist && mv fteproxy fteproxy-$(FTEPROXY_RELEASE)/fteproxy
+	cd dist && mv fteproxy fteproxy-$(FTEPROXY_RELEASE)/fteproxy.bin
 
-	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)/fte/tests/dfas
-	cp fte/tests/dfas/*.dfa dist/fteproxy-$(FTEPROXY_RELEASE)/fte/tests/dfas
-	cp fte/tests/dfas/*.regex dist/fteproxy-$(FTEPROXY_RELEASE)/fte/tests/dfas
-
-	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)/fte
-	cp fte/VERSION dist/fteproxy-$(FTEPROXY_RELEASE)/fte
+	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)/fteproxy
+	cp fteproxy/VERSION dist/fteproxy-$(FTEPROXY_RELEASE)/fteproxy
 
 	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)/fteproxy/defs
 	cp fteproxy/defs/*.json dist/fteproxy-$(FTEPROXY_RELEASE)/fteproxy/defs/
-
-	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)/fte/tests/dfas
-	cp fte/tests/dfas/*.dfa dist/fteproxy-$(FTEPROXY_RELEASE)/fte/tests/dfas
-	cp fte/tests/dfas/*.regex dist/fteproxy-$(FTEPROXY_RELEASE)/fte/tests/dfas
 
 	cp README.md dist/fteproxy-$(FTEPROXY_RELEASE)
 	cp COPYING dist/fteproxy-$(FTEPROXY_RELEASE)

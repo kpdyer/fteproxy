@@ -30,13 +30,9 @@ with open('fteproxy/VERSION') as fh:
 
 fte_module_path = os.path.join(sysconfig.get_python_lib(), 'fteproxy')
 defs_module_path = os.path.join(sysconfig.get_python_lib(), 'fteproxy', 'defs')
-dfas_module_path = os.path.join(
-    sysconfig.get_python_lib(), 'fteproxy', 'tests', 'dfas')
 data_files  = []
 data_files += [(fte_module_path, ['fteproxy/VERSION'])]
 data_files += [(defs_module_path, glob.glob('fteproxy/defs/*.json'))]
-data_files += [(dfas_module_path, glob.glob('fteproxy/tests/dfas/*.dfa'))]
-data_files += [(dfas_module_path, glob.glob('fteproxy/tests/dfas/*.regex'))]
 
 setup(name='fteproxy',
       console=['./bin/fteproxy'],
