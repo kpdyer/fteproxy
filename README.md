@@ -20,7 +20,7 @@ Dependencies
 
 Dependencies for building from source:
 * Python 2.7.x: http://python.org/
-* fte: https://pypi.python.org/pypi/fte
+* fte 0.0.x: https://pypi.python.org/pypi/fte
 * PyCrypto 2.6.x: https://www.dlitz.net/software/pycrypto/
 * pyptlib 0.0.5: https://gitweb.torproject.org/pluggable-transports/pyptlib.git
 * obfsproxy 0.2.4: https://gitweb.torproject.org/pluggable-transports/obfsproxy.git
