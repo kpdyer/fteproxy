@@ -3,7 +3,7 @@ fteproxy
 
 * homepage: https://fteproxy.org
 * source code: https://github.com/kpdyer/fteproxy
-* publication: https://eprint.iacr.org/2012/494
+* publication: https://kpdyer.com/publications/ccs2013-fte.pdf
 
 Overview
 --------
@@ -13,18 +13,18 @@ Its job is to relay datastreams, such as web browsing traffic, by encoding the s
 
 fteproxy is powered by Format-Transforming Encryption [1] and was presented at CCS 2013.
 
-[1] https://eprint.iacr.org/2012/494
+[1] [Protocol Misidentification Made Easy with Format-Transforming Encryption ](https://kpdyer.com/publications/ccs2013-fte.pdf), Kevin P. Dyer, Scott E. Coull, Thomas Ristenpart and Thomas Shrimpton
 
 Dependencies
 --------
 
 Dependencies for building from source:
-* Python 2.7.x: http://python.org/
+* Python 2.7.x: https://python.org/
 * fte 0.0.x: https://pypi.python.org/pypi/fte
 * PyCrypto 2.6.x: https://www.dlitz.net/software/pycrypto/
 * pyptlib 0.0.5: https://gitweb.torproject.org/pluggable-transports/pyptlib.git
 * obfsproxy 0.2.4: https://gitweb.torproject.org/pluggable-transports/obfsproxy.git
-* Twisted 13.2.x: http://twistedmatrix.com/
+* Twisted 13.2.x: https://twistedmatrix.com/
 
 Building
 -----------
