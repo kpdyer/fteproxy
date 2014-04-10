@@ -23,9 +23,9 @@ import socket
 import string
 import random
 
-import fte.conf
-import fte.defs
-import fte.network_io
+import fteproxy.conf
+import fteproxy.defs
+import fteproxy.network_io
 
 
 BYTES_TO_SEND = 2 ** 18
@@ -50,15 +50,15 @@ def main():
     Verify the data successfully traversed the client and server, upon success output performance statistics.
     """
 
-    def_dir = os.path.join(fte.conf.getValue('general.defs_dir'))
-    def_file = fte.conf.getValue('fte.defs.release') + '.json'
+    def_dir = os.path.join(fteproxy.conf.getValue('general.defs_dir'))
+    def_file = fteproxy.conf.getValue('fteproxy.defs.release') + '.json'
     def_abspath = os.path.normpath(os.path.join(def_dir, def_file))
 
     print 'Testing formats in', def_abspath
 
     start_server()
 
-    languages = fte.defs.load_definitions().keys()
+    languages = fteproxy.defs.load_definitions().keys()
     for language in languages:
         if language.endswith('request'):
             language_name = language[:-8]
@@ -66,8 +66,8 @@ def main():
             throughput = ((1.0 * bytesSent / elapsed) / (2 ** 20)) * \
                 (2 ** 3)
             throughput = round(throughput, 2)
-            upstream_regex = fte.defs.getRegex(language_name + '-request')
-            downstream_regex = fte.defs.getRegex(language_name + '-response')
+            upstream_regex = fteproxy.defs.getRegex(language_name + '-request')
+            downstream_regex = fteproxy.defs.getRegex(language_name + '-response')
 
             print ' + SUCCESS, format_name="' + language_name + '"'
             print '    - client-server regex: "' + upstream_regex + '"'
@@ -124,7 +124,7 @@ def doTest(language_name):
                     break
             while True:
                 time.sleep(0.00001)
-                [is_alive, data] = fte.network_io.recvall_from_socket(conn)
+                [is_alive, data] = fteproxy.network_io.recvall_from_socket(conn)
                 actual_msg += data
                 assert expected_msg.startswith(actual_msg)
                 if (actual_msg == expected_msg):
@@ -134,9 +134,9 @@ def doTest(language_name):
                         "!!!!!!!!!!! System tests failed to execute properly")
         elapsed = time.time() - startTimer
 
-        fte.network_io.close_socket(conn)
-        fte.network_io.close_socket(new_stream)
-        fte.network_io.close_socket(sock)
+        fteproxy.network_io.close_socket(conn)
+        fteproxy.network_io.close_socket(new_stream)
+        fteproxy.network_io.close_socket(sock)
     finally:
         stop_client()
 

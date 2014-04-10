@@ -16,29 +16,29 @@
 # You should have received a copy of the GNU General Public License
 # along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
 
-import fte.relay
+import fteproxy.relay
 
 
-class listener(fte.relay.listener):
+class listener(fteproxy.relay.listener):
 
     def onNewOutgoingConnection(self, socket):
-        """On an outgoing data stream we wrap it with ``fte.wrap_socket``, with
+        """On an outgoing data stream we wrap it with ``fteproxy.wrap_socket``, with
         the languages specified in the ``runtime.state.upstream_language`` and
         ``runtime.state.downstream_language`` configuration parameters.
         """
 
-        outgoing_language = fte.conf.getValue(
+        outgoing_language = fteproxy.conf.getValue(
             'runtime.state.upstream_language')
-        incoming_language = fte.conf.getValue(
+        incoming_language = fteproxy.conf.getValue(
             'runtime.state.downstream_language')
 
-        outgoing_regex = fte.defs.getRegex(outgoing_language)
-        outgoing_fixed_slice = fte.defs.getFixedSlice(outgoing_language)
+        outgoing_regex = fteproxy.defs.getRegex(outgoing_language)
+        outgoing_fixed_slice = fteproxy.defs.getFixedSlice(outgoing_language)
 
-        incoming_regex = fte.defs.getRegex(incoming_language)
-        incoming_fixed_slice = fte.defs.getFixedSlice(incoming_language)
+        incoming_regex = fteproxy.defs.getRegex(incoming_language)
+        incoming_fixed_slice = fteproxy.defs.getFixedSlice(incoming_language)
 
-        socket = fte.wrap_socket(socket,
+        socket = fteproxy.wrap_socket(socket,
                                  outgoing_regex, outgoing_fixed_slice,
                                  incoming_regex, incoming_fixed_slice)
 

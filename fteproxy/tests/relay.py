@@ -23,10 +23,10 @@ import random
 import unittest
 import traceback
 
-import fte.network_io
-import fte.relay
-import fte.client
-import fte.server
+import fteproxy.network_io
+import fteproxy.relay
+import fteproxy.client
+import fteproxy.server
 
 LOCAL_INTERFACE = '127.0.0.1'
 
@@ -35,16 +35,16 @@ class TestRelay(unittest.TestCase):
 
     def setUp(self):
         time.sleep(1)
-        self._server = fte.server.listener(LOCAL_INTERFACE,
-                                           fte.conf.getValue(
+        self._server = fteproxy.server.listener(LOCAL_INTERFACE,
+                                           fteproxy.conf.getValue(
                                                'runtime.server.port'),
                                            LOCAL_INTERFACE,
-                                           fte.conf.getValue('runtime.proxy.port'))
-        self._client = fte.client.listener(LOCAL_INTERFACE,
-                                           fte.conf.getValue(
+                                           fteproxy.conf.getValue('runtime.proxy.port'))
+        self._client = fteproxy.client.listener(LOCAL_INTERFACE,
+                                           fteproxy.conf.getValue(
                                                'runtime.client.port'),
                                            LOCAL_INTERFACE,
-                                           fte.conf.getValue('runtime.server.port'))
+                                           fteproxy.conf.getValue('runtime.server.port'))
 
         self._server.start()
         self._client.start()
@@ -74,16 +74,16 @@ class TestRelay(unittest.TestCase):
             proxy_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             proxy_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             proxy_socket.bind(
-                (LOCAL_INTERFACE, fte.conf.getValue('runtime.proxy.port')))
-            proxy_socket.listen(fte.conf.getValue('runtime.fte.relay.backlog'))
+                (LOCAL_INTERFACE, fteproxy.conf.getValue('runtime.proxy.port')))
+            proxy_socket.listen(fteproxy.conf.getValue('runtime.fteproxy.relay.backlog'))
 
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client_socket.connect((LOCAL_INTERFACE,
-                                   fte.conf.getValue('runtime.client.port')))
+                                   fteproxy.conf.getValue('runtime.client.port')))
 
             server_conn, addr = proxy_socket.accept()
             server_conn.settimeout(
-                fte.conf.getValue('runtime.fte.relay.socket_timeout'))
+                fteproxy.conf.getValue('runtime.fteproxy.relay.socket_timeout'))
 
             client_socket.sendall(expected_msg)
             while True:
@@ -99,14 +99,14 @@ class TestRelay(unittest.TestCase):
                 except socket.error:
                     break
         except Exception as e:
-            fte.fatal_error("failed to transmit data: " + str(e))
+            fteproxy.fatal_error("failed to transmit data: " + str(e))
         finally:
             if proxy_socket:
-                fte.network_io.close_socket(proxy_socket)
+                fteproxy.network_io.close_socket(proxy_socket)
             if server_conn:
-                fte.network_io.close_socket(server_conn)
+                fteproxy.network_io.close_socket(server_conn)
             if client_socket:
-                fte.network_io.close_socket(client_socket)
+                fteproxy.network_io.close_socket(client_socket)
 
             self.assertEquals(expected_msg, actual_msg)
 

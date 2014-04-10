@@ -18,10 +18,10 @@
 
 import unittest
 
+import fteproxy.record_layer
+
 import fte.encoder
 import fte.encrypter
-import fte.record_layer
-
 
 START = 0
 ITERATIONS = 2048
@@ -33,18 +33,18 @@ class TestEncoders(unittest.TestCase):
     @classmethod
     def setUpClass(self):
         encrypter = fte.encrypter.Encrypter()
-        fte.conf.setValue('runtime.mode', 'client')
+        fteproxy.conf.setValue('runtime.mode', 'client')
         self.record_layers_info = []
         self.record_layers_outgoing = []
         self.record_layers_incoming = []
-        definitions = fte.defs.load_definitions()
+        definitions = fteproxy.defs.load_definitions()
         for language in definitions.keys():
-            regex = fte.defs.getRegex(language)
-            fixed_slice = fte.defs.getFixedSlice(language)
+            regex = fteproxy.defs.getRegex(language)
+            fixed_slice = fteproxy.defs.getFixedSlice(language)
             regex_encoder = fte.encoder.RegexEncoder(regex, fixed_slice)
-            encoder = fte.record_layer.Encoder(
+            encoder = fteproxy.record_layer.Encoder(
                 encrypter=encrypter, encoder=regex_encoder)
-            decoder = fte.record_layer.Decoder(
+            decoder = fteproxy.record_layer.Decoder(
                 decrypter=encrypter, decoder=regex_encoder)
             self.record_layers_info.append(language)
             self.record_layers_outgoing.append(encoder)

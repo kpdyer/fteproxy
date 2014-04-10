@@ -31,10 +31,11 @@ else:
     sys.path.append(
         os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-import fte
-import fte.conf
-import fte.server
-import fte.client
+import fte.encoder
+
+import fteproxy.conf
+import fteproxy.server
+import fteproxy.client
 
 # do_managed_client
 
@@ -66,18 +67,13 @@ import pprint
 
 import unittest
 
-import fte.tests.encoder
-import fte.tests.encrypter
-import fte.tests.record_layer
-import fte.tests.bit_ops
-import fte.tests.relay
-import fte.tests.dfa
-import fte.tests.cDFA
+import fteproxy.tests.record_layer
+import fteproxy.tests.relay
 
 FTE_PT_NAME = 'fte'
 
 VERSION_FILE = os.path.join(
-    fte.conf.getValue('general.base_dir'), 'fte', 'VERSION')
+    fteproxy.conf.getValue('general.base_dir'), 'fteproxy', 'VERSION')
 with open(VERSION_FILE) as fh:
     FTEPROXY_VERSION = fh.read().strip()
 
@@ -98,9 +94,9 @@ class FTEMain(threading.Thread):
                 sys.exit(0)
     
             if self._args.quiet:
-                fte.conf.setValue('runtime.loglevel', 0)
+                fteproxy.conf.setValue('runtime.loglevel', 0)
             if self._args.managed:
-                fte.conf.setValue('runtime.loglevel', 0)
+                fteproxy.conf.setValue('runtime.loglevel', 0)
             if not self._args.quiet and not self._args.managed:
                 print """fteproxy Copyright (C) 2012-2014 Kevin P. Dyer <kdyer@cs.pdx.edu>
     This program comes with ABSOLUTELY NO WARRANTY.
@@ -115,7 +111,7 @@ class FTEMain(threading.Thread):
                     sys.exit(1)
                 if self._args.mode in ['client', 'server']:
                     pid_files_path = \
-                        os.path.join(fte.conf.getValue('general.pid_dir'),
+                        os.path.join(fteproxy.conf.getValue('general.pid_dir'),
                                      '.' + self._args.mode + '-*.pid')
                     pid_files = glob.glob(pid_files_path)
                     for pid_file in pid_files:
@@ -124,66 +120,66 @@ class FTEMain(threading.Thread):
                             try:
                                 os.kill(pid, signal.SIGINT)
                             except OSError:
-                                fte.warn('failed to remove PID file: '+pid_file)
+                                fteproxy.warn('failed to remove PID file: '+pid_file)
                             os.unlink(pid_file)
                     sys.exit(0)
             if self._args.mode == 'client':
-                fte.conf.setValue('runtime.mode', 'client')
+                fteproxy.conf.setValue('runtime.mode', 'client')
             elif self._args.mode == 'server':
-                fte.conf.setValue('runtime.mode', 'server')
+                fteproxy.conf.setValue('runtime.mode', 'server')
             else:
-                fte.conf.setValue('runtime.mode', 'client')
+                fteproxy.conf.setValue('runtime.mode', 'client')
             if self._args.client_ip:
-                fte.conf.setValue('runtime.client.ip', self._args.client_ip)
+                fteproxy.conf.setValue('runtime.client.ip', self._args.client_ip)
             if self._args.client_port:
-                fte.conf.setValue('runtime.client.port',
+                fteproxy.conf.setValue('runtime.client.port',
                                   int(self._args.client_port))
             if self._args.server_ip:
-                fte.conf.setValue('runtime.server.ip', self._args.server_ip)
+                fteproxy.conf.setValue('runtime.server.ip', self._args.server_ip)
             if self._args.server_port:
-                fte.conf.setValue('runtime.server.port',
+                fteproxy.conf.setValue('runtime.server.port',
                                   int(self._args.server_port))
             if self._args.proxy_ip:
-                fte.conf.setValue('runtime.proxy.ip', self._args.proxy_ip)
+                fteproxy.conf.setValue('runtime.proxy.ip', self._args.proxy_ip)
             if self._args.proxy_port:
-                fte.conf.setValue('runtime.proxy.port',
+                fteproxy.conf.setValue('runtime.proxy.port',
                                   int(self._args.proxy_port))
             if self._args.downstream_format:
-                fte.conf.setValue('runtime.state.downstream_language',
+                fteproxy.conf.setValue('runtime.state.downstream_language',
                                   self._args.downstream_format)
             if self._args.upstream_format:
-                fte.conf.setValue('runtime.state.upstream_language',
+                fteproxy.conf.setValue('runtime.state.upstream_language',
                                   self._args.upstream_format)
             if self._args.release:
-                fte.conf.setValue('fte.defs.release', self._args.release)
+                fteproxy.conf.setValue('fteproxy.defs.release', self._args.release)
             if self._args.key:
                 if len(self._args.key) != 64:
-                    fte.warn('Invalid key length: ' + str(len(self._args.key)) + ', should be 64')
+                    fteproxy.warn('Invalid key length: ' + str(len(self._args.key)) + ', should be 64')
                     sys.exit(1)
                 try:
                     binary_key = self._args.key.decode('hex')
                 except:
-                    fte.warn('Invalid key format, must contain only 0-9a-fA-F')
+                    fteproxy.warn('Invalid key format, must contain only 0-9a-fA-F')
                     sys.exit(1)
-                fte.conf.setValue('runtime.fte.encrypter.key', binary_key)
+                fteproxy.conf.setValue('runtime.fteproxy.encrypter.key', binary_key)
     
             try:
-                pid_file = os.path.join(fte.conf.getValue('general.pid_dir'),
-                                        '.' + fte.conf.getValue('runtime.mode')
+                pid_file = os.path.join(fteproxy.conf.getValue('general.pid_dir'),
+                                        '.' + fteproxy.conf.getValue('runtime.mode')
                                         + '-' + str(os.getpid()) + '.pid')
     
                 with open(pid_file, 'w') as f:
                     f.write(str(os.getpid()))
             except IOError:
-                fte.warn('Failed to write PID file to disk: '+pid_file)
+                fteproxy.warn('Failed to write PID file to disk: '+pid_file)
     
-            if fte.conf.getValue('runtime.mode') == 'client':
-                incoming_regex = fte.defs.getRegex(self._args.downstream_format)
-                incoming_fixed_slice = fte.defs.getFixedSlice(
+            if fteproxy.conf.getValue('runtime.mode') == 'client':
+                incoming_regex = fteproxy.defs.getRegex(self._args.downstream_format)
+                incoming_fixed_slice = fteproxy.defs.getFixedSlice(
                     self._args.downstream_format)
                 fte.encoder.RegexEncoder(incoming_regex, incoming_fixed_slice)
-                outgoing_regex = fte.defs.getRegex(self._args.upstream_format)
-                outgoing_fixed_slice = fte.defs.getFixedSlice(
+                outgoing_regex = fteproxy.defs.getRegex(self._args.upstream_format)
+                outgoing_fixed_slice = fteproxy.defs.getFixedSlice(
                     self._args.upstream_format)
                 fte.encoder.RegexEncoder(outgoing_regex, outgoing_fixed_slice)
     
@@ -194,31 +190,31 @@ class FTEMain(threading.Thread):
                     if not self._args.quiet:
                         print 'Client ready!'
     
-                    local_ip = fte.conf.getValue('runtime.client.ip')
-                    local_port = fte.conf.getValue('runtime.client.port')
-                    remote_ip = fte.conf.getValue('runtime.server.ip')
-                    remote_port = fte.conf.getValue('runtime.server.port')
-                    self._client = fte.client.listener(local_ip, local_port,
+                    local_ip = fteproxy.conf.getValue('runtime.client.ip')
+                    local_port = fteproxy.conf.getValue('runtime.client.port')
+                    remote_ip = fteproxy.conf.getValue('runtime.server.ip')
+                    remote_port = fteproxy.conf.getValue('runtime.server.port')
+                    self._client = fteproxy.client.listener(local_ip, local_port,
                                                        remote_ip, remote_port)
                     self._client.daemon = True
                     self._client.start()
                     self._client.join()
-            elif fte.conf.getValue('runtime.mode') == 'server':
+            elif fteproxy.conf.getValue('runtime.mode') == 'server':
     
-                languages = fte.defs.load_definitions()
+                languages = fteproxy.defs.load_definitions()
                 for language in languages.keys():
-                    regex = fte.defs.getRegex(language)
-                    fixed_slice = fte.defs.getFixedSlice(language)
+                    regex = fteproxy.defs.getRegex(language)
+                    fixed_slice = fteproxy.defs.getFixedSlice(language)
                     fte.encoder.RegexEncoder(regex, fixed_slice)
     
                 if self._args.managed:
                     do_managed_server()
                 else:
-                    local_ip = fte.conf.getValue('runtime.server.ip')
-                    local_port = fte.conf.getValue('runtime.server.port')
-                    remote_ip = fte.conf.getValue('runtime.proxy.ip')
-                    remote_port = fte.conf.getValue('runtime.proxy.port')
-                    self._server = fte.server.listener(local_ip, local_port,
+                    local_ip = fteproxy.conf.getValue('runtime.server.ip')
+                    local_port = fteproxy.conf.getValue('runtime.server.port')
+                    remote_ip = fteproxy.conf.getValue('runtime.proxy.ip')
+                    remote_port = fteproxy.conf.getValue('runtime.proxy.port')
+                    self._server = fteproxy.server.listener(local_ip, local_port,
                                                        remote_ip, remote_port)
                     self._server.daemon = True
                     self._server.start()
@@ -227,7 +223,9 @@ class FTEMain(threading.Thread):
                     self._server.join()
                     
         except Exception as e:
-            fte.fatal_error("FTEMain terminated unexpectedly: "+str(e))
+            import traceback
+            traceback.print_exc(e)
+            fteproxy.fatal_error("FTEMain terminated unexpectedly: "+str(e))
 
     def stop(self):
         if self._client is not None:
@@ -261,7 +259,7 @@ def do_managed_client():
         pt_config.setStateLocation(ptclient.config.getStateLocation())
 
         try:
-            addrport = fte.launch_transport_listener(
+            addrport = fteproxy.launch_transport_listener(
                 transport, None, 'socks', None, pt_config)
         except transports.TransportNotFound:
             log.warning("Could not find transport '%s'" % transport)
@@ -321,14 +319,14 @@ def do_managed_server():
 
         try:
             if ext_orport:
-                addrport = fte.launch_transport_listener(transport,
+                addrport = fteproxy.launch_transport_listener(transport,
                                                          transport_bindaddr,
                                                          'ext_server',
                                                          ext_orport,
                                                          pt_config,
                                                          ext_or_cookie_file=authcookie)
             else:
-                addrport = fte.launch_transport_listener(transport,
+                addrport = fteproxy.launch_transport_listener(transport,
                                                          transport_bindaddr,
                                                          'server',
                                                          orport,
@@ -368,34 +366,19 @@ def do_managed_server():
 
 def test():
     try:    
-        suite_encoder = unittest.TestLoader().loadTestsFromTestCase(
-            fte.tests.encoder.TestEncoders)
-        suite_encrypter = unittest.TestLoader().loadTestsFromTestCase(
-            fte.tests.encrypter.TestEncoders)
         suite_record_layer = unittest.TestLoader().loadTestsFromTestCase(
-            fte.tests.record_layer.TestEncoders)
+            fteproxy.tests.record_layer.TestEncoders)
         suite_relay = unittest.TestLoader().loadTestsFromTestCase(
-            fte.tests.relay.TestRelay)
-        suite_bit_ops = unittest.TestLoader().loadTestsFromTestCase(
-            fte.tests.bit_ops.TestEncoders)
-        suite_dfa = unittest.TestLoader().loadTestsFromTestCase(
-            fte.tests.dfa.TestDFA)
-        suite_cdfa = unittest.TestLoader().loadTestsFromTestCase(
-            fte.tests.cDFA.TestcDFA)
+            fteproxy.tests.relay.TestRelay)
         suites = [
-            suite_bit_ops,
-            suite_encoder,
-            suite_encrypter,
             suite_relay,
             suite_record_layer,
-            suite_dfa,
-            suite_cdfa,
         ]
         alltests = unittest.TestSuite(suites)
         unittest.TextTestRunner(verbosity=2).run(alltests)
         sys.exit(0)
     except Exception as e:
-        fte.warn("Unit tests failed: "+str(e))
+        fteproxy.warn("Unit tests failed: "+str(e))
 
 
 def get_args():
@@ -411,48 +394,48 @@ def get_args():
                         help='Shutdown daemon process')
     parser.add_argument('--upstream-format',
                         help='Client-to-server language format',
-                        default=fte.conf.getValue('runtime.state.upstream_language'
+                        default=fteproxy.conf.getValue('runtime.state.upstream_language'
                                                   ))
     parser.add_argument('--downstream-format',
                         help='Server-to-client language format',
-                        default=fte.conf.getValue('runtime.state.downstream_language'
+                        default=fteproxy.conf.getValue('runtime.state.downstream_language'
                                                   ))
     parser.add_argument('--client_ip',
                         help='Client-side listening IP',
-                        default=fte.conf.getValue('runtime.client.ip'
+                        default=fteproxy.conf.getValue('runtime.client.ip'
                                                   ))
     parser.add_argument('--client_port',
                         help='Client-side listening port',
-                        default=fte.conf.getValue('runtime.client.port'
+                        default=fteproxy.conf.getValue('runtime.client.port'
                                                   ))
     parser.add_argument('--server_ip',
                         help='Server-side listening IP',
-                        default=fte.conf.getValue('runtime.server.ip'
+                        default=fteproxy.conf.getValue('runtime.server.ip'
                                                   ))
     parser.add_argument('--server_port',
                         help='Server-side listening port',
-                        default=fte.conf.getValue('runtime.server.port'
+                        default=fteproxy.conf.getValue('runtime.server.port'
                                                   ))
     parser.add_argument('--proxy_ip',
                         help='Forwarding-proxy (SOCKS) listening IP',
-                        default=fte.conf.getValue('runtime.proxy.ip'
+                        default=fteproxy.conf.getValue('runtime.proxy.ip'
                                                   ))
     parser.add_argument('--proxy_port',
                         help='Forwarding-proxy (SOCKS) listening port',
-                        default=fte.conf.getValue('runtime.proxy.port'
+                        default=fteproxy.conf.getValue('runtime.proxy.port'
                                                   ))
     parser.add_argument('--quiet', action='store_true', default=False,
                         help='Be completely silent. Print nothing.')
     parser.add_argument('--release',
                         help='Definitions file to use, specified as YYYYMMDD',
-                        default=fte.conf.getValue('fte.defs.release'))
+                        default=fteproxy.conf.getValue('fteproxy.defs.release'))
     parser.add_argument('--managed',
                         help="Start in pluggable transport managed mode, for use with Tor.",
                         action='store_true',
                         default=False)
     parser.add_argument('--key',
                         help='Cryptographic key, hex, must be exactly 64 characters',
-                        default=fte.conf.getValue('runtime.fte.encrypter.key'
+                        default=fteproxy.conf.getValue('runtime.fteproxy.encrypter.key'
                                                   ))
     args = parser.parse_args(sys.argv[1:])
 
@@ -476,12 +459,12 @@ def main():
     except KeyboardInterrupt:
         pass
     except Exception as e:
-        fte.fatal_error("Main thread terminated unexpectedly: "+str(e))
+        fteproxy.fatal_error("Main thread terminated unexpectedly: "+str(e))
     finally:
-        if fte.conf.getValue('runtime.mode'):
-            pid_file = os.path.join(fte.conf.getValue('general.pid_dir'
+        if fteproxy.conf.getValue('runtime.mode'):
+            pid_file = os.path.join(fteproxy.conf.getValue('general.pid_dir'
                                                       ), '.'
-                                    + fte.conf.getValue('runtime.mode')
+                                    + fteproxy.conf.getValue('runtime.mode')
                                     + '-' + str(os.getpid()) + '.pid')
             if pid_file and os.path.exists(pid_file):
                 os.unlink(pid_file)

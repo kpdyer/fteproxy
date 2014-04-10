@@ -24,30 +24,8 @@ import os
 if os.name == 'nt':
     import py2exe
 
-with open('fte/VERSION') as fh:
+with open('fteproxy/VERSION') as fh:
     FTEPROXY_RELEASE = fh.read().strip()
-
-if os.name == 'nt':
-    libraries = ['gmp.dll', 'gmpxx.dll']
-else:
-    libraries = ['gmp', 'gmpxx']
-
-fte_cDFA = Extension('fte.cDFA',
-                     include_dirs=['fte',
-                                   'thirdparty/re2',
-                                   'thirdparty/gmp/include',
-                                   ],
-                     library_dirs=['thirdparty/re2/obj',
-                                   'thirdparty/gmp/lib',
-                                   ],
-                     extra_compile_args=['-O3',
-                                         '-fPIE',
-                                         ],
-                     extra_link_args=['thirdparty/re2/obj/libre2.a',
-                                      '-Wl,-undefined,dynamic_lookup',
-                                      ],
-                     libraries=libraries,
-                     sources=['fte/rank_unrank.cc', 'fte/cDFA.cc'])
 
 setup(name='fteproxy',
       console=['./bin/fteproxy'],
@@ -61,6 +39,5 @@ setup(name='fteproxy',
       author='Kevin P. Dyer',
       author_email='kpdyer@gmail.com',
       url='https://github.com/kpdyer/fteproxy',
-      ext_modules=[fte_cDFA],
-      packages=['fte', 'fte.defs', 'fte.tests', 'fte.tests.dfas'],
+      packages=['fteproxy', 'fteproxy.defs', 'fteproxy.tests'],
       )

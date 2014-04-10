@@ -17,10 +17,10 @@
 # along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
 
 
-import fte.conf
+import fteproxy.conf
 
 
-MAX_CELL_SIZE = fte.conf.getValue('runtime.fte.record_layer.max_cell_size')
+MAX_CELL_SIZE = fteproxy.conf.getValue('runtime.fteproxy.record_layer.max_cell_size')
 
 
 class Encoder:
@@ -41,7 +41,7 @@ class Encoder:
 
     def pop(self):
         """Pop data off the FIFO buffer. We pop at most
-        ``runtime.fte.record_layer.max_cell_size``
+        ``runtime.fteproxy.record_layer.max_cell_size``
         bytes. The returned value is encrypted with ``encrypter`` then encoded
         with ``encoder`` specified in ``__init__``.
         """

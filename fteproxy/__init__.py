@@ -19,12 +19,14 @@
 import sys
 import socket
 import string
+import traceback
 
-import fte.conf
-import fte.defs
+import fteproxy.conf
+import fteproxy.defs
+import fteproxy.record_layer
+
 import fte.encoder
 import fte.encrypter
-import fte.record_layer
 
 
 class InvalidRoleException(Exception):
@@ -41,24 +43,25 @@ class ChannelNotReadyException(Exception):
 
 class NegotiateTimeoutException(Exception):
 
-    """Raised when negotiation fails to complete after """ + str(fte.conf.getValue('runtime.fte.negotiate.timeout')) + """ seconds.
+    """Raised when negotiation fails to complete after """ + str(fteproxy.conf.getValue('runtime.fteproxy.negotiate.timeout')) + """ seconds.
     """
     pass
 
 
 def fatal_error(msg):
-    if fte.conf.getValue('runtime.loglevel') in [1,2,3]:
+    if fteproxy.conf.getValue('runtime.loglevel') in [1,2,3]:
         print 'ERROR:', msg
+        traceback.print_stack()
     sys.exit(1)
 
 
 def warn(msg):
-    if fte.conf.getValue('runtime.loglevel') in [2,3]:
+    if fteproxy.conf.getValue('runtime.loglevel') in [2,3]:
         print 'WARN:', msg
 
 
 def info(msg):
-    if fte.conf.getValue('runtime.loglevel') <= [3]:
+    if fteproxy.conf.getValue('runtime.loglevel') <= [3]:
         print 'INFO:', msg
 
 
@@ -119,19 +122,19 @@ class NegotiationManager(object):
 
     def _acceptNegotiation(self, encrypter, data):
 
-        languages = fte.defs.load_definitions()
+        languages = fteproxy.defs.load_definitions()
         for incoming_language in languages.keys():
             try:
                 if incoming_language.endswith('response'):
                     continue
 
-                incoming_regex = fte.defs.getRegex(incoming_language)
-                incoming_fixed_slice = fte.defs.getFixedSlice(
+                incoming_regex = fteproxy.defs.getRegex(incoming_language)
+                incoming_fixed_slice = fteproxy.defs.getFixedSlice(
                     incoming_language)
 
                 incoming_decoder = fte.encoder.RegexEncoder(incoming_regex,
                                                             incoming_fixed_slice)
-                decoder = fte.record_layer.Decoder(decrypter=encrypter,
+                decoder = fteproxy.record_layer.Decoder(decrypter=encrypter,
                                                    decoder=incoming_decoder)
 
                 decoder.push(data)
@@ -154,22 +157,22 @@ class NegotiationManager(object):
         if outgoing_regex != None and outgoing_fixed_slice != -1:
             outgoing_encoder = fte.encoder.RegexEncoder(outgoing_regex,
                                                         outgoing_fixed_slice)
-            encoder = fte.record_layer.Encoder(encrypter=encrypter,
+            encoder = fteproxy.record_layer.Encoder(encrypter=encrypter,
                                                encoder=outgoing_encoder)
 
         if incoming_regex != None and incoming_fixed_slice != -1:
             incoming_decoder = fte.encoder.RegexEncoder(incoming_regex,
                                                         incoming_fixed_slice)
-            decoder = fte.record_layer.Decoder(decrypter=encrypter,
+            decoder = fteproxy.record_layer.Decoder(decrypter=encrypter,
                                                decoder=incoming_decoder)
 
         return [encoder, decoder]
 
     def _makeNegotiationCell(self, encoder):
         negotiate_cell = NegotiateCell()
-        def_file = fte.conf.getValue('fte.defs.release')
+        def_file = fteproxy.conf.getValue('fteproxy.defs.release')
         negotiate_cell.setDefFile(def_file)
-        language = fte.conf.getValue('runtime.state.upstream_language')
+        language = fteproxy.conf.getValue('runtime.state.upstream_language')
         language = language[:-len('-request')]
         negotiate_cell.setLanguage(language)
         encoder.push(negotiate_cell.toString())
@@ -192,10 +195,10 @@ class NegotiationManager(object):
         outgoing_language = negotiate.getLanguage() + '-response'
         incoming_language = negotiate.getLanguage() + '-request'
 
-        outgoing_regex = fte.defs.getRegex(outgoing_language)
-        outgoing_fixed_slice = fte.defs.getFixedSlice(outgoing_language)
-        incoming_regex = fte.defs.getRegex(incoming_language)
-        incoming_fixed_slice = fte.defs.getFixedSlice(incoming_language)
+        outgoing_regex = fteproxy.defs.getRegex(outgoing_language)
+        outgoing_fixed_slice = fteproxy.defs.getFixedSlice(outgoing_language)
+        incoming_regex = fteproxy.defs.getRegex(incoming_language)
+        incoming_fixed_slice = fteproxy.defs.getFixedSlice(incoming_language)
 
         [encoder, decoder] = self._init_encoders(
             encrypter, outgoing_regex, outgoing_fixed_slice, incoming_regex, incoming_fixed_slice)
@@ -363,7 +366,7 @@ def wrap_socket(sock,
                 outgoing_regex=None, outgoing_fixed_slice=-1,
                 incoming_regex=None, incoming_fixed_slice=-1,
                 K1=None, K2=None):
-    """``fte.wrap_socket`` turns an existing socket into an fteproxy socket.
+    """``fteproxy.wrap_socket`` turns an existing socket into an fteproxy socket.
 
     The input parameter ``sock`` is the socket to wrap.
     The parameter ``outgoing_regex`` specifies the format of the messages
@@ -399,18 +402,18 @@ class FTETransport(FTEHelper, obfsproxy.transports.base.BaseTransport):
 
     def __init__(self, pt_config=None):
         self.circuit = None
-        self._isClient = (fte.conf.getValue('runtime.mode') == 'client')
+        self._isClient = (fteproxy.conf.getValue('runtime.mode') == 'client')
         self._isServer = not self._isClient
         if self._isClient:
-            outgoing_language = fte.conf.getValue(
+            outgoing_language = fteproxy.conf.getValue(
                 'runtime.state.upstream_language')
-            incoming_language = fte.conf.getValue(
+            incoming_language = fteproxy.conf.getValue(
                 'runtime.state.downstream_language')
-            self._outgoing_regex = fte.defs.getRegex(outgoing_language)
-            self._outgoing_fixed_slice = fte.defs.getFixedSlice(
+            self._outgoing_regex = fteproxy.defs.getRegex(outgoing_language)
+            self._outgoing_fixed_slice = fteproxy.defs.getFixedSlice(
                 outgoing_language)
-            self._incoming_regex = fte.defs.getRegex(incoming_language)
-            self._incoming_fixed_slice = fte.defs.getFixedSlice(
+            self._incoming_regex = fteproxy.defs.getRegex(incoming_language)
+            self._incoming_fixed_slice = fteproxy.defs.getFixedSlice(
                 incoming_language)
         else:
             self._outgoing_regex = None
@@ -420,8 +423,8 @@ class FTETransport(FTEHelper, obfsproxy.transports.base.BaseTransport):
 
         self._encoder = None
         self._decoder = None
-        self._K1 = fte.conf.getValue('runtime.fte.encrypter.key')[0:16]
-        self._K2 = fte.conf.getValue('runtime.fte.encrypter.key')[16:32]
+        self._K1 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[0:16]
+        self._K2 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[16:32]
         self._encrypter = fte.encrypter.Encrypter(K1=self._K1,
                                                   K2=self._K2)
 

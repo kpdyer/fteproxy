@@ -1,6 +1,6 @@
 # FTE-Powered echo client program
 import socket
-import fte
+import fteproxy
 
 client_server_regex = '^(0|1)+$'
 server_client_regex = '^(A|B)+$'
@@ -8,7 +8,7 @@ server_client_regex = '^(A|B)+$'
 HOST = '127.0.0.1'    # The remote host
 PORT = 50007              # The same port as used by the server
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s = fte.wrap_socket(s,
+s = fteproxy.wrap_socket(s,
                     outgoing_regex=client_server_regex,
                     outgoing_fixed_slice=256,
                     incoming_regex=server_client_regex,

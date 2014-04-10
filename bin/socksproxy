@@ -23,7 +23,7 @@ import argparse
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')))
 
-import fte.server
+import fteproxy.server
 
 
 def main():
@@ -33,7 +33,7 @@ def main():
     parser.add_argument('--port', required=True)
     args = parser.parse_args(sys.argv[1:])
 
-    proxy = fte.server.SocksProxyV4(str(args.ip), int(args.port))
+    proxy = fteproxy.server.SocksProxyV4(str(args.ip), int(args.port))
     try:
         proxy.start()
         proxy.join()

@@ -130,8 +130,8 @@ ifeq ($(WINDOWS_BUILD),1)
 
 	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)/fte
 	cp fte/VERSION dist/fteproxy-$(FTEPROXY_RELEASE)/fte
-	cp -rfv fte/defs dist/fteproxy-$(FTEPROXY_RELEASE)/fte
-	cp -rfv fte/tests dist/fteproxy-$(FTEPROXY_RELEASE)/fte
+	cp -rfv fteproxy/defs dist/fteproxy-$(FTEPROXY_RELEASE)/fte
+	cp -rfv fteproxy/tests dist/fteproxy-$(FTEPROXY_RELEASE)/fte
 
 	cd dist && zip -9 -r fteproxy-$(FTEPROXY_RELEASE).zip fteproxy-$(FTEPROXY_RELEASE)
 	cd dist && rm -rf fteproxy-$(FTEPROXY_RELEASE)
@@ -146,8 +146,8 @@ else
 	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)/fte
 	cp fte/VERSION dist/fteproxy-$(FTEPROXY_RELEASE)/fte
 
-	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)/fte/defs
-	cp fte/defs/*.json dist/fteproxy-$(FTEPROXY_RELEASE)/fte/defs/
+	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)/fteproxy/defs
+	cp fteproxy/defs/*.json dist/fteproxy-$(FTEPROXY_RELEASE)/fteproxy/defs/
 
 	mkdir -p dist/fteproxy-$(FTEPROXY_RELEASE)/fte/tests/dfas
 	cp fte/tests/dfas/*.dfa dist/fteproxy-$(FTEPROXY_RELEASE)/fte/tests/dfas

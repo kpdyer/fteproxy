@@ -44,7 +44,7 @@ def module_path():
 conf = {}
 
 
-"""The base path for the location of the fte.* modules."""
+"""The base path for the location of the fteproxy.* modules."""
 if we_are_frozen():
     conf['general.base_dir'] = module_path()
 else:
@@ -60,9 +60,9 @@ else:
 
 """The path for fte *.json definition files."""
 if we_are_frozen():
-    conf['general.defs_dir'] = os.path.join(module_path(), 'fte', 'defs')
+    conf['general.defs_dir'] = os.path.join(module_path(), 'fteproxy', 'defs')
 else:
-    conf['general.defs_dir'] = os.path.join(module_path(), '..', 'fte', 'defs')
+    conf['general.defs_dir'] = os.path.join(module_path(), '..', 'fteproxy', 'defs')
 
 
 """The location that we store *.pid files, such that we can kill fteproxy from the command line."""
@@ -74,11 +74,11 @@ conf['runtime.mode'] = None
 
 
 """Our loglevel = 0|1|2|3"""
-conf['runtime.loglevel'] = 0
+conf['runtime.loglevel'] = 1
 
 
 """The maximum number of queued connections for sockets"""
-conf['runtime.fte.relay.backlog'] = 100
+conf['runtime.fteproxy.relay.backlog'] = 100
 
 
 """Our client-side ip:port to listen for incoming connections"""
@@ -97,23 +97,23 @@ conf['runtime.proxy.port'] = 8081
 
 
 """The default socket timeout."""
-conf['runtime.fte.relay.socket_timeout'] = 30
+conf['runtime.fteproxy.relay.socket_timeout'] = 30
 
 
 """The default socket accept timeout."""
-conf['runtime.fte.relay.accept_timeout'] = 0.1
+conf['runtime.fteproxy.relay.accept_timeout'] = 0.1
 
 
 """The default penalty after polling for network data, and not recieving anything."""
-conf['runtime.fte.relay.throttle'] = 0.01
+conf['runtime.fteproxy.relay.throttle'] = 0.01
 
 
 """The default timeout when establishing a new fteproxy socket."""
-conf['runtime.fte.negotiate.timeout'] = 5
+conf['runtime.fteproxy.negotiate.timeout'] = 5
 
 
 """The maximum number of bytes to segment for an outgoing message."""
-conf['runtime.fte.record_layer.max_cell_size'] = 2 ** 17
+conf['runtime.fteproxy.record_layer.max_cell_size'] = 2 ** 17
 
 
 """The default client-to-server language."""
@@ -125,12 +125,12 @@ conf['runtime.state.downstream_language'] = 'manual-http-response'
 
 
 """The default AE scheme key."""
-conf['runtime.fte.encrypter.key'] = 'FF' * 16 + '00' * 16
+conf['runtime.fteproxy.encrypter.key'] = 'FF' * 16 + '00' * 16
 
 
 """The default fixed_slice parameter to use for buildTable."""
-conf['fte.default_fixed_slice'] = 2 ** 8
+conf['fteproxy.default_fixed_slice'] = 2 ** 8
 
 
 """The default definitions file to use."""
-conf['fte.defs.release'] = '20131224'
+conf['fteproxy.defs.release'] = '20131224'

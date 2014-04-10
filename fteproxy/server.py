@@ -22,18 +22,18 @@ import twisted.protocols.socks
 
 SOCKS_LOG = "socks.log"
 
-import fte.conf
-import fte.relay
+import fteproxy.conf
+import fteproxy.relay
 
 
-class listener(fte.relay.listener):
+class listener(fteproxy.relay.listener):
 
     def onNewIncomingConnection(self, socket):
-        """On an incoming data stream we wrap it with ``fte.wrap_socket``, with no parameters.
+        """On an incoming data stream we wrap it with ``fteproxy.wrap_socket``, with no parameters.
         By default we want the regular expressions to be negotiated in-band, specified by the client.
         """
 
-        socket = fte.wrap_socket(socket)
+        socket = fteproxy.wrap_socket(socket)
 
         return socket
 

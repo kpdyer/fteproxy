@@ -20,14 +20,15 @@ import time
 import socket
 import threading
 
-import fte.conf
 import fte.encoder
-import fte.network_io
+
+import fteproxy.conf
+import fteproxy.network_io
 
 
 class worker(threading.Thread):
 
-    """``fte.relay.worker`` is responsible for relaying data between two sockets. Given ``socket1`` and
+    """``fteproxy.relay.worker`` is responsible for relaying data between two sockets. Given ``socket1`` and
     ``socket2``, the worker will forward all data
     from ``socket1`` to ``socket2``, and ``socket2`` to ``socket1``. This class is a subclass of
     threading.Thread and does not start relaying until start() is called. The run
@@ -42,31 +43,31 @@ class worker(threading.Thread):
     def run(self):
         """It's the responsibility of run to forward data from ``socket1`` to
         ``socket2`` and from ``socket2`` to ``socket1``. The ``run()`` method
-        terminates and closes both sockets if ``fte.network_io.recvall_from_socket``
+        terminates and closes both sockets if ``fteproxy.network_io.recvall_from_socket``
         returns a negative result for ``success``.
         """
 
         try:
-            throttle = fte.conf.getValue('runtime.fte.relay.throttle')
+            throttle = fteproxy.conf.getValue('runtime.fteproxy.relay.throttle')
             while True:
-                [success, _data] = fte.network_io.recvall_from_socket(
+                [success, _data] = fteproxy.network_io.recvall_from_socket(
                     self._socket1)
                 if not success:
                     break
                 if _data:
-                    fte.network_io.sendall_to_socket(self._socket2, _data)
+                    fteproxy.network_io.sendall_to_socket(self._socket2, _data)
                 else:
                     time.sleep(throttle)
         except Exception as e:
-            fte.warn("fte.worker terminated prematurely" + str(e))
+            fteproxy.warn("fteproxy.worker terminated prematurely" + str(e))
         finally:
-            fte.network_io.close_socket(self._socket1)
-            fte.network_io.close_socket(self._socket2)
+            fteproxy.network_io.close_socket(self._socket1)
+            fteproxy.network_io.close_socket(self._socket2)
 
 
 class listener(threading.Thread):
 
-    """It's the responsibility of ``fte.relay.listener`` to bind to
+    """It's the responsibility of ``fteproxy.relay.listener`` to bind to
     ``local_ip:local_port``. Once bound it will then relay all incoming connections
     to ``remote_ip:remote_port``.
     All new incoming connections are wrapped with ``onNewIncomingConnection``.
@@ -90,11 +91,11 @@ class listener(threading.Thread):
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._sock.bind((self._local_ip, self._local_port))
-            self._sock.listen(fte.conf.getValue('runtime.fte.relay.backlog'))
+            self._sock.listen(fteproxy.conf.getValue('runtime.fteproxy.relay.backlog'))
             self._sock.settimeout(
-                fte.conf.getValue('runtime.fte.relay.accept_timeout'))
+                fteproxy.conf.getValue('runtime.fteproxy.relay.accept_timeout'))
         except Exception as e:
-            fte.fatal_error('Failed to bind to ' +
+            fteproxy.fatal_error('Failed to bind to ' +
                             str((self._local_ip, self._local_port)) + ': ' + str(e))
 
     def run(self):
@@ -115,9 +116,9 @@ class listener(threading.Thread):
                 new_stream = self.onNewOutgoingConnection(new_stream)
 
                 conn.settimeout(
-                    fte.conf.getValue('runtime.fte.relay.socket_timeout'))
+                    fteproxy.conf.getValue('runtime.fteproxy.relay.socket_timeout'))
                 new_stream.settimeout(
-                    fte.conf.getValue('runtime.fte.relay.socket_timeout'))
+                    fteproxy.conf.getValue('runtime.fteproxy.relay.socket_timeout'))
 
                 w1 = worker(conn, new_stream)
                 w2 = worker(new_stream, conn)
@@ -128,14 +129,14 @@ class listener(threading.Thread):
             except socket.error as e:
                 continue
             except Exception as e:
-                fte.warn('exception in fte.listener: ' + str(e))
+                fteproxy.warn('exception in fteproxy.listener: ' + str(e))
                 break
 
     def stop(self):
         """Terminate the thread and stop listening on ``local_ip:local_port``.
         """
         self._running = False
-        fte.network_io.close_socket(self._sock)
+        fteproxy.network_io.close_socket(self._sock)
 
     def onNewIncomingConnection(self, socket):
         """``onNewIncomingConnection`` returns the socket unmodified, by default we do not need to
