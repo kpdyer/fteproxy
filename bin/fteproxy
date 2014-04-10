@@ -37,7 +37,7 @@ import fteproxy.conf
 import fteproxy.server
 import fteproxy.client
 
-# do_managed_client
+# do_managed_*
 
 from twisted.internet import reactor, error
 
@@ -46,18 +46,6 @@ import obfsproxy.transports.transports as transports
 import obfsproxy.common.log as logging
 
 from pyptlib.client import ClientTransportPlugin
-from pyptlib.config import EnvError
-
-import pprint
-
-# do_managed_server
-
-from twisted.internet import reactor, error
-
-import obfsproxy.transports.transports as transports
-import obfsproxy.common.log as logging
-import obfsproxy.common.transport_config as transport_config
-
 from pyptlib.server import ServerTransportPlugin
 from pyptlib.config import EnvError
 
