@@ -19,11 +19,8 @@ Dependencies
 --------
 
 Dependencies for building from source:
-* Standard build tools: gcc/g++/make/etc.
 * Python 2.7.x: http://python.org/
-* GMP 5.1.x: http://gmplib.org/
 * fte: https://pypi.python.org/pypi/fte
-* re2: https://code.google.com/p/re2/ (included in thirdparty folder)
 * PyCrypto 2.6.x: https://www.dlitz.net/software/pycrypto/
 * pyptlib 0.0.5: https://gitweb.torproject.org/pluggable-transports/pyptlib.git
 * obfsproxy 0.2.4: https://gitweb.torproject.org/pluggable-transports/obfsproxy.git
