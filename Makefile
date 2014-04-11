@@ -157,37 +157,9 @@ else
 endif
 
 
-$(CDFA_BINARY): $(THIRD_PARTY_DIR)/re2/obj/libre2.a
+$(CDFA_BINARY):
 ifeq ($(WINDOWS_BUILD),1)
 	$(PYTHON) setup.py build_ext --inplace -c mingw32
-	$(PYTHON) setup.py build_ext -c mingw32
 else
 	$(PYTHON) setup.py build_ext --inplace
 endif
-
-
-$(THIRD_PARTY_DIR)/re2/obj/libre2.a: $(RE2_DIR)
-	cd $(RE2_DIR) && $(MAKE) obj/libre2.a
-
-
-$(RE2_DIR):
-ifeq ($(WINDOWS_BUILD),1)
-	cd $(THIRD_PARTY_DIR) && unzip re2-$(RE2_VERSION_WIN32)-src-win32.zip
-	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-core.patch
-
-ifeq ($(CROSS_COMPILE),1)
-	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-crosscompile.patch
-else
-	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-mingw.patch
-endif
-
-else
-	cd $(THIRD_PARTY_DIR) && tar zxvf re2-$(RE2_VERSION)-src-linux.tgz
-	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -i re2-core.patch
-	cd $(THIRD_PARTY_DIR) && patch --verbose -p0 -R -i re2-nix.patch
-endif
-
-
-doc: phantom
-phantom:
-	@cd doc && $(MAKE) html
