@@ -16,7 +16,6 @@
 # You should have received a copy of the GNU General Public License
 # along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
 
-import fte.encrypter
 import fte.encoder
 
 import fteproxy.conf
@@ -29,10 +28,8 @@ class Encoder:
 
     def __init__(
         self,
-        encrypter,
         encoder,
     ):
-        self._encrypter = encrypter
         self._encoder = encoder
         self._buffer = ''
 
@@ -44,7 +41,7 @@ class Encoder:
     def pop(self):
         """Pop data off the FIFO buffer. We pop at most
         ``runtime.fteproxy.record_layer.max_cell_size``
-        bytes. The returned value is encrypted with ``encrypter`` then encoded
+        bytes. The returned value is encrypted and encoded
         with ``encoder`` specified in ``__init__``.
         """
         retval = ''
@@ -53,15 +50,8 @@ class Encoder:
         while len(self._buffer) > 0:
             plaintext = self._buffer[:MAX_CELL_SIZE]
             self._buffer = self._buffer[MAX_CELL_SIZE:]
-            ciphertext = self._encrypter.encrypt(plaintext)
-            ciphertexts.append(ciphertext)
-
-        covertexts = []
-        for ciphertext in ciphertexts:
-            covertext = self._encoder.encode(ciphertext)
-            covertexts.append(covertext)
-
-        retval = ''.join(covertexts)
+            covertext = self._encoder.encode(plaintext)
+            retval += covertext
 
         return retval
 
@@ -70,10 +60,8 @@ class Decoder:
 
     def __init__(
         self,
-        decrypter,
         decoder,
     ):
-        self._decrypter = decrypter
         self._decoder = decoder
         self._buffer = ''
 
@@ -92,11 +80,9 @@ class Decoder:
 
         while len(self._buffer) > 0:
             try:
-                incoming_msg = self._decoder.decode(self._buffer)
-                to_take = self._decrypter.getCiphertextLen(incoming_msg)
-                ciphertext = incoming_msg[:to_take]
-                retval += self._decrypter.decrypt(ciphertext)
-                self._buffer = incoming_msg[to_take:]
+                msg, buffer = self._decoder.decode(self._buffer)
+                retval += msg
+                self._buffer = buffer
             except fte.encoder.DecodeFailureError:
                 break
             except fte.encrypter.RecoverableDecryptionError:

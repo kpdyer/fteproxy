@@ -32,4 +32,5 @@ exe = EXE(pyz,
           debug=False,
           strip=True,
           upx=True,
+          excludes=['encodngs'],
           console=True)

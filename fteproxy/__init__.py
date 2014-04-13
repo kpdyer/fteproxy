@@ -26,7 +26,6 @@ import fteproxy.defs
 import fteproxy.record_layer
 
 import fte.encoder
-import fte.encrypter
 
 
 class InvalidRoleException(Exception):
