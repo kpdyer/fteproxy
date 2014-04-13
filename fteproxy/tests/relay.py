@@ -21,7 +21,6 @@ import time
 import socket
 import random
 import unittest
-import traceback
 
 import fteproxy.network_io
 import fteproxy.relay

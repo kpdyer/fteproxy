@@ -23,6 +23,7 @@ import traceback
 
 import fteproxy.conf
 import fteproxy.defs
+import fteproxy.network_io
 import fteproxy.record_layer
 
 import fte.encoder
@@ -60,7 +61,7 @@ def warn(msg):
 
 
 def info(msg):
-    if fteproxy.conf.getValue('runtime.loglevel') <= [3]:
+    if fteproxy.conf.getValue('runtime.loglevel') in [3]:
         print 'INFO:', msg
 
 
@@ -119,7 +120,7 @@ class NegotiationManager(object):
     def getNegotiationComplete(self):
         return self._negotiationComplete
 
-    def _acceptNegotiation(self, encrypter, data):
+    def _acceptNegotiation(self, data):
 
         languages = fteproxy.defs.load_definitions()
         for incoming_language in languages.keys():
@@ -133,20 +134,19 @@ class NegotiationManager(object):
 
                 incoming_decoder = fte.encoder.RegexEncoder(incoming_regex,
                                                             incoming_fixed_slice)
-                decoder = fteproxy.record_layer.Decoder(decrypter=encrypter,
-                                                   decoder=incoming_decoder)
+                decoder = fteproxy.record_layer.Decoder(decoder=incoming_decoder)
 
                 decoder.push(data)
                 negotiate_cell = decoder.pop(oneCell=True)
                 NegotiateCell().fromString(negotiate_cell)
 
                 return [negotiate_cell, decoder._buffer]
-            except:
-                continue
+            except Exception as e:
+                fteproxy.info('Failed to decode first message as '+incoming_language+': '+str(e))
 
         raise NegotiationFailedException()
 
-    def _init_encoders(self, encrypter,
+    def _init_encoders(self,
                        outgoing_regex, outgoing_fixed_slice,
                        incoming_regex, incoming_fixed_slice):
 
@@ -156,14 +156,12 @@ class NegotiationManager(object):
         if outgoing_regex != None and outgoing_fixed_slice != -1:
             outgoing_encoder = fte.encoder.RegexEncoder(outgoing_regex,
                                                         outgoing_fixed_slice)
-            encoder = fteproxy.record_layer.Encoder(encrypter=encrypter,
-                                               encoder=outgoing_encoder)
+            encoder = fteproxy.record_layer.Encoder(encoder=outgoing_encoder)
 
         if incoming_regex != None and incoming_fixed_slice != -1:
             incoming_decoder = fte.encoder.RegexEncoder(incoming_regex,
                                                         incoming_fixed_slice)
-            decoder = fteproxy.record_layer.Decoder(decrypter=encrypter,
-                                               decoder=incoming_decoder)
+            decoder = fteproxy.record_layer.Decoder(decoder=incoming_decoder)
 
         return [encoder, decoder]
 
@@ -178,16 +176,15 @@ class NegotiationManager(object):
         data = encoder.pop()
         return data
 
-    def makeClientNegotiationCell(self, encrypter,
+    def makeClientNegotiationCell(self,
                                   outgoing_regex, outgoing_fixed_slice,
                                   incoming_regex, incoming_fixed_slice):
         [encoder, decoder] = self._init_encoders(
-            encrypter, outgoing_regex, outgoing_fixed_slice, incoming_regex, incoming_fixed_slice)
+            outgoing_regex, outgoing_fixed_slice, incoming_regex, incoming_fixed_slice)
         return self._makeNegotiationCell(encoder)
 
-    def doServerSideNegotiation(self, encrypter, data):
-        [negotiate_cell, remaining_buffer] = self._acceptNegotiation(
-            encrypter, data)
+    def doServerSideNegotiation(self, data):
+        [negotiate_cell, remaining_buffer] = self._acceptNegotiation(data)
 
         negotiate = NegotiateCell().fromString(negotiate_cell)
 
@@ -200,7 +197,7 @@ class NegotiationManager(object):
         incoming_fixed_slice = fteproxy.defs.getFixedSlice(incoming_language)
 
         [encoder, decoder] = self._init_encoders(
-            encrypter, outgoing_regex, outgoing_fixed_slice, incoming_regex, incoming_fixed_slice)
+            outgoing_regex, outgoing_fixed_slice, incoming_regex, incoming_fixed_slice)
 
         decoder.push(remaining_buffer)
 
@@ -215,13 +212,13 @@ class FTEHelper(object):
             try:
                 self._preNegotiationBuffer_incoming += data
                 [encoder, decoder] = self._negotiation_manager.doServerSideNegotiation(
-                    self._encrypter, self._preNegotiationBuffer_incoming)
+                    self._preNegotiationBuffer_incoming)
                 self._encoder = encoder
                 self._decoder = decoder
                 self._preNegotiationBuffer_incoming = ''
                 self._negotiationComplete = True
                 retval = ''
-            except:
+            except Exception as e:
                 raise ChannelNotReadyException()
 
         return retval
@@ -230,7 +227,6 @@ class FTEHelper(object):
         retval = ''
         if self._isClient and not self._negotiationComplete:
             [encoder, decoder] = self._negotiation_manager._init_encoders(
-                self._encrypter,
                 self._outgoing_regex,
                 self._outgoing_fixed_slice,
                 self._incoming_regex,
@@ -238,7 +234,6 @@ class FTEHelper(object):
             self._encoder = encoder
             self._decoder = decoder
             negotiation_cell = self._negotiation_manager.makeClientNegotiationCell(
-                self._encrypter,
                 self._outgoing_regex, self._outgoing_fixed_slice,
                 self._incoming_regex, self._incoming_fixed_slice)
             retval = negotiation_cell
@@ -261,9 +256,6 @@ class _FTESocketWrapper(FTEHelper, object):
         self._K1 = K1
         self._K2 = K2
 
-        self._encrypter = fte.encrypter.Encrypter(K1=self._K1,
-                                                  K2=self._K2)
-
         self._negotiation_manager = NegotiationManager()
         self._negotiationComplete = False
         self._isServer = (outgoing_regex is None and incoming_regex is None)
@@ -283,13 +275,12 @@ class _FTESocketWrapper(FTEHelper, object):
         # cell is sent no matter what the client does first.
         to_send = self._processSend()
         if to_send:
-            numbytes = self._socket.send(to_send)
-            assert numbytes == len(to_send)
+            fteproxy.network_io.sendall_to_socket(self._socket, to_send)
         # </HACK>
 
         try:
             while True:
-                data = self._socket.recv(bufsize)
+                [is_alive, data] = fteproxy.network_io.recvall_from_socket(self._socket)
                 noData = (data == '')
                 data = self._processRecv(data)
 
@@ -317,14 +308,15 @@ class _FTESocketWrapper(FTEHelper, object):
     def send(self, data):
         to_send = self._processSend()
         if to_send:
-            self._socket.sendall(to_send)
+            fteproxy.network_io.sendall_to_socket(self._socket, to_send)
 
         self._encoder.push(data)
         while True:
             to_send = self._encoder.pop()
             if not to_send:
                 break
-            self._socket.sendall(to_send)
+            fteproxy.network_io.sendall_to_socket(self._socket, to_send)
+
         return len(data)
 
     def sendall(self, data):
@@ -422,10 +414,6 @@ class FTETransport(FTEHelper, obfsproxy.transports.base.BaseTransport):
 
         self._encoder = None
         self._decoder = None
-        self._K1 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[0:16]
-        self._K2 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[16:32]
-        self._encrypter = fte.encrypter.Encrypter(K1=self._K1,
-                                                  K2=self._K2)
 
         self._negotiation_manager = NegotiationManager()
         self._negotiationComplete = False

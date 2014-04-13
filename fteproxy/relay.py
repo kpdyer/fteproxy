@@ -20,8 +20,6 @@ import time
 import socket
 import threading
 
-import fte.encoder
-
 import fteproxy.conf
 import fteproxy.network_io
 
@@ -58,8 +56,8 @@ class worker(threading.Thread):
                     fteproxy.network_io.sendall_to_socket(self._socket2, _data)
                 else:
                     time.sleep(throttle)
-        #except Exception as e:
-        #    fteproxy.warn("fteproxy.worker terminated prematurely: " + str(e))
+        except Exception as e:
+            fteproxy.warn("fteproxy.worker terminated prematurely: " + str(e))
         finally:
             fteproxy.network_io.close_socket(self._socket1)
             fteproxy.network_io.close_socket(self._socket2)
@@ -127,6 +125,7 @@ class listener(threading.Thread):
             except socket.timeout:
                 continue
             except socket.error as e:
+                fteproxy.warn('socket.error in fteproxy.listener: ' + str(e))
                 continue
             except Exception as e:
                 fteproxy.warn('exception in fteproxy.listener: ' + str(e))

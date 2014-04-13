@@ -46,11 +46,10 @@ class Encoder:
         """
         retval = ''
 
-        ciphertexts = []
         while len(self._buffer) > 0:
             plaintext = self._buffer[:MAX_CELL_SIZE]
-            self._buffer = self._buffer[MAX_CELL_SIZE:]
             covertext = self._encoder.encode(plaintext)
+            self._buffer = self._buffer[MAX_CELL_SIZE:]
             retval += covertext
 
         return retval
@@ -83,14 +82,14 @@ class Decoder:
                 msg, buffer = self._decoder.decode(self._buffer)
                 retval += msg
                 self._buffer = buffer
-            except fte.encoder.DecodeFailureError:
-                break
-            except fte.encrypter.RecoverableDecryptionError:
-                break
-            except fte.encrypter.UnrecoverableDecryptionError:
-                break
-            except:
-                break
+            except fte.encoder.DecodeFailureError as e:
+                fteproxy.info("fteproxy.encoder.DecodeFailure: "+str(e))
+            except fte.encrypter.RecoverableDecryptionError as e:
+                fteproxy.info("fteproxy.encrypter.RecoverableDecryptionError: "+str(e))
+            except fte.encrypter.UnrecoverableDecryptionError as e:
+                fteproxy.warn("fteproxy.encrypter.UnrecoverableDecryptionError: "+str(e))
+            except Exception as e:
+                fteproxy.warn("fteproxy.record_layer exception: "+str(e))
             finally:
                 if oneCell:
                     break

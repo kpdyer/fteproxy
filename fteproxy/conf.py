@@ -74,7 +74,7 @@ conf['runtime.mode'] = None
 
 
 """Our loglevel = 0|1|2|3"""
-conf['runtime.loglevel'] = 1
+conf['runtime.loglevel'] = 3
 
 
 """The maximum number of queued connections for sockets"""
@@ -113,7 +113,7 @@ conf['runtime.fteproxy.negotiate.timeout'] = 5
 
 
 """The maximum number of bytes to segment for an outgoing message."""
-conf['runtime.fteproxy.record_layer.max_cell_size'] = 2 ** 17
+conf['runtime.fteproxy.record_layer.max_cell_size'] = 2 ** 15
 
 
 """The default client-to-server language."""

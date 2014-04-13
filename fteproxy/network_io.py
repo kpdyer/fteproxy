@@ -12,7 +12,7 @@ def sendall_to_socket(sock, data):
 
 def recvall_from_socket(sock,
                         bufsize=2 ** 17,
-                        select_timeout=0.1):
+                        select_timeout=0.0001):
     """Give ``sock``, does a best effort to pull data from ``sock``.
     By default, fails quickly if ``sock`` is closed or has no data ready.
     The return value ``is_alive`` reports if ``sock`` is still alive.
@@ -25,23 +25,29 @@ def recvall_from_socket(sock,
     is_alive = False
 
     try:
-        ready = select.select([sock], [], [sock], select_timeout)
-        if ready[0]:
-            _data = sock.recv(bufsize)
-            if _data:
-                retval = _data
-                is_alive = True
+        while True:
+            ready = select.select([sock], [], [sock], select_timeout)
+            if ready[0]:
+                _data = sock.recv(bufsize)
+                if _data:
+                    retval += _data
+                    is_alive = True
+                    continue
+                else:
+                    is_alive = False
+                    break
             else:
-                is_alive = False
-        else:
-            # select.timeout
-            is_alive = True
+                # select.timeout
+                is_alive = True
+                break
     except socket.timeout:
         is_alive = True
     except socket.error:
         is_alive = (len(retval) > 0)
     except select.error:
         is_alive = (len(retval) > 0)
+    finally:
+        if retval: is_alive = True
 
     return [is_alive, retval]
 
