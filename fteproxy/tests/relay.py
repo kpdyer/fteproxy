@@ -54,9 +54,6 @@ class TestRelay(unittest.TestCase):
         self._server.stop()
         self._client.stop()
 
-    def testOneStream(self):
-        self._testStream()
-
     def testTenSerialStreams(self):
         for i in range(10):
             self._testStream()
@@ -81,8 +78,7 @@ class TestRelay(unittest.TestCase):
                                    fteproxy.conf.getValue('runtime.client.port')))
 
             server_conn, addr = proxy_socket.accept()
-            server_conn.settimeout(
-                fteproxy.conf.getValue('runtime.fteproxy.relay.socket_timeout'))
+            server_conn.settimeout(1)
 
             client_socket.sendall(expected_msg)
             while True:
@@ -91,6 +87,7 @@ class TestRelay(unittest.TestCase):
                     if not data:
                         break
                     actual_msg += data
+                    assert expected_msg.startswith(actual_msg)
                     if actual_msg == expected_msg:
                         break
                 except socket.timeout:

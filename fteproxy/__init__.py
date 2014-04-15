@@ -23,7 +23,6 @@ import traceback
 
 import fteproxy.conf
 import fteproxy.defs
-import fteproxy.network_io
 import fteproxy.record_layer
 
 import fte.encoder
@@ -275,21 +274,21 @@ class _FTESocketWrapper(FTEHelper, object):
         # cell is sent no matter what the client does first.
         to_send = self._processSend()
         if to_send:
-            fteproxy.network_io.sendall_to_socket(self._socket, to_send)
+            numbytes = self._socket.send(to_send)
+            assert numbytes == len(to_send)
         # </HACK>
 
         try:
             while True:
-                [is_alive, data] = fteproxy.network_io.recvall_from_socket(self._socket)
+                data = self._socket.recv(bufsize)
+                noData = (data == '')
                 data = self._processRecv(data)
 
-                if not is_alive and not self._incoming_buffer and not self._decoder._buffer:
+                if noData and not self._incoming_buffer and not self._decoder._buffer:
                     return ''
 
-                if not data:
-                    raise socket.timeout
-
                 self._decoder.push(data)
+
                 while True:
                     frag = self._decoder.pop()
                     if not frag:
@@ -305,19 +304,18 @@ class _FTESocketWrapper(FTEHelper, object):
             raise socket.timeout
 
         return retval
-
+    
     def send(self, data):
         to_send = self._processSend()
         if to_send:
-            fteproxy.network_io.sendall_to_socket(self._socket, to_send)
+            self._socket.sendall(to_send)
 
         self._encoder.push(data)
         while True:
             to_send = self._encoder.pop()
             if not to_send:
                 break
-            fteproxy.network_io.sendall_to_socket(self._socket, to_send)
-
+            self._socket.sendall(to_send)
         return len(data)
 
     def sendall(self, data):

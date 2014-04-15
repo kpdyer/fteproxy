@@ -37,6 +37,7 @@ class worker(threading.Thread):
         threading.Thread.__init__(self)
         self._socket1 = socket1
         self._socket2 = socket2
+        self._running = False
 
     def run(self):
         """It's the responsibility of run to forward data from ``socket1`` to
@@ -44,10 +45,11 @@ class worker(threading.Thread):
         terminates and closes both sockets if ``fteproxy.network_io.recvall_from_socket``
         returns a negative result for ``success``.
         """
-
+        
+        self._running = True
         try:
             throttle = fteproxy.conf.getValue('runtime.fteproxy.relay.throttle')
-            while True:
+            while self._running:
                 [success, _data] = fteproxy.network_io.recvall_from_socket(
                     self._socket1)
                 if not success:
@@ -61,6 +63,11 @@ class worker(threading.Thread):
         finally:
             fteproxy.network_io.close_socket(self._socket1)
             fteproxy.network_io.close_socket(self._socket2)
+
+    def stop(self):
+        """Terminate the thread and stop listening on ``local_ip:local_port``.
+        """
+        self._running = False
 
 
 class listener(threading.Thread):
@@ -78,6 +85,7 @@ class listener(threading.Thread):
                  remote_ip, remote_port):
         threading.Thread.__init__(self)
 
+        self._workers = []
         self._running = False
         self._local_ip = local_ip
         self._local_port = local_port
@@ -122,6 +130,8 @@ class listener(threading.Thread):
                 w2 = worker(new_stream, conn)
                 w1.start()
                 w2.start()
+                self._workers.append(w1)
+                self._workers.append(w2)
             except socket.timeout:
                 continue
             except socket.error as e:
@@ -130,6 +140,9 @@ class listener(threading.Thread):
             except Exception as e:
                 fteproxy.warn('exception in fteproxy.listener: ' + str(e))
                 break
+            
+        for w in self._workers:
+            w.stop()
 
     def stop(self):
         """Terminate the thread and stop listening on ``local_ip:local_port``.
