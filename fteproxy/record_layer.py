@@ -84,12 +84,16 @@ class Decoder:
                 self._buffer = buffer
             except fte.encoder.DecodeFailureError as e:
                 fteproxy.info("fteproxy.encoder.DecodeFailure: "+str(e))
+                break
             except fte.encrypter.RecoverableDecryptionError as e:
                 fteproxy.info("fteproxy.encrypter.RecoverableDecryptionError: "+str(e))
+                break
             except fte.encrypter.UnrecoverableDecryptionError as e:
-                fteproxy.warn("fteproxy.encrypter.UnrecoverableDecryptionError: "+str(e))
+                fteproxy.fatal_error("fteproxy.encrypter.UnrecoverableDecryptionError: "+str(e))
+                # exit
             except Exception as e:
                 fteproxy.warn("fteproxy.record_layer exception: "+str(e))
+                break
             finally:
                 if oneCell:
                     break

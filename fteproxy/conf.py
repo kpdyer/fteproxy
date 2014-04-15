@@ -74,7 +74,7 @@ conf['runtime.mode'] = None
 
 
 """Our loglevel = 0|1|2|3"""
-conf['runtime.loglevel'] = 3
+conf['runtime.loglevel'] = 1
 
 
 """The maximum number of queued connections for sockets"""

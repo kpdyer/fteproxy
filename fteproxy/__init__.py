@@ -281,14 +281,15 @@ class _FTESocketWrapper(FTEHelper, object):
         try:
             while True:
                 [is_alive, data] = fteproxy.network_io.recvall_from_socket(self._socket)
-                noData = (data == '')
                 data = self._processRecv(data)
 
-                if noData and not self._incoming_buffer and not self._decoder._buffer:
+                if not is_alive and not self._incoming_buffer and not self._decoder._buffer:
                     return ''
 
-                self._decoder.push(data)
+                if not data:
+                    raise socket.timeout
 
+                self._decoder.push(data)
                 while True:
                     frag = self._decoder.pop()
                     if not frag:
