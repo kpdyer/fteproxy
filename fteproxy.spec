@@ -15,10 +15,12 @@
 # You should have received a copy of the GNU General Public License
 # along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
 
-excludesPassedToAnalysis = ['ssl',
+import glob
+
+excludesPassedToAnalysis = [
  '_ssl',
- # coverage uses _socket. :(
- #'_socket',
+ 'xml',
+ 'pydoc',
  'pywin',
  'win32ui',
  'bz2',
@@ -27,15 +29,13 @@ excludesPassedToAnalysis = ['ssl',
  'servicemanager',
  'xml.parsers.expat',
  'sitecustomize',
+ 'readline',
  'tarflie',
  'email',
  'urllib',
  'urllib2',
- # This exclude isn't optional in order to get pubsub working
- # correctly in wxPython 2.9.3 or later.
  'wx.lib.pubsub.autosetuppubsubv1']
 
-# These are removed from a.pure after the Analysis object is created.
 excludeEncodings = \
 ['encodings.base_64_codec',
  'encodings.big5',
@@ -132,7 +132,8 @@ excludeEncodings = \
  'encodings.utf_32_le',
  'encodings.utf_7',
  'encodings.uu_codec',
- 'encodings.zlib_codec',]
+ 'encodings.zlib_codec',
+ 'unicodedata',]
 
 a = Analysis(['./bin/fteproxy'],
              pathex=['.'],
