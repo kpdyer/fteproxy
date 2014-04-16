@@ -16,8 +16,8 @@
 # along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
 
 from distutils import sysconfig
-from distutils.core import setup
-from distutils.core import Extension
+from setuptools import setup
+from setuptools import Extension
 
 import glob
 import sys
@@ -36,6 +36,7 @@ data_files += [(defs_module_path, glob.glob('fteproxy/defs/*.json'))]
 
 setup(name='fteproxy',
       console=['./bin/fteproxy'],
+      test_suite='fteproxy.tests.suite',
       zipfile="fteproxy.zip",
       data_files=data_files,
       options={"py2exe": {

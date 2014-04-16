@@ -30,7 +30,7 @@ import fteproxy.server
 LOCAL_INTERFACE = '127.0.0.1'
 
 
-class TestRelay(unittest.TestCase):
+class Tests(unittest.TestCase):
 
     def setUp(self):
         time.sleep(1)
@@ -107,5 +107,8 @@ class TestRelay(unittest.TestCase):
             self.assertEquals(expected_msg, actual_msg)
 
 
-if __name__ == '__main__':
-    unittest.main()
+def suite():
+    loader = unittest.TestLoader()
+    suite = unittest.TestSuite()
+    suite.addTest(loader.loadTestsFromTestCase(Tests))
+    return suite

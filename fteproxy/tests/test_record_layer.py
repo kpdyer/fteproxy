@@ -27,7 +27,7 @@ ITERATIONS = 2048
 STEP = 64
 
 
-class TestEncoders(unittest.TestCase):
+class Tests(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
@@ -94,5 +94,8 @@ class TestEncoders(unittest.TestCase):
                 self.assertEquals(ptxt, Y, self.record_layers_info[i])
 
 
-if __name__ == '__main__':
-    unittest.main()
+def suite():
+    loader = unittest.TestLoader()
+    suite = unittest.TestSuite()
+    suite.addTest(loader.loadTestsFromTestCase(Tests))
+    return suite

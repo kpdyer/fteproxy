@@ -55,8 +55,8 @@ import pprint
 
 import unittest
 
-import fteproxy.tests.record_layer
-import fteproxy.tests.relay
+import fteproxy.tests.test_record_layer
+import fteproxy.tests.test_relay
 
 FTE_PT_NAME = 'fte'
 
@@ -355,9 +355,9 @@ def do_managed_server():
 def test():
     try:    
         suite_record_layer = unittest.TestLoader().loadTestsFromTestCase(
-            fteproxy.tests.record_layer.TestEncoders)
+            fteproxy.tests.test_record_layer.Tests)
         suite_relay = unittest.TestLoader().loadTestsFromTestCase(
-            fteproxy.tests.relay.TestRelay)
+            fteproxy.tests.test_relay.Tests)
         suites = [
             suite_relay,
             suite_record_layer,
