@@ -24,7 +24,9 @@ ifneq (,$(findstring cygwin,$(PLATFORM)))
 PLATFORM='windows'
 WINDOWS_BUILD=1
 endif
+ifeq ($(ARCH),)
 ARCH=$(shell arch)
+endif
 endif
 
 VERSION=$(shell cat fteproxy/VERSION)
