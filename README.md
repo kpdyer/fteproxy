@@ -21,8 +21,8 @@ Dependencies
 Dependencies for building from source:
 * Python 2.7.x: https://python.org/
 * fte 0.0.x: https://pypi.python.org/pypi/fte
-* pyptlib 0.0.5: https://gitweb.torproject.org/pluggable-transports/pyptlib.git
-* obfsproxy 0.2.4: https://gitweb.torproject.org/pluggable-transports/obfsproxy.git
+* pyptlib 0.0.x: https://gitweb.torproject.org/pluggable-transports/pyptlib.git
+* obfsproxy 0.2.x: https://gitweb.torproject.org/pluggable-transports/obfsproxy.git
 * Twisted 13.2.x: https://twistedmatrix.com/
 
 Building
