@@ -51,7 +51,7 @@ copyright = u'2013, Kevin P. Dyer'
 # built documents.
 #
 # The short X.Y version.
-with open('../../fte/VERSION') as fh:
+with open('../../fteproxy/VERSION') as fh:
     FTEPROXY_RELEASE = fh.read().strip()
 version = FTEPROXY_RELEASE
 # The full version, including alpha/beta/rc tags.

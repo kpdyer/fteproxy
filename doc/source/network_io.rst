@@ -1,5 +1,5 @@
-:mod:`fte.io` Module
-********************
+:mod:`fteproxy.network_io` Module
+*********************************
 
 Overview
 --------
@@ -11,7 +11,7 @@ that can occur with a socket read: exceptions and a return value of ''.
 Interface
 ---------
 
-.. automodule:: fte.io
+.. automodule:: fteproxy.network_io
     :members:
     :undoc-members:
     :show-inheritance:

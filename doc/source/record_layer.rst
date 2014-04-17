@@ -1,5 +1,5 @@
-:mod:`fte.record_layer` Module
-******************************
+:mod:`fteproxy.record_layer` Module
+***********************************
 
 Overview
 --------
@@ -9,7 +9,7 @@ This is a class used internally by fteproxy and should not be invoked directly.
 Interface
 ---------
 
-.. automodule:: fte.record_layer
+.. automodule:: fteproxy.record_layer
     :members:
     :undoc-members:
     :show-inheritance:

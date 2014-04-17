@@ -1,19 +1,19 @@
-:mod:`fte.relay` Module
-***********************
+:mod:`fteproxy.relay` Module
+****************************
 
 Overview
 --------
 
-The classes ``fte.relay.worker`` and ``fte.relay.listener`` are never invoked
+The classes ``fteproxy.relay.worker`` and ``fteproxy.relay.listener`` are never invoked
 directly and are helper classes used internally within fteproxy.
 
-``fte.relay.worker`` contains logic that is common to ``fte.relay.client`` and
-``fte.relay.server``.
+``fteproxy.relay.worker`` contains logic that is common to ``fteproxy.relay.client`` and
+``fteproxy.relay.server``.
 
 Interface
 ---------
 
-.. automodule:: fte.relay
+.. automodule:: fteproxy.relay
     :members:
     :undoc-members:
     :show-inheritance:

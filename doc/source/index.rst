@@ -18,7 +18,7 @@ or server.
 
 
 fteproxy Wrapper for Socket Objects
-------------------------------
+-----------------------------------
 
 The fteproxy socket wrapper is useful for rapidly integrating fteproxy into existing
 socket-powered applications.
@@ -30,16 +30,25 @@ socket-powered applications.
 
 
 fteproxy API
--------
+-----------------------------------
 
-The fteproxy API contains the essential building blocks for constructing the FTE
-socket wrapper and fteproxy command line application.
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
-   api.rst
+   client.rst
+   server.rst
+   network_io.rst
+   relay.rst
+   record_layer.rst
 
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
 
 Indices and tables
 ==================

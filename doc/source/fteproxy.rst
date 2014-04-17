@@ -11,7 +11,7 @@ The ``fteproxy`` command-line application usage:
 
 .. code-block:: none
 
-    usage: fteproxy [-h] [--mode (client|server|test)] [--stop]
+    usage: fteproxy [-h] [--version] [--mode (client|server|test)] [--stop]
                     [--upstream-format UPSTREAM_FORMAT]
                     [--downstream-format DOWNSTREAM_FORMAT]
                     [--client_ip CLIENT_IP] [--client_port CLIENT_PORT]
@@ -21,6 +21,8 @@ The ``fteproxy`` command-line application usage:
     
     optional arguments:
       -h, --help            show this help message and exit
+      --version             Output the version of fteproxy, then quit. (default:
+                            False)
       --mode (client|server|test)
                             Relay mode: client or server (default: client)
       --stop                Shutdown daemon process (default: False)
@@ -43,11 +45,11 @@ The ``fteproxy`` command-line application usage:
       --proxy_port PROXY_PORT
                             Forwarding-proxy (SOCKS) listening port (default:
                             8081)
-      --quiet
+      --quiet               Be completely silent. Print nothing. (default: False)
       --release RELEASE     Definitions file to use, specified as YYYYMMDD
-                            (default: 20131110)
-      --managed             Start in managed mode, for use with Tor. --server
-                            parameters ignored. (default: False)
+                            (default: 20131224)
+      --managed             Start in pluggable transport managed mode, for use
+                            with Tor. (default: False)
       --key KEY             Cryptographic key, hex, must be exactly 64 characters
                             (default: FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF000000000000
                             00000000000000000000)

@@ -1,11 +1,11 @@
-``fte.wrap_socket``
-*******************
+``fteproxy.wrap_socket``
+************************
 
 
 Overview
 --------
 
-The ``fte.wrap_socket`` function is useful for rapidly integrating FTE
+The ``fteproxy.wrap_socket`` function is useful for rapidly integrating FTE
 into existing applications. The interface is inspired by ``ssl.wrap_socket`` [1].
 
 .. [1] http://docs.python.org/2/library/ssl.html
@@ -13,7 +13,7 @@ into existing applications. The interface is inspired by ``ssl.wrap_socket`` [1]
 Interface
 ---------
 
-.. autofunction:: fte.wrap_socket
+.. autofunction:: fteproxy.wrap_socket
 
 Example
 -------
@@ -37,7 +37,7 @@ application at for Python's socket module [2].
     HOST = ''                 # Symbolic name meaning all available interfaces
     PORT = 50007              # Arbitrary non-privileged port
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s = fte.wrap_socket(s,
+    s = fteproxy.wrap_socket(s,
                         outgoing_regex=server_client_regex,
                         outgoing_fixed_slice=256,
                         incoming_regex=client_server_regex,
@@ -65,7 +65,7 @@ application at for Python's socket module [2].
     HOST = '127.0.0.1'    # The remote host
     PORT = 50007              # The same port as used by the server
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s = fte.wrap_socket(s,
+    s = fteproxy.wrap_socket(s,
                         outgoing_regex=client_server_regex,
                         outgoing_fixed_slice=256,
                         incoming_regex=server_client_regex,
