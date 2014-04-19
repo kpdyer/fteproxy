@@ -29,7 +29,7 @@ application at for Python's socket module [2].
 
     # FTE-Powered echo server program
     import socket
-    import fte
+    import fteproxy
 
     client_server_regex = '^(0|1)+$'
     server_client_regex = '^(A|B)+$'
@@ -57,7 +57,7 @@ application at for Python's socket module [2].
 
     # FTE-Powered echo client program
     import socket
-    import fte
+    import fteproxy
 
     client_server_regex = '^(0|1)+$'
     server_client_regex = '^(A|B)+$'
