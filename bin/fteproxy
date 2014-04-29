@@ -245,6 +245,7 @@ def do_managed_client():
         # module.
         pt_config = transport_config.TransportConfig()
         pt_config.setStateLocation(ptclient.config.getStateLocation())
+        pt_config.fte_client_socks_version = -1
 
         try:
             addrport = fteproxy.launch_transport_listener(
@@ -261,7 +262,17 @@ def do_managed_client():
         should_start_event_loop = True
         log.debug("Successfully launched '%s' at '%s'" %
                   (transport, log.safe_addr_str(str(addrport))))
-        ptclient.reportMethodSuccess(transport, "socks4", addrport, None, None)
+        if pt_config.fte_client_socks_version == 5:
+            ptclient.reportMethodSuccess(transport, "socks5", addrport, None, None)
+        elif pt_config.fte_client_socks_version == 4:
+            ptclient.reportMethodSuccess(transport, "socks4", addrport, None, None)
+        else:
+            # This should *never* happen unless launch_transport_listener()
+            # decides to report a SOCKS version from the future.
+            log.warning("Listener SOCKS version unknown." )
+            ptclient.reportMethodError(transport,
+                                       "Listener SOCKS version unknown.")
+            should_start_event_loop = False
 
     ptclient.reportMethodsEnd()
 

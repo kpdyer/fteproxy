@@ -498,7 +498,19 @@ def launch_transport_listener(transport, bindaddr, role, remote_addrport, pt_con
 
     if role == 'socks':
         transport_class = FTETransportClient
-        factory = socks.SOCKSv4Factory(transport_class, pt_config)
+        if hasattr(socks, "OBFSSOCKSv5Factory"):
+            # obfsproxy >= 0.2.7 provides SOCKS5.
+            factory = socks.OBFSSOCKSv5Factory(transport_class, pt_config)
+            pt_config.fte_client_socks_version = 5
+        elif hasattr(socks, "SOCKSv4Factory"):
+            # obfsproxy < 0.2.7 provides SOCKS4.
+            factory = socks.SOCKSv4Factory(transport_class, pt_config)
+            pt_config.fte_client_socks_version = 4
+        else:
+            # This will only happen if the obfsproxy people change the socks
+            # code again.  This really is a dependency issue, so raise an
+            # ImportError.
+            raise ImportError("Failed to setup an obfsproxy SOCKS server factory")
     elif role == 'ext_server':
         assert(remote_addrport and ext_or_cookie_file)
         transport_class = FTETransportServer
