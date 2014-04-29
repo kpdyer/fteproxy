@@ -4,3 +4,4 @@ thirdparty/re2
 fteproxy/*.pyc
 fteproxy/tests/*.pyc
 fteproxy/defs/*.pyc
+fteproxy.egg-info
