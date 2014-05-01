@@ -2,7 +2,10 @@ Source: fteproxy
 Section: unknown
 Priority: extra
 Maintainer: Kevin P. Dyer <kpdyer@gmail.com>
-Build-Depends: debhelper (>= 9)
+Build-Depends: debhelper (>= 9),
+ libgmp-dev,
+ python-dev,
+ python-pip
 Standards-Version: 3.9.5
 Homepage: https://fteproxy.org/
 Vcs-Git: git@github.com:kpdyer/fteproxy.git -b debian/unstable
