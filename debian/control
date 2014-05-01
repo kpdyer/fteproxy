@@ -2,7 +2,7 @@ Source: fteproxy
 Section: unknown
 Priority: extra
 Maintainer: Kevin P. Dyer <kpdyer@gmail.com>
-Build-Depends: debhelper (>= 8.0.0)
+Build-Depends: debhelper (>= 9)
 Standards-Version: 3.9.2
 Homepage: https://fteproxy.org/
 
