@@ -1,0 +1,2 @@
+* build against Debian libre2-dev
+* separate out cli, python and lib package into 3 separate packages
