@@ -41,6 +41,7 @@ import fteproxy.client
 
 from twisted.internet import reactor, error
 
+import obfsproxy.network.network as network
 import obfsproxy.common.transport_config as transport_config
 import obfsproxy.transports.transports as transports
 import obfsproxy.common.log as logging
@@ -240,12 +241,25 @@ def do_managed_client():
     log.debug("pyptlib gave us the following data:\n'%s'",
               pprint.pformat(ptclient.getDebugData()))
 
+    # Apply the proxy settings if any
+    proxy = ptclient.config.getProxy()
+    if proxy:
+        # Ensure that we have all the neccecary dependencies
+        try:
+            network.ensure_outgoing_proxy_dependencies()
+        except network.OutgoingProxyDepFailure, err:
+            ptclient.reportProxyError(str(err))
+            return
+
+        ptclient.reportProxySuccess()
+
     for transport in ptclient.getTransports():
         # Will hold configuration parameters for the pluggable transport
         # module.
         pt_config = transport_config.TransportConfig()
         pt_config.setStateLocation(ptclient.config.getStateLocation())
         pt_config.fte_client_socks_version = -1
+        pt_config.setProxy(proxy)
 
         try:
             addrport = fteproxy.launch_transport_listener(
