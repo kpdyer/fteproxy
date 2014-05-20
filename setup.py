@@ -27,9 +27,12 @@ if os.name == 'nt':
 with open('fteproxy/VERSION') as fh:
     FTEPROXY_RELEASE = fh.read().strip()
 
-data_files  = []
-data_files += [('fteproxy', ['fteproxy/VERSION'])]
-data_files += [('fteproxy/defs', glob.glob('fteproxy/defs/*.json'))]
+package_data_files = []
+package_data_files += ['VERSION']
+for filename in glob.glob('fteproxy/defs/*.json'):
+    jsonFile = filename.split('/')[-1]
+    package_data_files += ['defs/'+jsonFile]
+package_data = {'fteproxy': package_data_files}
 
 with open('README') as file:
     long_description = file.read()
@@ -39,7 +42,7 @@ setup(name='fteproxy',
       console=['./bin/fteproxy'],
       test_suite='fteproxy.tests.suite',
       zipfile="fteproxy.zip",
-      data_files=data_files,
+      package_data=package_data,
       options={"py2exe": {
           "bundle_files": 2,
           "compressed": True,
@@ -53,4 +56,9 @@ setup(name='fteproxy',
       url='https://fteproxy.org/',
       packages=['fteproxy', 'fteproxy.defs', 'fteproxy.tests'],
       install_requires=['fte','twisted','pyptlib','obfsproxy'],
+      entry_points = {
+        'console_scripts': [
+            'fteproxy = fteproxy.cli:main'
+            ]
+        },
       )

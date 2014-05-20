@@ -1,2 +1,2 @@
-recursive-include fteproxy/defs
 include fteproxy/VERSION
+include fteproxy/defs/*

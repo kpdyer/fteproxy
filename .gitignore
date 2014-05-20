@@ -1,4 +1,5 @@
 build
+dist
 fteproxy/*.so
 thirdparty/re2
 fteproxy/*.pyc
