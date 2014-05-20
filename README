@@ -1,1 +1,7 @@
-README.md
+Requires: Twisted (https://twistedmatrix.com/), obfsproxy (https://pypi.python.org/pypi/obfsproxy), pyptlib (https://pypi.python.org/pypi/pyptlib) and fte (https://pypi.python.org/pypi/fte).
+
+fteproxy provides transport-layer protection to resist keyword filtering, censorship and discriminatory routing policies. Its job is to relay datastreams, such as web browsing traffic, by encoding streams as messages that match a user-specified regular expression. See https://fteproxy.org/ for more information.
+
+Format-Transforming Encryption (FTE) is a cryptographic primitive explored in the paper *Protocol Misidentiﬁcation Made Easy with Format-Transforming Encryption* [1]. FTE allows a user to specify the format of their ouput ciphertexts using regular expressions. The libfte library implements the primitive presented in [1].
+
+[1] Protocol Misidentification Made Easy with Format-Transforming Encryption, Kevin P. Dyer, Scott E. Coull, Thomas Ristenpart and Thomas Shrimpton, https://kpdyer.com/publications/ccs2013-fte.pdf

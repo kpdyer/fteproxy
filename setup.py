@@ -34,7 +34,11 @@ data_files  = []
 data_files += [(fte_module_path, ['fteproxy/VERSION'])]
 data_files += [(defs_module_path, glob.glob('fteproxy/defs/*.json'))]
 
+with open('README') as file:
+    long_description = file.read()
+
 setup(name='fteproxy',
+      long_description=long_description,
       console=['./bin/fteproxy'],
       test_suite='fteproxy.tests.suite',
       zipfile="fteproxy.zip",
