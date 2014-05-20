@@ -15,7 +15,6 @@
 # You should have received a copy of the GNU General Public License
 # along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
 
-from distutils import sysconfig
 from setuptools import setup
 from setuptools import Extension
 
@@ -28,11 +27,9 @@ if os.name == 'nt':
 with open('fteproxy/VERSION') as fh:
     FTEPROXY_RELEASE = fh.read().strip()
 
-fte_module_path = os.path.join(sysconfig.get_python_lib(), 'fteproxy')
-defs_module_path = os.path.join(sysconfig.get_python_lib(), 'fteproxy', 'defs')
 data_files  = []
-data_files += [(fte_module_path, ['fteproxy/VERSION'])]
-data_files += [(defs_module_path, glob.glob('fteproxy/defs/*.json'))]
+data_files += [('fteproxy', ['fteproxy/VERSION'])]
+data_files += [('fteproxy/defs', glob.glob('fteproxy/defs/*.json'))]
 
 with open('README') as file:
     long_description = file.read()
@@ -53,7 +50,7 @@ setup(name='fteproxy',
       description='fteproxy',
       author='Kevin P. Dyer',
       author_email='kpdyer@gmail.com',
-      url='https://github.com/kpdyer/fteproxy',
+      url='https://fteproxy.org/',
       packages=['fteproxy', 'fteproxy.defs', 'fteproxy.tests'],
       install_requires=['fte','twisted','pyptlib','obfsproxy'],
       )
