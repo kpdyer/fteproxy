@@ -1,11 +1,11 @@
-fteproxy (0.2.14) experimental; urgency=low
+fteproxy (0.2.15-1) unstable; urgency=low
 
-  * See: https://github.com/kpdyer/fteproxy/releases/tag/0.2.14
+  [ Kevin P. Dyer ]
+  * release upstream version 0.2.15
+  * initial packaging work
 
- -- Kevin P. Dyer <kpdyer@gmail.com>  Mon, 30 Apr 2014 00:00:00 -0700
+  [ Rolf Leggewie ]
+  * mentoring and some packaging work to ensure compliance with policy.
+  * initial release to Debian. Closes: #746554
 
-fteproxy (0.2.13) experimental; urgency=low
-
-  * See: https://github.com/kpdyer/fteproxy/releases/tag/0.2.13
-
- -- Kevin P. Dyer <kpdyer@gmail.com>  Mon, 31 Mar 2014 00:00:00 -0700
+ -- Rolf Leggewie <foss@rolf.leggewie.biz>  Tue, 27 May 2014 18:48:50 +0800
