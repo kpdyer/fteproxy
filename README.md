@@ -25,17 +25,16 @@ Dependencies for building from source:
 * obfsproxy 0.2.x: https://gitweb.torproject.org/pluggable-transports/obfsproxy.git
 * Twisted 13.2.x: https://twistedmatrix.com/
 
-Building
------------
+Running
+-------
 
 For platform-specific examples of how to install dependencies see BUILDING.md.
 
-Once all dependencies are installed, building is as simple as:
+There is nothing to build for fteproxy --- it is Python-only project. To run fteproxy, you need to do only the following.
 
 ```
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
-make
 ./bin/fteproxy
 ```
 
