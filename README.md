@@ -1,6 +1,8 @@
 fteproxy
 ========
 
+[![Build Status](https://travis-ci.org/kpdyer/fteproxy.svg?branch=master)](https://travis-ci.org/kpdyer/fteproxy)
+
 * homepage: https://fteproxy.org
 * source code: https://github.com/kpdyer/fteproxy
 * publication: https://kpdyer.com/publications/ccs2013-fte.pdf
