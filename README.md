@@ -45,7 +45,6 @@ Documentation
 
 See: https://fteproxy.org/documentation
 
-
 Author
 ------
 
