@@ -30,7 +30,7 @@ STEP = 64
 class Tests(unittest.TestCase):
 
     @classmethod
-    def setUpClass(self):
+    def setUp(self):
         fteproxy.conf.setValue('runtime.mode', 'client')
         self.record_layers_info = []
         self.record_layers_outgoing = []
