@@ -85,7 +85,6 @@ class listener(threading.Thread):
                  remote_ip, remote_port):
         threading.Thread.__init__(self)
 
-        self._workers = []
         self._running = False
         self._local_ip = local_ip
         self._local_port = local_port
@@ -130,8 +129,6 @@ class listener(threading.Thread):
                 w2 = worker(new_stream, conn)
                 w1.start()
                 w2.start()
-                self._workers.append(w1)
-                self._workers.append(w2)
             except socket.timeout:
                 continue
             except socket.error as e:
@@ -141,9 +138,6 @@ class listener(threading.Thread):
                 fteproxy.warn('exception in fteproxy.listener: ' + str(e))
                 break
             
-        for w in self._workers:
-            w.stop()
-
     def stop(self):
         """Terminate the thread and stop listening on ``local_ip:local_port``.
         """
