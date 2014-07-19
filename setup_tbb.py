@@ -40,5 +40,5 @@ setup(name='fteproxy',
       author_email='kpdyer@gmail.com',
       url='https://github.com/kpdyer/fteproxy',
       packages=['fteproxy', 'fteproxy.defs', 'fteproxy.tests'],
-      install_requires=['txsockxs', 'parsley', 'pyptlib', 'obfsproxy', 'twisted', 'fte']
+      install_requires=['txsocks', 'parsley', 'pyptlib', 'obfsproxy', 'twisted', 'fte']
       )
