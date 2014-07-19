@@ -17,6 +17,17 @@ fteproxy is powered by Format-Transforming Encryption [1] and was presented at C
 
 [1] [Protocol Misidentification Made Easy with Format-Transforming Encryption](https://kpdyer.com/publications/ccs2013-fte.pdf), Kevin P. Dyer, Scott E. Coull, Thomas Ristenpart and Thomas Shrimpton
 
+Quick Start
+-----------
+
+On Linux/OSX, use pip to install fteproxy.
+
+```console
+pip install fteproxy
+```
+
+On Windows, download pre-compiled binaries, located at: https://fteproxy.org/download
+
 Dependencies
 --------
 
