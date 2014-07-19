@@ -2,3 +2,5 @@ fte
 pyptlib
 obfsproxy
 twisted
+txsockxs
+parsley
