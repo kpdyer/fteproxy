@@ -1,0 +1,16 @@
+language:
+  - python
+  - cpp
+compiler:
+  - gcc
+  - clang
+before_install:
+  - sudo apt-get update -qq
+  - sudo apt-get install -y libgmp-dev
+python:
+  - "2.6"
+  - "2.7"
+install:
+  - "pip install -r requirements.txt"
+script: 
+  - "python setup.py test"

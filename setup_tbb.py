@@ -15,8 +15,8 @@
 # You should have received a copy of the GNU General Public License
 # along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
 
-from distutils.core import setup
-from distutils.core import Extension
+from setuptools import setup
+from setuptools import Extension
 
 import glob
 import sys
@@ -40,4 +40,5 @@ setup(name='fteproxy',
       author_email='kpdyer@gmail.com',
       url='https://github.com/kpdyer/fteproxy',
       packages=['fteproxy', 'fteproxy.defs', 'fteproxy.tests'],
+      install_requires=['txsocksx', 'parsley', 'pyptlib', 'obfsproxy', 'twisted', 'fte']
       )

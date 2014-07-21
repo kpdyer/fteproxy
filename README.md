@@ -1,6 +1,8 @@
 fteproxy
 ========
 
+[![Build Status](https://travis-ci.org/kpdyer/fteproxy.svg?branch=master)](https://travis-ci.org/kpdyer/fteproxy)
+
 * homepage: https://fteproxy.org
 * source code: https://github.com/kpdyer/fteproxy
 * publication: https://kpdyer.com/publications/ccs2013-fte.pdf
@@ -14,6 +16,17 @@ Its job is to relay datastreams, such as web browsing traffic, by encoding the s
 fteproxy is powered by Format-Transforming Encryption [1] and was presented at CCS 2013.
 
 [1] [Protocol Misidentification Made Easy with Format-Transforming Encryption](https://kpdyer.com/publications/ccs2013-fte.pdf), Kevin P. Dyer, Scott E. Coull, Thomas Ristenpart and Thomas Shrimpton
+
+Quick Start
+-----------
+
+On Linux/OSX, use pip to install fteproxy.
+
+```console
+pip install fteproxy
+```
+
+On Windows, download pre-compiled binaries, located at: https://fteproxy.org/download
 
 Dependencies
 --------
@@ -42,7 +55,6 @@ Documentation
 -------------
 
 See: https://fteproxy.org/documentation
-
 
 Author
 ------
