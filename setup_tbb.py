@@ -32,7 +32,7 @@ setup(name='fteproxy',
       zipfile="fteproxy.zip",
       options={"py2exe": {
           "dll_excludes": ["w9xpopen.exe"],
-          "includes": ["twisted", "pyptlib", "Crypto", "txsocksx", "parsley"],
+          "includes": ["twisted", "pyptlib", "Crypto", "txsocksx", "parsley", "obfsproxy", "fte"],
       }
       },
       version=FTEPROXY_RELEASE,
