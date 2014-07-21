@@ -32,6 +32,7 @@ setup(name='fteproxy',
       zipfile="fteproxy.zip",
       options={"py2exe": {
           "dll_excludes": ["w9xpopen.exe"],
+          "includes": ["twisted", "pyptlib", "Crypto", "txsocksx", "parsley"],
       }
       },
       version=FTEPROXY_RELEASE,
@@ -40,5 +41,5 @@ setup(name='fteproxy',
       author_email='kpdyer@gmail.com',
       url='https://github.com/kpdyer/fteproxy',
       packages=['fteproxy', 'fteproxy.defs', 'fteproxy.tests'],
-      install_requires=['txsocksx', 'parsley', 'pyptlib', 'obfsproxy', 'twisted', 'fte']
+      install_requires=['pyptlib', 'obfsproxy', 'twisted', 'fte']
       )
