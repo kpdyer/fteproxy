@@ -6,6 +6,7 @@
 import unittest
 
 import fteproxy.record_layer
+import fteproxy.regex2dfa
 
 import fte.encoder
 
@@ -26,7 +27,7 @@ class Tests(unittest.TestCase):
         for language in definitions.keys():
             regex = fteproxy.defs.getRegex(language)
             fixed_slice = fteproxy.defs.getFixedSlice(language)
-            regex_encoder = fte.encoder.RegexEncoder(regex, fixed_slice)
+            regex_encoder = fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(regex), fixed_slice)
             encoder = fteproxy.record_layer.Encoder(
                 encoder=regex_encoder)
             decoder = fteproxy.record_layer.Decoder(

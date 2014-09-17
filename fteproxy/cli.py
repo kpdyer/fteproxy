@@ -16,6 +16,7 @@ import fte.encoder
 import fteproxy.conf
 import fteproxy.server
 import fteproxy.client
+import fteproxy.regex2dfa
 
 # do_managed_*
 
@@ -146,11 +147,11 @@ class FTEMain(threading.Thread):
                 incoming_regex = fteproxy.defs.getRegex(self._args.downstream_format)
                 incoming_fixed_slice = fteproxy.defs.getFixedSlice(
                     self._args.downstream_format)
-                fte.encoder.RegexEncoder(incoming_regex, incoming_fixed_slice)
+                fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(incoming_regex), incoming_fixed_slice)
                 outgoing_regex = fteproxy.defs.getRegex(self._args.upstream_format)
                 outgoing_fixed_slice = fteproxy.defs.getFixedSlice(
                     self._args.upstream_format)
-                fte.encoder.RegexEncoder(outgoing_regex, outgoing_fixed_slice)
+                fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(outgoing_regex), outgoing_fixed_slice)
     
                 if self._args.managed:
                     do_managed_client()
@@ -174,7 +175,7 @@ class FTEMain(threading.Thread):
                 for language in languages.keys():
                     regex = fteproxy.defs.getRegex(language)
                     fixed_slice = fteproxy.defs.getFixedSlice(language)
-                    fte.encoder.RegexEncoder(regex, fixed_slice)
+                    fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(regex), fixed_slice)
     
                 if self._args.managed:
                     do_managed_server()
