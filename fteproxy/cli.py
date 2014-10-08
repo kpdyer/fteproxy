@@ -144,11 +144,19 @@ class FTEMain(threading.Thread):
                 fteproxy.warn('Failed to write PID file to disk: '+pid_file)
     
             if fteproxy.conf.getValue('runtime.mode') == 'client':
-                incoming_regex = fteproxy.defs.getRegex(self._args.downstream_format)
+                try:
+                    incoming_regex = fteproxy.defs.getRegex(self._args.downstream_format)
+                except fteproxy.defs.InvalidRegexName:
+                    fteproxy.fatal_error('Invalid format name '+self._args.downstream_format)
+                    
                 incoming_fixed_slice = fteproxy.defs.getFixedSlice(
                     self._args.downstream_format)
                 fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(incoming_regex), incoming_fixed_slice)
-                outgoing_regex = fteproxy.defs.getRegex(self._args.upstream_format)
+                try:
+                    outgoing_regex = fteproxy.defs.getRegex(self._args.upstream_format)
+                except InvalidRegexName:
+                    fteproxy.fatal_error('Invalid format name '+self._args.upstream_format)
+
                 outgoing_fixed_slice = fteproxy.defs.getFixedSlice(
                     self._args.upstream_format)
                 fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(outgoing_regex), outgoing_fixed_slice)

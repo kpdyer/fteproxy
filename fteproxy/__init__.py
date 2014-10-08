@@ -38,7 +38,6 @@ class NegotiateTimeoutException(Exception):
 def fatal_error(msg):
     if fteproxy.conf.getValue('runtime.loglevel') in [1,2,3]:
         print 'ERROR:', msg
-        traceback.print_stack()
     sys.exit(1)
 
 
