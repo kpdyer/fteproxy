@@ -1,11 +1,11 @@
-fteproxy (0.2.15-1) unstable; urgency=low
+fteproxy (0.2.19-1) unstable; urgency=low
 
   [ Kevin P. Dyer ]
-  * release upstream version 0.2.15
   * initial packaging work
 
   [ Rolf Leggewie ]
-  * mentoring and some packaging work to ensure compliance with policy.
-  * initial release to Debian. Closes: #746554
+  * initial release, upstream version 0.2.19. Closes: #746554
+  * mentoring, infrastructure and packaging work to ensure compliance
+    with best practice and policy
 
- -- Rolf Leggewie <foss@rolf.leggewie.biz>  Tue, 27 May 2014 18:48:50 +0800
+ -- Rolf Leggewie <foss@rolf.leggewie.biz>  Sat, 22 Nov 2014 01:28:05 +0800
