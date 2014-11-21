@@ -1,20 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# This file is part of fteproxy.
-#
-# fteproxy is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# fteproxy is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
+
 
 import sys
 import socket
@@ -24,6 +11,7 @@ import traceback
 import fteproxy.conf
 import fteproxy.defs
 import fteproxy.record_layer
+import fteproxy.regex2dfa
 
 import fte.encoder
 
@@ -50,7 +38,6 @@ class NegotiateTimeoutException(Exception):
 def fatal_error(msg):
     if fteproxy.conf.getValue('runtime.loglevel') in [1,2,3]:
         print 'ERROR:', msg
-        traceback.print_stack()
     sys.exit(1)
 
 
@@ -131,7 +118,7 @@ class NegotiationManager(object):
                 incoming_fixed_slice = fteproxy.defs.getFixedSlice(
                     incoming_language)
 
-                incoming_decoder = fte.encoder.RegexEncoder(incoming_regex,
+                incoming_decoder = fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(incoming_regex),
                                                             incoming_fixed_slice)
                 decoder = fteproxy.record_layer.Decoder(decoder=incoming_decoder)
 
@@ -153,12 +140,12 @@ class NegotiationManager(object):
         decoder = None
 
         if outgoing_regex != None and outgoing_fixed_slice != -1:
-            outgoing_encoder = fte.encoder.RegexEncoder(outgoing_regex,
+            outgoing_encoder = fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(outgoing_regex),
                                                         outgoing_fixed_slice)
             encoder = fteproxy.record_layer.Encoder(encoder=outgoing_encoder)
 
         if incoming_regex != None and incoming_fixed_slice != -1:
-            incoming_decoder = fte.encoder.RegexEncoder(incoming_regex,
+            incoming_decoder = fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(incoming_regex),
                                                         incoming_fixed_slice)
             decoder = fteproxy.record_layer.Decoder(decoder=incoming_decoder)
 

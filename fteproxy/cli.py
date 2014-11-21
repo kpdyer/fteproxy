@@ -1,20 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# This file is part of fteproxy.
-#
-# fteproxy is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# fteproxy is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with fteproxy.  If not, see <http://www.gnu.org/licenses/>.
+
 
 
 import sys
@@ -29,6 +16,7 @@ import fte.encoder
 import fteproxy.conf
 import fteproxy.server
 import fteproxy.client
+import fteproxy.regex2dfa
 
 # do_managed_*
 
@@ -156,14 +144,22 @@ class FTEMain(threading.Thread):
                 fteproxy.warn('Failed to write PID file to disk: '+pid_file)
     
             if fteproxy.conf.getValue('runtime.mode') == 'client':
-                incoming_regex = fteproxy.defs.getRegex(self._args.downstream_format)
+                try:
+                    incoming_regex = fteproxy.defs.getRegex(self._args.downstream_format)
+                except fteproxy.defs.InvalidRegexName:
+                    fteproxy.fatal_error('Invalid format name '+self._args.downstream_format)
+                    
                 incoming_fixed_slice = fteproxy.defs.getFixedSlice(
                     self._args.downstream_format)
-                fte.encoder.RegexEncoder(incoming_regex, incoming_fixed_slice)
-                outgoing_regex = fteproxy.defs.getRegex(self._args.upstream_format)
+                fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(incoming_regex), incoming_fixed_slice)
+                try:
+                    outgoing_regex = fteproxy.defs.getRegex(self._args.upstream_format)
+                except InvalidRegexName:
+                    fteproxy.fatal_error('Invalid format name '+self._args.upstream_format)
+
                 outgoing_fixed_slice = fteproxy.defs.getFixedSlice(
                     self._args.upstream_format)
-                fte.encoder.RegexEncoder(outgoing_regex, outgoing_fixed_slice)
+                fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(outgoing_regex), outgoing_fixed_slice)
     
                 if self._args.managed:
                     do_managed_client()
@@ -187,7 +183,7 @@ class FTEMain(threading.Thread):
                 for language in languages.keys():
                     regex = fteproxy.defs.getRegex(language)
                     fixed_slice = fteproxy.defs.getFixedSlice(language)
-                    fte.encoder.RegexEncoder(regex, fixed_slice)
+                    fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(regex), fixed_slice)
     
                 if self._args.managed:
                     do_managed_server()

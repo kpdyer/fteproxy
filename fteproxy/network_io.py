@@ -55,7 +55,6 @@ def close_socket(sock, lock=None):
     """
 
     try:
-        fte.warn('Closing socket: '+sock)
         if lock is not None:
             with lock:
                 sock.close()
