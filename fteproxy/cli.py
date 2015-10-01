@@ -146,7 +146,6 @@ class FTEMain(threading.Thread):
             if fteproxy.conf.getValue('runtime.mode') == 'client':
                 K1 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[:16]
                 K2 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[16:]
-                print [K1, K2]
 
                 try:
                     incoming_regex = fteproxy.defs.getRegex(self._args.downstream_format)
@@ -184,7 +183,6 @@ class FTEMain(threading.Thread):
             elif fteproxy.conf.getValue('runtime.mode') == 'server':
                 K1 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[:16]
                 K2 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[16:]
-                print [K1, K2]
 
                 languages = fteproxy.defs.load_definitions()
                 for language in languages.keys():
@@ -445,7 +443,7 @@ def get_args():
     parser.add_argument('--key',
                         help='Cryptographic key, hex, must be exactly 64 characters',
                         default=fteproxy.conf.getValue('runtime.fteproxy.encrypter.key'
-                                                  ))
+                                                  ).encode('hex'))
     args = parser.parse_args(sys.argv[1:])
 
     return args

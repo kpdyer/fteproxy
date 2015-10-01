@@ -112,7 +112,7 @@ conf['runtime.state.downstream_language'] = 'manual-http-response'
 
 
 """The default AE scheme key."""
-conf['runtime.fteproxy.encrypter.key'] = 'FF' * 16 + '00' * 16
+conf['runtime.fteproxy.encrypter.key'] = '\xFF' * 16 + '\x00' * 16
 
 
 """The default fixed_slice parameter to use for buildTable."""
