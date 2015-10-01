@@ -121,9 +121,9 @@ class listener(threading.Thread):
             except socket.error as e:
                 fteproxy.warn('socket.error in fteproxy.listener: ' + str(e))
                 continue
-            #except Exception as e:
-            #    fteproxy.warn('exception in fteproxy.listener: ' + str(e))
-            #    break
+            except Exception as e:
+                fteproxy.warn('exception in fteproxy.listener: ' + str(e))
+                break
             
     def stop(self):
         """Terminate the thread and stop listening on ``local_ip:local_port``.
