@@ -144,6 +144,9 @@ class FTEMain(threading.Thread):
                 fteproxy.warn('Failed to write PID file to disk: '+pid_file)
     
             if fteproxy.conf.getValue('runtime.mode') == 'client':
+                K1 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[:16]
+                K2 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[16:]
+
                 try:
                     incoming_regex = fteproxy.defs.getRegex(self._args.downstream_format)
                 except fteproxy.defs.InvalidRegexName:
@@ -151,7 +154,7 @@ class FTEMain(threading.Thread):
                     
                 incoming_fixed_slice = fteproxy.defs.getFixedSlice(
                     self._args.downstream_format)
-                fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(incoming_regex), incoming_fixed_slice)
+                fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(incoming_regex), incoming_fixed_slice, K1, K2)
                 try:
                     outgoing_regex = fteproxy.defs.getRegex(self._args.upstream_format)
                 except InvalidRegexName:
@@ -159,7 +162,7 @@ class FTEMain(threading.Thread):
 
                 outgoing_fixed_slice = fteproxy.defs.getFixedSlice(
                     self._args.upstream_format)
-                fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(outgoing_regex), outgoing_fixed_slice)
+                fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(outgoing_regex), outgoing_fixed_slice, K1, K2)
     
                 if self._args.managed:
                     do_managed_client()
@@ -179,11 +182,14 @@ class FTEMain(threading.Thread):
                     self._client.join()
             elif fteproxy.conf.getValue('runtime.mode') == 'server':
     
+                K1 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[:16]
+                K2 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[16:]
+
                 languages = fteproxy.defs.load_definitions()
                 for language in languages.keys():
                     regex = fteproxy.defs.getRegex(language)
                     fixed_slice = fteproxy.defs.getFixedSlice(language)
-                    fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(regex), fixed_slice)
+                    fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(regex), fixed_slice, K1, K2)
     
                 if self._args.managed:
                     do_managed_server()
