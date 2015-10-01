@@ -100,8 +100,10 @@ class NegotiateCell(object):
 
 class NegotiationManager(object):
 
-    def __init__(self):
+    def __init__(self, K1, K2):
         self._negotiationComplete = False
+        self._K1 = K1
+        self._K2 = K2
 
     def getNegotiationComplete(self):
         return self._negotiationComplete
@@ -119,7 +121,7 @@ class NegotiationManager(object):
                     incoming_language)
 
                 incoming_decoder = fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(incoming_regex),
-                                                            incoming_fixed_slice)
+                                                            incoming_fixed_slice, self._K1, self._K2)
                 decoder = fteproxy.record_layer.Decoder(decoder=incoming_decoder)
 
                 decoder.push(data)
@@ -141,12 +143,12 @@ class NegotiationManager(object):
 
         if outgoing_regex != None and outgoing_fixed_slice != -1:
             outgoing_encoder = fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(outgoing_regex),
-                                                        outgoing_fixed_slice)
+                                                        outgoing_fixed_slice, self._K1, self._K2)
             encoder = fteproxy.record_layer.Encoder(encoder=outgoing_encoder)
 
         if incoming_regex != None and incoming_fixed_slice != -1:
             incoming_decoder = fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(incoming_regex),
-                                                        incoming_fixed_slice)
+                                                        incoming_fixed_slice, self._K1, self._K2)
             decoder = fteproxy.record_layer.Decoder(decoder=incoming_decoder)
 
         return [encoder, decoder]
@@ -242,7 +244,7 @@ class _FTESocketWrapper(FTEHelper, object):
         self._K1 = K1
         self._K2 = K2
 
-        self._negotiation_manager = NegotiationManager()
+        self._negotiation_manager = NegotiationManager(K1, K2)
         self._negotiationComplete = False
         self._isServer = (outgoing_regex is None and incoming_regex is None)
         self._isClient = (
@@ -401,7 +403,7 @@ class FTETransport(FTEHelper, obfsproxy.transports.base.BaseTransport):
         self._encoder = None
         self._decoder = None
 
-        self._negotiation_manager = NegotiationManager()
+        self._negotiation_manager = NegotiationManager(K1, K2)
         self._negotiationComplete = False
         self._incoming_buffer = ''
         self._preNegotiationBuffer_outgoing = ''
