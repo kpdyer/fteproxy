@@ -59,14 +59,6 @@ class FTEMain(threading.Thread):
             self._client = None
             self._server = None
     
-            if self._args.version:
-                print FTEPROXY_VERSION
-                sys.exit(0)
-    
-            if self._args.quiet:
-                fteproxy.conf.setValue('runtime.loglevel', 0)
-            if self._args.managed:
-                fteproxy.conf.setValue('runtime.loglevel', 0)
             if not self._args.quiet and not self._args.managed:
                 print """fteproxy Copyright (C) 2012-2014 Kevin P. Dyer <kpdyer@gmail.com>
     This program comes with ABSOLUTELY NO WARRANTY.
@@ -93,46 +85,6 @@ class FTEMain(threading.Thread):
                                 fteproxy.warn('failed to remove PID file: '+pid_file)
                             os.unlink(pid_file)
                     sys.exit(0)
-            if self._args.mode == 'client':
-                fteproxy.conf.setValue('runtime.mode', 'client')
-            elif self._args.mode == 'server':
-                fteproxy.conf.setValue('runtime.mode', 'server')
-            else:
-                fteproxy.conf.setValue('runtime.mode', 'client')
-            if self._args.client_ip:
-                fteproxy.conf.setValue('runtime.client.ip', self._args.client_ip)
-            if self._args.client_port:
-                fteproxy.conf.setValue('runtime.client.port',
-                                  int(self._args.client_port))
-            if self._args.server_ip:
-                fteproxy.conf.setValue('runtime.server.ip', self._args.server_ip)
-            if self._args.server_port:
-                fteproxy.conf.setValue('runtime.server.port',
-                                  int(self._args.server_port))
-            if self._args.proxy_ip:
-                fteproxy.conf.setValue('runtime.proxy.ip', self._args.proxy_ip)
-            if self._args.proxy_port:
-                fteproxy.conf.setValue('runtime.proxy.port',
-                                  int(self._args.proxy_port))
-            if self._args.downstream_format:
-                fteproxy.conf.setValue('runtime.state.downstream_language',
-                                  self._args.downstream_format)
-            if self._args.upstream_format:
-                fteproxy.conf.setValue('runtime.state.upstream_language',
-                                  self._args.upstream_format)
-            if self._args.release:
-                fteproxy.conf.setValue('fteproxy.defs.release', self._args.release)
-            if self._args.key:
-                if len(self._args.key) != 64:
-                    fteproxy.warn('Invalid key length: ' + str(len(self._args.key)) + ', should be 64')
-                    sys.exit(1)
-                try:
-                    binary_key = self._args.key.decode('hex')
-                except:
-                    fteproxy.warn('Invalid key format, must contain only 0-9a-fA-F')
-                    sys.exit(1)
-                fteproxy.conf.setValue('runtime.fteproxy.encrypter.key', binary_key)
-    
             try:
                 pid_file = os.path.join(fteproxy.conf.getValue('general.pid_dir'),
                                         '.' + fteproxy.conf.getValue('runtime.mode')
@@ -389,62 +341,108 @@ def test():
 
 
 def get_args():
+
+    class setConfValue(argparse.Action):
+        def __call__(self, parser, namespace, values, options_string):
+            args_to_conf = {
+                    "--quiet"             : "runtime.loglevel",
+                    "--managed"           : "runtime.loglevel",
+                    "--mode"              : "runtime.mode",
+                    "--client_ip"         : "runtime.client.ip",
+                    "--client_port"       : "runtime.client.port",
+                    "--server_ip"         : "runtime.server.ip",
+                    "--server_port"       : "runtime.server.port",
+                    "--proxy_ip"          : "runtime.proxy.ip",
+                    "--proxy_port"        : "runtime.proxy.port",
+                    "--downstream-format" : "runtime.state.downstream_language",
+                    "--upstream-format"   : "runtime.state.upstream_language",
+                    "--release"           : "fteproxy.defs.release",
+                    "--key"               : "runtime.fteproxy.encrypter.key",
+            }
+
+            if self.dest is "key":
+                if len(self.dest) != 64:
+                    fteproxy.warn('Invalid key length: ' + str(len(self.dest))
+                                  + ', should be 64')
+                    sys.exit(1)
+                try:
+                    values = self.dest.decode('hex')
+                except:
+                    fteproxy.warn('Invalid key format, must contain only 0-9a-fA-F')
+                    sys.exit(1)
+
+            if self.dest in ['quiet', 'managed']:
+                fteproxy.conf.setValue(args_to_conf[options_string], 0)
+                setattr(namespace, self.dest, True)
+            else:
+                setattr(namespace, self.dest, values)
+                if "port" in self.dest:
+                    values = int(values)
+                fteproxy.conf.setValue(args_to_conf[options_string], values)
+                
+
+
     parser = argparse.ArgumentParser(prog='fteproxy',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--version', action='store_true', default=False,
+    parser.add_argument('--version', action='version', version=FTEPROXY_VERSION,
                         help='Output the version of fteproxy, then quit.')
-    parser.add_argument('--mode',
-                        default='client',
+    parser.add_argument('--mode', action=setConfValue, default='client',
                         metavar='(client|server|test)',
+                        choices=['client', 'server', 'test'],
                         help='Relay mode: client or server')
     parser.add_argument('--stop', action='store_true',
                         help='Shutdown daemon process')
-    parser.add_argument('--upstream-format',
+    parser.add_argument('--upstream-format', action=setConfValue,
                         help='Client-to-server language format',
                         default=fteproxy.conf.getValue('runtime.state.upstream_language'
                                                   ))
-    parser.add_argument('--downstream-format',
+    parser.add_argument('--downstream-format', action=setConfValue,
                         help='Server-to-client language format',
                         default=fteproxy.conf.getValue('runtime.state.downstream_language'
                                                   ))
-    parser.add_argument('--client_ip',
+    parser.add_argument('--client_ip', action=setConfValue,
                         help='Client-side listening IP',
                         default=fteproxy.conf.getValue('runtime.client.ip'
                                                   ))
-    parser.add_argument('--client_port',
+    parser.add_argument('--client_port', action=setConfValue,
                         help='Client-side listening port',
                         default=fteproxy.conf.getValue('runtime.client.port'
                                                   ))
-    parser.add_argument('--server_ip',
+    parser.add_argument('--server_ip', action=setConfValue,
                         help='Server-side listening IP',
                         default=fteproxy.conf.getValue('runtime.server.ip'
                                                   ))
-    parser.add_argument('--server_port',
+    parser.add_argument('--server_port', action=setConfValue,
                         help='Server-side listening port',
                         default=fteproxy.conf.getValue('runtime.server.port'
                                                   ))
-    parser.add_argument('--proxy_ip',
+    parser.add_argument('--proxy_ip', action=setConfValue,
                         help='Forwarding-proxy (SOCKS) listening IP',
                         default=fteproxy.conf.getValue('runtime.proxy.ip'
                                                   ))
-    parser.add_argument('--proxy_port',
+    parser.add_argument('--proxy_port', action=setConfValue,
                         help='Forwarding-proxy (SOCKS) listening port',
                         default=fteproxy.conf.getValue('runtime.proxy.port'
                                                   ))
-    parser.add_argument('--quiet', action='store_true', default=False,
-                        help='Be completely silent. Print nothing.')
-    parser.add_argument('--release',
+    parser.add_argument('--quiet', action=setConfValue, default=False,
+                        help='Be completely silent. Print nothing.', nargs=0)
+    parser.add_argument('--release', action=setConfValue,
                         help='Definitions file to use, specified as YYYYMMDD',
                         default=fteproxy.conf.getValue('fteproxy.defs.release'))
-    parser.add_argument('--managed',
+    parser.add_argument('--managed', action=setConfValue, nargs=0,
                         help="Start in pluggable transport managed mode, for use with Tor.",
-                        action='store_true',
                         default=False)
-    parser.add_argument('--key',
+    parser.add_argument('--key', action=setConfValue,
                         help='Cryptographic key, hex, must be exactly 64 characters',
                         default=fteproxy.conf.getValue('runtime.fteproxy.encrypter.key'
                                                   ).encode('hex'))
     args = parser.parse_args(sys.argv[1:])
+
+    if args.stop and not args.mode:
+        parser.error('--mode keyword is required with --stop')
+
+    if not args.mode: # set client mode in conf if not set
+        fteproxy.conf.setValue('runtime.mode', 'client')
 
     return args
 
