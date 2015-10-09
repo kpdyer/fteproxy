@@ -68,27 +68,10 @@ class FTEMain(threading.Thread):
             if self._args.mode == 'test':
                 test()
             if self._args.stop:
-                if not self._args.mode:
-                    print '--mode keyword is required with --stop'
-                    sys.exit(1)
-                if self._args.mode in ['client', 'server']:
-                    pid_files_path = \
-                        os.path.join(fteproxy.conf.getValue('general.pid_dir'),
-                                     '.' + self._args.mode + '-*.pid')
-                    pid_files = glob.glob(pid_files_path)
-                    for pid_file in pid_files:
-                        with open(pid_file) as f:
-                            pid = int(f.read())
-                            try:
-                                os.kill(pid, signal.SIGINT)
-                            except OSError:
-                                fteproxy.warn('failed to remove PID file: '+pid_file)
-                            os.unlink(pid_file)
-                    sys.exit(0)
+                FTEMain.do_stop(self)
+
             try:
-                pid_file = os.path.join(fteproxy.conf.getValue('general.pid_dir'),
-                                        '.' + fteproxy.conf.getValue('runtime.mode')
-                                        + '-' + str(os.getpid()) + '.pid')
+                pid_file = get_pid_file()
     
                 with open(pid_file, 'w') as f:
                     f.write(str(os.getpid()))
@@ -96,66 +79,9 @@ class FTEMain(threading.Thread):
                 fteproxy.warn('Failed to write PID file to disk: '+pid_file)
     
             if fteproxy.conf.getValue('runtime.mode') == 'client':
-                K1 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[:16]
-                K2 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[16:]
-
-                try:
-                    incoming_regex = fteproxy.defs.getRegex(self._args.downstream_format)
-                except fteproxy.defs.InvalidRegexName:
-                    fteproxy.fatal_error('Invalid format name '+self._args.downstream_format)
-                    
-                incoming_fixed_slice = fteproxy.defs.getFixedSlice(
-                    self._args.downstream_format)
-                fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(incoming_regex), incoming_fixed_slice, K1, K2)
-                try:
-                    outgoing_regex = fteproxy.defs.getRegex(self._args.upstream_format)
-                except InvalidRegexName:
-                    fteproxy.fatal_error('Invalid format name '+self._args.upstream_format)
-
-                outgoing_fixed_slice = fteproxy.defs.getFixedSlice(
-                    self._args.upstream_format)
-                fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(outgoing_regex), outgoing_fixed_slice, K1, K2)
-    
-                if self._args.managed:
-                    do_managed_client()
-                else:
-    
-                    if not self._args.quiet:
-                        print 'Client ready!'
-    
-                    local_ip = fteproxy.conf.getValue('runtime.client.ip')
-                    local_port = fteproxy.conf.getValue('runtime.client.port')
-                    remote_ip = fteproxy.conf.getValue('runtime.server.ip')
-                    remote_port = fteproxy.conf.getValue('runtime.server.port')
-                    self._client = fteproxy.client.listener(local_ip, local_port,
-                                                       remote_ip, remote_port)
-                    self._client.daemon = True
-                    self._client.start()
-                    self._client.join()
+                FTEMain.do_client(self)
             elif fteproxy.conf.getValue('runtime.mode') == 'server':
-                K1 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[:16]
-                K2 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[16:]
-
-                languages = fteproxy.defs.load_definitions()
-                for language in languages.keys():
-                    regex = fteproxy.defs.getRegex(language)
-                    fixed_slice = fteproxy.defs.getFixedSlice(language)
-                    fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(regex), fixed_slice, K1, K2)
-    
-                if self._args.managed:
-                    do_managed_server()
-                else:
-                    local_ip = fteproxy.conf.getValue('runtime.server.ip')
-                    local_port = fteproxy.conf.getValue('runtime.server.port')
-                    remote_ip = fteproxy.conf.getValue('runtime.proxy.ip')
-                    remote_port = fteproxy.conf.getValue('runtime.proxy.port')
-                    self._server = fteproxy.server.listener(local_ip, local_port,
-                                                       remote_ip, remote_port)
-                    self._server.daemon = True
-                    self._server.start()
-                    if not self._args.quiet:
-                        print 'Server ready!'
-                    self._server.join()
+                FTEMain.do_server(self)
                     
         except Exception as e:
             import traceback
@@ -168,6 +94,91 @@ class FTEMain(threading.Thread):
         if self._server is not None:
             self._server.stop()
 
+    def do_stop(self):
+        if self._args.mode is not 'test':
+            pid_files_path = \
+                os.path.join(fteproxy.conf.getValue('general.pid_dir'),
+                             '.' + self._args.mode + '-*.pid')
+            pid_files = glob.glob(pid_files_path)
+            for pid_file in pid_files:
+                with open(pid_file) as f:
+                    pid = int(f.read())
+                    try:
+                        os.kill(pid, signal.SIGINT)
+                    except OSError:
+                        fteproxy.warn('failed to remove PID file: '+pid_file)
+                    os.unlink(pid_file)
+            sys.exit(0)
+
+
+    def init_listener(self, mode):
+        server_ip = fteproxy.conf.getValue('runtime.server.ip')
+        server_port = fteproxy.conf.getValue('runtime.server.port')
+        if mode is 'client':
+            client_ip = fteproxy.conf.getValue('runtime.client.ip')
+            client_port = fteproxy.conf.getValue('runtime.client.port')
+            return fteproxy.client.listener(client_ip, client_port,
+                                            server_ip, server_port)
+        elif mode is 'server':
+            proxy_ip = fteproxy.conf.getValue('runtime.proxy.ip')
+            proxy_port = fteproxy.conf.getValue('runtime.proxy.port')
+            return fteproxy.server.listener(server_ip, server_port,
+                                            proxy_ip, proxy_port)
+        else:
+            fteproxy.fatal_error('Unexpected mode in init_listener: ' + mode)
+
+    def init_DfaEncoder(self, stream_format):
+
+        K1 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[:16]
+        K2 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[16:]
+
+        try:
+            regex = fteproxy.defs.getRegex(stream_format)
+        except fteproxy.defs.InvalidRegexName:
+            fteproxy.fatal_error('Invalid format name ' + stream_format)
+
+        fixed_slice = fteproxy.defs.getFixedSlice(stream_format)
+        fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(regex),
+                               fixed_slice, K1, K2)
+
+    def do_client(self):
+
+        FTEMain.init_DfaEncoder(self, self._args.downstream_format)
+        FTEMain.init_DfaEncoder(self, self._args.upstream_format)
+
+        if self._args.managed:
+            do_managed_client()
+        else:
+
+            if not self._args.quiet:
+                print 'Client ready!'
+
+            self._client = FTEMain.init_listener(self, 'client')
+            self._client.daemon = True
+            self._client.start()
+            self._client.join()
+
+    def do_server(self):
+
+        languages = fteproxy.defs.load_definitions()
+        for language in languages.keys():
+            FTEMain.init_DfaEncoder(self, language)
+
+        if self._args.managed:
+            do_managed_server()
+        else:
+            self._server = FTEMain.init_listener(self, 'server')
+            self._server.daemon = True
+            self._server.start()
+            if not self._args.quiet:
+                print 'Server ready!'
+            self._server.join()
+
+def get_pid_file():
+    pid_file = os.path.join(fteproxy.conf.getValue('general.pid_dir'),
+                              '.' + fteproxy.conf.getValue('runtime.mode')
+                            + '-' + str(os.getpid()) + '.pid')
+    return pid_file
 
 def do_managed_client():
 
@@ -472,9 +483,7 @@ def main():
         fteproxy.fatal_error("Main thread terminated unexpectedly: "+str(e))
     finally:
         if fteproxy.conf.getValue('runtime.mode'):
-            pid_file = os.path.join(fteproxy.conf.getValue('general.pid_dir'
-                                                      ), '.'
-                                    + fteproxy.conf.getValue('runtime.mode')
-                                    + '-' + str(os.getpid()) + '.pid')
+            pid_file = get_pid_file()
+
             if pid_file and os.path.exists(pid_file):
                 os.unlink(pid_file)
