@@ -58,153 +58,31 @@ class FTEMain(threading.Thread):
         try:
             self._client = None
             self._server = None
-    
-            if self._args.version:
-                print FTEPROXY_VERSION
-                sys.exit(0)
-    
-            if self._args.quiet:
-                fteproxy.conf.setValue('runtime.loglevel', 0)
-            if self._args.managed:
-                fteproxy.conf.setValue('runtime.loglevel', 0)
+
             if not self._args.quiet and not self._args.managed:
                 print """fteproxy Copyright (C) 2012-2014 Kevin P. Dyer <kpdyer@gmail.com>
     This program comes with ABSOLUTELY NO WARRANTY.
     This is free software, and you are welcome to redistribute it under certain conditions.
     """
-    
+
             if self._args.mode == 'test':
                 test()
             if self._args.stop:
-                if not self._args.mode:
-                    print '--mode keyword is required with --stop'
-                    sys.exit(1)
-                if self._args.mode in ['client', 'server']:
-                    pid_files_path = \
-                        os.path.join(fteproxy.conf.getValue('general.pid_dir'),
-                                     '.' + self._args.mode + '-*.pid')
-                    pid_files = glob.glob(pid_files_path)
-                    for pid_file in pid_files:
-                        with open(pid_file) as f:
-                            pid = int(f.read())
-                            try:
-                                os.kill(pid, signal.SIGINT)
-                            except OSError:
-                                fteproxy.warn('failed to remove PID file: '+pid_file)
-                            os.unlink(pid_file)
-                    sys.exit(0)
-            if self._args.mode == 'client':
-                fteproxy.conf.setValue('runtime.mode', 'client')
-            elif self._args.mode == 'server':
-                fteproxy.conf.setValue('runtime.mode', 'server')
-            else:
-                fteproxy.conf.setValue('runtime.mode', 'client')
-            if self._args.client_ip:
-                fteproxy.conf.setValue('runtime.client.ip', self._args.client_ip)
-            if self._args.client_port:
-                fteproxy.conf.setValue('runtime.client.port',
-                                  int(self._args.client_port))
-            if self._args.server_ip:
-                fteproxy.conf.setValue('runtime.server.ip', self._args.server_ip)
-            if self._args.server_port:
-                fteproxy.conf.setValue('runtime.server.port',
-                                  int(self._args.server_port))
-            if self._args.proxy_ip:
-                fteproxy.conf.setValue('runtime.proxy.ip', self._args.proxy_ip)
-            if self._args.proxy_port:
-                fteproxy.conf.setValue('runtime.proxy.port',
-                                  int(self._args.proxy_port))
-            if self._args.downstream_format:
-                fteproxy.conf.setValue('runtime.state.downstream_language',
-                                  self._args.downstream_format)
-            if self._args.upstream_format:
-                fteproxy.conf.setValue('runtime.state.upstream_language',
-                                  self._args.upstream_format)
-            if self._args.release:
-                fteproxy.conf.setValue('fteproxy.defs.release', self._args.release)
-            if self._args.key:
-                if len(self._args.key) != 64:
-                    fteproxy.warn('Invalid key length: ' + str(len(self._args.key)) + ', should be 64')
-                    sys.exit(1)
-                try:
-                    binary_key = self._args.key.decode('hex')
-                except:
-                    fteproxy.warn('Invalid key format, must contain only 0-9a-fA-F')
-                    sys.exit(1)
-                fteproxy.conf.setValue('runtime.fteproxy.encrypter.key', binary_key)
-    
+                FTEMain.do_stop(self)
+
             try:
-                pid_file = os.path.join(fteproxy.conf.getValue('general.pid_dir'),
-                                        '.' + fteproxy.conf.getValue('runtime.mode')
-                                        + '-' + str(os.getpid()) + '.pid')
-    
+                pid_file = get_pid_file()
+
                 with open(pid_file, 'w') as f:
                     f.write(str(os.getpid()))
             except IOError:
                 fteproxy.warn('Failed to write PID file to disk: '+pid_file)
-    
+
             if fteproxy.conf.getValue('runtime.mode') == 'client':
-                K1 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[:16]
-                K2 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[16:]
-
-                try:
-                    incoming_regex = fteproxy.defs.getRegex(self._args.downstream_format)
-                except fteproxy.defs.InvalidRegexName:
-                    fteproxy.fatal_error('Invalid format name '+self._args.downstream_format)
-                    
-                incoming_fixed_slice = fteproxy.defs.getFixedSlice(
-                    self._args.downstream_format)
-                fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(incoming_regex), incoming_fixed_slice, K1, K2)
-                try:
-                    outgoing_regex = fteproxy.defs.getRegex(self._args.upstream_format)
-                except InvalidRegexName:
-                    fteproxy.fatal_error('Invalid format name '+self._args.upstream_format)
-
-                outgoing_fixed_slice = fteproxy.defs.getFixedSlice(
-                    self._args.upstream_format)
-                fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(outgoing_regex), outgoing_fixed_slice, K1, K2)
-    
-                if self._args.managed:
-                    do_managed_client()
-                else:
-    
-                    if not self._args.quiet:
-                        print 'Client ready!'
-    
-                    local_ip = fteproxy.conf.getValue('runtime.client.ip')
-                    local_port = fteproxy.conf.getValue('runtime.client.port')
-                    remote_ip = fteproxy.conf.getValue('runtime.server.ip')
-                    remote_port = fteproxy.conf.getValue('runtime.server.port')
-                    self._client = fteproxy.client.listener(local_ip, local_port,
-                                                       remote_ip, remote_port)
-                    self._client.daemon = True
-                    self._client.start()
-                    self._client.join()
+                FTEMain.do_client(self)
             elif fteproxy.conf.getValue('runtime.mode') == 'server':
-                K1 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[:16]
-                K2 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[16:]
+                FTEMain.do_server(self)
 
-                languages = fteproxy.defs.load_definitions()
-                for language in languages.keys():
-                    regex = fteproxy.defs.getRegex(language)
-                    fixed_slice = fteproxy.defs.getFixedSlice(language)
-                    fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(regex), fixed_slice, K1, K2)
-    
-                if self._args.managed:
-                    do_managed_server()
-                else:
-                    local_ip = fteproxy.conf.getValue('runtime.server.ip')
-                    local_port = fteproxy.conf.getValue('runtime.server.port')
-                    remote_ip = fteproxy.conf.getValue('runtime.proxy.ip')
-                    remote_port = fteproxy.conf.getValue('runtime.proxy.port')
-                    self._server = fteproxy.server.listener(local_ip, local_port,
-                                                       remote_ip, remote_port)
-                    self._server.daemon = True
-                    self._server.start()
-                    if not self._args.quiet:
-                        print 'Server ready!'
-                    self._server.join()
-                    
         except Exception as e:
             import traceback
             traceback.print_exc(e)
@@ -215,6 +93,92 @@ class FTEMain(threading.Thread):
             self._client.stop()
         if self._server is not None:
             self._server.stop()
+
+    def do_stop(self):
+        if self._args.mode is not 'test':
+            pid_files_path = \
+                os.path.join(fteproxy.conf.getValue('general.pid_dir'),
+                             '.' + self._args.mode + '-*.pid')
+            pid_files = glob.glob(pid_files_path)
+            for pid_file in pid_files:
+                with open(pid_file) as f:
+                    pid = int(f.read())
+                    try:
+                        os.kill(pid, signal.SIGINT)
+                    except OSError:
+                        fteproxy.warn('failed to remove PID file: '+pid_file)
+                    os.unlink(pid_file)
+            sys.exit(0)
+
+    def init_listener(self, mode):
+        server_ip = fteproxy.conf.getValue('runtime.server.ip')
+        server_port = fteproxy.conf.getValue('runtime.server.port')
+        if mode is 'client':
+            client_ip = fteproxy.conf.getValue('runtime.client.ip')
+            client_port = fteproxy.conf.getValue('runtime.client.port')
+            return fteproxy.client.listener(client_ip, client_port,
+                                            server_ip, server_port)
+        elif mode is 'server':
+            proxy_ip = fteproxy.conf.getValue('runtime.proxy.ip')
+            proxy_port = fteproxy.conf.getValue('runtime.proxy.port')
+            return fteproxy.server.listener(server_ip, server_port,
+                                            proxy_ip, proxy_port)
+        else:
+            fteproxy.fatal_error('Unexpected mode in init_listener: ' + mode)
+
+    def init_DfaEncoder(self, stream_format):
+
+        K1 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[:16]
+        K2 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[16:]
+
+        try:
+            regex = fteproxy.defs.getRegex(stream_format)
+        except fteproxy.defs.InvalidRegexName:
+            fteproxy.fatal_error('Invalid format name ' + stream_format)
+
+        fixed_slice = fteproxy.defs.getFixedSlice(stream_format)
+        fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(regex),
+                               fixed_slice, K1, K2)
+
+    def do_client(self):
+
+        FTEMain.init_DfaEncoder(self, self._args.downstream_format)
+        FTEMain.init_DfaEncoder(self, self._args.upstream_format)
+
+        if self._args.managed:
+            do_managed_client()
+        else:
+
+            if not self._args.quiet:
+                print 'Client ready!'
+
+            self._client = FTEMain.init_listener(self, 'client')
+            self._client.daemon = True
+            self._client.start()
+            self._client.join()
+
+    def do_server(self):
+
+        languages = fteproxy.defs.load_definitions()
+        for language in languages.keys():
+            FTEMain.init_DfaEncoder(self, language)
+
+        if self._args.managed:
+            do_managed_server()
+        else:
+            self._server = FTEMain.init_listener(self, 'server')
+            self._server.daemon = True
+            self._server.start()
+            if not self._args.quiet:
+                print 'Server ready!'
+            self._server.join()
+
+
+def get_pid_file():
+    pid_file = os.path.join(fteproxy.conf.getValue('general.pid_dir'),
+                              '.' + fteproxy.conf.getValue('runtime.mode')
+                            + '-' + str(os.getpid()) + '.pid')
+    return pid_file
 
 
 def do_managed_client():
@@ -277,7 +241,7 @@ def do_managed_client():
         else:
             # This should *never* happen unless launch_transport_listener()
             # decides to report a SOCKS version from the future.
-            log.warning("Listener SOCKS version unknown." )
+            log.warning("Listener SOCKS version unknown.")
             ptclient.reportMethodError(transport,
                                        "Listener SOCKS version unknown.")
             should_start_event_loop = False
@@ -372,7 +336,7 @@ def do_managed_server():
 
 
 def test():
-    try:    
+    try:
         suite_record_layer = unittest.TestLoader().loadTestsFromTestCase(
             fteproxy.tests.test_record_layer.Tests)
         suite_relay = unittest.TestLoader().loadTestsFromTestCase(
@@ -389,62 +353,106 @@ def test():
 
 
 def get_args():
+
+    class setConfValue(argparse.Action):
+        def __call__(self, parser, namespace, values, options_string):
+            args_to_conf = {
+                "--quiet":              "runtime.loglevel",
+                "--managed":            "runtime.loglevel",
+                "--mode":               "runtime.mode",
+                "--client_ip":          "runtime.client.ip",
+                "--client_port":        "runtime.client.port",
+                "--server_ip":          "runtime.server.ip",
+                "--server_port":        "runtime.server.port",
+                "--proxy_ip":           "runtime.proxy.ip",
+                "--proxy_port":         "runtime.proxy.port",
+                "--downstream-format":  "runtime.state.downstream_language",
+                "--upstream-format":    "runtime.state.upstream_language",
+                "--release":            "fteproxy.defs.release",
+                "--key":                "runtime.fteproxy.encrypter.key",
+            }
+
+            if self.dest is "key":
+                if len(self.dest) != 64:
+                    fteproxy.warn('Invalid key length: ' + str(len(self.dest))
+                                  + ', should be 64')
+                    sys.exit(1)
+                try:
+                    values = self.dest.decode('hex')
+                except:
+                    fteproxy.warn('Invalid key format, must contain only 0-9a-fA-F')
+                    sys.exit(1)
+
+            if self.dest in ['quiet', 'managed']:
+                fteproxy.conf.setValue(args_to_conf[options_string], 0)
+                setattr(namespace, self.dest, True)
+            else:
+                setattr(namespace, self.dest, values)
+                if "port" in self.dest:
+                    values = int(values)
+                fteproxy.conf.setValue(args_to_conf[options_string], values)
+
     parser = argparse.ArgumentParser(prog='fteproxy',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--version', action='store_true', default=False,
+    parser.add_argument('--version', action='version', version=FTEPROXY_VERSION,
                         help='Output the version of fteproxy, then quit.')
-    parser.add_argument('--mode',
-                        default='client',
+    parser.add_argument('--mode', action=setConfValue, default='client',
                         metavar='(client|server|test)',
+                        choices=['client', 'server', 'test'],
                         help='Relay mode: client or server')
     parser.add_argument('--stop', action='store_true',
                         help='Shutdown daemon process')
-    parser.add_argument('--upstream-format',
+    parser.add_argument('--upstream-format', action=setConfValue,
                         help='Client-to-server language format',
                         default=fteproxy.conf.getValue('runtime.state.upstream_language'
                                                   ))
-    parser.add_argument('--downstream-format',
+    parser.add_argument('--downstream-format', action=setConfValue,
                         help='Server-to-client language format',
                         default=fteproxy.conf.getValue('runtime.state.downstream_language'
                                                   ))
-    parser.add_argument('--client_ip',
+    parser.add_argument('--client_ip', action=setConfValue,
                         help='Client-side listening IP',
                         default=fteproxy.conf.getValue('runtime.client.ip'
                                                   ))
-    parser.add_argument('--client_port',
+    parser.add_argument('--client_port', action=setConfValue,
                         help='Client-side listening port',
                         default=fteproxy.conf.getValue('runtime.client.port'
                                                   ))
-    parser.add_argument('--server_ip',
+    parser.add_argument('--server_ip', action=setConfValue,
                         help='Server-side listening IP',
                         default=fteproxy.conf.getValue('runtime.server.ip'
                                                   ))
-    parser.add_argument('--server_port',
+    parser.add_argument('--server_port', action=setConfValue,
                         help='Server-side listening port',
                         default=fteproxy.conf.getValue('runtime.server.port'
                                                   ))
-    parser.add_argument('--proxy_ip',
+    parser.add_argument('--proxy_ip', action=setConfValue,
                         help='Forwarding-proxy (SOCKS) listening IP',
                         default=fteproxy.conf.getValue('runtime.proxy.ip'
                                                   ))
-    parser.add_argument('--proxy_port',
+    parser.add_argument('--proxy_port', action=setConfValue,
                         help='Forwarding-proxy (SOCKS) listening port',
                         default=fteproxy.conf.getValue('runtime.proxy.port'
                                                   ))
-    parser.add_argument('--quiet', action='store_true', default=False,
-                        help='Be completely silent. Print nothing.')
-    parser.add_argument('--release',
+    parser.add_argument('--quiet', action=setConfValue, default=False,
+                        help='Be completely silent. Print nothing.', nargs=0)
+    parser.add_argument('--release', action=setConfValue,
                         help='Definitions file to use, specified as YYYYMMDD',
                         default=fteproxy.conf.getValue('fteproxy.defs.release'))
-    parser.add_argument('--managed',
+    parser.add_argument('--managed', action=setConfValue, nargs=0,
                         help="Start in pluggable transport managed mode, for use with Tor.",
-                        action='store_true',
                         default=False)
-    parser.add_argument('--key',
+    parser.add_argument('--key', action=setConfValue,
                         help='Cryptographic key, hex, must be exactly 64 characters',
                         default=fteproxy.conf.getValue('runtime.fteproxy.encrypter.key'
                                                   ).encode('hex'))
     args = parser.parse_args(sys.argv[1:])
+
+    if args.stop and not args.mode:
+        parser.error('--mode keyword is required with --stop')
+
+    if not args.mode:  # set client mode in conf if not set
+        fteproxy.conf.setValue('runtime.mode', 'client')
 
     return args
 
@@ -452,6 +460,7 @@ def get_args():
 def main():
     global running
     running = True
+
     def signal_handler(signal, frame):
         global running
         running = False
@@ -474,9 +483,7 @@ def main():
         fteproxy.fatal_error("Main thread terminated unexpectedly: "+str(e))
     finally:
         if fteproxy.conf.getValue('runtime.mode'):
-            pid_file = os.path.join(fteproxy.conf.getValue('general.pid_dir'
-                                                      ), '.'
-                                    + fteproxy.conf.getValue('runtime.mode')
-                                    + '-' + str(os.getpid()) + '.pid')
+            pid_file = get_pid_file()
+
             if pid_file and os.path.exists(pid_file):
                 os.unlink(pid_file)
