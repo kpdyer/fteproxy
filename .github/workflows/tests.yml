@@ -66,7 +66,6 @@ jobs:
     - name: Lint with flake8
       run: |
         # Stop the build if there are Python syntax errors or undefined names
-        # Exclude regex2dfa.py - it has 1000+ lines of string concatenation that causes recursion errors in pyflakes
-        flake8 fteproxy --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=fteproxy/regex2dfa.py
+        flake8 fteproxy --count --select=E9,F63,F7,F82 --show-source --statistics
         # Exit-zero treats all errors as warnings
-        flake8 fteproxy --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics --exclude=fteproxy/regex2dfa.py
+        flake8 fteproxy --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics

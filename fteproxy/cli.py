@@ -17,7 +17,6 @@ import fte.encoder
 import fteproxy.conf
 import fteproxy.server
 import fteproxy.client
-import fteproxy.regex2dfa
 
 # unit tests
 
@@ -120,8 +119,7 @@ class FTEMain(threading.Thread):
             fteproxy.fatal_error('Invalid format name ' + stream_format)
 
         fixed_slice = fteproxy.defs.getFixedSlice(stream_format)
-        fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(regex),
-                               fixed_slice, K1, K2)
+        fte.encoder.DfaEncoder(regex, fixed_slice, K1, K2)
 
     def do_client(self):
 

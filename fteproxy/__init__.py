@@ -10,7 +10,6 @@ import traceback
 import fteproxy.conf
 import fteproxy.defs
 import fteproxy.record_layer
-import fteproxy.regex2dfa
 
 import fte.encoder
 
@@ -118,7 +117,7 @@ class NegotiationManager(object):
                 incoming_fixed_slice = fteproxy.defs.getFixedSlice(
                     incoming_language)
 
-                incoming_decoder = fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(incoming_regex),
+                incoming_decoder = fte.encoder.DfaEncoder(incoming_regex,
                                                             incoming_fixed_slice, self._K1, self._K2)
                 decoder = fteproxy.record_layer.Decoder(decoder=incoming_decoder)
 
@@ -140,12 +139,12 @@ class NegotiationManager(object):
         decoder = None
 
         if outgoing_regex != None and outgoing_fixed_slice != -1:
-            outgoing_encoder = fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(outgoing_regex),
+            outgoing_encoder = fte.encoder.DfaEncoder(outgoing_regex,
                                                         outgoing_fixed_slice, self._K1, self._K2)
             encoder = fteproxy.record_layer.Encoder(encoder=outgoing_encoder)
 
         if incoming_regex != None and incoming_fixed_slice != -1:
-            incoming_decoder = fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(incoming_regex),
+            incoming_decoder = fte.encoder.DfaEncoder(incoming_regex,
                                                         incoming_fixed_slice, self._K1, self._K2)
             decoder = fteproxy.record_layer.Decoder(decoder=incoming_decoder)
 
