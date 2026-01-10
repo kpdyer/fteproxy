@@ -22,24 +22,40 @@ fteproxy is powered by Format-Transforming Encryption [1] and was presented at C
 
 - Python 3.8 or higher
 - [fte](https://pypi.python.org/pypi/fte) - Format-Transforming Encryption library
+- GMP library (for cryptographic operations)
 
-## Quick Start
+## Installation
 
-Install fteproxy using pip:
+### From PyPI
 
-```console
+```bash
 pip install fteproxy
 ```
 
-## Running from Source
+### From Source
 
 ```bash
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
 pip install -r requirements.txt
 pip install -e .
-./bin/fteproxy
 ```
+
+### Platform-Specific Dependencies
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get update
+sudo apt-get install python3-dev python3-pip libgmp-dev
+```
+
+**macOS:**
+```bash
+brew install python gmp
+```
+
+**Windows:**
+Install Python 3.8+ from https://python.org/
 
 ## Usage
 
@@ -53,52 +69,48 @@ fteproxy operates as a client-server proxy:
 
 ### Start the Server
 
-On the server machine, start the fteproxy server:
+On the server machine:
 
 ```bash
-./bin/fteproxy --mode server --server_ip 0.0.0.0 --server_port 8080 --proxy_ip 127.0.0.1 --proxy_port 8081
+fteproxy --mode server --server_ip 0.0.0.0 --server_port 8080 --proxy_ip 127.0.0.1 --proxy_port 8081
 ```
 
 This listens for FTE-encoded connections on port 8080 and forwards decoded traffic to 127.0.0.1:8081.
 
 ### Start the Client
 
-On the client machine, start the fteproxy client:
+On the client machine:
 
 ```bash
-./bin/fteproxy --mode client --client_ip 127.0.0.1 --client_port 8079 --server_ip <server-ip> --server_port 8080
+fteproxy --mode client --client_ip 127.0.0.1 --client_port 8079 --server_ip <server-ip> --server_port 8080
 ```
 
 This listens for plaintext connections on port 8079 and forwards FTE-encoded traffic to the server.
 
 ### Command Line Options
 
-```
---mode          Relay mode: client or server (default: client)
---client_ip     Client-side listening IP (default: 127.0.0.1)
---client_port   Client-side listening port (default: 8079)
---server_ip     Server-side listening IP (default: 127.0.0.1)
---server_port   Server-side listening port (default: 8080)
---proxy_ip      Forwarding-proxy listening IP (default: 127.0.0.1)
---proxy_port    Forwarding-proxy listening port (default: 8081)
---key           Cryptographic key, hex, must be exactly 64 characters
---quiet         Be completely silent
---version       Output the version of fteproxy
-```
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--mode` | Relay mode: client or server | client |
+| `--client_ip` | Client-side listening IP | 127.0.0.1 |
+| `--client_port` | Client-side listening port | 8079 |
+| `--server_ip` | Server-side listening IP | 127.0.0.1 |
+| `--server_port` | Server-side listening port | 8080 |
+| `--proxy_ip` | Forwarding-proxy listening IP | 127.0.0.1 |
+| `--proxy_port` | Forwarding-proxy listening port | 8081 |
+| `--key` | Cryptographic key (64 hex characters) | (default key) |
+| `--quiet` | Suppress output | false |
+| `--version` | Show version and exit | |
 
-### Run Tests
+## Testing
 
 ```bash
 python -m pytest fteproxy/tests/ -v
 ```
 
-## Documentation
-
-See: https://fteproxy.org/documentation
-
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## Author
 
