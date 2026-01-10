@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 
@@ -60,7 +60,7 @@ class FTEMain(threading.Thread):
             self._server = None
     
             if self._args.version:
-                print FTEPROXY_VERSION
+                print(FTEPROXY_VERSION)
                 sys.exit(0)
     
             if self._args.quiet:
@@ -68,16 +68,16 @@ class FTEMain(threading.Thread):
             if self._args.managed:
                 fteproxy.conf.setValue('runtime.loglevel', 0)
             if not self._args.quiet and not self._args.managed:
-                print """fteproxy Copyright (C) 2012-2014 Kevin P. Dyer <kpdyer@gmail.com>
+                print("""fteproxy Copyright (C) 2012-2014 Kevin P. Dyer <kpdyer@gmail.com>
     This program comes with ABSOLUTELY NO WARRANTY.
     This is free software, and you are welcome to redistribute it under certain conditions.
-    """
+    """)
     
             if self._args.mode == 'test':
                 test()
             if self._args.stop:
                 if not self._args.mode:
-                    print '--mode keyword is required with --stop'
+                    print('--mode keyword is required with --stop')
                     sys.exit(1)
                 if self._args.mode in ['client', 'server']:
                     pid_files_path = \
@@ -127,8 +127,8 @@ class FTEMain(threading.Thread):
                     fteproxy.warn('Invalid key length: ' + str(len(self._args.key)) + ', should be 64')
                     sys.exit(1)
                 try:
-                    binary_key = self._args.key.decode('hex')
-                except:
+                    binary_key = bytes.fromhex(self._args.key)
+                except ValueError:
                     fteproxy.warn('Invalid key format, must contain only 0-9a-fA-F')
                     sys.exit(1)
                 fteproxy.conf.setValue('runtime.fteproxy.encrypter.key', binary_key)
@@ -167,9 +167,9 @@ class FTEMain(threading.Thread):
                 if self._args.managed:
                     do_managed_client()
                 else:
-    
+
                     if not self._args.quiet:
-                        print 'Client ready!'
+                        print('Client ready!')
     
                     local_ip = fteproxy.conf.getValue('runtime.client.ip')
                     local_port = fteproxy.conf.getValue('runtime.client.port')
@@ -202,7 +202,7 @@ class FTEMain(threading.Thread):
                     self._server.daemon = True
                     self._server.start()
                     if not self._args.quiet:
-                        print 'Server ready!'
+                        print('Server ready!')
                     self._server.join()
                     
         except Exception as e:
@@ -228,7 +228,7 @@ def do_managed_client():
     ptclient = ClientTransportPlugin()
     try:
         ptclient.init([FTE_PT_NAME])
-    except EnvError, err:
+    except EnvError as err:
         log.warning("Client managed-proxy protocol failed (%s)." % err)
         return
 
@@ -241,7 +241,7 @@ def do_managed_client():
         # Ensure that we have all the neccecary dependencies
         try:
             network.ensure_outgoing_proxy_dependencies()
-        except network.OutgoingProxyDepFailure, err:
+        except network.OutgoingProxyDepFailure as err:
             ptclient.reportProxyError(str(err))
             return
 
@@ -302,7 +302,7 @@ def do_managed_server():
     ptserver = ServerTransportPlugin()
     try:
         ptserver.init([FTE_PT_NAME])
-    except EnvError, err:
+    except EnvError as err:
         log.warning("Server managed-proxy protocol failed (%s)." % err)
         return
 
@@ -443,7 +443,7 @@ def get_args():
     parser.add_argument('--key',
                         help='Cryptographic key, hex, must be exactly 64 characters',
                         default=fteproxy.conf.getValue('runtime.fteproxy.encrypter.key'
-                                                  ).encode('hex'))
+                                                  ).hex())
     args = parser.parse_args(sys.argv[1:])
 
     return args

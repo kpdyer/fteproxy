@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import select
 import socket
 
@@ -17,11 +20,11 @@ def recvall_from_socket(sock,
     By default, fails quickly if ``sock`` is closed or has no data ready.
     The return value ``is_alive`` reports if ``sock`` is still alive.
     The return value ``retval`` is the data extracted from the socket.
-    Unlike normal raw sockets, it may be the case that ``retval`` is '', and
+    Unlike normal raw sockets, it may be the case that ``retval`` is b'', and
     ``is_alive`` is ``true``.
     """
 
-    retval = ''
+    retval = b''
     is_alive = False
 
     try:

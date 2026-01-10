@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 
@@ -54,7 +54,7 @@ class Tests(unittest.TestCase):
                     if not data:
                         break
                     Y += data
-                self.assertEquals(P, Y, (self.record_layers_info[i],
+                self.assertEqual(P, Y, (self.record_layers_info[i],
                                   P, Y))
 
     def testReclayer_concat(self):
@@ -79,7 +79,7 @@ class Tests(unittest.TestCase):
                     if not data:
                         break
                     Y += data
-                self.assertEquals(ptxt, Y, self.record_layers_info[i])
+                self.assertEqual(ptxt, Y, self.record_layers_info[i])
 
 
 def suite():

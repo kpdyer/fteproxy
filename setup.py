@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from setuptools import setup
 from setuptools import Extension
@@ -6,8 +6,6 @@ from setuptools import Extension
 import glob
 import sys
 import os
-if os.name == 'nt':
-    import py2exe
 
 with open('fteproxy/VERSION') as fh:
     FTEPROXY_RELEASE = fh.read().strip()
@@ -24,16 +22,8 @@ with open('README') as file:
 
 setup(name='fteproxy',
       long_description=long_description,
-      console=['./bin/fteproxy'],
       test_suite='fteproxy.tests.suite',
-      zipfile="fteproxy.zip",
       package_data=package_data,
-      options={"py2exe": {
-          "bundle_files": 2,
-          "compressed": True,
-          "dll_excludes": ["w9xpopen.exe"],
-      }
-      },
       version=FTEPROXY_RELEASE,
       description='fteproxy',
       author='Kevin P. Dyer',
@@ -41,6 +31,18 @@ setup(name='fteproxy',
       url='https://fteproxy.org/',
       packages=['fteproxy', 'fteproxy.defs', 'fteproxy.tests'],
       install_requires=['fte','twisted','pyptlib','obfsproxy'],
+      python_requires='>=3.6',
+      classifiers=[
+          'Programming Language :: Python :: 3',
+          'Programming Language :: Python :: 3.6',
+          'Programming Language :: Python :: 3.7',
+          'Programming Language :: Python :: 3.8',
+          'Programming Language :: Python :: 3.9',
+          'Programming Language :: Python :: 3.10',
+          'Programming Language :: Python :: 3.11',
+          'License :: OSI Approved :: MIT License',
+          'Operating System :: OS Independent',
+      ],
       entry_points = {
         'console_scripts': [
             'fteproxy = fteproxy.cli:main'

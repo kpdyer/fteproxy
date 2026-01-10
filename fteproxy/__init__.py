@@ -1,11 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 
 
 import sys
 import socket
-import string
 import traceback
 
 import fteproxy.conf
@@ -37,18 +36,18 @@ class NegotiateTimeoutException(Exception):
 
 def fatal_error(msg):
     if fteproxy.conf.getValue('runtime.loglevel') in [1,2,3]:
-        print 'ERROR:', msg
+        print('ERROR:', msg)
     sys.exit(1)
 
 
 def warn(msg):
     if fteproxy.conf.getValue('runtime.loglevel') in [2,3]:
-        print 'WARN:', msg
+        print('WARN:', msg)
 
 
 def info(msg):
     if fteproxy.conf.getValue('runtime.loglevel') in [3]:
-        print 'INFO:', msg
+        print('INFO:', msg)
 
 
 class NegotiateCell(object):
@@ -77,8 +76,7 @@ class NegotiateCell(object):
         retval = ''
         retval += self._def_file
         retval += self._language
-        retval = string.rjust(
-            retval, NegotiateCell._CELL_SIZE, NegotiateCell._PADDING_CHAR)
+        retval = retval.rjust(NegotiateCell._CELL_SIZE, NegotiateCell._PADDING_CHAR)
         assert retval[:NegotiateCell._PADDING_LEN] == NegotiateCell._PADDING_CHAR * \
             NegotiateCell._PADDING_LEN
         return retval
@@ -270,7 +268,7 @@ class _FTESocketWrapper(FTEHelper, object):
         try:
             while True:
                 data = self._socket.recv(bufsize)
-                noData = (data == '')
+                noData = (data == b'')
                 data = self._processRecv(data)
 
                 if noData and not self._incoming_buffer and not self._decoder._buffer:

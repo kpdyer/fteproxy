@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 
@@ -91,7 +91,7 @@ class Tests(unittest.TestCase):
             if client_socket:
                 fteproxy.network_io.close_socket(client_socket)
 
-            self.assertEquals(expected_msg, actual_msg)
+            self.assertEqual(expected_msg, actual_msg)
 
 
 def suite():

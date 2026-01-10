@@ -1,11 +1,11 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 
 
 import unittest
-import test_record_layer
-import test_relay
+from . import test_record_layer
+from . import test_relay
 
 
 def suite():
