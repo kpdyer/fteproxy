@@ -1,1 +1,23 @@
-Based on code from: http://docs.python.org/2/library/socket.html
+FTE Chat Example
+================
+
+A simple echo server/client using fteproxy.wrap_socket for FTE encryption.
+
+Usage:
+------
+1. Start the server:
+   python server.py
+
+2. In another terminal, run the client:
+   python client.py
+
+The client sends "Hello, world" to the server, which echoes it back.
+All traffic is FTE-encoded using the specified regular expressions.
+
+Notes:
+------
+- Uses negotiate=False since both sides know the formats
+- Client-to-server format: binary (0s and 1s)
+- Server-to-client format: letters (As and Bs)
+
+Based on code from: http://docs.python.org/3/library/socket.html

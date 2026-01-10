@@ -127,3 +127,75 @@ class TestNetworkIOBytes:
             client_sock.close()
             conn.close()
             server_sock.close()
+
+
+class TestWrapSocket:
+    """Test fteproxy.wrap_socket functionality."""
+
+    def test_wrap_socket_no_negotiate(self):
+        """Test wrap_socket with negotiate=False (fixes issue #175)."""
+        import threading
+        
+        client_server_regex = '^(0|1)+$'
+        server_client_regex = '^(A|B)+$'
+        test_data = b'Hello, world!'
+        received_data = []
+        
+        def server_thread(port):
+            server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server_sock = fteproxy.wrap_socket(server_sock,
+                outgoing_regex=server_client_regex,
+                outgoing_fixed_slice=256,
+                incoming_regex=client_server_regex,
+                incoming_fixed_slice=256,
+                negotiate=False)
+            server_sock.bind(('127.0.0.1', port))
+            server_sock.listen(1)
+            
+            conn, addr = server_sock.accept()
+            conn.settimeout(5)
+            try:
+                data = conn.recv(1024)
+                received_data.append(data)
+                conn.sendall(data)  # Echo back
+            finally:
+                conn.close()
+                server_sock.close()
+        
+        # Find an available port
+        temp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        temp_sock.bind(('127.0.0.1', 0))
+        port = temp_sock.getsockname()[1]
+        temp_sock.close()
+        
+        # Start server in background
+        server = threading.Thread(target=server_thread, args=(port,))
+        server.start()
+        
+        import time
+        time.sleep(0.5)  # Give server time to start
+        
+        # Client connects and sends data
+        client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_sock = fteproxy.wrap_socket(client_sock,
+            outgoing_regex=client_server_regex,
+            outgoing_fixed_slice=256,
+            incoming_regex=server_client_regex,
+            incoming_fixed_slice=256,
+            negotiate=False)
+        
+        try:
+            client_sock.connect(('127.0.0.1', port))
+            client_sock.settimeout(5)
+            client_sock.sendall(test_data)
+            echo_data = client_sock.recv(1024)
+        finally:
+            client_sock.close()
+        
+        server.join(timeout=5)
+        
+        # Verify data was received correctly
+        assert len(received_data) == 1
+        assert received_data[0] == test_data
+        assert echo_data == test_data

@@ -239,7 +239,8 @@ class _FTESocketWrapper(FTEHelper, object):
     def __init__(self, _socket,
                  outgoing_regex=None, outgoing_fixed_slice=-1,
                  incoming_regex=None, incoming_fixed_slice=-1,
-                 K1=None, K2=None):
+                 K1=None, K2=None,
+                 negotiate=True):
 
         self._socket = _socket
         self._outgoing_regex = outgoing_regex
@@ -248,15 +249,26 @@ class _FTESocketWrapper(FTEHelper, object):
         self._incoming_fixed_slice = incoming_fixed_slice
         self._K1 = K1
         self._K2 = K2
+        self._negotiate = negotiate
 
         self._negotiation_manager = NegotiationManager(K1, K2)
-        self._negotiationComplete = False
-        self._isServer = (outgoing_regex is None and incoming_regex is None)
-        self._isClient = (
-            outgoing_regex is not None and incoming_regex is not None)
         self._incoming_buffer = b''
         self._preNegotiationBuffer_outgoing = b''
         self._preNegotiationBuffer_incoming = b''
+
+        if negotiate:
+            # Standard relay mode: client sends negotiation cell, server waits for it
+            self._negotiationComplete = False
+            self._isServer = (outgoing_regex is None and incoming_regex is None)
+            self._isClient = (outgoing_regex is not None and incoming_regex is not None)
+        else:
+            # No negotiation: both sides know the formats, set up encoders immediately
+            self._negotiationComplete = True
+            self._isServer = False
+            self._isClient = False
+            [self._encoder, self._decoder] = self._negotiation_manager._init_encoders(
+                outgoing_regex, outgoing_fixed_slice,
+                incoming_regex, incoming_fixed_slice)
 
     def fileno(self):
         return self._socket.fileno()
@@ -335,7 +347,8 @@ class _FTESocketWrapper(FTEHelper, object):
         conn = _FTESocketWrapper(conn,
                                  self._outgoing_regex, self._outgoing_fixed_slice,
                                  self._incoming_regex, self._incoming_fixed_slice,
-                                 self._K1, self._K2)
+                                 self._K1, self._K2,
+                                 self._negotiate)
 
         return conn, addr
 
@@ -349,7 +362,8 @@ class _FTESocketWrapper(FTEHelper, object):
 def wrap_socket(sock,
                 outgoing_regex=None, outgoing_fixed_slice=-1,
                 incoming_regex=None, incoming_fixed_slice=-1,
-                K1=None, K2=None):
+                K1=None, K2=None,
+                negotiate=True):
     """``fteproxy.wrap_socket`` turns an existing socket into an fteproxy socket.
 
     The input parameter ``sock`` is the socket to wrap.
@@ -360,7 +374,12 @@ def wrap_socket(sock,
     similarly.
     The optional parameters ``K1`` and ``K2`` specify 128-bit keys to be used
     in FTE's underlying AE scheme. If specified, these values must be 16-byte
-    hex strings.
+    strings.
+    
+    The ``negotiate`` parameter controls whether the client sends a negotiation
+    cell to establish the format. Set to ``False`` when both sides already know
+    the formats (e.g., in symmetric client/server examples). Default is ``True``
+    for backwards compatibility with the relay use case.
     """
 
     assert K1 == None or len(K1) == 16
@@ -370,5 +389,6 @@ def wrap_socket(sock,
         sock,
         outgoing_regex, outgoing_fixed_slice,
         incoming_regex, incoming_fixed_slice,
-        K1, K2)
+        K1, K2,
+        negotiate)
     return socket_wrapped
