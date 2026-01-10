@@ -18,13 +18,6 @@ import fteproxy.conf
 import fteproxy.server
 import fteproxy.client
 
-# unit tests
-
-import unittest
-
-import fteproxy.tests.test_record_layer
-import fteproxy.tests.test_relay
-
 VERSION_FILE = os.path.join(
     fteproxy.conf.getValue('general.base_dir'), 'fteproxy', 'VERSION')
 with open(VERSION_FILE) as fh:
@@ -48,8 +41,6 @@ class FTEMain(threading.Thread):
     This is free software, and you are welcome to redistribute it under certain conditions.
     """)
 
-            if self._args.mode == 'test':
-                test()
             if self._args.stop:
                 FTEMain.do_stop(self)
 
@@ -77,20 +68,19 @@ class FTEMain(threading.Thread):
             self._server.stop()
 
     def do_stop(self):
-        if self._args.mode != 'test':
-            pid_files_path = \
-                os.path.join(fteproxy.conf.getValue('general.pid_dir'),
-                             '.' + self._args.mode + '-*.pid')
-            pid_files = glob.glob(pid_files_path)
-            for pid_file in pid_files:
-                with open(pid_file) as f:
-                    pid = int(f.read())
-                    try:
-                        os.kill(pid, signal.SIGINT)
-                    except OSError:
-                        fteproxy.warn('failed to remove PID file: '+pid_file)
-                    os.unlink(pid_file)
-            sys.exit(0)
+        pid_files_path = \
+            os.path.join(fteproxy.conf.getValue('general.pid_dir'),
+                         '.' + self._args.mode + '-*.pid')
+        pid_files = glob.glob(pid_files_path)
+        for pid_file in pid_files:
+            with open(pid_file) as f:
+                pid = int(f.read())
+                try:
+                    os.kill(pid, signal.SIGINT)
+                except OSError:
+                    fteproxy.warn('failed to remove PID file: '+pid_file)
+                os.unlink(pid_file)
+        sys.exit(0)
 
     def init_listener(self, mode):
         server_ip = fteproxy.conf.getValue('runtime.server.ip')
@@ -154,23 +144,6 @@ def get_pid_file():
     return pid_file
 
 
-def test():
-    try:
-        suite_record_layer = unittest.TestLoader().loadTestsFromTestCase(
-            fteproxy.tests.test_record_layer.Tests)
-        suite_relay = unittest.TestLoader().loadTestsFromTestCase(
-            fteproxy.tests.test_relay.Tests)
-        suites = [
-            suite_relay,
-            suite_record_layer,
-        ]
-        alltests = unittest.TestSuite(suites)
-        unittest.TextTestRunner(verbosity=2).run(alltests)
-        sys.exit(0)
-    except Exception as e:
-        fteproxy.warn("Unit tests failed: "+str(e))
-
-
 def get_args():
 
     class setConfValue(argparse.Action):
@@ -215,8 +188,8 @@ def get_args():
     parser.add_argument('--version', action='version', version=FTEPROXY_VERSION,
                         help='Output the version of fteproxy, then quit.')
     parser.add_argument('--mode', action=setConfValue, default='client',
-                        metavar='(client|server|test)',
-                        choices=['client', 'server', 'test'],
+                        metavar='(client|server)',
+                        choices=['client', 'server'],
                         help='Relay mode: client or server')
     parser.add_argument('--stop', action='store_true',
                         help='Shutdown daemon process')

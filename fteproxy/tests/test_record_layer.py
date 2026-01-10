@@ -1,88 +1,90 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+Tests for the FTE record layer encoding/decoding.
+"""
 
-
-
-import unittest
-
-import fteproxy.record_layer
-
+import pytest
 import fte
 
+import fteproxy.conf
+import fteproxy.defs
+import fteproxy.record_layer
+
+
+# Test parameters
 START = 0
 ITERATIONS = 2048
 STEP = 64
 
 
-class Tests(unittest.TestCase):
+@pytest.fixture
+def record_layer_pairs():
+    """Create encoder/decoder pairs for all defined languages."""
+    fteproxy.conf.setValue('runtime.mode', 'client')
+    
+    pairs = []
+    definitions = fteproxy.defs.load_definitions()
+    for language in definitions.keys():
+        regex = fteproxy.defs.getRegex(language)
+        fixed_slice = fteproxy.defs.getFixedSlice(language)
+        regex_encoder = fte.Encoder(regex, fixed_slice)
+        encoder = fteproxy.record_layer.Encoder(encoder=regex_encoder)
+        decoder = fteproxy.record_layer.Decoder(decoder=regex_encoder)
+        pairs.append((language, encoder, decoder))
+    
+    return pairs
 
-    @classmethod
-    def setUp(self):
-        fteproxy.conf.setValue('runtime.mode', 'client')
-        self.record_layers_info = []
-        self.record_layers_outgoing = []
-        self.record_layers_incoming = []
-        definitions = fteproxy.defs.load_definitions()
-        for language in definitions.keys():
-            regex = fteproxy.defs.getRegex(language)
-            fixed_slice = fteproxy.defs.getFixedSlice(language)
-            regex_encoder = fte.Encoder(regex, fixed_slice)
-            encoder = fteproxy.record_layer.Encoder(
-                encoder=regex_encoder)
-            decoder = fteproxy.record_layer.Decoder(
-                decoder=regex_encoder)
-            self.record_layers_info.append(language)
-            self.record_layers_outgoing.append(encoder)
-            self.record_layers_incoming.append(decoder)
 
-    def testReclayer_basic(self):
-        for i in range(len(self.record_layers_outgoing)):
-            record_layer_outgoing = self.record_layers_outgoing[i]
-            record_layer_incoming = self.record_layers_incoming[i]
+class TestRecordLayer:
+    """Tests for FTE record layer."""
+
+    def test_basic_encode_decode(self, record_layer_pairs):
+        """Test basic encoding and decoding of data."""
+        for language, encoder, decoder in record_layer_pairs:
             for j in range(START, ITERATIONS, STEP):
-                P = b'X' * j + b'Y'
-                record_layer_outgoing.push(P)
+                plaintext = b'X' * j + b'Y'
+                encoder.push(plaintext)
+                
+                # Pop all encoded data and push to decoder
                 while True:
-                    data = record_layer_outgoing.pop()
+                    data = encoder.pop()
                     if not data:
                         break
-                    record_layer_incoming.push(data)
-                Y = b''
+                    decoder.push(data)
+                
+                # Pop all decoded data
+                decoded = b''
                 while True:
-                    data = record_layer_incoming.pop()
+                    data = decoder.pop()
                     if not data:
                         break
-                    Y += data
-                self.assertEqual(P, Y, (self.record_layers_info[i],
-                                  P, Y))
+                    decoded += data
+                
+                assert plaintext == decoded, f"Failed for {language}: {plaintext} != {decoded}"
 
-    def testReclayer_concat(self):
-        for i in range(len(self.record_layers_outgoing)):
-            record_layer_outgoing = self.record_layers_outgoing[i]
-            record_layer_incoming = self.record_layers_incoming[i]
+    def test_concatenated_messages(self, record_layer_pairs):
+        """Test encoding and decoding of concatenated messages."""
+        for language, encoder, decoder in record_layer_pairs:
             for j in range(START, ITERATIONS, STEP):
-                ptxt = b''
-                X = b''
-                P = b'X' * j + b'Y'
-                ptxt += P
-                record_layer_outgoing.push(P)
+                plaintext = b'X' * j + b'Y'
+                encoder.push(plaintext)
+                
+                # Collect all encoded data
+                encoded = b''
                 while True:
-                    data = record_layer_outgoing.pop()
+                    data = encoder.pop()
                     if not data:
                         break
-                    X += data
-                record_layer_incoming.push(X)
-                Y = b''
+                    encoded += data
+                
+                # Push all at once and decode
+                decoder.push(encoded)
+                decoded = b''
                 while True:
-                    data = record_layer_incoming.pop()
+                    data = decoder.pop()
                     if not data:
                         break
-                    Y += data
-                self.assertEqual(ptxt, Y, self.record_layers_info[i])
-
-
-def suite():
-    loader = unittest.TestLoader()
-    suite = unittest.TestSuite()
-    suite.addTest(loader.loadTestsFromTestCase(Tests))
-    return suite
+                    decoded += data
+                
+                assert plaintext == decoded, f"Failed for {language}"
