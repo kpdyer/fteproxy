@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 
@@ -18,11 +18,12 @@ class Encoder:
         encoder,
     ):
         self._encoder = encoder
-        self._buffer = ''
+        self._buffer = b''
 
     def push(self, data):
         """Push data onto the FIFO buffer."""
-
+        if isinstance(data, str):
+            data = data.encode('utf-8')
         self._buffer += data
 
     def pop(self):
@@ -31,7 +32,7 @@ class Encoder:
         bytes. The returned value is encrypted and encoded
         with ``encoder`` specified in ``__init__``.
         """
-        retval = ''
+        retval = b''
 
         while len(self._buffer) > 0:
             plaintext = self._buffer[:MAX_CELL_SIZE]
@@ -49,11 +50,12 @@ class Decoder:
         decoder,
     ):
         self._decoder = decoder
-        self._buffer = ''
+        self._buffer = b''
 
     def push(self, data):
         """Push data onto the FIFO buffer."""
-
+        if isinstance(data, str):
+            data = data.encode('utf-8')
         self._buffer += data
 
     def pop(self, oneCell=False):
@@ -62,7 +64,7 @@ class Decoder:
         with ``_decrypter`` specified in ``__init__``.
         """
 
-        retval = ''
+        retval = b''
 
         while len(self._buffer) > 0:
             try:

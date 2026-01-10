@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 
@@ -6,9 +6,8 @@
 import unittest
 
 import fteproxy.record_layer
-import fteproxy.regex2dfa
 
-import fte.encoder
+import fte
 
 START = 0
 ITERATIONS = 2048
@@ -27,7 +26,7 @@ class Tests(unittest.TestCase):
         for language in definitions.keys():
             regex = fteproxy.defs.getRegex(language)
             fixed_slice = fteproxy.defs.getFixedSlice(language)
-            regex_encoder = fte.encoder.DfaEncoder(fteproxy.regex2dfa.regex2dfa(regex), fixed_slice)
+            regex_encoder = fte.Encoder(regex, fixed_slice)
             encoder = fteproxy.record_layer.Encoder(
                 encoder=regex_encoder)
             decoder = fteproxy.record_layer.Decoder(
@@ -41,20 +40,20 @@ class Tests(unittest.TestCase):
             record_layer_outgoing = self.record_layers_outgoing[i]
             record_layer_incoming = self.record_layers_incoming[i]
             for j in range(START, ITERATIONS, STEP):
-                P = 'X' * j + 'Y'
+                P = b'X' * j + b'Y'
                 record_layer_outgoing.push(P)
                 while True:
                     data = record_layer_outgoing.pop()
                     if not data:
                         break
                     record_layer_incoming.push(data)
-                Y = ''
+                Y = b''
                 while True:
                     data = record_layer_incoming.pop()
                     if not data:
                         break
                     Y += data
-                self.assertEquals(P, Y, (self.record_layers_info[i],
+                self.assertEqual(P, Y, (self.record_layers_info[i],
                                   P, Y))
 
     def testReclayer_concat(self):
@@ -62,9 +61,9 @@ class Tests(unittest.TestCase):
             record_layer_outgoing = self.record_layers_outgoing[i]
             record_layer_incoming = self.record_layers_incoming[i]
             for j in range(START, ITERATIONS, STEP):
-                ptxt = ''
-                X = ''
-                P = 'X' * j + 'Y'
+                ptxt = b''
+                X = b''
+                P = b'X' * j + b'Y'
                 ptxt += P
                 record_layer_outgoing.push(P)
                 while True:
@@ -73,13 +72,13 @@ class Tests(unittest.TestCase):
                         break
                     X += data
                 record_layer_incoming.push(X)
-                Y = ''
+                Y = b''
                 while True:
                     data = record_layer_incoming.pop()
                     if not data:
                         break
                     Y += data
-                self.assertEquals(ptxt, Y, self.record_layers_info[i])
+                self.assertEqual(ptxt, Y, self.record_layers_info[i])
 
 
 def suite():

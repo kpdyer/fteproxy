@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # FTE-Powered echo client program
 import socket
 import fteproxy
@@ -14,7 +15,7 @@ s = fteproxy.wrap_socket(s,
                     incoming_regex=server_client_regex,
                     incoming_fixed_slice=256)
 s.connect((HOST, PORT))
-s.sendall('Hello, world')
+s.sendall(b'Hello, world')
 data = s.recv(1024)
 s.close()
-print 'Received', repr(data)
+print('Received', repr(data))

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 
@@ -47,8 +47,8 @@ class Tests(unittest.TestCase):
 
     def _testStream(self):
         uniq_id = str(random.choice(range(2 ** 10)))
-        expected_msg = 'Hello, world' * 100 + uniq_id
-        actual_msg = ''
+        expected_msg = ('Hello, world' * 100 + uniq_id).encode('utf-8')
+        actual_msg = b''
 
         proxy_socket = None
         client_socket = None
@@ -91,7 +91,7 @@ class Tests(unittest.TestCase):
             if client_socket:
                 fteproxy.network_io.close_socket(client_socket)
 
-            self.assertEquals(expected_msg, actual_msg)
+            self.assertEqual(expected_msg, actual_msg)
 
 
 def suite():

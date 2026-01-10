@@ -1,62 +1,117 @@
-fteproxy
-========
+# fteproxy
 
-[![Build Status](https://travis-ci.org/kpdyer/fteproxy.svg?branch=master)](https://travis-ci.org/kpdyer/fteproxy)
+[![Tests](https://github.com/kpdyer/fteproxy/actions/workflows/tests.yml/badge.svg)](https://github.com/kpdyer/fteproxy/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI version](https://badge.fury.io/py/fteproxy.svg)](https://badge.fury.io/py/fteproxy)
 
-* homepage: https://fteproxy.org
-* source code: https://github.com/kpdyer/fteproxy
-* publication: https://kpdyer.com/publications/ccs2013-fte.pdf
+* Homepage: https://fteproxy.org
+* Source code: https://github.com/kpdyer/fteproxy
+* Publication: https://kpdyer.com/publications/ccs2013-fte.pdf
 
-Overview
---------
+## Overview
 
-fteproxy provides transport-layer protection to resist keyword filtering, censorship and discrimantory routing policies.
-Its job is to relay datastreams, such as web browsing traffic, by encoding the stream into messages that satisfy a user-specified regular expression. 
+fteproxy provides transport-layer protection to resist keyword filtering, censorship and discriminatory routing policies.
+Its job is to relay datastreams, such as web browsing traffic, by encoding the stream into messages that satisfy a user-specified regular expression.
 
 fteproxy is powered by Format-Transforming Encryption [1] and was presented at CCS 2013.
 
 [1] [Protocol Misidentification Made Easy with Format-Transforming Encryption](https://kpdyer.com/publications/ccs2013-fte.pdf), Kevin P. Dyer, Scott E. Coull, Thomas Ristenpart and Thomas Shrimpton
 
-Quick Start
------------
+## Requirements
 
-On Linux/OSX, use pip to install fteproxy.
+- Python 3.8 or higher
+- [fte](https://pypi.python.org/pypi/fte) - Format-Transforming Encryption library
+- GMP library (for cryptographic operations)
 
-```console
+## Installation
+
+### From PyPI
+
+```bash
 pip install fteproxy
 ```
 
-On Windows, download pre-compiled binaries, located at: https://fteproxy.org/download
+### From Source
 
-Dependencies
---------
-
-Dependencies for building from source:
-* Python 2.7.x: https://python.org/
-* fte 0.0.x: https://pypi.python.org/pypi/fte
-* pyptlib 0.0.x: https://gitweb.torproject.org/pluggable-transports/pyptlib.git
-* obfsproxy 0.2.x: https://gitweb.torproject.org/pluggable-transports/obfsproxy.git
-* Twisted 13.2.x: https://twistedmatrix.com/
-
-Running
--------
-
-For platform-specific examples of how to install dependencies see BUILDING.md.
-
-There is nothing to build for fteproxy --- it is Python-only project. To run fteproxy, you need to do only the following.
-
-```
+```bash
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
-./bin/fteproxy
+pip install -r requirements.txt
+pip install -e .
 ```
 
-Documentation
--------------
+### Platform-Specific Dependencies
 
-See: https://fteproxy.org/documentation
+**Ubuntu/Debian:**
+```bash
+sudo apt-get update
+sudo apt-get install python3-dev python3-pip libgmp-dev
+```
 
-Author
-------
+**macOS:**
+```bash
+brew install python gmp
+```
 
-Please contact Kevin P. Dyer (kpdyer@gmail.com), if you have any questions.
+**Windows:**
+Install Python 3.8+ from https://python.org/
+
+## Usage
+
+### Architecture
+
+fteproxy operates as a client-server proxy:
+
+```
+[Application] <-> [fteproxy client] <--FTE encoded--> [fteproxy server] <-> [Destination]
+```
+
+### Start the Server
+
+On the server machine:
+
+```bash
+fteproxy --mode server --server_ip 0.0.0.0 --server_port 8080 --proxy_ip 127.0.0.1 --proxy_port 8081
+```
+
+This listens for FTE-encoded connections on port 8080 and forwards decoded traffic to 127.0.0.1:8081.
+
+### Start the Client
+
+On the client machine:
+
+```bash
+fteproxy --mode client --client_ip 127.0.0.1 --client_port 8079 --server_ip <server-ip> --server_port 8080
+```
+
+This listens for plaintext connections on port 8079 and forwards FTE-encoded traffic to the server.
+
+### Command Line Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--mode` | Relay mode: client or server | client |
+| `--client_ip` | Client-side listening IP | 127.0.0.1 |
+| `--client_port` | Client-side listening port | 8079 |
+| `--server_ip` | Server-side listening IP | 127.0.0.1 |
+| `--server_port` | Server-side listening port | 8080 |
+| `--proxy_ip` | Forwarding-proxy listening IP | 127.0.0.1 |
+| `--proxy_port` | Forwarding-proxy listening port | 8081 |
+| `--key` | Cryptographic key (64 hex characters) | (default key) |
+| `--quiet` | Suppress output | false |
+| `--version` | Show version and exit | |
+
+## Testing
+
+```bash
+python -m pytest fteproxy/tests/ -v
+```
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Author
+
+Kevin P. Dyer (kpdyer@gmail.com)
