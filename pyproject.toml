@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fteproxy"
+dynamic = ["version"]
+description = "Format-Transforming Encryption proxy for censorship circumvention"
+readme = "PYPI_README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+authors = [
+    {name = "Kevin P. Dyer", email = "kpdyer@gmail.com"}
+]
+keywords = ["fte", "encryption", "proxy", "censorship", "privacy"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Internet :: Proxy Servers",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "fte",
+]
+
+[project.urls]
+Homepage = "https://fteproxy.org"
+Documentation = "https://github.com/kpdyer/fteproxy"
+Source = "https://github.com/kpdyer/fteproxy"
+"Bug Tracker" = "https://github.com/kpdyer/fteproxy/issues"
+
+[project.scripts]
+fteproxy = "fteproxy.cli:main"
+
+[tool.setuptools.dynamic]
+version = {file = "fteproxy/VERSION"}
+
+[tool.setuptools.packages.find]
+include = ["fteproxy*"]
+
+[tool.setuptools.package-data]
+fteproxy = ["VERSION", "defs/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["fteproxy/tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
