@@ -13,18 +13,6 @@
 pip install fteproxy
 ```
 
-### System Dependencies
-
-**Ubuntu/Debian:**
-```bash
-sudo apt-get install libgmp-dev
-```
-
-**macOS:**
-```bash
-brew install gmp
-```
-
 ## Quick Start
 
 ### Server

@@ -21,8 +21,6 @@ fteproxy is powered by Format-Transforming Encryption [1] and was presented at C
 ## Requirements
 
 - Python 3.8 or higher
-- [fte](https://pypi.python.org/pypi/fte) - Format-Transforming Encryption library
-- GMP library (for cryptographic operations)
 
 ## Installation
 
@@ -40,22 +38,6 @@ cd fteproxy
 pip install -r requirements.txt
 pip install -e .
 ```
-
-### Platform-Specific Dependencies
-
-**Ubuntu/Debian:**
-```bash
-sudo apt-get update
-sudo apt-get install python3-dev python3-pip libgmp-dev
-```
-
-**macOS:**
-```bash
-brew install python gmp
-```
-
-**Windows:**
-Install Python 3.8+ from https://python.org/
 
 ## Usage
 
