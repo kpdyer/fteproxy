@@ -1,66 +1,106 @@
-fteproxy Build Instructions
-===========================
+# fteproxy Build Instructions
 
-Ubuntu/Debian
--------------
+## Requirements
 
-Install the following packages.
+- Python 3.8 or higher
+- GMP library (for cryptographic operations)
+
+## Ubuntu/Debian
+
+Install the following packages:
+
+```bash
+sudo apt-get update
+sudo apt-get install python3-dev python3-pip libgmp-dev
+pip install --upgrade fte pytest
 ```
-sudo apt-get install python-dev python-pip upx git
-sudo pip install --upgrade fte pyptlib obfsproxy twisted pyinstaller
-```
 
-Note: If you are on Ubuntu 13.10, there is a bug with pyinstaller/pycrypto, such that binary packages do not build properly. Please install development version 52fa29ce of pyinstaller [3], instead of using pip. See [4] for more details.
+Then, clone and build fteproxy:
 
-Then, clone and build fteproxy.
-```
+```bash
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
-make
-make test
-make dist
+pip install -r requirements.txt
+pip install -e .
 ```
 
-OSX
----
+Run tests:
 
-Install homebrew [1], if you don't have it already.
-
-```
-ruby -e "$(curl -fsSL https://raw.github.com/Homebrew/homebrew/go/install)"
+```bash
+python -m pytest fteproxy/tests/ -v
 ```
 
-Install the following packages.
-```
-brew install --build-from-source python gmp git upx
-sudo pip install --upgrade fte pyptlib obfsproxy twisted pyinstaller
+## macOS
+
+Install Homebrew if you don't have it already:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-Then, clone and build fteproxy.
+Install the following packages:
+
+```bash
+brew install python gmp
+pip install --upgrade fte pytest
 ```
+
+Then, clone and build fteproxy:
+
+```bash
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
-make
-make test
-make dist
+pip install -r requirements.txt
+pip install -e .
 ```
 
-Note: if on OSX 10.9, you may experience a ```clang: warning: argument unused during compilation: '-mno-fused-madd'``` error. This can be resolved by setting the following evnironmental variables:
+Run tests:
 
+```bash
+python -m pytest fteproxy/tests/ -v
 ```
-export CFLAGS=-Qunused-arguments
-export CPPFLAGS=-Qunused-arguments
+
+## Windows
+
+Install Python 3.8+ from https://python.org/
+
+Install the required packages:
+
+```bash
+pip install --upgrade fte pytest
 ```
 
-Windows
--------
+Then, clone and build fteproxy:
 
-If you must build fteproxy on Windows, please see [2] for guidance.
+```bash
+git clone https://github.com/kpdyer/fteproxy.git
+cd fteproxy
+pip install -r requirements.txt
+pip install -e .
+```
 
+Run tests:
 
-### References
+```bash
+python -m pytest fteproxy/tests/ -v
+```
 
-* [1] http://brew.sh/
-* [2] https://github.com/kpdyer/fteproxy-builder/blob/master/build/windows-i386/build_fteproxy.sh
-* [3] https://github.com/pyinstaller/pyinstaller
-* [4] https://github.com/kpdyer/fteproxy/issues/124
+## Running fteproxy
+
+Start the server:
+
+```bash
+./bin/fteproxy --mode server
+```
+
+Start the client:
+
+```bash
+./bin/fteproxy --mode client
+```
+
+For more options:
+
+```bash
+./bin/fteproxy --help
+```

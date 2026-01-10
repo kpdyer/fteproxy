@@ -31,7 +31,7 @@ setup(name='fteproxy',
       author_email='kpdyer@gmail.com',
       url='https://fteproxy.org/',
       packages=['fteproxy', 'fteproxy.defs', 'fteproxy.tests'],
-      install_requires=['fte','twisted','pyptlib','obfsproxy'],
+      install_requires=['fte'],
       python_requires='>=3.8',
       classifiers=[
           'Programming Language :: Python :: 3',

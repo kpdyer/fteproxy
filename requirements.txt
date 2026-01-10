@@ -1,4 +1,2 @@
 fte
-pyptlib
-obfsproxy
-twisted
+pytest>=7.0.0

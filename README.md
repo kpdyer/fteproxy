@@ -21,10 +21,7 @@ fteproxy is powered by Format-Transforming Encryption [1] and was presented at C
 ## Requirements
 
 - Python 3.8 or higher
-- [fte](https://pypi.python.org/pypi/fte) 0.1.0+
-- [pyptlib](https://gitweb.torproject.org/pluggable-transports/pyptlib.git)
-- [obfsproxy](https://gitweb.torproject.org/pluggable-transports/obfsproxy.git)
-- [Twisted](https://twistedmatrix.com/)
+- [fte](https://pypi.python.org/pypi/fte) - Format-Transforming Encryption library
 
 ## Quick Start
 
@@ -46,17 +43,51 @@ pip install -e .
 
 ## Usage
 
-Start the server:
-```bash
-./bin/fteproxy --mode server
+### Architecture
+
+fteproxy operates as a client-server proxy:
+
+```
+[Application] <-> [fteproxy client] <--FTE encoded--> [fteproxy server] <-> [Destination]
 ```
 
-Start the client:
+### Start the Server
+
+On the server machine, start the fteproxy server:
+
 ```bash
-./bin/fteproxy --mode client
+./bin/fteproxy --mode server --server_ip 0.0.0.0 --server_port 8080 --proxy_ip 127.0.0.1 --proxy_port 8081
 ```
 
-Run tests:
+This listens for FTE-encoded connections on port 8080 and forwards decoded traffic to 127.0.0.1:8081.
+
+### Start the Client
+
+On the client machine, start the fteproxy client:
+
+```bash
+./bin/fteproxy --mode client --client_ip 127.0.0.1 --client_port 8079 --server_ip <server-ip> --server_port 8080
+```
+
+This listens for plaintext connections on port 8079 and forwards FTE-encoded traffic to the server.
+
+### Command Line Options
+
+```
+--mode          Relay mode: client or server (default: client)
+--client_ip     Client-side listening IP (default: 127.0.0.1)
+--client_port   Client-side listening port (default: 8079)
+--server_ip     Server-side listening IP (default: 127.0.0.1)
+--server_port   Server-side listening port (default: 8080)
+--proxy_ip      Forwarding-proxy listening IP (default: 127.0.0.1)
+--proxy_port    Forwarding-proxy listening port (default: 8081)
+--key           Cryptographic key, hex, must be exactly 64 characters
+--quiet         Be completely silent
+--version       Output the version of fteproxy
+```
+
+### Run Tests
+
 ```bash
 python -m pytest fteproxy/tests/ -v
 ```
