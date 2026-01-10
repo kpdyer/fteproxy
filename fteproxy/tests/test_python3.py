@@ -47,13 +47,13 @@ class TestPython3Compatibility(unittest.TestCase):
         cell.setDefFile("20131224")
         cell.setLanguage("manual-http")
         
-        cell_str = cell.toString()
-        self.assertEqual(len(cell_str), fteproxy.NegotiateCell._CELL_SIZE)
+        cell_bytes = cell.toBytes()
+        self.assertEqual(len(cell_bytes), fteproxy.NegotiateCell._CELL_SIZE)
         
         # Verify padding
         padding_len = fteproxy.NegotiateCell._PADDING_LEN
         padding_char = fteproxy.NegotiateCell._PADDING_CHAR
-        self.assertEqual(cell_str[:padding_len], padding_char * padding_len)
+        self.assertEqual(cell_bytes[:padding_len], padding_char * padding_len)
 
     def test_unicode_handling(self):
         """Test that unicode strings work correctly."""

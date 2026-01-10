@@ -12,7 +12,7 @@ import argparse
 import threading
 import traceback
 
-import fte.encoder
+import fte
 
 import fteproxy.conf
 import fteproxy.server
@@ -108,10 +108,9 @@ class FTEMain(threading.Thread):
         else:
             fteproxy.fatal_error('Unexpected mode in init_listener: ' + mode)
 
-    def init_DfaEncoder(self, stream_format):
+    def init_encoder(self, stream_format):
 
-        K1 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[:16]
-        K2 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[16:]
+        key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
 
         try:
             regex = fteproxy.defs.getRegex(stream_format)
@@ -119,12 +118,12 @@ class FTEMain(threading.Thread):
             fteproxy.fatal_error('Invalid format name ' + stream_format)
 
         fixed_slice = fteproxy.defs.getFixedSlice(stream_format)
-        fte.encoder.DfaEncoder(regex, fixed_slice, K1, K2)
+        fte.Encoder(regex, fixed_slice, key)
 
     def do_client(self):
 
-        FTEMain.init_DfaEncoder(self, self._args.downstream_format)
-        FTEMain.init_DfaEncoder(self, self._args.upstream_format)
+        FTEMain.init_encoder(self, self._args.downstream_format)
+        FTEMain.init_encoder(self, self._args.upstream_format)
 
         if not self._args.quiet:
             print('Client ready!')
@@ -138,7 +137,7 @@ class FTEMain(threading.Thread):
 
         languages = fteproxy.defs.load_definitions()
         for language in languages.keys():
-            FTEMain.init_DfaEncoder(self, language)
+            FTEMain.init_encoder(self, language)
 
         self._server = FTEMain.init_listener(self, 'server')
         self._server.daemon = True

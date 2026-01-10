@@ -47,8 +47,8 @@ class Tests(unittest.TestCase):
 
     def _testStream(self):
         uniq_id = str(random.choice(range(2 ** 10)))
-        expected_msg = 'Hello, world' * 100 + uniq_id
-        actual_msg = ''
+        expected_msg = ('Hello, world' * 100 + uniq_id).encode('utf-8')
+        actual_msg = b''
 
         proxy_socket = None
         client_socket = None
