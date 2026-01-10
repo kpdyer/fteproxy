@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 
@@ -41,11 +41,11 @@ def main():
     def_file = fteproxy.conf.getValue('fteproxy.defs.release') + '.json'
     def_abspath = os.path.normpath(os.path.join(def_dir, def_file))
 
-    print 'Testing formats in', def_abspath
+    print('Testing formats in', def_abspath)
 
     start_server()
 
-    languages = fteproxy.defs.load_definitions().keys()
+    languages = list(fteproxy.defs.load_definitions().keys())
     for language in languages:
         if language.endswith('request'):
             language_name = language[:-8]
@@ -56,15 +56,15 @@ def main():
             upstream_regex = fteproxy.defs.getRegex(language_name + '-request')
             downstream_regex = fteproxy.defs.getRegex(language_name + '-response')
 
-            print ' + SUCCESS, format_name="' + language_name + '"'
-            print '    - client-server regex: "' + upstream_regex + '"'
-            print '    - server-client regex: "' + downstream_regex + '"'
-            print '    - test duration: ' + str(round(elapsed, 2)) + " seconds"
-            print '    - goodput: ' + str(throughput) + 'Mbps'
+            print(' + SUCCESS, format_name="' + language_name + '"')
+            print('    - client-server regex: "' + upstream_regex + '"')
+            print('    - server-client regex: "' + downstream_regex + '"')
+            print('    - test duration: ' + str(round(elapsed, 2)) + " seconds")
+            print('    - goodput: ' + str(throughput) + 'Mbps')
 
     stop_server()
 
-    print "****** ALL TESTS COMPLETE, SUCCESS!!"
+    print("****** ALL TESTS COMPLETE, SUCCESS!!")
 
 
 def random_string(size):
@@ -97,11 +97,11 @@ def doTest(language_name):
         conn.settimeout(0.1)
 
         startTimer = time.time()
-        expected_msg = random_string(BYTES_TO_SEND)
+        expected_msg = random_string(BYTES_TO_SEND).encode('utf-8')
         elapsed = -1
         for i in range(TRIALS):
             bytesSent += BYTES_TO_SEND
-            actual_msg = ''
+            actual_msg = b''
             expected_buffer = expected_msg
             while True:
                 if expected_buffer:
