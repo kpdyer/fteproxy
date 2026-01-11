@@ -37,9 +37,9 @@ examples/
 │   ├── web_proxy.sh
 │   └── secure_chat.py
 │
-└── netcat/             # Netcat-based examples
-    ├── netcat_simple.sh
-    └── netcat_verbose.sh
+└── netcat/             # Netcat-based demo
+    ├── README.md
+    └── demo.sh
 ```
 
 ## Quick Start
