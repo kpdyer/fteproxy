@@ -33,7 +33,7 @@ def main():
     print("\n" + "-" * 70)
     
     for name, (regex, description) in FORMATS.items():
-        print(f"\n📋 Format: {name}")
+        print(f"\nFormat: {name}")
         print(f"   Description: {description}")
         print(f"   Regex: {regex}")
         
@@ -49,10 +49,10 @@ def main():
             # Verify roundtrip
             decoded, _ = encoder.decode(ciphertext)
             assert decoded == secret, "Roundtrip failed!"
-            print(f"   ✓ Roundtrip verified")
+            print(f"   [OK] Roundtrip verified")
             
         except Exception as e:
-            print(f"   ✗ Error: {e}")
+            print(f"   [ERROR] {e}")
         
         print("-" * 70)
 

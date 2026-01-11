@@ -41,7 +41,7 @@ def main():
             
             # Verify it decodes correctly
             decoded, _ = encoder.decode(ciphertext)
-            status = "✓" if decoded == secret else "✗"
+            status = "[OK]" if decoded == secret else "[FAIL]"
             
             print(f"{name:<12} | {sample}")
         except Exception as e:

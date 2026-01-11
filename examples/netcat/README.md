@@ -15,20 +15,15 @@ echo "Hello, FTE!" | nc localhost 8079
 ## What It Does
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Traffic Flow                              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  Terminal 2          Terminal 1 (demo.sh)                       │
-│  ┌────────┐    ┌────────────┐    ┌────────────┐    ┌─────────┐ │
-│  │  You   │───▶│ FTE Client │═══▶│ FTE Server │───▶│ netcat  │ │
-│  │ (nc)   │    │   :8079    │    │   :8080    │    │ :8081   │ │
-│  └────────┘    └────────────┘    └────────────┘    └─────────┘ │
-│               │              │  │              │                 │
-│               │  plaintext   │  │  FTE encoded │   plaintext    │
-│               └──────────────┘  └──────────────┘                │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+Traffic Flow:
+
+  Terminal 2          Terminal 1 (demo.sh)
+  +--------+    +------------+    +------------+    +---------+
+  |  You   |--->| FTE Client |===>| FTE Server |--->| netcat  |
+  |  (nc)  |    |   :8079    |    |   :8080    |    |  :8081  |
+  +--------+    +------------+    +------------+    +---------+
+                |            |    |            |
+                | plaintext  |    | FTE encoded|    plaintext
 ```
 
 The traffic between the FTE client and server is encoded to look like

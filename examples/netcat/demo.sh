@@ -30,14 +30,16 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
-echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║              FTE Proxy Netcat Demo                           ║"
-echo "╠══════════════════════════════════════════════════════════════╣"
-echo "║  Traffic flow:                                               ║"
-echo "║                                                              ║"
-echo "║  [You] -> :$CLIENT_PORT -> [FTE Client] -> [FTE Server] -> :$PROXY_PORT -> [nc] ║"
-echo "║          plaintext      FTE encoded      plaintext          ║"
-echo "╚══════════════════════════════════════════════════════════════╝"
+echo "================================================================"
+echo "                   FTE Proxy Netcat Demo                        "
+echo "================================================================"
+echo ""
+echo "Traffic flow:"
+echo ""
+echo "  [You] -> :$CLIENT_PORT -> [FTE Client] -> [FTE Server] -> :$PROXY_PORT -> [nc]"
+echo "           plaintext       FTE encoded       plaintext"
+echo ""
+echo "================================================================"
 echo ""
 
 # Start fteproxy server
@@ -59,14 +61,14 @@ sleep 0.5
 # Start netcat listener
 echo "[3/3] Starting netcat listener on :$PROXY_PORT..."
 echo ""
-echo "════════════════════════════════════════════════════════════════"
+echo "================================================================"
 echo "Ready! In another terminal, run:"
 echo ""
 echo "    echo 'Hello, FTE!' | nc $CLIENT_IP $CLIENT_PORT"
 echo ""
 echo "You should see the message appear below."
 echo "Press Ctrl+C to stop."
-echo "════════════════════════════════════════════════════════════════"
+echo "================================================================"
 echo ""
 
 # Use nc (more portable than netcat)

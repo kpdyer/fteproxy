@@ -5,14 +5,13 @@ A simple echo server/client demonstrating `fteproxy.wrap_socket()`.
 ## Traffic Flow
 
 ```
-┌────────────┐           ┌────────────┐           ┌────────────┐
-│   Client   │  ──────▶  │  Network   │  ──────▶  │   Server   │
-│            │           │            │           │            │
-│ "Hello!"   │           │ 0101011... │           │ "Hello!"   │
-└────────────┘           └────────────┘           └────────────┘
-     │                         │                        │
-     │    plaintext           │  looks like binary     │   plaintext
-     └─────────────────────────────────────────────────┘
++------------+           +------------+           +------------+
+|   Client   |  ------>  |  Network   |  ------>  |   Server   |
+|            |           |            |           |            |
+| "Hello!"   |           | 0101011... |           | "Hello!"   |
++------------+           +------------+           +------------+
+     |                         |                        |
+     |    plaintext           |  looks like binary     |   plaintext
 ```
 
 ## Quick Start
@@ -75,15 +74,15 @@ sock = fteproxy.wrap_socket(sock,
 
 sock.connect(('127.0.0.1', 50007))
 sock.sendall(b'Hello, world')  # Sent as: 01010110111010...
-data = sock.recv(1024)         # Received as: ABBAABABBA... → decoded
+data = sock.recv(1024)         # Received as: ABBAABABBA... -> decoded
 ```
 
 ## Formats Used
 
 | Direction | Regex | Looks Like |
 |-----------|-------|------------|
-| Client → Server | `^(0|1)+$` | `010110101110101...` |
-| Server → Client | `^(A|B)+$` | `ABBAABABBAABAB...` |
+| Client -> Server | `^(0|1)+$` | `010110101110101...` |
+| Server -> Client | `^(A|B)+$` | `ABBAABABBAABAB...` |
 
 ## Key Concepts
 

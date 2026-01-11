@@ -2,72 +2,66 @@
 
 A comprehensive collection of examples demonstrating fteproxy's capabilities.
 
+## What is fteproxy?
+
+fteproxy transforms your network traffic to look like something else.
+
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         What is fteproxy?                               │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  fteproxy transforms your network traffic to look like something else.  │
-│                                                                         │
-│  ┌──────────┐         ┌──────────┐         ┌──────────┐                │
-│  │  Your    │  ────▶  │ fteproxy │  ════▶  │ fteproxy │  ────▶  dest   │
-│  │  App     │         │  client  │         │  server  │                │
-│  └──────────┘         └──────────┘         └──────────┘                │
-│       │                    │                    │                       │
-│   plaintext          looks like:            plaintext                   │
-│                      • random words                                     │
-│                      • HTTP requests                                    │
-│                      • SSH banners                                      │
-│                      • hex strings                                      │
-│                      • anything you want!                               │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+[Your App] --> [fteproxy client] ==> [fteproxy server] --> [destination]
+               (encodes traffic)     (decodes traffic)
+
+Traffic between client and server looks like:
+- random words
+- HTTP requests
+- SSH banners
+- hex strings
+- anything you want!
 ```
 
-## 📁 Directory Structure
+## Directory Structure
 
 ```
 examples/
-│
-├── 🚀 basic/                 Getting started
-│   ├── README.md
-│   ├── start_server.sh       Start a server
-│   └── start_client.sh       Start a client
-│
-├── 💬 chat/                  Echo server demo
-│   ├── README.md
-│   ├── server.py             FTE-wrapped echo server
-│   └── client.py             FTE-wrapped echo client
-│
-├── 🎨 formats/               Output format demos
-│   ├── README.md
-│   ├── comparison_demo.py    Compare all formats side-by-side
-│   ├── words_demo.py         Traffic as English-like words
-│   └── http_demo.py          Traffic as HTTP requests
-│
-├── 🐍 programmatic/          Python API examples
-│   ├── README.md
-│   ├── simple_encoder.py     Direct encoding (no sockets)
-│   ├── echo_server.py        Socket wrapper server
-│   ├── echo_client.py        Socket wrapper client
-│   ├── format_demo.py        All formats demonstration
-│   ├── custom_format.py      Create your own formats
-│   └── file_transfer.py      Send files over FTE
-│
-├── 🔌 integration/           Tool integration
-│   ├── README.md
-│   ├── ssh_tunnel.sh         SSH over FTE
-│   ├── web_proxy.sh          Web browsing over FTE
-│   └── secure_chat.py        Encrypted chat app
-│
-└── 🔧 netcat/                Quick demo
-    ├── README.md
-    └── demo.sh               One-command demo
+|
+|-- basic/                  Getting started
+|   |-- README.md
+|   |-- start_server.sh     Start a server
+|   +-- start_client.sh     Start a client
+|
+|-- chat/                   Echo server demo
+|   |-- README.md
+|   |-- server.py           FTE-wrapped echo server
+|   +-- client.py           FTE-wrapped echo client
+|
+|-- formats/                Output format demos
+|   |-- README.md
+|   |-- comparison_demo.py  Compare all formats side-by-side
+|   |-- words_demo.py       Traffic as English-like words
+|   +-- http_demo.py        Traffic as HTTP requests
+|
+|-- programmatic/           Python API examples
+|   |-- README.md
+|   |-- simple_encoder.py   Direct encoding (no sockets)
+|   |-- echo_server.py      Socket wrapper server
+|   |-- echo_client.py      Socket wrapper client
+|   |-- format_demo.py      All formats demonstration
+|   |-- custom_format.py    Create your own formats
+|   +-- file_transfer.py    Send files over FTE
+|
+|-- integration/            Tool integration
+|   |-- README.md
+|   |-- ssh_tunnel.sh       SSH over FTE
+|   |-- web_proxy.sh        Web browsing over FTE
+|   +-- secure_chat.py      Encrypted chat app
+|
++-- netcat/                 Quick demo
+    |-- README.md
+    +-- demo.sh             One-command demo
 ```
 
 ---
 
-## 🚀 Basic Examples
+## Basic Examples
 
 **Location:** `basic/`
 
@@ -111,7 +105,7 @@ echo "Hello through FTE!" | nc localhost 8079
 
 ---
 
-## 💬 Chat Examples
+## Chat Examples
 
 **Location:** `chat/`
 
@@ -151,7 +145,7 @@ python3 client.py
 
 ---
 
-## 🎨 Format Examples
+## Format Examples
 
 **Location:** `formats/`
 
@@ -201,7 +195,7 @@ Your "Secret message" becomes: `GET /a8Kj2mNp HTTP/1.1\r\n\r\n`
 
 ---
 
-## 🐍 Programmatic Examples
+## Programmatic Examples
 
 **Location:** `programmatic/`
 
@@ -272,7 +266,7 @@ python3 file_transfer.py send myfile.txt
 
 ---
 
-## 🔌 Integration Examples
+## Integration Examples
 
 **Location:** `integration/`
 
@@ -324,7 +318,7 @@ python3 secure_chat.py client 127.0.0.1
 
 ---
 
-## 🔧 Netcat Demo
+## Netcat Demo
 
 **Location:** `netcat/`
 
@@ -348,12 +342,12 @@ echo "Hello, FTE!" | nc localhost 8079
 
 Traffic flow:
 ```
-You ──▶ :8079 ──▶ [FTE encode] ──▶ :8080 ──▶ [FTE decode] ──▶ :8081 ──▶ netcat
+You --> :8079 --> [FTE encode] --> :8080 --> [FTE decode] --> :8081 --> netcat
 ```
 
 ---
 
-## 📋 Available Formats
+## Available Formats
 
 fteproxy includes these built-in formats:
 
@@ -380,7 +374,7 @@ fteproxy includes these built-in formats:
 
 ---
 
-## 🎯 Use Cases
+## Use Cases
 
 1. **Bypass Traffic Filtering** - Make your traffic look like allowed protocols
 2. **Privacy** - Prevent traffic analysis by disguising patterns  
@@ -389,7 +383,7 @@ fteproxy includes these built-in formats:
 
 ---
 
-## 📚 More Information
+## More Information
 
 - **Main Documentation:** [README.md](../README.md)
 - **Homepage:** https://fteproxy.org

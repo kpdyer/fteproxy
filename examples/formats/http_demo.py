@@ -34,7 +34,7 @@ def main():
         # Verify
         decoded, _ = encoder.decode(ciphertext)
         assert decoded == msg
-        print("✓ Roundtrip verified")
+        print("[OK] Roundtrip verified")
 
 
 if __name__ == "__main__":

@@ -29,10 +29,10 @@ def demonstrate_format(name: str, regex: str, description: str, secret: bytes):
         # Verify
         decoded, _ = encoder.decode(ciphertext)
         print(f"\nDecoded: {decoded.decode()}")
-        print(f"✓ Roundtrip successful!")
+        print(f"[OK] Roundtrip successful!")
         
     except Exception as e:
-        print(f"✗ Error: {e}")
+        print(f"[ERROR] {e}")
 
 
 def main():
