@@ -5,7 +5,7 @@
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![PyPI version](https://badge.fury.io/py/fteproxy.svg)](https://badge.fury.io/py/fteproxy)
 
-* Homepage: https://fteproxy.org
+* Homepage: https://github.com/kpdyer/fteproxy
 * Source code: https://github.com/kpdyer/fteproxy
 * Publication: https://kpdyer.com/publications/ccs2013-fte.pdf
 

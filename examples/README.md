@@ -386,5 +386,5 @@ fteproxy includes these built-in formats:
 ## More Information
 
 - **Main Documentation:** [README.md](../README.md)
-- **Homepage:** https://fteproxy.org
+- **Homepage:** https://github.com/kpdyer/fteproxy
 - **Paper:** [Protocol Misidentification Made Easy with FTE](https://kpdyer.com/publications/ccs2013-fte.pdf)
