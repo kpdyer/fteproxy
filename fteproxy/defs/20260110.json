@@ -1,0 +1,150 @@
+{
+    "http-simple-request": {
+        "regex": "^GET \\/[a-zA-Z0-9]+ HTTP\\/1\\.1\\r\\n\\r\\n$",
+        "fixed_slice": 256
+    },
+    "http-simple-response": {
+        "regex": "^HTTP\\/1\\.1 200 OK\\r\\n\\r\\n[a-zA-Z0-9]+$",
+        "fixed_slice": 256
+    },
+    "lowercase-request": {
+        "regex": "^[a-z]+$",
+        "fixed_slice": 256
+    },
+    "lowercase-response": {
+        "regex": "^[a-z]+$",
+        "fixed_slice": 256
+    },
+    "uppercase-request": {
+        "regex": "^[A-Z]+$",
+        "fixed_slice": 256
+    },
+    "uppercase-response": {
+        "regex": "^[A-Z]+$",
+        "fixed_slice": 256
+    },
+    "alphanumeric-request": {
+        "regex": "^[a-zA-Z0-9]+$",
+        "fixed_slice": 256
+    },
+    "alphanumeric-response": {
+        "regex": "^[a-zA-Z0-9]+$",
+        "fixed_slice": 256
+    },
+    "hex-request": {
+        "regex": "^[0-9a-f]+$",
+        "fixed_slice": 256
+    },
+    "hex-response": {
+        "regex": "^[0-9a-f]+$",
+        "fixed_slice": 256
+    },
+    "digits-request": {
+        "regex": "^[0-9]+$",
+        "fixed_slice": 256
+    },
+    "digits-response": {
+        "regex": "^[0-9]+$",
+        "fixed_slice": 256
+    },
+    "binary-request": {
+        "regex": "^[01]+$",
+        "fixed_slice": 256
+    },
+    "binary-response": {
+        "regex": "^[01]+$",
+        "fixed_slice": 256
+    },
+    "base64-request": {
+        "regex": "^[a-zA-Z0-9+/]+$",
+        "fixed_slice": 256
+    },
+    "base64-response": {
+        "regex": "^[a-zA-Z0-9+/]+$",
+        "fixed_slice": 256
+    },
+    "words-request": {
+        "regex": "^([a-z]+ )+[a-z]+$",
+        "fixed_slice": 256
+    },
+    "words-response": {
+        "regex": "^([a-z]+ )+[a-z]+$",
+        "fixed_slice": 256
+    },
+    "sentences-request": {
+        "regex": "^([A-Z][a-z]+ )+[a-z]+\\.$",
+        "fixed_slice": 256
+    },
+    "sentences-response": {
+        "regex": "^([A-Z][a-z]+ )+[a-z]+\\.$",
+        "fixed_slice": 256
+    },
+    "ip-address-request": {
+        "regex": "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$",
+        "fixed_slice": 64
+    },
+    "ip-address-response": {
+        "regex": "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$",
+        "fixed_slice": 64
+    },
+    "domain-request": {
+        "regex": "^[a-z0-9]+\\.[a-z]+$",
+        "fixed_slice": 128
+    },
+    "domain-response": {
+        "regex": "^[a-z0-9]+\\.[a-z]+$",
+        "fixed_slice": 128
+    },
+    "url-path-request": {
+        "regex": "^\\/[a-z0-9]+(\\/[a-z0-9]+)*$",
+        "fixed_slice": 256
+    },
+    "url-path-response": {
+        "regex": "^\\/[a-z0-9]+(\\/[a-z0-9]+)*$",
+        "fixed_slice": 256
+    },
+    "key-value-request": {
+        "regex": "^[a-z]+=[a-zA-Z0-9]+$",
+        "fixed_slice": 128
+    },
+    "key-value-response": {
+        "regex": "^[a-z]+=[a-zA-Z0-9]+$",
+        "fixed_slice": 128
+    },
+    "csv-request": {
+        "regex": "^[a-zA-Z0-9]+(,[a-zA-Z0-9]+)+$",
+        "fixed_slice": 256
+    },
+    "csv-response": {
+        "regex": "^[a-zA-Z0-9]+(,[a-zA-Z0-9]+)+$",
+        "fixed_slice": 256
+    },
+    "email-simple-request": {
+        "regex": "^[a-z]+@[a-z]+\\.[a-z]+$",
+        "fixed_slice": 128
+    },
+    "email-simple-response": {
+        "regex": "^[a-z]+@[a-z]+\\.[a-z]+$",
+        "fixed_slice": 128
+    },
+    "timestamp-request": {
+        "regex": "^[0-9]+:[0-9]+:[0-9]+$",
+        "fixed_slice": 64
+    },
+    "timestamp-response": {
+        "regex": "^[0-9]+:[0-9]+:[0-9]+$",
+        "fixed_slice": 64
+    },
+    "manual-http-request": {
+        "regex": "^GET\\ \\/([a-zA-Z0-9\\.\\/]*) HTTP/1\\.1\\r\\n\\r\\n$"
+    },
+    "manual-http-response": {
+        "regex": "^HTTP/1\\.1\\ 200 OK\\r\\nContent-Type:\\ ([a-zA-Z0-9]+)\\r\\n\\r\\n\\C*$"
+    },
+    "dummy-request": {
+        "regex": "^\\C+$"
+    },
+    "dummy-response": {
+        "regex": "^\\C+$"
+    }
+}
