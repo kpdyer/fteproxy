@@ -52,14 +52,9 @@ def wait_for_port(host, port, timeout=STARTUP_TIMEOUT):
 
 
 def get_fteproxy_cmd():
-    """Get the path to the fteproxy command."""
-    # Try to find fteproxy in the bin directory
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    bin_path = os.path.join(base_dir, 'bin', 'fteproxy')
-    if os.path.exists(bin_path):
-        return [sys.executable, bin_path]
-    # Fall back to module execution
-    return [sys.executable, '-m', 'fteproxy.cli']
+    """Get the command to run fteproxy."""
+    # Use module execution - the canonical way to run fteproxy
+    return [sys.executable, '-m', 'fteproxy']
 
 
 class TestSystemEndToEnd:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-
+__version__ = "0.2.19"
 
 import sys
 import socket
@@ -272,6 +272,14 @@ class _FTESocketWrapper(FTEHelper, object):
 
     def fileno(self):
         return self._socket.fileno()
+
+    def setsockopt(self, level, optname, value):
+        return self._socket.setsockopt(level, optname, value)
+
+    def getsockopt(self, level, optname, buflen=None):
+        if buflen is None:
+            return self._socket.getsockopt(level, optname)
+        return self._socket.getsockopt(level, optname, buflen)
 
     def recv(self, bufsize):
         # <HACK>

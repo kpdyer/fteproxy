@@ -41,13 +41,13 @@ Source = "https://github.com/kpdyer/fteproxy"
 fteproxy = "fteproxy.cli:main"
 
 [tool.setuptools.dynamic]
-version = {file = "fteproxy/VERSION"}
+version = {attr = "fteproxy.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["fteproxy*"]
 
 [tool.setuptools.package-data]
-fteproxy = ["VERSION", "defs/*.json"]
+fteproxy = ["defs/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["fteproxy/tests"]

@@ -14,14 +14,12 @@ import traceback
 
 import fte
 
+import fteproxy
 import fteproxy.conf
 import fteproxy.server
 import fteproxy.client
 
-VERSION_FILE = os.path.join(
-    fteproxy.conf.getValue('general.base_dir'), 'fteproxy', 'VERSION')
-with open(VERSION_FILE) as fh:
-    FTEPROXY_VERSION = fh.read().strip()
+FTEPROXY_VERSION = fteproxy.__version__
 
 
 class FTEMain(threading.Thread):

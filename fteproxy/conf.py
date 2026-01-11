@@ -120,4 +120,4 @@ conf['fteproxy.default_fixed_slice'] = 2 ** 8
 
 
 """The default definitions file to use."""
-conf['fteproxy.defs.release'] = '20131224'
+conf['fteproxy.defs.release'] = '20260110'
