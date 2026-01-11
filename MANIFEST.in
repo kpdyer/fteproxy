@@ -1,5 +1,4 @@
 include LICENSE
 include README.md
 include PYPI_README.md
-include fteproxy/VERSION
 include fteproxy/defs/*.json

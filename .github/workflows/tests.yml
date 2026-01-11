@@ -36,7 +36,7 @@ jobs:
 
     - name: Run basic import test
       run: |
-        python -c "import fteproxy; print('fteproxy version:', open('fteproxy/VERSION').read().strip())"
+        python -c "import fteproxy; print('fteproxy version:', fteproxy.__version__)"
 
   system-tests:
     name: System Tests
