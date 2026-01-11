@@ -10,7 +10,7 @@ Tunnel SSH connections through fteproxy so they look like HTTP traffic.
 
 ```bash
 # Terminal 1: Start fteproxy server (forwards to local SSH)
-fteproxy --mode server --server_port 8080 --proxy_ip 127.0.0.1 --proxy_port 22
+python3 -m fteproxy --mode server --server_port 8080 --proxy_ip 127.0.0.1 --proxy_port 22
 
 # Make sure sshd is running on port 22
 ```
@@ -19,7 +19,7 @@ fteproxy --mode server --server_port 8080 --proxy_ip 127.0.0.1 --proxy_port 22
 
 ```bash
 # Terminal 1: Start fteproxy client
-fteproxy --mode client --client_port 8079 --server_ip <server-ip> --server_port 8080
+python3 -m fteproxy --mode client --client_port 8079 --server_ip <server-ip> --server_port 8080
 
 # Terminal 2: Connect via SSH through fteproxy
 ssh -p 8079 user@localhost
@@ -34,14 +34,14 @@ Use fteproxy to tunnel an HTTP proxy.
 ```bash
 # Start a simple HTTP proxy (e.g., tinyproxy) on port 8888
 # Then start fteproxy to expose it:
-fteproxy --mode server --server_port 8080 --proxy_port 8888
+python3 -m fteproxy --mode server --server_port 8080 --proxy_port 8888
 ```
 
 ### Client Side
 
 ```bash
 # Start fteproxy client
-fteproxy --mode client --client_port 8079 --server_ip <server-ip> --server_port 8080
+python3 -m fteproxy --mode client --client_port 8079 --server_ip <server-ip> --server_port 8080
 
 # Use curl with the proxy
 curl -x socks5://localhost:8079 https://example.com
@@ -55,7 +55,7 @@ Transfer files using netcat through FTE encoding.
 
 ```bash
 # Terminal 1: Start fteproxy server
-fteproxy --mode server --server_port 8080 --proxy_port 9999
+python3 -m fteproxy --mode server --server_port 8080 --proxy_port 9999
 
 # Terminal 2: Wait for file with netcat
 nc -l 9999 > received_file.txt
@@ -65,7 +65,7 @@ nc -l 9999 > received_file.txt
 
 ```bash
 # Terminal 1: Start fteproxy client
-fteproxy --mode client --client_port 8079 --server_ip <server-ip> --server_port 8080
+python3 -m fteproxy --mode client --client_port 8079 --server_ip <server-ip> --server_port 8080
 
 # Terminal 2: Send file
 cat myfile.txt | nc localhost 8079
@@ -81,10 +81,10 @@ KEY=$(openssl rand -hex 32)
 echo "Using key: $KEY"
 
 # Server
-fteproxy --mode server --key $KEY --server_port 8080 --proxy_port 8081
+python3 -m fteproxy --mode server --key $KEY --server_port 8080 --proxy_port 8081
 
 # Client (use the SAME key)
-fteproxy --mode client --key $KEY --server_ip <server-ip> --server_port 8080
+python3 -m fteproxy --mode client --key $KEY --server_ip <server-ip> --server_port 8080
 ```
 
 ## Chaining with socat
