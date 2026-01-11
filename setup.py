@@ -28,7 +28,7 @@ setup(
     author_email='kpdyer@gmail.com',
     url='https://github.com/kpdyer/fteproxy',
     project_urls={
-        'Homepage': 'https://fteproxy.org',
+        'Homepage': 'https://github.com/kpdyer/fteproxy',
         'Documentation': 'https://github.com/kpdyer/fteproxy',
         'Source': 'https://github.com/kpdyer/fteproxy',
         'Bug Tracker': 'https://github.com/kpdyer/fteproxy/issues',
