@@ -2,12 +2,17 @@
 
 from setuptools import setup
 import glob
+import re
 
-with open('fteproxy/VERSION') as fh:
-    FTEPROXY_RELEASE = fh.read().strip()
+# Read version from __init__.py
+with open('fteproxy/__init__.py') as fh:
+    version_match = re.search(r'^__version__\s*=\s*[\'"]([^\'"]+)[\'"]', fh.read(), re.MULTILINE)
+    if version_match:
+        FTEPROXY_RELEASE = version_match.group(1)
+    else:
+        raise RuntimeError("Unable to find version string in fteproxy/__init__.py")
 
 package_data_files = []
-package_data_files += ['VERSION']
 for filename in glob.glob('fteproxy/defs/*.json'):
     jsonFile = filename.split('/')[-1]
     package_data_files += ['defs/' + jsonFile]
@@ -26,7 +31,7 @@ setup(
     author_email='kpdyer@gmail.com',
     url='https://github.com/kpdyer/fteproxy',
     project_urls={
-        'Homepage': 'https://fteproxy.org',
+        'Homepage': 'https://github.com/kpdyer/fteproxy',
         'Documentation': 'https://github.com/kpdyer/fteproxy',
         'Source': 'https://github.com/kpdyer/fteproxy',
         'Bug Tracker': 'https://github.com/kpdyer/fteproxy/issues',

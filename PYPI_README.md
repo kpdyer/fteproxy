@@ -38,7 +38,7 @@ fteproxy encodes traffic to match user-specified regular expressions, making it 
 ## Links
 
 - **Documentation:** https://github.com/kpdyer/fteproxy
-- **Homepage:** https://fteproxy.org
+- **Homepage:** https://github.com/kpdyer/fteproxy
 - **Publication:** [Protocol Misidentification Made Easy with Format-Transforming Encryption](https://kpdyer.com/publications/ccs2013-fte.pdf) (CCS 2013)
 
 ## License

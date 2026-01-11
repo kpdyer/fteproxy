@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-
+__version__ = "0.3.0"
 
 import sys
 import socket
@@ -357,6 +357,14 @@ class _FTESocketWrapper(FTEHelper, object):
 
     def listen(self, N):
         return self._socket.listen(N)
+
+    def setsockopt(self, level, optname, value):
+        return self._socket.setsockopt(level, optname, value)
+
+    def getsockopt(self, level, optname, buflen=None):
+        if buflen is None:
+            return self._socket.getsockopt(level, optname)
+        return self._socket.getsockopt(level, optname, buflen)
 
 
 def wrap_socket(sock,
