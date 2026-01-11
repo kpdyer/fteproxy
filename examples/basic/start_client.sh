@@ -8,7 +8,7 @@ echo "  Listening for plaintext on: 127.0.0.1:8079"
 echo "  Connecting to FTE server: $SERVER_IP:8080"
 echo ""
 
-python -m fteproxy --mode client \
+python3 -m fteproxy --mode client \
     --client_ip 127.0.0.1 \
     --client_port 8079 \
     --server_ip "$SERVER_IP" \

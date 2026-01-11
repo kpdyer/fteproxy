@@ -23,7 +23,7 @@ case "$MODE" in
         echo "Make sure your web proxy is running on port $PROXY_PORT"
         echo "(e.g., tinyproxy, squid, privoxy)"
         echo ""
-        python -m fteproxy --mode server \
+        python3 -m fteproxy --mode server \
             --server_ip 0.0.0.0 \
             --server_port 8080 \
             --proxy_ip 127.0.0.1 \
@@ -41,7 +41,7 @@ case "$MODE" in
         echo "Or use curl:"
         echo "  curl -x http://localhost:8079 https://example.com"
         echo ""
-        python -m fteproxy --mode client \
+        python3 -m fteproxy --mode client \
             --client_ip 127.0.0.1 \
             --client_port 8079 \
             --server_ip "$SERVER_IP" \

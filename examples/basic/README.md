@@ -8,7 +8,7 @@ This directory contains simple examples to get started with fteproxy.
 
 In terminal 1:
 ```bash
-python -m fteproxy --mode server --server_port 8080 --proxy_port 8081
+python3 -m fteproxy --mode server --server_port 8080 --proxy_port 8081
 ```
 
 ### 2. Start a destination service
@@ -23,7 +23,7 @@ nc -l -k 8081
 
 In terminal 3:
 ```bash
-python -m fteproxy --mode client --client_port 8079 --server_ip 127.0.0.1 --server_port 8080
+python3 -m fteproxy --mode client --client_port 8079 --server_ip 127.0.0.1 --server_port 8080
 ```
 
 ### 4. Send data
