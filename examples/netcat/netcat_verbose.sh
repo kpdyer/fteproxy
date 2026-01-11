@@ -14,12 +14,12 @@ PROXY_IP=127.0.0.1
 PROXY_PORT=8081
 
 # start fteproxy client
-./bin/fteproxy --mode client --quiet \
+python -m fteproxy --mode client --quiet \
                --client_ip $CLIENT_IP --client_port $CLIENT_PORT \
                --server_ip $SERVER_IP --server_port $SERVER_PORT & 
 
 # start fteproxy server
-./bin/fteproxy --mode server --quiet \
+python -m fteproxy --mode server --quiet \
                --server_ip $SERVER_IP --server_port $SERVER_PORT \
                --proxy_ip $PROXY_IP --proxy_port $PROXY_PORT &
 

@@ -1,10 +1,10 @@
 #!/bin/sh
 
 # start fteproxy client
-./bin/fteproxy --quiet &
+python -m fteproxy --quiet &
 
 # start fteproxy server
-./bin/fteproxy --mode server --quiet &
+python -m fteproxy --mode server --quiet &
 
 # start server-side netcat listener
 netcat -k -l -p 8081

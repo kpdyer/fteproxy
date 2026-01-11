@@ -19,7 +19,7 @@ case "$MODE" in
         echo ""
         echo "Make sure sshd is running on port 22"
         echo ""
-        fteproxy --mode server \
+        python -m fteproxy --mode server \
             --server_ip 0.0.0.0 \
             --server_port 8080 \
             --proxy_ip 127.0.0.1 \
@@ -34,7 +34,7 @@ case "$MODE" in
         echo "To connect via SSH, run:"
         echo "  ssh -p 8079 user@localhost"
         echo ""
-        fteproxy --mode client \
+        python -m fteproxy --mode client \
             --client_ip 127.0.0.1 \
             --client_port 8079 \
             --server_ip "$SERVER_IP" \
