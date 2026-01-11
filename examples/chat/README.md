@@ -1,18 +1,7 @@
 # FTE Chat Example
 
-A simple echo server/client demonstrating `fteproxy.wrap_socket()`.
-
-## Traffic Flow
-
-```
-+------------+           +------------+           +------------+
-|   Client   |  ------>  |  Network   |  ------>  |   Server   |
-|            |           |            |           |            |
-| "Hello!"   |           | 0101011... |           | "Hello!"   |
-+------------+           +------------+           +------------+
-     |                         |                        |
-     |    plaintext           |  looks like binary     |   plaintext
-```
+A chat demo with a 10-round conversation between client and server.
+All traffic is FTE-encoded to look like binary or letters.
 
 ## Quick Start
 
@@ -24,57 +13,74 @@ python3 server.py
 python3 client.py
 ```
 
-## Output
+## Sample Output
 
+**Server:**
 ```
-# Server terminal
-Connected by ('127.0.0.1', 52431)
+FTE Chat Server
+==================================================
+Listening on port 50007
+Client->Server format: binary (0s and 1s)
+Server->Client format: letters (As and Bs)
+==================================================
 
-# Client terminal
-Received b'Hello, world'
-```
+Waiting for client...
+Client connected from ('127.0.0.1', 52431)
 
-## How It Works
+[Round 1/10]
+  Client: Hi there! How are you?
+  Server: Hello! Welcome to the FTE chat server.
 
-### Server (`server.py`)
+[Round 2/10]
+  Client: What does FTE stand for?
+  Server: I'm doing great, thanks for asking!
 
-```python
-import socket
-import fteproxy
-
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock = fteproxy.wrap_socket(sock,
-    outgoing_regex='^(A|B)+$',     # Server sends As and Bs
-    outgoing_fixed_slice=256,
-    incoming_regex='^(0|1)+$',     # Client sends 0s and 1s
-    incoming_fixed_slice=256,
-    negotiate=False)
-
-sock.bind(('', 50007))
-sock.listen(1)
-conn, addr = sock.accept()
-
-data = conn.recv(1024)  # Automatically decoded from binary format
-conn.sendall(data)      # Automatically encoded to A/B format
+...
 ```
 
-### Client (`client.py`)
+**Client:**
+```
+FTE Chat Client
+==================================================
+Connecting to 127.0.0.1:50007
+Client->Server format: binary (0s and 1s)
+Server->Client format: letters (As and Bs)
+==================================================
 
-```python
-import socket
-import fteproxy
+Connected!
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock = fteproxy.wrap_socket(sock,
-    outgoing_regex='^(0|1)+$',     # Client sends 0s and 1s
-    outgoing_fixed_slice=256,
-    incoming_regex='^(A|B)+$',     # Server sends As and Bs
-    incoming_fixed_slice=256,
-    negotiate=False)
+[Round 1/10]
+  Client: Hi there! How are you?
+  Server: Hello! Welcome to the FTE chat server.
 
-sock.connect(('127.0.0.1', 50007))
-sock.sendall(b'Hello, world')  # Sent as: 01010110111010...
-data = sock.recv(1024)         # Received as: ABBAABABBA... -> decoded
+...
+```
+
+## What's On The Wire
+
+Even though the conversation looks normal, the actual network traffic is encoded:
+
+| Direction | What You See | What's On The Wire |
+|-----------|-------------|-------------------|
+| Client -> Server | "Hi there!" | `0101101011101010110...` |
+| Server -> Client | "Hello!" | `ABBAABABBAABBABA...` |
+
+## Traffic Flow
+
+```
++------------+                      +------------+
+|   Client   |                      |   Server   |
++------------+                      +------------+
+      |                                   |
+      |  "Hi there!" encoded as binary    |
+      |  010110101110101011010110...       |
+      |---------------------------------->|
+      |                                   |
+      |  "Hello!" encoded as A/B letters  |
+      |  ABBAABABBAABBABABAAB...           |
+      |<----------------------------------|
+      |                                   |
+     ...         (10 rounds)             ...
 ```
 
 ## Formats Used
@@ -84,23 +90,18 @@ data = sock.recv(1024)         # Received as: ABBAABABBA... -> decoded
 | Client -> Server | `^(0|1)+$` | `010110101110101...` |
 | Server -> Client | `^(A|B)+$` | `ABBAABABBAABAB...` |
 
-## Key Concepts
-
-- **`negotiate=False`**: Both sides know the formats in advance (no in-band negotiation)
-- **Transparent encoding**: Just use `sendall()` and `recv()` normally
-- **Bidirectional**: Different formats for each direction
-
 ## Customization
 
-Try changing the regex patterns:
+Edit the regex patterns in both files to change the wire format:
 
 ```python
-# Look like words
-outgoing_regex='^([a-z]+ )+[a-z]+$'
+# Look like lowercase words
+CLIENT_TO_SERVER = '^([a-z]+ )+[a-z]+$'
+SERVER_TO_CLIENT = '^([A-Z]+ )+[A-Z]+$'
 
 # Look like hex
-outgoing_regex='^[0-9a-f]+$'
-
-# Look like HTTP
-outgoing_regex='^GET \\/[a-zA-Z0-9]+ HTTP\\/1\\.1\\r\\n\\r\\n$'
+CLIENT_TO_SERVER = '^[0-9a-f]+$'
+SERVER_TO_CLIENT = '^[0-9A-F]+$'
 ```
+
+Both client and server must use matching formats!
