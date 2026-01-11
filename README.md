@@ -3,7 +3,7 @@
 [![Tests](https://github.com/kpdyer/fteproxy/actions/workflows/tests.yml/badge.svg)](https://github.com/kpdyer/fteproxy/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![PyPI version](https://badge.fury.io/py/fteproxy.svg)](https://badge.fury.io/py/fteproxy)
+[![PyPI version](https://img.shields.io/pypi/v/fteproxy.svg)](https://pypi.org/project/fteproxy/)
 
 * Homepage: https://github.com/kpdyer/fteproxy
 * Source code: https://github.com/kpdyer/fteproxy
