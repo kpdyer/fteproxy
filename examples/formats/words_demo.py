@@ -6,12 +6,15 @@ Shows data encoded as space-separated lowercase words.
 This is useful when you want traffic to look like natural text.
 """
 
+import sys
 import fte
+
 
 def main():
     # The words format: space-separated lowercase words
     regex = "^([a-z]+ )+[a-z]+$"
     fixed_slice = 256
+    errors = 0
     
     encoder = fte.Encoder(regex, fixed_slice)
     
@@ -40,9 +43,20 @@ def main():
         
         # Verify roundtrip
         decoded, _ = encoder.decode(ciphertext)
-        assert decoded == msg
-        print("[OK] Roundtrip verified")
+        if decoded == msg:
+            print("[OK] Roundtrip verified")
+        else:
+            print("[FAIL] Roundtrip failed!")
+            errors += 1
+    
+    print()
+    if errors > 0:
+        print(f"[FAIL] {errors} message(s) failed roundtrip")
+        return 1
+    
+    print("[OK] All messages verified successfully")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

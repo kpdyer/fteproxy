@@ -69,6 +69,33 @@ jobs:
       run: |
         python -m pytest fteproxy/tests/test_relay.py -v --tb=short --timeout=180
 
+  example-tests:
+    name: Example Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ['3.10', '3.11', '3.12']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -e .
+
+    - name: Run example tests
+      run: |
+        python -m pytest fteproxy/tests/test_examples.py -v --tb=short --timeout=300
+
   lint:
     name: Lint
     runs-on: ubuntu-latest

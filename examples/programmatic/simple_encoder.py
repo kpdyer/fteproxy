@@ -6,7 +6,9 @@ This demonstrates direct use of the FTE encoder without network sockets.
 Great for understanding how Format-Transforming Encryption works.
 """
 
+import sys
 import fte
+
 
 def main():
     # The regex defines what the output looks like
@@ -35,8 +37,17 @@ def main():
     # Decode back to original
     decoded, remaining = encoder.decode(ciphertext)
     print(f"Decoded message: {decoded.decode()}")
-    print(f"Roundtrip successful: {decoded == plaintext}")
+    
+    # Verify roundtrip
+    success = decoded == plaintext
+    print(f"Roundtrip successful: {success}")
+    
+    if not success:
+        print("[FAIL] Roundtrip verification failed!")
+        return 1
+    
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

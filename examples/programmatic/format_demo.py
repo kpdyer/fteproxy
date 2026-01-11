@@ -5,6 +5,7 @@ FTE Format Demonstration
 Shows how the same data looks when encoded with different regex formats.
 """
 
+import sys
 import fte
 
 # Available formats with their regex patterns
@@ -21,9 +22,11 @@ FORMATS = {
     "csv": ("^[a-zA-Z0-9]+(,[a-zA-Z0-9]+)+$", "Comma-separated values"),
 }
 
+
 def main():
     secret = b"Secret Message!"
     fixed_slice = 256
+    errors = 0
     
     print("=" * 70)
     print("FTE FORMAT DEMONSTRATION")
@@ -48,14 +51,25 @@ def main():
             
             # Verify roundtrip
             decoded, _ = encoder.decode(ciphertext)
-            assert decoded == secret, "Roundtrip failed!"
-            print(f"   [OK] Roundtrip verified")
+            if decoded != secret:
+                print(f"   [FAIL] Roundtrip failed!")
+                errors += 1
+            else:
+                print(f"   [OK] Roundtrip verified")
             
         except Exception as e:
             print(f"   [ERROR] {e}")
+            errors += 1
         
         print("-" * 70)
+    
+    if errors > 0:
+        print(f"\n[FAIL] {errors} format(s) had errors")
+        return 1
+    
+    print("\n[OK] All formats verified successfully")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

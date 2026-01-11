@@ -6,6 +6,7 @@ A simple chat client that has a 10-round conversation with the server.
 All traffic is FTE-encoded to look like binary (0s and 1s) or letters (As and Bs).
 """
 
+import sys
 import socket
 import fteproxy
 
@@ -40,38 +41,53 @@ def main():
     print("=" * 50)
     print()
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock = fteproxy.wrap_socket(sock,
-                                outgoing_regex=CLIENT_TO_SERVER,
-                                outgoing_fixed_slice=256,
-                                incoming_regex=SERVER_TO_CLIENT,
-                                incoming_fixed_slice=256,
-                                negotiate=False)
-    sock.connect((HOST, PORT))
-    print("Connected!")
-    print()
-
-    # 10-round conversation
-    for round_num in range(10):
-        # Send message to server
-        message = MESSAGES[round_num]
-        sock.sendall(message)
-
-        print(f"[Round {round_num + 1}/10]")
-        print(f"  Client: {message.decode()}")
-
-        # Receive response
-        data = sock.recv(4096)
-        if not data:
-            print("Server disconnected")
-            break
-
-        print(f"  Server: {data.decode()}")
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock = fteproxy.wrap_socket(sock,
+                                    outgoing_regex=CLIENT_TO_SERVER,
+                                    outgoing_fixed_slice=256,
+                                    incoming_regex=SERVER_TO_CLIENT,
+                                    incoming_fixed_slice=256,
+                                    negotiate=False)
+        sock.connect((HOST, PORT))
+        print("Connected!")
         print()
 
-    sock.close()
-    print("Chat ended.")
+        rounds_completed = 0
+        
+        # 10-round conversation
+        for round_num in range(10):
+            # Send message to server
+            message = MESSAGES[round_num]
+            sock.sendall(message)
+
+            print(f"[Round {round_num + 1}/10]")
+            print(f"  Client: {message.decode()}")
+
+            # Receive response
+            data = sock.recv(4096)
+            if not data:
+                print("Server disconnected unexpectedly")
+                return 1
+
+            print(f"  Server: {data.decode()}")
+            print()
+            rounds_completed += 1
+
+        sock.close()
+        print("Chat ended.")
+        
+        if rounds_completed == 10:
+            print("[OK] All 10 rounds completed successfully")
+            return 0
+        else:
+            print(f"[FAIL] Only {rounds_completed}/10 rounds completed")
+            return 1
+            
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

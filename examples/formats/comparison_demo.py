@@ -6,6 +6,7 @@ Encodes the same message with multiple formats side-by-side
 to show how different formats transform the same data.
 """
 
+import sys
 import fte
 
 FORMATS = [
@@ -20,8 +21,10 @@ FORMATS = [
     ("CSV", "^[a-zA-Z0-9]+(,[a-zA-Z0-9]+)+$"),
 ]
 
+
 def main():
     secret = b"Hello, World!"
+    errors = 0
     
     print("=" * 70)
     print("FORMAT COMPARISON")
@@ -30,22 +33,27 @@ def main():
     print(f"Length: {len(secret)} bytes\n")
     
     print("-" * 70)
-    print(f"{'Format':<12} | {'Sample Output':<55}")
+    print(f"{'Format':<12} | {'Sample Output':<50} | Status")
     print("-" * 70)
     
     for name, regex in FORMATS:
         try:
             encoder = fte.Encoder(regex, 256)
             ciphertext = encoder.encode(secret)
-            sample = ciphertext[:55].decode('ascii', errors='ignore')
+            sample = ciphertext[:50].decode('ascii', errors='ignore')
             
             # Verify it decodes correctly
             decoded, _ = encoder.decode(ciphertext)
-            status = "[OK]" if decoded == secret else "[FAIL]"
+            if decoded == secret:
+                status = "[OK]"
+            else:
+                status = "[FAIL]"
+                errors += 1
             
-            print(f"{name:<12} | {sample}")
+            print(f"{name:<12} | {sample:<50} | {status}")
         except Exception as e:
-            print(f"{name:<12} | Error: {str(e)[:45]}")
+            print(f"{name:<12} | Error: {str(e)[:45]:<50} | [ERROR]")
+            errors += 1
     
     print("-" * 70)
     
@@ -57,6 +65,13 @@ Observations:
 - Each format has its own use case for blending in
 """)
 
+    if errors > 0:
+        print(f"[FAIL] {errors} format(s) had errors")
+        return 1
+    
+    print("[OK] All formats verified successfully")
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
