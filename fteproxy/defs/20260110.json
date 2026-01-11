@@ -7,6 +7,46 @@
         "regex": "^HTTP\\/1\\.1 200 OK\\r\\n\\r\\n[a-zA-Z0-9]+$",
         "fixed_slice": 256
     },
+    "ssh-request": {
+        "regex": "^SSH-2\\.0-[a-zA-Z0-9_]+$",
+        "fixed_slice": 128,
+        "description": "SSH protocol version banner (e.g., SSH-2.0-OpenSSH_8.4)"
+    },
+    "ssh-response": {
+        "regex": "^SSH-2\\.0-[a-zA-Z0-9_]+$",
+        "fixed_slice": 128,
+        "description": "SSH protocol version banner"
+    },
+    "tls-sni-request": {
+        "regex": "^[a-z0-9]+\\.[a-z0-9]+\\.[a-z]+$",
+        "fixed_slice": 128,
+        "description": "TLS Server Name Indication style (subdomain.domain.tld)"
+    },
+    "tls-sni-response": {
+        "regex": "^[a-z0-9]+\\.[a-z0-9]+\\.[a-z]+$",
+        "fixed_slice": 128,
+        "description": "TLS Server Name Indication style"
+    },
+    "smtp-request": {
+        "regex": "^EHLO [a-z0-9]+\\.[a-z]+$",
+        "fixed_slice": 128,
+        "description": "SMTP EHLO command (e.g., EHLO mail.example.com)"
+    },
+    "smtp-response": {
+        "regex": "^250-[a-z0-9]+\\.[a-z]+ [A-Z]+$",
+        "fixed_slice": 128,
+        "description": "SMTP 250 response"
+    },
+    "ftp-request": {
+        "regex": "^USER [a-z0-9]+$",
+        "fixed_slice": 64,
+        "description": "FTP USER command"
+    },
+    "ftp-response": {
+        "regex": "^220 [a-z]+\\.[a-z]+ ready$",
+        "fixed_slice": 128,
+        "description": "FTP welcome banner (e.g., 220 ftp.example.com ready)"
+    },
     "lowercase-request": {
         "regex": "^[a-z]+$",
         "fixed_slice": 256

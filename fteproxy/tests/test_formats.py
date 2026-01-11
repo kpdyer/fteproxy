@@ -239,6 +239,109 @@ class TestBuiltinFormats:
         plaintext, _ = encoder.decode(ciphertext)
         assert plaintext == test_data
 
+    def test_ssh_format(self):
+        """Test the SSH format produces SSH banner-like output."""
+        regex = fteproxy.defs.getRegex("ssh-request")
+        fixed_slice = fteproxy.defs.getFixedSlice("ssh-request")
+        
+        encoder = fte.Encoder(regex, fixed_slice)
+        test_data = b"X"
+        
+        ciphertext = encoder.encode(test_data)
+        decoded = ciphertext[:fixed_slice].decode('ascii', errors='ignore')
+        
+        # Should look like an SSH banner
+        assert decoded.startswith('SSH-2.0-')
+        
+        plaintext, _ = encoder.decode(ciphertext)
+        assert plaintext == test_data
+
+    def test_tls_sni_format(self):
+        """Test the TLS SNI format produces domain-like output."""
+        regex = fteproxy.defs.getRegex("tls-sni-request")
+        fixed_slice = fteproxy.defs.getFixedSlice("tls-sni-request")
+        
+        encoder = fte.Encoder(regex, fixed_slice)
+        test_data = b"X"
+        
+        ciphertext = encoder.encode(test_data)
+        decoded = ciphertext[:fixed_slice].decode('ascii', errors='ignore')
+        
+        # Should look like subdomain.domain.tld
+        parts = decoded.split('.')
+        assert len(parts) == 3
+        
+        plaintext, _ = encoder.decode(ciphertext)
+        assert plaintext == test_data
+
+    def test_smtp_format(self):
+        """Test the SMTP format produces EHLO command-like output."""
+        regex = fteproxy.defs.getRegex("smtp-request")
+        fixed_slice = fteproxy.defs.getFixedSlice("smtp-request")
+        
+        encoder = fte.Encoder(regex, fixed_slice)
+        test_data = b"X"
+        
+        ciphertext = encoder.encode(test_data)
+        decoded = ciphertext[:fixed_slice].decode('ascii', errors='ignore')
+        
+        # Should look like SMTP EHLO command
+        assert decoded.startswith('EHLO ')
+        assert '.' in decoded
+        
+        plaintext, _ = encoder.decode(ciphertext)
+        assert plaintext == test_data
+
+    def test_ftp_format(self):
+        """Test the FTP format produces FTP response-like output."""
+        regex = fteproxy.defs.getRegex("ftp-response")
+        fixed_slice = fteproxy.defs.getFixedSlice("ftp-response")
+        
+        encoder = fte.Encoder(regex, fixed_slice)
+        test_data = b"X"
+        
+        ciphertext = encoder.encode(test_data)
+        decoded = ciphertext[:fixed_slice].decode('ascii', errors='ignore')
+        
+        # Should look like FTP welcome banner
+        assert decoded.startswith('220 ')
+        assert 'ready' in decoded
+        
+        plaintext, _ = encoder.decode(ciphertext)
+        assert plaintext == test_data
+
+
+class TestProtocolFormats:
+    """Test all protocol-like formats."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        """Set up the test environment."""
+        fteproxy.conf.setValue('fteproxy.defs.release', '20260110')
+        fteproxy.defs._definitions = None  # Reset cache
+
+    @pytest.mark.parametrize("protocol,expected_prefix", [
+        ("ssh", "SSH-2.0-"),
+        ("smtp", "EHLO "),
+        ("ftp", "USER "),
+    ])
+    def test_protocol_request_format(self, protocol, expected_prefix):
+        """Test protocol request formats produce expected output."""
+        format_name = f"{protocol}-request"
+        regex = fteproxy.defs.getRegex(format_name)
+        fixed_slice = fteproxy.defs.getFixedSlice(format_name)
+        
+        encoder = fte.Encoder(regex, fixed_slice)
+        test_data = b"Test"
+        
+        ciphertext = encoder.encode(test_data)
+        decoded = ciphertext[:fixed_slice].decode('ascii', errors='ignore')
+        
+        assert decoded.startswith(expected_prefix)
+        
+        plaintext, _ = encoder.decode(ciphertext)
+        assert plaintext == test_data
+
 
 class TestFormatPairs:
     """Test that request/response format pairs work correctly."""
