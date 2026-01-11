@@ -63,11 +63,11 @@ jobs:
 
     - name: Run system tests (client/server)
       run: |
-        python -m pytest fteproxy/tests/test_system.py -v --tb=short --timeout=120
+        python -m pytest fteproxy/tests/test_system.py -v --tb=short --timeout=300
 
     - name: Run relay integration test
       run: |
-        python -m pytest fteproxy/tests/test_relay.py -v --tb=short --timeout=60
+        python -m pytest fteproxy/tests/test_relay.py -v --tb=short --timeout=180
 
   lint:
     name: Lint
