@@ -83,8 +83,14 @@ class Decoder:
             except Exception as e:
                 fteproxy.warn("fteproxy.record_layer exception: "+str(e))
                 break
-            finally:
-                if oneCell:
-                    break
+
+            # Stop after a single cell only once one was decoded successfully.
+            # This must live outside a ``finally`` block: a ``break`` in
+            # ``finally`` swallows any in-flight exception (including the
+            # SystemExit raised by ``fatal_error`` on an unrecoverable
+            # decryption error), silently turning a fatal condition into a
+            # normal return.
+            if oneCell:
+                break
 
         return retval
