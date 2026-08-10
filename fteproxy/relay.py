@@ -104,6 +104,13 @@ class listener(threading.Thread):
                 new_stream = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 new_stream.connect((self._remote_ip, self._remote_port))
 
+                # Disable Nagle's algorithm on both hops. fteproxy is an
+                # interactive tunnel that emits small encoded cells; Nagle would
+                # hold a small segment for up to ~40 ms waiting to coalesce,
+                # which directly inflates round-trip latency.
+                conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                new_stream.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
                 conn = self.onNewIncomingConnection(conn)
                 new_stream = self.onNewOutgoingConnection(new_stream)
 
