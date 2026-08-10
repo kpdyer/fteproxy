@@ -179,15 +179,20 @@ from 64 KB → 4 MB) because FTE dominates, but it will bite harder if FTE is ev
 Use a read offset / `memoryview`, or a `bytearray` with `del buf[:n]`, and join output
 chunks once.
 
-### 5. Short-circuit / cache the negotiation scan — *low effort, connection-setup CPU at scale*
+### 5. Short-circuit the negotiation scan — *low effort, connection-setup CPU at scale* — ✅ IMPLEMENTED (ordering, not caching)
 
-`NegotiationManager._acceptNegotiation` (`fteproxy/__init__.py:116-140`) linearly tries
-to decode the first cell against **every** request-language (~23 of them), constructing a
-fresh `fte.Encoder` and `record_layer.Decoder` per language on **every new connection**
-(~13 ms of CPU worst case even with warm DFA tables). For a server under connection churn
-this is pure per-connection tax. Cache the per-language decoder objects once at startup
-(the DFA tables are already cached globally by `fte`), and consider ordering the scan by
-popularity or moving to an explicit format id so the common case is O(1).
+`NegotiationManager._acceptNegotiation` (`fteproxy/__init__.py`) linearly tries to decode the
+first cell against **every** request-language (~23 of them) until one succeeds. The default
+upstream language sits at position **21 of 23** in definition order, so every connection paid
+~20 failed decodes before matching. The scan now tries the configured
+`runtime.state.upstream_language` first (**~0.55 → ~0.39 ms/connection** for the common
+shared-config case), falling through to the full scan for non-default clients — same set of
+languages, just the expected one first.
+
+> The originally-suggested *object caching* was measured to be a non-starter: constructing all
+> 23 `fte.Encoder`s costs **0.01 ms** (the DFA tables are already cached globally by `fte`), so
+> there is nothing worth caching. The only remaining lever beyond ordering is an explicit
+> format id to make the common case truly O(1).
 
 ### 6. The single-stream FTE ceiling is fundamental — *large effort, only matters on fast links*
 

@@ -116,7 +116,18 @@ class NegotiationManager(object):
     def _acceptNegotiation(self, data):
 
         languages = fteproxy.defs.load_definitions()
-        for incoming_language in languages.keys():
+
+        # Try the configured upstream language first. The server otherwise scans
+        # request-languages in definition order and attempts a decode against
+        # each until one succeeds; the default is near the end of that list, so
+        # every connection pays ~20 failed decodes before matching. A client and
+        # server sharing config (the common case) now match on the first try,
+        # while non-default clients still fall through to the full scan.
+        preferred = fteproxy.conf.getValue('runtime.state.upstream_language')
+        scan_order = ([preferred] if preferred in languages else []) + \
+            [lang for lang in languages.keys() if lang != preferred]
+
+        for incoming_language in scan_order:
             try:
                 if incoming_language.endswith('response'):
                     continue
