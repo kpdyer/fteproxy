@@ -142,6 +142,41 @@ def get_pid_file():
     return pid_file
 
 
+def parse_hex_key(hex_key):
+    """Validate a hex-encoded key and return it as bytes.
+
+    The key must be exactly 64 hexadecimal characters (a 32-byte key).
+    Surrounding whitespace is ignored so keys read from a file may end in a
+    trailing newline. Exits the process with an error on invalid input.
+    """
+    hex_key = hex_key.strip()
+    if len(hex_key) != 64:
+        fteproxy.warn('Invalid key length: ' + str(len(hex_key))
+                      + ', should be 64')
+        sys.exit(1)
+    try:
+        return bytes.fromhex(hex_key)
+    except ValueError:
+        fteproxy.warn('Invalid key format, must contain only 0-9a-fA-F')
+        sys.exit(1)
+
+
+def read_key_file(path):
+    """Read a hex-encoded key from a file and return it as bytes.
+
+    Storing the key in a file keeps it out of shell history and process
+    listings (e.g., ``ps``), unlike passing it via ``--key``. Exits the
+    process with an error if the file cannot be read or holds an invalid key.
+    """
+    try:
+        with open(path) as key_file:
+            contents = key_file.read()
+    except IOError as e:
+        fteproxy.warn('Failed to read key file "' + str(path) + '": ' + str(e))
+        sys.exit(1)
+    return parse_hex_key(contents)
+
+
 def get_args():
 
     class setConfValue(argparse.Action):
@@ -161,16 +196,14 @@ def get_args():
                 "--key":                "runtime.fteproxy.encrypter.key",
             }
 
+            if self.dest == "key_file":
+                setattr(namespace, self.dest, values)
+                fteproxy.conf.setValue('runtime.fteproxy.encrypter.key',
+                                       read_key_file(values))
+                return
+
             if self.dest == "key":
-                if len(values) != 64:
-                    fteproxy.warn('Invalid key length: ' + str(len(values))
-                                  + ', should be 64')
-                    sys.exit(1)
-                try:
-                    values = bytes.fromhex(values)
-                except ValueError:
-                    fteproxy.warn('Invalid key format, must contain only 0-9a-fA-F')
-                    sys.exit(1)
+                values = parse_hex_key(values)
 
             if self.dest == 'quiet':
                 fteproxy.conf.setValue(args_to_conf[options_string], 0)
@@ -228,10 +261,16 @@ def get_args():
     parser.add_argument('--release', action=setConfValue,
                         help='Definitions file to use, specified as YYYYMMDD',
                         default=fteproxy.conf.getValue('fteproxy.defs.release'))
-    parser.add_argument('--key', action=setConfValue,
+    key_group = parser.add_mutually_exclusive_group()
+    key_group.add_argument('--key', action=setConfValue,
                         help='Cryptographic key, hex, must be exactly 64 characters',
                         default=fteproxy.conf.getValue('runtime.fteproxy.encrypter.key'
                                                   ).hex())
+    key_group.add_argument('--key-file', action=setConfValue, dest='key_file',
+                        metavar='PATH', default=None,
+                        help='Path to a file containing the cryptographic key '
+                             '(64 hex characters). Use instead of --key to keep '
+                             'the key out of shell history and process listings.')
     args = parser.parse_args(sys.argv[1:])
 
     if args.stop and not args.mode:

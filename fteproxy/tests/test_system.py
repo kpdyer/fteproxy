@@ -273,3 +273,147 @@ class TestCLI:
         cmd = get_fteproxy_cmd() + ['--mode', 'invalid']
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
         assert result.returncode != 0
+
+    def test_key_file_in_help(self):
+        """Test that --key-file appears in the help output."""
+        cmd = get_fteproxy_cmd() + ['--help']
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        assert result.returncode == 0
+        assert '--key-file' in result.stdout
+
+    def test_key_file_missing(self, tmp_path):
+        """Test that a nonexistent key file is rejected."""
+        missing = tmp_path / 'does-not-exist.key'
+        cmd = get_fteproxy_cmd() + ['--mode', 'server', '--key-file', str(missing)]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        assert result.returncode != 0
+
+    def test_key_file_invalid_length(self, tmp_path):
+        """Test that a key file with the wrong length is rejected."""
+        key_file = tmp_path / 'short.key'
+        key_file.write_text('abcdef')
+        cmd = get_fteproxy_cmd() + ['--mode', 'server', '--key-file', str(key_file)]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        assert result.returncode != 0
+
+    def test_key_file_invalid_characters(self, tmp_path):
+        """Test that a key file with non-hex characters is rejected."""
+        key_file = tmp_path / 'nonhex.key'
+        key_file.write_text('z' * 64)
+        cmd = get_fteproxy_cmd() + ['--mode', 'server', '--key-file', str(key_file)]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        assert result.returncode != 0
+
+    def test_key_and_key_file_mutually_exclusive(self, tmp_path):
+        """Test that --key and --key-file cannot be used together."""
+        key_file = tmp_path / 'good.key'
+        key_file.write_text('a' * 64)
+        cmd = get_fteproxy_cmd() + [
+            '--mode', 'server',
+            '--key', 'a' * 64,
+            '--key-file', str(key_file),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        assert result.returncode != 0
+        assert '--key-file' in result.stderr and '--key' in result.stderr
+
+
+# A non-default 64-hex-character key, so a successful transfer proves both the
+# server and the client actually loaded the key from the shared key file.
+KEYFILE_TEST_KEY = '0123456789abcdef' * 4
+KEYFILE_CLIENT_PORT = 18179
+KEYFILE_SERVER_PORT = 18180
+KEYFILE_PROXY_PORT = 18181
+
+
+class TestKeyFileEndToEnd:
+    """End-to-end test that server and client interoperate via a key file."""
+
+    @pytest.fixture
+    def key_file(self, tmp_path):
+        """Write a shared key file used by both the server and the client."""
+        path = tmp_path / 'fteproxy.key'
+        path.write_text(KEYFILE_TEST_KEY + '\n')
+        return str(path)
+
+    @pytest.fixture
+    def fteproxy_server(self, key_file):
+        """Start an fteproxy server that reads its key from a file."""
+        cmd = get_fteproxy_cmd() + [
+            '--mode', 'server',
+            '--quiet',
+            '--server_ip', BIND_IP,
+            '--server_port', str(KEYFILE_SERVER_PORT),
+            '--proxy_ip', BIND_IP,
+            '--proxy_port', str(KEYFILE_PROXY_PORT),
+            '--key-file', key_file,
+        ]
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if not wait_for_port(BIND_IP, KEYFILE_SERVER_PORT):
+            proc.terminate()
+            stdout, stderr = proc.communicate(timeout=5)
+            pytest.fail(f"Server failed to start. stdout: {stdout}, stderr: {stderr}")
+        yield proc
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+    @pytest.fixture
+    def fteproxy_client(self, fteproxy_server, key_file):
+        """Start an fteproxy client that reads the same key from a file."""
+        cmd = get_fteproxy_cmd() + [
+            '--mode', 'client',
+            '--quiet',
+            '--client_ip', BIND_IP,
+            '--client_port', str(KEYFILE_CLIENT_PORT),
+            '--server_ip', BIND_IP,
+            '--server_port', str(KEYFILE_SERVER_PORT),
+            '--key-file', key_file,
+        ]
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if not wait_for_port(BIND_IP, KEYFILE_CLIENT_PORT):
+            proc.terminate()
+            stdout, stderr = proc.communicate(timeout=5)
+            pytest.fail(f"Client failed to start. stdout: {stdout}, stderr: {stderr}")
+        yield proc
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+    def test_key_file_data_transfer(self, fteproxy_client):
+        """Data should flow end-to-end when both sides load a key from file."""
+        test_data = b'Hello, key file!'
+        received_data = b''
+
+        dest_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        dest_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        dest_server.bind((BIND_IP, KEYFILE_PROXY_PORT))
+        dest_server.listen(1)
+        dest_server.settimeout(DATA_TIMEOUT)
+
+        try:
+            client_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client_conn.connect((BIND_IP, KEYFILE_CLIENT_PORT))
+            client_conn.settimeout(DATA_TIMEOUT)
+
+            proxy_conn, _ = dest_server.accept()
+            proxy_conn.settimeout(DATA_TIMEOUT)
+
+            client_conn.sendall(test_data)
+
+            while len(received_data) < len(test_data):
+                chunk = proxy_conn.recv(1024)
+                if not chunk:
+                    break
+                received_data += chunk
+
+            assert received_data == test_data, \
+                f"Data mismatch: {received_data} != {test_data}"
+        finally:
+            client_conn.close()
+            proxy_conn.close()
+            dest_server.close()
