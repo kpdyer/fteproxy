@@ -312,6 +312,14 @@ class _FTESocketWrapper(FTEHelper, object):
                 if self._incoming_buffer:
                     break
 
+                if noData:
+                    # The peer has closed the connection (recv returned b'').
+                    # No further bytes will ever arrive, so any undecodable data
+                    # still sitting in the decoder buffer (e.g. a covertext cell
+                    # the peer was cut off part-way through) can never complete.
+                    # Report EOF instead of busy-looping on the closed socket.
+                    return b''
+
             retval = self._incoming_buffer
             self._incoming_buffer = b''
         except ChannelNotReadyException:
