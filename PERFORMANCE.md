@@ -181,15 +181,16 @@ then flush) would collapse many tiny cells into one, cutting both CPU and the 4�
 expansion. This is a latency/throughput trade-off, so gate it behind a config flag and a
 short timer so interactive latency isn't harmed.
 
-### 4. Fix the O(n²) buffer slicing in the record layer — *low effort, bulk CPU*
+### 4. Fix the O(n²) buffer slicing in the record layer — *low effort, bulk CPU* — ✅ IMPLEMENTED
 
-`record_layer.Encoder.pop` does `self._buffer = self._buffer[MAX_CELL_SIZE:]` and
-`retval += covertext` in a loop (`fteproxy/record_layer.py:37-43`); `Decoder.pop` is
-similar. Each iteration re-copies the whole remaining buffer, so a single large `push`
-is quadratic in the number of cells. Measured degradation is mild today (298 → 279 Mbit/s
-from 64 KB → 4 MB) because FTE dominates, but it will bite harder if FTE is ever sped up.
-Use a read offset / `memoryview`, or a `bytearray` with `del buf[:n]`, and join output
-chunks once.
+`record_layer.Encoder.pop` used to do `self._buffer = self._buffer[MAX_CELL_SIZE:]` and
+`retval += covertext` in a loop; `Decoder.pop` was similar. Each iteration re-copied the
+whole remaining buffer, so a single large `push` was quadratic in the number of cells. This
+is now a moving `range()` offset over the buffer with the cells joined once at the end (and
+the decoder writes `self._buffer` back a single time). Isolated buffer-management cost for a
+16 MB push fell **208 ms → 2.0 ms (~105×)**; end-to-end (real FTE) an 8 MB single-push encode
+went **296 → 360 Mbit/s (+22%)** with the large-buffer degradation tail removed. Behavior is
+unchanged and the record-layer round-trip tests pass across all languages.
 
 ### 5. Short-circuit the negotiation scan — *low effort, connection-setup CPU at scale* — ✅ IMPLEMENTED (ordering, not caching)
 

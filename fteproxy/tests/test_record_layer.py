@@ -88,3 +88,61 @@ class TestRecordLayer:
                     decoded += data
                 
                 assert plaintext == decoded, f"Failed for {language}"
+
+
+class _RaisingDecoder:
+    """Decoder stub whose decode() always raises a given exception."""
+
+    def __init__(self, exc):
+        self._exc = exc
+
+    def decode(self, buffer):
+        raise self._exc
+
+
+class _FixedCellDecoder:
+    """Decoder stub that consumes a fixed-size 'cell' and echoes it."""
+
+    def __init__(self, cell_size=4):
+        self._cell_size = cell_size
+
+    def decode(self, buffer):
+        return buffer[:self._cell_size], buffer[self._cell_size:]
+
+
+class TestDecoderExceptionHandling:
+    """Regression tests for Decoder.pop() exception semantics."""
+
+    def test_unrecoverable_error_not_swallowed_in_onecell_mode(self):
+        """An unrecoverable decryption error must not be silently swallowed.
+
+        ``fatal_error()`` raises ``SystemExit``; a ``break`` in a ``finally``
+        block swallows it and lets pop() return normally, silently discarding a
+        fatal condition. With ``oneCell=True`` (the negotiation path) the error
+        must still propagate.
+        """
+        import fte.encrypter
+
+        decoder = fteproxy.record_layer.Decoder(
+            decoder=_RaisingDecoder(
+                fte.encrypter.UnrecoverableDecryptionError("boom")))
+        decoder.push(b'some-ciphertext-bytes')
+
+        with pytest.raises(SystemExit):
+            decoder.pop(oneCell=True)
+
+    def test_onecell_returns_exactly_one_cell(self):
+        """oneCell=True returns a single decoded cell and advances the buffer."""
+        decoder = fteproxy.record_layer.Decoder(decoder=_FixedCellDecoder(4))
+        decoder.push(b'AAAABBBBCCCC')
+
+        assert decoder.pop(oneCell=True) == b'AAAA'
+        assert decoder._buffer == b'BBBBCCCC'
+
+    def test_multicell_drains_entire_buffer(self):
+        """oneCell=False drains every cell from the buffer."""
+        decoder = fteproxy.record_layer.Decoder(decoder=_FixedCellDecoder(4))
+        decoder.push(b'AAAABBBBCCCC')
+
+        assert decoder.pop() == b'AAAABBBBCCCC'
+        assert decoder._buffer == b''

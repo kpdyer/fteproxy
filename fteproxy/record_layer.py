@@ -32,15 +32,21 @@ class Encoder:
         bytes. The returned value is encrypted and encoded
         with ``encoder`` specified in ``__init__``.
         """
-        retval = b''
+        buffer = self._buffer
+        if not buffer:
+            return b''
 
-        while len(self._buffer) > 0:
-            plaintext = self._buffer[:MAX_CELL_SIZE]
-            covertext = self._encoder.encode(plaintext)
-            self._buffer = self._buffer[MAX_CELL_SIZE:]
-            retval += covertext
+        # Encode each ``MAX_CELL_SIZE`` slice via a moving offset and join the
+        # cells once at the end. Slicing the head off ``self._buffer`` inside the
+        # loop instead would recopy the whole remaining buffer every iteration,
+        # making a single large ``push`` quadratic in the number of cells.
+        cells = []
+        for offset in range(0, len(buffer), MAX_CELL_SIZE):
+            plaintext = buffer[offset:offset + MAX_CELL_SIZE]
+            cells.append(self._encoder.encode(plaintext))
 
-        return retval
+        self._buffer = b''
+        return b''.join(cells)
 
 
 class Decoder:
@@ -64,13 +70,17 @@ class Decoder:
         with ``_decrypter`` specified in ``__init__``.
         """
 
-        retval = b''
+        # Consume cells from a local buffer and join the decoded messages once at
+        # the end; ``+= msg`` per cell would be quadratic in the number of cells.
+        # ``self._buffer`` is written back once, and on a decode failure it keeps
+        # the undecodable remainder (``buffer`` is unchanged by a raising decode).
+        buffer = self._buffer
+        messages = []
 
-        while len(self._buffer) > 0:
+        while len(buffer) > 0:
             try:
-                msg, buffer = self._decoder.decode(self._buffer)
-                retval += msg
-                self._buffer = buffer
+                msg, buffer = self._decoder.decode(buffer)
+                messages.append(msg)
             except fte.encoder.DecodeFailureError as e:
                 fteproxy.info("fteproxy.encoder.DecodeFailure: "+str(e))
                 break
@@ -83,8 +93,15 @@ class Decoder:
             except Exception as e:
                 fteproxy.warn("fteproxy.record_layer exception: "+str(e))
                 break
-            finally:
-                if oneCell:
-                    break
 
-        return retval
+            # Stop after a single cell only once one was decoded successfully.
+            # This must live outside a ``finally`` block: a ``break`` in
+            # ``finally`` swallows any in-flight exception (including the
+            # SystemExit raised by ``fatal_error`` on an unrecoverable
+            # decryption error), silently turning a fatal condition into a
+            # normal return.
+            if oneCell:
+                break
+
+        self._buffer = buffer
+        return b''.join(messages)
