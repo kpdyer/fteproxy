@@ -81,8 +81,32 @@ This listens for plaintext connections on port 8079 and forwards FTE-encoded tra
 | `--proxy_ip` | Forwarding-proxy listening IP | 127.0.0.1 |
 | `--proxy_port` | Forwarding-proxy listening port | 8081 |
 | `--key` | Cryptographic key (64 hex characters) | (default key) |
+| `--key-file` | Path to a file containing the key (64 hex characters). Mutually exclusive with `--key`. | |
 | `--quiet` | Suppress output | false |
 | `--version` | Show version and exit | |
+
+### Supplying the Key from a File
+
+Passing the key with `--key` places it in your shell history and exposes it in
+process listings (e.g. `ps aux`). To avoid this, write the key to a file and
+point fteproxy at it with `--key-file`:
+
+```bash
+# Generate a random 64-hex-character (32-byte) key
+python3 -c "import secrets; print(secrets.token_hex(32))" > fteproxy.key
+chmod 600 fteproxy.key
+```
+
+Then start each side with `--key-file` (the client and server must use the same
+key):
+
+```bash
+python3 -m fteproxy --mode server --key-file fteproxy.key --server_ip 0.0.0.0 --server_port 8080 --proxy_ip 127.0.0.1 --proxy_port 8081
+python3 -m fteproxy --mode client --key-file fteproxy.key --client_ip 127.0.0.1 --client_port 8079 --server_ip <server-ip> --server_port 8080
+```
+
+The file must contain exactly 64 hexadecimal characters (a trailing newline is
+ignored). `--key` and `--key-file` cannot be used together.
 
 ## Testing
 
