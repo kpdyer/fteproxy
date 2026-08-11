@@ -124,21 +124,33 @@ single stream's encode/decode is serialized (Python, one core).
 
 ## Recommended improvements, ranked by impact ÷ effort
 
-### 1. Set `TCP_NODELAY` on relay + wrapper sockets — *low effort, clear win for latency*
+### 1. Set `TCP_NODELAY` on relay sockets — *low effort, clear win for latency* — ✅ IMPLEMENTED
 
-The relay never disables Nagle's algorithm. `fteproxy/relay.py:104-113` creates the
-downstream socket and accepts the inbound one without `TCP_NODELAY`, and
-`_FTESocketWrapper` (`fteproxy/__init__.py`) passes small encoded cells straight to the
-kernel. On a real network Nagle can hold a small segment up to ~40 ms waiting to
-coalesce — exactly the wrong behavior for an interactive, latency-sensitive tunnel.
+The relay used to leave Nagle's algorithm enabled. `_FTESocketWrapper` passes small encoded
+cells straight to the kernel, so on a real network Nagle can hold a small segment up to
+~40 ms waiting to coalesce — exactly the wrong behavior for an interactive, latency-sensitive
+tunnel. `listener.run()` now disables Nagle on both hops right after `accept()`/`connect()`:
 
 ```python
-# in fteproxy/relay.py listener.run(), after accept()/connect():
+# fteproxy/relay.py listener.run(), after accept()/connect():
 conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 new_stream.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 ```
 
-### 2. Rework the polling relay loop — *low effort; fixes latency, idle CPU, AND a hang bug*
+Neutral on loopback (no Nagle delay to remove there, so the benchmark is unchanged), but it
+removes the coalescing stall on real links.
+
+### 2. Rework the polling relay loop — *fixes latency, idle CPU, AND a hang bug* — ⚠️ NEEDS FULL REWORK (not a quick tweak)
+
+> **Empirical caveat (measured on this branch).** The tempting shortcut — just deleting the
+> redundant-looking `time.sleep(throttle)` in `worker.run()`, since `recvall_from_socket`
+> already blocks in `select` when idle — makes things **dramatically worse** in the real
+> subprocess deployment: LAN throughput fell **217 → 16 Mbit/s (~13×)** and interactive RTT
+> rose **1.3 → 32 ms**, reproducibly, even for the throughput path in isolation. (An
+> *in-process* relay is unaffected — it is a subprocess/GIL-scheduling interaction.) The
+> throttle is therefore **load-bearing** under the current `select`-based design; it must stay
+> until the loop is properly reworked as below (blocking `recv` governed by the socket timeout,
+> or a `selectors` event loop). **Do not simply delete the sleep.**
 
 This is the highest-value change because it has a **correctness** payoff on top of
 performance. Today `fteproxy/network_io.py:recvall_from_socket` blocks up to
