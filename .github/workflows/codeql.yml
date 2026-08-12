@@ -1,0 +1,39 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  schedule:
+    # Weekly, Mondays at 07:17 UTC
+    - cron: '17 7 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    # Deterministic check name used as a required status check: "Analyze (Python)"
+    name: Analyze (Python)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3
+      with:
+        languages: python
+        build-mode: none
+        queries: security-extended
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3
+      with:
+        category: "/language:python"
