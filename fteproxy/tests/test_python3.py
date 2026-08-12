@@ -21,9 +21,8 @@ class TestPython3Compatibility:
     """Test Python 3 specific functionality."""
 
     def test_python_version(self):
-        """Ensure we're running Python 3.8+"""
-        assert sys.version_info.major >= 3
-        assert sys.version_info.minor >= 8
+        """Ensure we're running Python 3.10+"""
+        assert sys.version_info >= (3, 10)
 
     def test_bytes_key_config(self):
         """Test that the encryption key is properly stored as bytes."""
