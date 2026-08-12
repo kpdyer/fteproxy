@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/kpdyer/fteproxy/actions/workflows/tests.yml/badge.svg)](https://github.com/kpdyer/fteproxy/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![PyPI version](https://img.shields.io/pypi/v/fteproxy.svg)](https://pypi.org/project/fteproxy/)
 
 * Homepage: https://github.com/kpdyer/fteproxy
@@ -20,7 +20,7 @@ fteproxy is powered by Format-Transforming Encryption [1] and was presented at C
 
 ## Requirements
 
-- Python 3.8 or higher
+- Python 3.10 or higher
 
 ## Installation
 
