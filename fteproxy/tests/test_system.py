@@ -57,18 +57,18 @@ def get_fteproxy_cmd():
     return [sys.executable, '-m', 'fteproxy']
 
 
-def _attempt_transfer(test_data):
+def _attempt_transfer(test_data, client_port=CLIENT_PORT, proxy_port=PROXY_PORT):
     """Run a single end-to-end transfer through the proxy chain.
 
-    Opens a fresh destination server on PROXY_PORT, connects to the
-    fteproxy client, sends ``test_data`` and returns the bytes received on
-    the destination side. Any socket error/timeout propagates so callers
-    can retry.
+    Opens a fresh destination server on ``proxy_port``, connects to the
+    fteproxy client on ``client_port``, sends ``test_data`` and returns the
+    bytes received on the destination side. Any socket error/timeout
+    propagates so callers can retry.
     """
     received_data = b''
     dest_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     dest_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    dest_server.bind((BIND_IP, PROXY_PORT))
+    dest_server.bind((BIND_IP, proxy_port))
     dest_server.listen(1)
     dest_server.settimeout(DATA_TIMEOUT)
 
@@ -76,7 +76,7 @@ def _attempt_transfer(test_data):
     proxy_conn = None
     try:
         client_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_conn.connect((BIND_IP, CLIENT_PORT))
+        client_conn.connect((BIND_IP, client_port))
         client_conn.settimeout(DATA_TIMEOUT)
 
         proxy_conn, _ = dest_server.accept()
@@ -105,7 +105,7 @@ def _attempt_transfer(test_data):
                     pass
 
 
-def transfer_through_proxy(test_data, attempts=3):
+def transfer_through_proxy(test_data, attempts=3, client_port=CLIENT_PORT, proxy_port=PROXY_PORT):
     """End-to-end transfer with retries to absorb proxy startup races.
 
     A freshly started proxy chain occasionally drops the very first
@@ -116,7 +116,7 @@ def transfer_through_proxy(test_data, attempts=3):
     received_data = b''
     for attempt in range(attempts):
         try:
-            received_data = _attempt_transfer(test_data)
+            received_data = _attempt_transfer(test_data, client_port=client_port, proxy_port=proxy_port)
             if received_data == test_data:
                 return received_data
         except (socket.timeout, OSError):
@@ -327,6 +327,8 @@ class TestKeyFileEndToEnd:
             proc.terminate()
             stdout, stderr = proc.communicate(timeout=5)
             pytest.fail(f"Server failed to start. stdout: {stdout}, stderr: {stderr}")
+        # Give the listener a moment to settle after the readiness probe.
+        time.sleep(1)
         yield proc
         proc.terminate()
         try:
@@ -351,6 +353,8 @@ class TestKeyFileEndToEnd:
             proc.terminate()
             stdout, stderr = proc.communicate(timeout=5)
             pytest.fail(f"Client failed to start. stdout: {stdout}, stderr: {stderr}")
+        # Give the listener a moment to settle after the readiness probe.
+        time.sleep(1)
         yield proc
         proc.terminate()
         try:
@@ -361,33 +365,10 @@ class TestKeyFileEndToEnd:
     def test_key_file_data_transfer(self, fteproxy_client):
         """Data should flow end-to-end when both sides load a key from file."""
         test_data = b'Hello, key file!'
-        received_data = b''
-
-        dest_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        dest_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        dest_server.bind((BIND_IP, KEYFILE_PROXY_PORT))
-        dest_server.listen(1)
-        dest_server.settimeout(DATA_TIMEOUT)
-
-        try:
-            client_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_conn.connect((BIND_IP, KEYFILE_CLIENT_PORT))
-            client_conn.settimeout(DATA_TIMEOUT)
-
-            proxy_conn, _ = dest_server.accept()
-            proxy_conn.settimeout(DATA_TIMEOUT)
-
-            client_conn.sendall(test_data)
-
-            while len(received_data) < len(test_data):
-                chunk = proxy_conn.recv(1024)
-                if not chunk:
-                    break
-                received_data += chunk
-
-            assert received_data == test_data, \
-                f"Data mismatch: {received_data} != {test_data}"
-        finally:
-            client_conn.close()
-            proxy_conn.close()
-            dest_server.close()
+        received_data = transfer_through_proxy(
+            test_data,
+            client_port=KEYFILE_CLIENT_PORT,
+            proxy_port=KEYFILE_PROXY_PORT,
+        )
+        assert received_data == test_data, \
+            f"Data mismatch: {received_data!r} != {test_data!r}"
