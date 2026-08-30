@@ -1,3 +1,6 @@
-fte>=0.4.0
+# libfte 0.4.x is not on PyPI yet (PyPI has fte up to 0.3.0), so install the
+# new fte.FTE engine straight from git, pinned to a commit for reproducibility.
+# Swap this back to the PyPI specifier "fte>=0.4.0" once 0.4.0 is released.
+fte @ git+https://github.com/kpdyer/libfte.git@d1ca7ff7f1c1d28fe5c031df0f3a888088c70e0b
 pytest>=9.1.1
 pytest-timeout>=2.4.0
