@@ -10,8 +10,6 @@ decoder (e.g. the peer was cut off part-way through a covertext cell).
 
 import pytest
 
-import fte
-
 import fteproxy
 import fteproxy.conf
 import fteproxy.defs
@@ -34,7 +32,9 @@ def _regex_slice():
 def _make_cell(payload):
     """Encode ``payload`` into one covertext record-layer cell."""
     regex, fixed_slice = _regex_slice()
-    encoder = fteproxy.record_layer.Encoder(encoder=fte.Encoder(regex, fixed_slice))
+    key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+    encoder = fteproxy.record_layer.Encoder(
+        encoder=fteproxy._make_cipher(regex, fixed_slice, key))
     encoder.push(payload)
     return encoder.pop()
 

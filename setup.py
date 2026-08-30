@@ -35,7 +35,7 @@ setup(
     },
     packages=['fteproxy', 'fteproxy.defs', 'fteproxy.tests'],
     package_data=package_data,
-    install_requires=['fte>=0.3.0,<0.4'],
+    install_requires=['fte>=0.4.0'],
     python_requires='>=3.10',
     classifiers=[
         'Programming Language :: Python :: 3',

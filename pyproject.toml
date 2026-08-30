@@ -28,7 +28,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "fte>=0.3.0,<0.4",
+    "fte>=0.4.0",
 ]
 
 [project.urls]

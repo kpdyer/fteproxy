@@ -23,12 +23,13 @@ def record_layer_pairs():
     """Create encoder/decoder pairs for all defined languages."""
     fteproxy.conf.setValue('runtime.mode', 'client')
     
+    key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
     pairs = []
     definitions = fteproxy.defs.load_definitions()
     for language in definitions.keys():
         regex = fteproxy.defs.getRegex(language)
         fixed_slice = fteproxy.defs.getFixedSlice(language)
-        regex_encoder = fte.Encoder(regex, fixed_slice)
+        regex_encoder = fteproxy._make_cipher(regex, fixed_slice, key)
         encoder = fteproxy.record_layer.Encoder(encoder=regex_encoder)
         decoder = fteproxy.record_layer.Decoder(decoder=regex_encoder)
         pairs.append((language, encoder, decoder))
@@ -90,42 +91,48 @@ class TestRecordLayer:
                 assert plaintext == decoded, f"Failed for {language}"
 
 
+class _Format:
+    """Minimal output-format stub exposing the frame size the Decoder reads."""
+
+    def __init__(self, max_length):
+        self.max_length = max_length
+
+
 class _RaisingDecoder:
-    """Decoder stub whose decode() always raises a given exception."""
+    """Decoder stub whose decrypt() always raises a given exception."""
 
-    def __init__(self, exc):
+    def __init__(self, exc, frame_size=4):
         self._exc = exc
+        self.output_format = _Format(frame_size)
 
-    def decode(self, buffer):
+    def decrypt(self, covertext):
         raise self._exc
 
 
 class _FixedCellDecoder:
-    """Decoder stub that consumes a fixed-size 'cell' and echoes it."""
+    """Decoder stub that decrypts a fixed-size covertext frame to itself."""
 
     def __init__(self, cell_size=4):
-        self._cell_size = cell_size
+        self.output_format = _Format(cell_size)
 
-    def decode(self, buffer):
-        return buffer[:self._cell_size], buffer[self._cell_size:]
+    def decrypt(self, covertext):
+        return covertext
 
 
 class TestDecoderExceptionHandling:
     """Regression tests for Decoder.pop() exception semantics."""
 
     def test_unrecoverable_error_not_swallowed_in_onecell_mode(self):
-        """An unrecoverable decryption error must not be silently swallowed.
+        """A fatal decryption error must not be silently swallowed.
 
         ``fatal_error()`` raises ``SystemExit``; a ``break`` in a ``finally``
         block swallows it and lets pop() return normally, silently discarding a
         fatal condition. With ``oneCell=True`` (the negotiation path) the error
-        must still propagate.
+        must still propagate. ``fte.MessageTooLargeError`` is the libfte 0.4
+        successor to 0.3's ``UnrecoverableDecryptionError``.
         """
-        import fte.encrypter
-
         decoder = fteproxy.record_layer.Decoder(
-            decoder=_RaisingDecoder(
-                fte.encrypter.UnrecoverableDecryptionError("boom")))
+            decoder=_RaisingDecoder(fte.MessageTooLargeError("boom")))
         decoder.push(b'some-ciphertext-bytes')
 
         with pytest.raises(SystemExit):

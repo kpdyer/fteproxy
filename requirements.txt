@@ -1,3 +1,3 @@
-fte>=0.3.0,<0.4
+fte>=0.4.0
 pytest>=9.1.1
 pytest-timeout>=2.4.0

@@ -15,6 +15,16 @@ import fte
 import fteproxy
 import fteproxy.conf
 import fteproxy.defs
+import fteproxy.record_layer
+
+
+# libfte 0.4 requires an explicit key; use fteproxy's configured shared key.
+_KEY = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+
+
+def _cipher(regex, fixed_slice):
+    """Build a libfte 0.4 engine, the successor to ``fte.Encoder(regex, slice)``."""
+    return fteproxy._make_cipher(regex, fixed_slice, _KEY)
 
 
 class TestBuiltinFormats:
@@ -40,17 +50,17 @@ class TestBuiltinFormats:
         regex = fteproxy.defs.getRegex(format_name)
         fixed_slice = fteproxy.defs.getFixedSlice(format_name)
         
-        encoder = fte.Encoder(regex, fixed_slice)
+        encoder = _cipher(regex, fixed_slice)
         test_data = b"Hello, World!"
         
-        ciphertext = encoder.encode(test_data)
+        ciphertext = encoder.encrypt(test_data)
         # Extract only the text portion (ciphertext may include binary padding)
         text_portion = ciphertext[:fixed_slice].decode('ascii', errors='ignore')
         assert len(text_portion) > 0
         # Check at least the beginning matches the pattern
         assert pattern_check(text_portion[:20]) or len(text_portion) < 20
         
-        plaintext, _ = encoder.decode(ciphertext)
+        plaintext = encoder.decrypt(ciphertext)
         assert plaintext == test_data
 
     def test_words_format(self):
@@ -58,17 +68,17 @@ class TestBuiltinFormats:
         regex = fteproxy.defs.getRegex("words-request")
         fixed_slice = fteproxy.defs.getFixedSlice("words-request")
         
-        encoder = fte.Encoder(regex, fixed_slice)
+        encoder = _cipher(regex, fixed_slice)
         test_data = b"Secret message"
         
-        ciphertext = encoder.encode(test_data)
+        ciphertext = encoder.encrypt(test_data)
         decoded = ciphertext.decode('ascii')
         
         # Should contain spaces and lowercase letters
         assert ' ' in decoded
         assert all(c in 'abcdefghijklmnopqrstuvwxyz ' for c in decoded)
         
-        plaintext, _ = encoder.decode(ciphertext)
+        plaintext = encoder.decrypt(ciphertext)
         assert plaintext == test_data
 
     def test_sentences_format(self):
@@ -76,17 +86,17 @@ class TestBuiltinFormats:
         regex = fteproxy.defs.getRegex("sentences-request")
         fixed_slice = fteproxy.defs.getFixedSlice("sentences-request")
         
-        encoder = fte.Encoder(regex, fixed_slice)
+        encoder = _cipher(regex, fixed_slice)
         test_data = b"Test"
         
-        ciphertext = encoder.encode(test_data)
+        ciphertext = encoder.encrypt(test_data)
         decoded = ciphertext.decode('ascii')
         
         # Should end with a period and have capital letters
         assert decoded.endswith('.')
         assert any(c.isupper() for c in decoded)
         
-        plaintext, _ = encoder.decode(ciphertext)
+        plaintext = encoder.decrypt(ciphertext)
         assert plaintext == test_data
 
     def test_csv_format(self):
@@ -94,10 +104,10 @@ class TestBuiltinFormats:
         regex = fteproxy.defs.getRegex("csv-request")
         fixed_slice = fteproxy.defs.getFixedSlice("csv-request")
         
-        encoder = fte.Encoder(regex, fixed_slice)
+        encoder = _cipher(regex, fixed_slice)
         test_data = b"Data"
         
-        ciphertext = encoder.encode(test_data)
+        ciphertext = encoder.encrypt(test_data)
         decoded = ciphertext.decode('ascii')
         
         # Should contain commas
@@ -105,7 +115,7 @@ class TestBuiltinFormats:
         fields = decoded.split(',')
         assert len(fields) >= 2
         
-        plaintext, _ = encoder.decode(ciphertext)
+        plaintext = encoder.decrypt(ciphertext)
         assert plaintext == test_data
 
     def test_ip_address_format(self):
@@ -113,10 +123,10 @@ class TestBuiltinFormats:
         regex = fteproxy.defs.getRegex("ip-address-request")
         fixed_slice = fteproxy.defs.getFixedSlice("ip-address-request")
         
-        encoder = fte.Encoder(regex, fixed_slice)
+        encoder = _cipher(regex, fixed_slice)
         test_data = b"Hi"
         
-        ciphertext = encoder.encode(test_data)
+        ciphertext = encoder.encrypt(test_data)
         # Only decode the fixed_slice portion (rest may be binary padding)
         decoded = ciphertext[:fixed_slice].decode('ascii', errors='ignore')
         
@@ -125,7 +135,7 @@ class TestBuiltinFormats:
         assert len(parts) == 4
         assert all(part.isdigit() for part in parts)
         
-        plaintext, _ = encoder.decode(ciphertext)
+        plaintext = encoder.decrypt(ciphertext)
         assert plaintext == test_data
 
     def test_domain_format(self):
@@ -133,10 +143,10 @@ class TestBuiltinFormats:
         regex = fteproxy.defs.getRegex("domain-request")
         fixed_slice = fteproxy.defs.getFixedSlice("domain-request")
         
-        encoder = fte.Encoder(regex, fixed_slice)
+        encoder = _cipher(regex, fixed_slice)
         test_data = b"X"
         
-        ciphertext = encoder.encode(test_data)
+        ciphertext = encoder.encrypt(test_data)
         decoded = ciphertext.decode('ascii')
         
         # Should look like a domain
@@ -144,7 +154,7 @@ class TestBuiltinFormats:
         parts = decoded.split('.')
         assert len(parts) == 2
         
-        plaintext, _ = encoder.decode(ciphertext)
+        plaintext = encoder.decrypt(ciphertext)
         assert plaintext == test_data
 
     def test_email_format(self):
@@ -152,17 +162,17 @@ class TestBuiltinFormats:
         regex = fteproxy.defs.getRegex("email-simple-request")
         fixed_slice = fteproxy.defs.getFixedSlice("email-simple-request")
         
-        encoder = fte.Encoder(regex, fixed_slice)
+        encoder = _cipher(regex, fixed_slice)
         test_data = b"X"
         
-        ciphertext = encoder.encode(test_data)
+        ciphertext = encoder.encrypt(test_data)
         decoded = ciphertext.decode('ascii')
         
         # Should look like an email
         assert '@' in decoded
         assert '.' in decoded
         
-        plaintext, _ = encoder.decode(ciphertext)
+        plaintext = encoder.decrypt(ciphertext)
         assert plaintext == test_data
 
     def test_url_path_format(self):
@@ -170,16 +180,16 @@ class TestBuiltinFormats:
         regex = fteproxy.defs.getRegex("url-path-request")
         fixed_slice = fteproxy.defs.getFixedSlice("url-path-request")
         
-        encoder = fte.Encoder(regex, fixed_slice)
+        encoder = _cipher(regex, fixed_slice)
         test_data = b"Hello"
         
-        ciphertext = encoder.encode(test_data)
+        ciphertext = encoder.encrypt(test_data)
         decoded = ciphertext.decode('ascii')
         
         # Should start with / and look like a path
         assert decoded.startswith('/')
         
-        plaintext, _ = encoder.decode(ciphertext)
+        plaintext = encoder.decrypt(ciphertext)
         assert plaintext == test_data
 
     def test_key_value_format(self):
@@ -187,10 +197,10 @@ class TestBuiltinFormats:
         regex = fteproxy.defs.getRegex("key-value-request")
         fixed_slice = fteproxy.defs.getFixedSlice("key-value-request")
         
-        encoder = fte.Encoder(regex, fixed_slice)
+        encoder = _cipher(regex, fixed_slice)
         test_data = b"X"
         
-        ciphertext = encoder.encode(test_data)
+        ciphertext = encoder.encrypt(test_data)
         decoded = ciphertext.decode('ascii')
         
         # Should contain =
@@ -198,7 +208,7 @@ class TestBuiltinFormats:
         parts = decoded.split('=')
         assert len(parts) == 2
         
-        plaintext, _ = encoder.decode(ciphertext)
+        plaintext = encoder.decrypt(ciphertext)
         assert plaintext == test_data
 
     def test_timestamp_format(self):
@@ -206,10 +216,10 @@ class TestBuiltinFormats:
         regex = fteproxy.defs.getRegex("timestamp-request")
         fixed_slice = fteproxy.defs.getFixedSlice("timestamp-request")
         
-        encoder = fte.Encoder(regex, fixed_slice)
+        encoder = _cipher(regex, fixed_slice)
         test_data = b"X"
         
-        ciphertext = encoder.encode(test_data)
+        ciphertext = encoder.encrypt(test_data)
         # Only decode the fixed_slice portion (rest may be binary padding)
         decoded = ciphertext[:fixed_slice].decode('ascii', errors='ignore')
         
@@ -218,7 +228,7 @@ class TestBuiltinFormats:
         assert len(parts) == 3
         assert all(part.isdigit() for part in parts)
         
-        plaintext, _ = encoder.decode(ciphertext)
+        plaintext = encoder.decrypt(ciphertext)
         assert plaintext == test_data
 
     def test_http_simple_request_format(self):
@@ -226,17 +236,17 @@ class TestBuiltinFormats:
         regex = fteproxy.defs.getRegex("http-simple-request")
         fixed_slice = fteproxy.defs.getFixedSlice("http-simple-request")
         
-        encoder = fte.Encoder(regex, fixed_slice)
+        encoder = _cipher(regex, fixed_slice)
         test_data = b"X"
         
-        ciphertext = encoder.encode(test_data)
+        ciphertext = encoder.encrypt(test_data)
         decoded = ciphertext.decode('ascii')
         
         # Should look like an HTTP request
         assert decoded.startswith('GET /')
         assert 'HTTP/1.1' in decoded
         
-        plaintext, _ = encoder.decode(ciphertext)
+        plaintext = encoder.decrypt(ciphertext)
         assert plaintext == test_data
 
     def test_ssh_format(self):
@@ -244,16 +254,16 @@ class TestBuiltinFormats:
         regex = fteproxy.defs.getRegex("ssh-request")
         fixed_slice = fteproxy.defs.getFixedSlice("ssh-request")
         
-        encoder = fte.Encoder(regex, fixed_slice)
+        encoder = _cipher(regex, fixed_slice)
         test_data = b"X"
         
-        ciphertext = encoder.encode(test_data)
+        ciphertext = encoder.encrypt(test_data)
         decoded = ciphertext[:fixed_slice].decode('ascii', errors='ignore')
         
         # Should look like an SSH banner
         assert decoded.startswith('SSH-2.0-')
         
-        plaintext, _ = encoder.decode(ciphertext)
+        plaintext = encoder.decrypt(ciphertext)
         assert plaintext == test_data
 
     def test_tls_sni_format(self):
@@ -261,17 +271,17 @@ class TestBuiltinFormats:
         regex = fteproxy.defs.getRegex("tls-sni-request")
         fixed_slice = fteproxy.defs.getFixedSlice("tls-sni-request")
         
-        encoder = fte.Encoder(regex, fixed_slice)
+        encoder = _cipher(regex, fixed_slice)
         test_data = b"X"
         
-        ciphertext = encoder.encode(test_data)
+        ciphertext = encoder.encrypt(test_data)
         decoded = ciphertext[:fixed_slice].decode('ascii', errors='ignore')
         
         # Should look like subdomain.domain.tld
         parts = decoded.split('.')
         assert len(parts) == 3
         
-        plaintext, _ = encoder.decode(ciphertext)
+        plaintext = encoder.decrypt(ciphertext)
         assert plaintext == test_data
 
     def test_smtp_format(self):
@@ -279,17 +289,17 @@ class TestBuiltinFormats:
         regex = fteproxy.defs.getRegex("smtp-request")
         fixed_slice = fteproxy.defs.getFixedSlice("smtp-request")
         
-        encoder = fte.Encoder(regex, fixed_slice)
+        encoder = _cipher(regex, fixed_slice)
         test_data = b"X"
         
-        ciphertext = encoder.encode(test_data)
+        ciphertext = encoder.encrypt(test_data)
         decoded = ciphertext[:fixed_slice].decode('ascii', errors='ignore')
         
         # Should look like SMTP EHLO command
         assert decoded.startswith('EHLO ')
         assert '.' in decoded
         
-        plaintext, _ = encoder.decode(ciphertext)
+        plaintext = encoder.decrypt(ciphertext)
         assert plaintext == test_data
 
     def test_ftp_format(self):
@@ -297,17 +307,17 @@ class TestBuiltinFormats:
         regex = fteproxy.defs.getRegex("ftp-response")
         fixed_slice = fteproxy.defs.getFixedSlice("ftp-response")
         
-        encoder = fte.Encoder(regex, fixed_slice)
+        encoder = _cipher(regex, fixed_slice)
         test_data = b"X"
         
-        ciphertext = encoder.encode(test_data)
+        ciphertext = encoder.encrypt(test_data)
         decoded = ciphertext[:fixed_slice].decode('ascii', errors='ignore')
         
         # Should look like FTP welcome banner
         assert decoded.startswith('220 ')
         assert 'ready' in decoded
         
-        plaintext, _ = encoder.decode(ciphertext)
+        plaintext = encoder.decrypt(ciphertext)
         assert plaintext == test_data
 
 
@@ -331,15 +341,15 @@ class TestProtocolFormats:
         regex = fteproxy.defs.getRegex(format_name)
         fixed_slice = fteproxy.defs.getFixedSlice(format_name)
         
-        encoder = fte.Encoder(regex, fixed_slice)
+        encoder = _cipher(regex, fixed_slice)
         test_data = b"Test"
         
-        ciphertext = encoder.encode(test_data)
+        ciphertext = encoder.encrypt(test_data)
         decoded = ciphertext[:fixed_slice].decode('ascii', errors='ignore')
         
         assert decoded.startswith(expected_prefix)
         
-        plaintext, _ = encoder.decode(ciphertext)
+        plaintext = encoder.decrypt(ciphertext)
         assert plaintext == test_data
 
 
@@ -376,20 +386,20 @@ class TestFormatPairs:
         # Test request format
         req_regex = fteproxy.defs.getRegex(request_format)
         req_slice = fteproxy.defs.getFixedSlice(request_format)
-        req_encoder = fte.Encoder(req_regex, req_slice)
+        req_encoder = _cipher(req_regex, req_slice)
         
         test_data = b"Test"
-        ciphertext = req_encoder.encode(test_data)
-        plaintext, _ = req_encoder.decode(ciphertext)
+        ciphertext = req_encoder.encrypt(test_data)
+        plaintext = req_encoder.decrypt(ciphertext)
         assert plaintext == test_data
         
         # Test response format
         resp_regex = fteproxy.defs.getRegex(response_format)
         resp_slice = fteproxy.defs.getFixedSlice(response_format)
-        resp_encoder = fte.Encoder(resp_regex, resp_slice)
+        resp_encoder = _cipher(resp_regex, resp_slice)
         
-        ciphertext = resp_encoder.encode(test_data)
-        plaintext, _ = resp_encoder.decode(ciphertext)
+        ciphertext = resp_encoder.encrypt(test_data)
+        plaintext = resp_encoder.decrypt(ciphertext)
         assert plaintext == test_data
 
 
@@ -414,46 +424,59 @@ class TestEdgeCases:
     """Test edge cases and boundary conditions."""
 
     def test_empty_input(self):
-        """Test encoding empty input produces empty output."""
+        """Empty input round-trips; the record layer emits nothing for it."""
         regex = "^[a-z]+$"
         fixed_slice = 256
-        
-        encoder = fte.Encoder(regex, fixed_slice)
-        ciphertext = encoder.encode(b"")
-        # Empty input produces empty ciphertext
-        assert ciphertext == b""
+
+        cipher = _cipher(regex, fixed_slice)
+        # The record layer emits no covertext for an empty push.
+        encoder = fteproxy.record_layer.Encoder(encoder=cipher)
+        encoder.push(b"")
+        assert encoder.pop() == b""
+        # The raw engine still emits a full covertext that decrypts to empty.
+        assert cipher.decrypt(cipher.encrypt(b"")) == b""
 
     def test_large_input(self):
-        """Test encoding larger data."""
+        """Data larger than one covertext's capacity round-trips via the record
+        layer, which chunks it into multiple fixed-length cells.
+
+        libfte 0.4 caps a single ``encrypt`` at the format's capacity (there is
+        no unformatted-overflow escape hatch), so chunking is the record layer's
+        job, not the engine's.
+        """
         regex = "^[a-z]+$"
         fixed_slice = 256
-        
-        encoder = fte.Encoder(regex, fixed_slice)
+
+        cipher = _cipher(regex, fixed_slice)
+        encoder = fteproxy.record_layer.Encoder(encoder=cipher)
+        decoder = fteproxy.record_layer.Decoder(decoder=cipher)
         test_data = b"X" * 500
-        ciphertext = encoder.encode(test_data)
-        plaintext, _ = encoder.decode(ciphertext)
-        assert plaintext == test_data
+        encoder.push(test_data)
+        decoder.push(encoder.pop())
+        assert decoder.pop() == test_data
 
     def test_binary_data(self):
-        """Test encoding binary data."""
+        """All 256 byte values round-trip through the record layer."""
         regex = "^[a-z]+$"
         fixed_slice = 256
-        
-        encoder = fte.Encoder(regex, fixed_slice)
+
+        cipher = _cipher(regex, fixed_slice)
+        encoder = fteproxy.record_layer.Encoder(encoder=cipher)
+        decoder = fteproxy.record_layer.Decoder(decoder=cipher)
         test_data = bytes(range(256))
-        ciphertext = encoder.encode(test_data)
-        plaintext, _ = encoder.decode(ciphertext)
-        assert plaintext == test_data
+        encoder.push(test_data)
+        decoder.push(encoder.pop())
+        assert decoder.pop() == test_data
 
     def test_unicode_data(self):
         """Test encoding unicode data."""
         regex = "^[a-z]+$"
         fixed_slice = 256
         
-        encoder = fte.Encoder(regex, fixed_slice)
+        encoder = _cipher(regex, fixed_slice)
         test_data = "Hello, 世界! 🌍".encode('utf-8')
-        ciphertext = encoder.encode(test_data)
-        plaintext, _ = encoder.decode(ciphertext)
+        ciphertext = encoder.encrypt(test_data)
+        plaintext = encoder.decrypt(ciphertext)
         assert plaintext == test_data
 
     @pytest.mark.parametrize("test_data", [
@@ -469,9 +492,9 @@ class TestEdgeCases:
         regex = "^[a-z]+$"
         fixed_slice = 256
         
-        encoder = fte.Encoder(regex, fixed_slice)
-        ciphertext = encoder.encode(test_data)
-        plaintext, _ = encoder.decode(ciphertext)
+        encoder = _cipher(regex, fixed_slice)
+        ciphertext = encoder.encrypt(test_data)
+        plaintext = encoder.decrypt(ciphertext)
         assert plaintext == test_data
 
 
@@ -490,10 +513,10 @@ class TestAllDefinedFormats:
                 regex = fteproxy.defs.getRegex(format_name)
                 fixed_slice = fteproxy.defs.getFixedSlice(format_name)
                 
-                encoder = fte.Encoder(regex, fixed_slice)
+                encoder = _cipher(regex, fixed_slice)
                 test_data = b"Test"
-                ciphertext = encoder.encode(test_data)
-                plaintext, _ = encoder.decode(ciphertext)
+                ciphertext = encoder.encrypt(test_data)
+                plaintext = encoder.decrypt(ciphertext)
                 
                 if plaintext != test_data:
                     failed.append((format_name, "roundtrip failed"))
