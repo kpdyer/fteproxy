@@ -14,6 +14,20 @@ import fteproxy.record_layer
 import fte
 
 
+def _make_cipher(regex, fixed_slice, key):
+    """Build a libfte 0.4 engine that hides bytes as one fixed-length covertext
+    matching ``regex``.
+
+    This replaces libfte 0.3's ``fte.Encoder(regex, fixed_slice, key)``. The
+    engine ``encrypt``/``decrypt`` one whole covertext per call; the record
+    layer handles stream chunking and framing on top of it.
+    """
+    return fte.FTE(
+        output_format=fte.RegexFormat(regex, length=fixed_slice),
+        key=key,
+    )
+
+
 class InvalidRoleException(Exception):
     pass
 
@@ -110,6 +124,14 @@ class NegotiationManager(object):
         self._K1 = K1
         self._K2 = K2
 
+    def _key(self):
+        # libfte 0.4 requires an explicit 32-byte key; the old "key=None means
+        # generate a random key" path is gone (and never interoperated across a
+        # client/server pair anyway). Fall back to the configured shared key.
+        if self._K1 and self._K2:
+            return self._K1 + self._K2
+        return fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+
     def getNegotiationComplete(self):
         return self._negotiationComplete
 
@@ -136,8 +158,7 @@ class NegotiationManager(object):
                 incoming_fixed_slice = fteproxy.defs.getFixedSlice(
                     incoming_language)
 
-                key = (self._K1 + self._K2) if self._K1 and self._K2 else None
-                incoming_decoder = fte.Encoder(incoming_regex, incoming_fixed_slice, key)
+                incoming_decoder = _make_cipher(incoming_regex, incoming_fixed_slice, self._key())
                 decoder = fteproxy.record_layer.Decoder(decoder=incoming_decoder)
 
                 decoder.push(data)
@@ -157,14 +178,14 @@ class NegotiationManager(object):
         encoder = None
         decoder = None
 
-        key = (self._K1 + self._K2) if self._K1 and self._K2 else None
+        key = self._key()
 
         if outgoing_regex != None and outgoing_fixed_slice != -1:
-            outgoing_encoder = fte.Encoder(outgoing_regex, outgoing_fixed_slice, key)
+            outgoing_encoder = _make_cipher(outgoing_regex, outgoing_fixed_slice, key)
             encoder = fteproxy.record_layer.Encoder(encoder=outgoing_encoder)
 
         if incoming_regex != None and incoming_fixed_slice != -1:
-            incoming_decoder = fte.Encoder(incoming_regex, incoming_fixed_slice, key)
+            incoming_decoder = _make_cipher(incoming_regex, incoming_fixed_slice, key)
             decoder = fteproxy.record_layer.Decoder(decoder=incoming_decoder)
 
         return [encoder, decoder]

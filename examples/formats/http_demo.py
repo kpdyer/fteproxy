@@ -6,6 +6,7 @@ Shows data encoded to look like HTTP requests.
 Useful for blending in with normal web traffic.
 """
 
+import os
 import sys
 import fte
 
@@ -15,8 +16,10 @@ def main():
     regex = "^GET \\/[a-zA-Z0-9]+ HTTP\\/1\\.1\\r\\n\\r\\n$"
     fixed_slice = 256
     errors = 0
-    
-    encoder = fte.Encoder(regex, fixed_slice)
+
+    # libfte 0.4 requires an explicit 32-byte key
+    key = os.urandom(32)
+    encoder = fte.FTE(output_format=fte.RegexFormat(regex, length=fixed_slice), key=key)
     
     print("=" * 60)
     print("HTTP FORMAT DEMO")
@@ -27,7 +30,7 @@ def main():
     
     for msg in messages:
         try:
-            ciphertext = encoder.encode(msg)
+            ciphertext = encoder.encrypt(msg)
             http_output = ciphertext[:256].decode('ascii', errors='ignore')
             
             print(f"\nOriginal: {msg}")
@@ -36,7 +39,7 @@ def main():
                 print(f"    {repr(line)}")
             
             # Verify
-            decoded, _ = encoder.decode(ciphertext)
+            decoded = encoder.decrypt(ciphertext)
             if decoded == msg:
                 print("[OK] Roundtrip verified")
             else:

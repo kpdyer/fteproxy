@@ -6,6 +6,7 @@ Shows data encoded as space-separated lowercase words.
 This is useful when you want traffic to look like natural text.
 """
 
+import os
 import sys
 import fte
 
@@ -15,8 +16,10 @@ def main():
     regex = "^([a-z]+ )+[a-z]+$"
     fixed_slice = 256
     errors = 0
-    
-    encoder = fte.Encoder(regex, fixed_slice)
+
+    # libfte 0.4 requires an explicit 32-byte key
+    key = os.urandom(32)
+    encoder = fte.FTE(output_format=fte.RegexFormat(regex, length=fixed_slice), key=key)
     
     messages = [
         b"Hello!",
@@ -31,7 +34,7 @@ def main():
     print("=" * 60)
     
     for msg in messages:
-        ciphertext = encoder.encode(msg)
+        ciphertext = encoder.encrypt(msg)
         words = ciphertext[:256].decode('ascii', errors='ignore')
         
         print(f"\nOriginal: {msg}")
@@ -42,7 +45,7 @@ def main():
         print(f"Words:    {word_count} words generated")
         
         # Verify roundtrip
-        decoded, _ = encoder.decode(ciphertext)
+        decoded = encoder.decrypt(ciphertext)
         if decoded == msg:
             print("[OK] Roundtrip verified")
         else:

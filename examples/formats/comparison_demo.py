@@ -6,6 +6,7 @@ Encodes the same message with multiple formats side-by-side
 to show how different formats transform the same data.
 """
 
+import os
 import sys
 import fte
 
@@ -24,6 +25,8 @@ FORMATS = [
 
 def main():
     secret = b"Hello, World!"
+    # libfte 0.4 requires an explicit 32-byte key; one key for the whole script is fine
+    key = os.urandom(32)
     errors = 0
     
     print("=" * 70)
@@ -38,12 +41,13 @@ def main():
     
     for name, regex in FORMATS:
         try:
-            encoder = fte.Encoder(regex, 256)
-            ciphertext = encoder.encode(secret)
+            # Slice 1024 so the low-entropy binary format has enough capacity
+            encoder = fte.FTE(output_format=fte.RegexFormat(regex, length=1024), key=key)
+            ciphertext = encoder.encrypt(secret)
             sample = ciphertext[:50].decode('ascii', errors='ignore')
-            
+
             # Verify it decodes correctly
-            decoded, _ = encoder.decode(ciphertext)
+            decoded = encoder.decrypt(ciphertext)
             if decoded == secret:
                 status = "[OK]"
             else:
