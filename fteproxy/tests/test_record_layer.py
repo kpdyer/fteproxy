@@ -4,6 +4,8 @@
 Tests for the FTE record layer encoding/decoding.
 """
 
+import struct
+
 import pytest
 import fte
 
@@ -110,13 +112,14 @@ class _RaisingCipher:
 
 
 class _FixedCellCipher:
-    """Cipher stub that decrypts a fixed-size covertext frame to itself."""
+    """Cipher stub for a fixed-size covertext frame. Its plaintext seals the
+    covertext bytes so the Decoder's unseal step recovers them."""
 
     def __init__(self, cell_size=4):
         self.output_format = _Format(cell_size)
 
     def decrypt(self, covertext):
-        return covertext
+        return struct.pack('>I', len(covertext)) + covertext
 
 
 class TestDecoderExceptionHandling:
@@ -208,3 +211,29 @@ class TestHybridRecordLayer:
             decoder.push(wire[i:i + 333])
             out += decoder.pop()
         assert out == payload
+
+
+def test_seal_fills_covertext_with_random_not_padding():
+    """A short message fills the covertext with random format text, so there is
+    no 'GET /0000...' low-rank padding run in either mode."""
+    fteproxy.conf.setValue('runtime.mode', 'client')
+    fteproxy.defs.load_definitions()
+    key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+    pattern = fteproxy.defs.getRegex('http-simple-request')
+    header = fteproxy._make_cipher(pattern, 256, key)
+
+    def path_of(covertext):
+        return covertext[len(b'GET /'):covertext.index(b' HTTP')]
+
+    fmt_enc = fteproxy.record_layer.Encoder(cipher=header)
+    fmt_enc.push(b'hi')
+    fmt_path = path_of(fmt_enc.pop())
+
+    body = fteproxy._make_body_cipher(key)
+    hyb_enc = fteproxy.record_layer.Encoder(cipher=header, body_cipher=body)
+    hyb_enc.push(b'hi')
+    hyb_path = path_of(hyb_enc.pop()[:256])
+
+    for path in (fmt_path, hyb_path):
+        assert len(path) > 100        # the path fills the covertext capacity
+        assert len(set(path)) > 15    # random-looking, not a single-char run
