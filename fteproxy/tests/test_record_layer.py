@@ -153,3 +153,58 @@ class TestDecoderExceptionHandling:
 
         assert decoder.pop() == b'AAAABBBBCCCC'
         assert decoder._buffer == b''
+
+
+class TestHybridRecordLayer:
+    """The hybrid framing: a formatted header covertext + a raw BytesFormat body."""
+
+    def _pair(self, language='manual-http-request'):
+        fteproxy.conf.setValue('runtime.mode', 'client')
+        key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+        pattern = fteproxy.defs.getRegex(language)
+        fixed_slice = fteproxy.defs.getFixedSlice(language)
+        header = fteproxy._make_cipher(pattern, fixed_slice, key)
+        body = fteproxy._make_body_cipher(key)
+        encoder = fteproxy.record_layer.Encoder(cipher=header, body_cipher=body)
+        decoder = fteproxy.record_layer.Decoder(cipher=header, body_cipher=body)
+        return encoder, decoder
+
+    def test_roundtrip_various_sizes(self):
+        encoder, decoder = self._pair()
+        for j in range(0, 8192, 256):
+            payload = b'X' * j + b'Y'
+            encoder.push(payload)
+            wire = b''
+            while True:
+                data = encoder.pop()
+                if not data:
+                    break
+                wire += data
+            decoder.push(wire)
+            out = b''
+            while True:
+                data = decoder.pop()
+                if not data:
+                    break
+                out += data
+            assert out == payload, f"hybrid roundtrip failed at {len(payload)} bytes"
+
+    def test_header_is_formatted_body_is_raw(self):
+        """The record opens with a valid target-format covertext; the bulk is raw."""
+        encoder, decoder = self._pair()
+        encoder.push(b'Z' * 4000)
+        wire = encoder.pop()
+        assert wire[:5] == b'GET /'          # looks like the HTTP request format
+        assert len(wire) < 4000 * 1.2        # near-1x expansion (raw body)
+
+    def test_partial_arrival_reassembles(self):
+        """A record split across many small reads still reassembles."""
+        encoder, decoder = self._pair()
+        payload = (b'the quick brown fox 0123456789 ' * 700)  # ~21 KiB, multi-record
+        encoder.push(payload)
+        wire = encoder.pop()
+        out = b''
+        for i in range(0, len(wire), 333):
+            decoder.push(wire[i:i + 333])
+            out += decoder.pop()
+        assert out == payload

@@ -113,6 +113,18 @@ only ever as large as the data already available)."""
 conf['runtime.fteproxy.record_layer.max_cell_size'] = 2 ** 18
 
 
+"""Record-layer framing mode.
+
+'format' (the default) transforms every covertext byte into the target format,
+for maximum unobservability. 'hybrid' formats only a fixed-length header per
+record and carries the body as raw authenticated bytes: far faster for bulk
+transfer (the DFA rank/unrank runs once per record, not once per ~150 bytes),
+but everything past the header looks like random/encrypted data, so only the
+start of each record blends in with the target protocol. Both endpoints must
+use the same mode."""
+conf['runtime.fteproxy.record_layer.mode'] = 'format'
+
+
 """The default client-to-server language."""
 conf['runtime.state.upstream_language'] = 'manual-http-request'
 

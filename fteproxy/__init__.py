@@ -5,6 +5,7 @@ __version__ = "0.3.1"
 
 import sys
 import socket
+import hashlib
 import traceback
 
 import fteproxy.conf
@@ -27,6 +28,37 @@ def _make_cipher(pattern, fixed_slice, key):
         output_format=fte.RegexFormat(pattern, length=fixed_slice),
         key=key,
     )
+
+
+def _hybrid_mode():
+    """Whether the record layer runs in 'hybrid' (fast bulk) mode.
+
+    'format' (default) transforms every covertext byte into the target format
+    for maximum unobservability. 'hybrid' formats only a fixed-length header per
+    record and carries the body as raw authenticated bytes: much faster for
+    bulk transfer, but everything past the header looks like random data.
+    """
+    return fteproxy.conf.getValue('runtime.fteproxy.record_layer.mode') == 'hybrid'
+
+
+def _make_body_cipher(key):
+    """The format-agnostic raw-bytes AEAD carrier used for hybrid-mode bodies.
+
+    Uses libfte's identity format (no DFA, so it runs at AEAD speed). The body
+    key is a distinct subkey so body and header ciphers never share key material.
+    """
+    body_key = hashlib.sha256(key + b'fteproxy/record-layer/body/v1').digest()
+    return fte.FTE(output_format=fte.BytesFormat(), key=body_key)
+
+
+def _record_encoder(header_cipher, key):
+    body = _make_body_cipher(key) if _hybrid_mode() else None
+    return fteproxy.record_layer.Encoder(cipher=header_cipher, body_cipher=body)
+
+
+def _record_decoder(header_cipher, key):
+    body = _make_body_cipher(key) if _hybrid_mode() else None
+    return fteproxy.record_layer.Decoder(cipher=header_cipher, body_cipher=body)
 
 
 class InvalidRoleException(Exception):
@@ -159,8 +191,9 @@ class NegotiationManager(object):
                 incoming_fixed_slice = fteproxy.defs.getFixedSlice(
                     incoming_language)
 
-                incoming_cipher = _make_cipher(incoming_regex, incoming_fixed_slice, self._key())
-                decoder = fteproxy.record_layer.Decoder(cipher=incoming_cipher)
+                key = self._key()
+                incoming_cipher = _make_cipher(incoming_regex, incoming_fixed_slice, key)
+                decoder = _record_decoder(incoming_cipher, key)
 
                 decoder.push(data)
                 negotiate_cell = decoder.pop(oneCell=True)
@@ -183,11 +216,11 @@ class NegotiationManager(object):
 
         if outgoing_regex != None and outgoing_fixed_slice != -1:
             outgoing_cipher = _make_cipher(outgoing_regex, outgoing_fixed_slice, key)
-            encoder = fteproxy.record_layer.Encoder(cipher=outgoing_cipher)
+            encoder = _record_encoder(outgoing_cipher, key)
 
         if incoming_regex != None and incoming_fixed_slice != -1:
             incoming_cipher = _make_cipher(incoming_regex, incoming_fixed_slice, key)
-            decoder = fteproxy.record_layer.Decoder(cipher=incoming_cipher)
+            decoder = _record_decoder(incoming_cipher, key)
 
         return [encoder, decoder]
 

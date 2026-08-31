@@ -198,8 +198,81 @@ class TestWrapSocket:
             client_sock.close()
         
         server.join(timeout=5)
-        
+
         # Verify data was received correctly
         assert len(received_data) == 1
         assert received_data[0] == test_data
         assert echo_data == test_data
+
+    def test_wrap_socket_hybrid_mode_end_to_end(self):
+        """Full negotiation + bulk transfer in hybrid record-layer mode."""
+        import threading
+        import time
+
+        fteproxy.conf.setValue('runtime.fteproxy.record_layer.mode', 'hybrid')
+        try:
+            fteproxy.conf.setValue('runtime.mode', 'client')
+            fteproxy.defs.load_definitions()
+            up = fteproxy.conf.getValue('runtime.state.upstream_language')
+            down = fteproxy.conf.getValue('runtime.state.downstream_language')
+            up_rx = fteproxy.defs.getRegex(up)
+            up_fs = fteproxy.defs.getFixedSlice(up)
+            dn_rx = fteproxy.defs.getRegex(down)
+            dn_fs = fteproxy.defs.getFixedSlice(down)
+            # Large enough to span many records (each body up to ~1 MiB).
+            payload = b'hybrid bulk payload ' * 4096  # ~80 KiB
+            received = {}
+
+            def server_thread(port):
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s = fteproxy.wrap_socket(s)  # server auto-detects via negotiation
+                s.bind(('127.0.0.1', port))
+                s.listen(1)
+                conn, _ = s.accept()
+                conn.settimeout(5)
+                try:
+                    buf = b''
+                    while len(buf) < len(payload):
+                        data = conn.recv(65536)
+                        if not data:
+                            break
+                        buf += data
+                    received['data'] = buf
+                    conn.sendall(buf)  # echo
+                finally:
+                    conn.close()
+                    s.close()
+
+            probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            probe.bind(('127.0.0.1', 0))
+            port = probe.getsockname()[1]
+            probe.close()
+
+            server = threading.Thread(target=server_thread, args=(port,))
+            server.start()
+            time.sleep(0.5)
+
+            client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client = fteproxy.wrap_socket(
+                client,
+                outgoing_regex=up_rx, outgoing_fixed_slice=up_fs,
+                incoming_regex=dn_rx, incoming_fixed_slice=dn_fs)
+            try:
+                client.connect(('127.0.0.1', port))
+                client.settimeout(5)
+                client.sendall(payload)
+                echo = b''
+                while len(echo) < len(payload):
+                    data = client.recv(65536)
+                    if not data:
+                        break
+                    echo += data
+            finally:
+                client.close()
+
+            server.join(timeout=5)
+            assert received.get('data') == payload
+            assert echo == payload
+        finally:
+            fteproxy.conf.setValue('runtime.fteproxy.record_layer.mode', 'format')

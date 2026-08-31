@@ -1,6 +1,8 @@
 # libfte 0.4.x is not on PyPI yet (PyPI has fte up to 0.3.0), so install the
 # new fte.FTE engine straight from git, pinned to a commit for reproducibility.
-# Swap this back to the PyPI specifier "fte>=0.4.0" once 0.4.0 is released.
-fte @ git+https://github.com/kpdyer/libfte.git@d1ca7ff7f1c1d28fe5c031df0f3a888088c70e0b
+# This pin is the perf/frame-rank-offset branch (libfte PR #89), whose O(n)
+# rank_offset is what makes hybrid record-layer mode reach bulk line-rate; drop
+# back to master/the PyPI specifier "fte>=0.4.0" once that lands and 0.4 ships.
+fte @ git+https://github.com/kpdyer/libfte.git@78b6b96d4e84e3382c861234300c2c8160ed08dd
 pytest>=9.1.1
 pytest-timeout>=2.4.0
