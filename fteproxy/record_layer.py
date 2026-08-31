@@ -12,14 +12,14 @@ class Encoder:
 
     def __init__(
         self,
-        encoder,
+        cipher,
     ):
-        self._encoder = encoder
+        self._cipher = cipher
         # libfte 0.4 caps the plaintext a single covertext can carry at the
         # output format's capacity; there is no unformatted-overflow escape
         # hatch anymore. Chunk the stream to that capacity so every cell maps
         # to exactly one fixed-length covertext.
-        self._capacity = encoder.max_plaintext_bytes
+        self._capacity = cipher.max_plaintext_bytes
         self._buffer = b''
 
     def push(self, data):
@@ -30,8 +30,8 @@ class Encoder:
 
     def pop(self):
         """Pop data off the FIFO buffer. We pop the whole buffer, sliced into
-        capacity-sized chunks. Each chunk is encrypted and encoded into one
-        fixed-length covertext with the ``encoder`` specified in ``__init__``.
+        capacity-sized chunks. Each chunk is encrypted by ``cipher`` (from
+        ``__init__``) into one fixed-length covertext of the output format.
         """
         buffer = self._buffer
         if not buffer:
@@ -44,7 +44,7 @@ class Encoder:
         cells = []
         for offset in range(0, len(buffer), self._capacity):
             plaintext = buffer[offset:offset + self._capacity]
-            cells.append(self._encoder.encrypt(plaintext))
+            cells.append(self._cipher.encrypt(plaintext))
 
         self._buffer = b''
         return b''.join(cells)
@@ -54,15 +54,15 @@ class Decoder:
 
     def __init__(
         self,
-        decoder,
+        cipher,
     ):
-        self._decoder = decoder
+        self._cipher = cipher
         # A fixed-length output format emits one covertext of exactly
         # ``max_length`` bytes per message, and ``decrypt`` consumes exactly one
         # such value (it does not return a remainder). The record layer therefore
         # frames the byte stream itself, slicing whole covertexts off the head of
         # the buffer and leaving any trailing partial frame for the next push.
-        self._frame_size = decoder.output_format.max_length
+        self._frame_size = cipher.output_format.max_length
         self._buffer = b''
 
     def push(self, data):
@@ -73,8 +73,8 @@ class Decoder:
 
     def pop(self, oneCell=False):
         """Pop data off the FIFO buffer.
-        The returned value is decrypted and decoded with ``_decoder``
-        specified in ``__init__``.
+        The returned value is one or more covertext frames decrypted by
+        ``cipher`` (from ``__init__``).
         """
 
         # Consume whole covertext frames from a local buffer and join the decoded
@@ -89,7 +89,7 @@ class Decoder:
         while len(buffer) - offset >= self._frame_size:
             covertext = buffer[offset:offset + self._frame_size]
             try:
-                msg = self._decoder.decrypt(covertext)
+                msg = self._cipher.decrypt(covertext)
             except fte.MessageTooLargeError as e:
                 # A complete, authenticating frame that claims a plaintext the
                 # format cannot hold has no recoverable interpretation. This is

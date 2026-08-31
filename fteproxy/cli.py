@@ -94,25 +94,25 @@ class FTEMain(threading.Thread):
         else:
             fteproxy.fatal_error('Unexpected mode in init_listener: ' + mode)
 
-    def init_encoder(self, stream_format):
+    def init_cipher(self, stream_format):
 
         key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
 
         try:
-            regex = fteproxy.defs.getRegex(stream_format)
+            pattern = fteproxy.defs.getRegex(stream_format)
         except fteproxy.defs.InvalidRegexName:
             fteproxy.fatal_error('Invalid format name ' + stream_format)
 
         fixed_slice = fteproxy.defs.getFixedSlice(stream_format)
-        # Build the engine to validate the format is usable with this key.
+        # Build the cipher to validate the format is usable with this key.
         # libfte 0.4 raises FormatCapacityError here if the format is too small
         # to carry the cipher's frame overhead.
-        fteproxy._make_cipher(regex, fixed_slice, key)
+        fteproxy._make_cipher(pattern, fixed_slice, key)
 
     def do_client(self):
 
-        FTEMain.init_encoder(self, self._args.downstream_format)
-        FTEMain.init_encoder(self, self._args.upstream_format)
+        FTEMain.init_cipher(self, self._args.downstream_format)
+        FTEMain.init_cipher(self, self._args.upstream_format)
 
         if not self._args.quiet:
             print('Client ready!')
@@ -126,7 +126,7 @@ class FTEMain(threading.Thread):
 
         languages = fteproxy.defs.load_definitions()
         for language in languages.keys():
-            FTEMain.init_encoder(self, language)
+            FTEMain.init_cipher(self, language)
 
         self._server = FTEMain.init_listener(self, 'server')
         self._server.daemon = True

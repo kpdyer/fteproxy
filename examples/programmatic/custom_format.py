@@ -25,10 +25,10 @@ def main():
     print("    Regex: ^[ACGT]+$")
     dna_regex = "^[ACGT]+$"
     try:
-        encoder = fte.FTE(output_format=fte.RegexFormat(dna_regex, length=512), key=key)
+        cipher = fte.FTE(output_format=fte.RegexFormat(dna_regex, length=512), key=key)
         plaintext = b"Secret genetic data"
-        ciphertext = encoder.encrypt(plaintext)
-        decoded = encoder.decrypt(ciphertext)
+        ciphertext = cipher.encrypt(plaintext)
+        decoded = cipher.decrypt(ciphertext)
         print(f"    Input:  {plaintext.decode()}")
         print(f"    Output: {ciphertext[:50].decode('ascii', errors='ignore')}...")
         if decoded == plaintext:
@@ -45,10 +45,10 @@ def main():
     print("    Regex: ^[ox]+$")
     pattern_regex = "^[ox]+$"
     try:
-        encoder = fte.FTE(output_format=fte.RegexFormat(pattern_regex, length=1024), key=key)
+        cipher = fte.FTE(output_format=fte.RegexFormat(pattern_regex, length=1024), key=key)
         plaintext = b"Hidden message"
-        ciphertext = encoder.encrypt(plaintext)
-        decoded = encoder.decrypt(ciphertext)
+        ciphertext = cipher.encrypt(plaintext)
+        decoded = cipher.decrypt(ciphertext)
         print(f"    Input:  {plaintext.decode()}")
         print(f"    Output: {ciphertext[:50].decode('ascii', errors='ignore')}...")
         if decoded == plaintext:
@@ -65,10 +65,10 @@ def main():
     print("    Regex: ^[a-z]+\\.[a-z]{3}$")
     filename_regex = "^[a-z]+\\.[a-z]{3}$"
     try:
-        encoder = fte.FTE(output_format=fte.RegexFormat(filename_regex, length=256), key=key)
+        cipher = fte.FTE(output_format=fte.RegexFormat(filename_regex, length=256), key=key)
         plaintext = b"Hi"
-        ciphertext = encoder.encrypt(plaintext)
-        decoded = encoder.decrypt(ciphertext)
+        ciphertext = cipher.encrypt(plaintext)
+        decoded = cipher.decrypt(ciphertext)
         print(f"    Input:  {plaintext.decode()}")
         print(f"    Output: {ciphertext[:50].decode('ascii', errors='ignore')}...")
         if decoded == plaintext:
@@ -85,10 +85,10 @@ def main():
     print("    Regex: ^[0-9a-f][0-9a-f]+$")
     mac_regex = "^[0-9a-f][0-9a-f]+$"
     try:
-        encoder = fte.FTE(output_format=fte.RegexFormat(mac_regex, length=256), key=key)
+        cipher = fte.FTE(output_format=fte.RegexFormat(mac_regex, length=256), key=key)
         plaintext = b"Network data"
-        ciphertext = encoder.encrypt(plaintext)
-        decoded = encoder.decrypt(ciphertext)
+        ciphertext = cipher.encrypt(plaintext)
+        decoded = cipher.decrypt(ciphertext)
         print(f"    Input:  {plaintext.decode()}")
         print(f"    Output: {ciphertext[:50].decode('ascii', errors='ignore')}...")
         if decoded == plaintext:
