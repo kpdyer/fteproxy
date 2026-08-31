@@ -204,12 +204,14 @@ class TestWrapSocket:
         assert received_data[0] == test_data
         assert echo_data == test_data
 
-    def test_wrap_socket_hybrid_mode_end_to_end(self):
-        """Full negotiation + bulk transfer in hybrid record-layer mode."""
+    @pytest.mark.parametrize("mode", ["format", "hybrid"])
+    def test_wrap_socket_bulk_end_to_end(self, mode):
+        """Full negotiation + bulk transfer, in each record-layer mode."""
         import threading
         import time
 
-        fteproxy.conf.setValue('runtime.fteproxy.record_layer.mode', 'hybrid')
+        prev_mode = fteproxy.conf.getValue('runtime.fteproxy.record_layer.mode')
+        fteproxy.conf.setValue('runtime.fteproxy.record_layer.mode', mode)
         try:
             fteproxy.conf.setValue('runtime.mode', 'client')
             fteproxy.defs.load_definitions()
@@ -275,4 +277,4 @@ class TestWrapSocket:
             assert received.get('data') == payload
             assert echo == payload
         finally:
-            fteproxy.conf.setValue('runtime.fteproxy.record_layer.mode', 'format')
+            fteproxy.conf.setValue('runtime.fteproxy.record_layer.mode', prev_mode)
