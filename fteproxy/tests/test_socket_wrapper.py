@@ -33,8 +33,10 @@ def _make_cell(payload):
     """Encode ``payload`` into one covertext record-layer cell."""
     pattern, fixed_slice = _regex_slice()
     key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
-    encoder = fteproxy.record_layer.Encoder(
-        cipher=fteproxy._make_cipher(pattern, fixed_slice, key))
+    header = fteproxy._make_cipher(pattern, fixed_slice, key)
+    # Build through _record_encoder so the cell matches the configured mode (the
+    # wrapper under test decodes with whatever mode conf says).
+    encoder = fteproxy._record_encoder(header, key)
     encoder.push(payload)
     return encoder.pop()
 

@@ -139,7 +139,14 @@ class Decoder:
             else:
                 # 'hybrid' mode: the header carries the raw body's length. The
                 # header is authenticated, so a successful decrypt means we wrote
-                # it and the length is trustworthy.
+                # it and the length is trustworthy. A header that authenticates
+                # but is not exactly the expected width is a peer running a
+                # different mode (or corruption); treat it as undecodable.
+                if len(head) != _BODY_LEN.size:
+                    fteproxy.info(
+                        "fteproxy.record_layer: unexpected header width "
+                        + str(len(head)))
+                    break
                 body_len = _BODY_LEN.unpack(head)[0]
                 body_start = offset + self._frame_size
                 if len(buffer) - body_start < body_len:
