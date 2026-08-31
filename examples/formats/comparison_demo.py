@@ -41,7 +41,7 @@ def main():
     
     for name, regex in FORMATS:
         try:
-            # Slice 1024 so the low-entropy binary format has enough capacity
+            # Length 1024 so the low-entropy binary format has enough capacity
             cipher = fte.FTE(output_format=fte.RegexFormat(regex, length=1024), key=key)
             ciphertext = cipher.encrypt(secret)
             sample = ciphertext[:50].decode('ascii', errors='ignore')

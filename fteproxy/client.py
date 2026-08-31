@@ -20,16 +20,16 @@ class listener(fteproxy.relay.listener):
             'runtime.state.downstream_language')
 
         outgoing_regex = fteproxy.defs.getRegex(outgoing_language)
-        outgoing_fixed_slice = fteproxy.defs.getFixedSlice(outgoing_language)
+        outgoing_length = fteproxy.defs.getLength(outgoing_language)
 
         incoming_regex = fteproxy.defs.getRegex(incoming_language)
-        incoming_fixed_slice = fteproxy.defs.getFixedSlice(incoming_language)
+        incoming_length = fteproxy.defs.getLength(incoming_language)
 
         K1 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[:16]
         K2 = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')[16:]
         socket = fteproxy.wrap_socket(socket,
-                                 outgoing_regex, outgoing_fixed_slice,
-                                 incoming_regex, incoming_fixed_slice,
+                                 outgoing_regex, outgoing_length,
+                                 incoming_regex, incoming_length,
                                  K1, K2)
 
         return socket

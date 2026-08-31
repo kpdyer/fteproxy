@@ -46,9 +46,9 @@ def main():
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock = fteproxy.wrap_socket(sock,
                                     outgoing_regex=SERVER_TO_CLIENT,
-                                    outgoing_fixed_slice=520,
+                                    outgoing_length=520,
                                     incoming_regex=CLIENT_TO_SERVER,
-                                    incoming_fixed_slice=520,
+                                    incoming_length=520,
                                     negotiate=False)
         sock.bind((HOST, PORT))
         sock.listen(1)

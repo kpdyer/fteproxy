@@ -140,8 +140,8 @@ conf['runtime.state.downstream_language'] = 'manual-http-response'
 conf['runtime.fteproxy.encrypter.key'] = b'\xFF' * 16 + b'\x00' * 16
 
 
-"""The default fixed_slice parameter to use for buildTable."""
-conf['fteproxy.default_fixed_slice'] = 2 ** 8
+"""The default length parameter to use for buildTable."""
+conf['fteproxy.default_length'] = 2 ** 8
 
 
 """The default definitions file to use."""

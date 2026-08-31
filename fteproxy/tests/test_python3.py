@@ -138,10 +138,10 @@ class TestWrapSocket:
         client_server_regex = '^(0|1)+$'
         server_client_regex = '^(A|B)+$'
         # These are 1-bit-per-character formats. libfte 0.4's expanding cipher
-        # has fixed frame overhead and no unformatted overflow, so the slice
+        # has fixed frame overhead and no unformatted overflow, so the length
         # must be large enough to hold the payload plus that frame. 520 gives a
         # 32-byte capacity here (256 would be rejected as too small).
-        fixed_slice = 520
+        length = 520
         test_data = b'Hello, world!'
         received_data = []
         
@@ -150,9 +150,9 @@ class TestWrapSocket:
             server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             server_sock = fteproxy.wrap_socket(server_sock,
                 outgoing_regex=server_client_regex,
-                outgoing_fixed_slice=fixed_slice,
+                outgoing_length=length,
                 incoming_regex=client_server_regex,
-                incoming_fixed_slice=fixed_slice,
+                incoming_length=length,
                 negotiate=False)
             server_sock.bind(('127.0.0.1', port))
             server_sock.listen(1)
@@ -184,9 +184,9 @@ class TestWrapSocket:
         client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client_sock = fteproxy.wrap_socket(client_sock,
             outgoing_regex=client_server_regex,
-            outgoing_fixed_slice=fixed_slice,
+            outgoing_length=length,
             incoming_regex=server_client_regex,
-            incoming_fixed_slice=fixed_slice,
+            incoming_length=length,
             negotiate=False)
         
         try:
@@ -218,9 +218,9 @@ class TestWrapSocket:
             up = fteproxy.conf.getValue('runtime.state.upstream_language')
             down = fteproxy.conf.getValue('runtime.state.downstream_language')
             up_rx = fteproxy.defs.getRegex(up)
-            up_fs = fteproxy.defs.getFixedSlice(up)
+            up_fs = fteproxy.defs.getLength(up)
             dn_rx = fteproxy.defs.getRegex(down)
-            dn_fs = fteproxy.defs.getFixedSlice(down)
+            dn_fs = fteproxy.defs.getLength(down)
             # Large enough to span many records (each body up to ~1 MiB).
             payload = b'hybrid bulk payload ' * 4096  # ~80 KiB
             received = {}
@@ -258,8 +258,8 @@ class TestWrapSocket:
             client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             client = fteproxy.wrap_socket(
                 client,
-                outgoing_regex=up_rx, outgoing_fixed_slice=up_fs,
-                incoming_regex=dn_rx, incoming_fixed_slice=dn_fs)
+                outgoing_regex=up_rx, outgoing_length=up_fs,
+                incoming_regex=dn_rx, incoming_length=dn_fs)
             try:
                 client.connect(('127.0.0.1', port))
                 client.settimeout(5)

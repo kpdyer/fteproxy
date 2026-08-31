@@ -39,11 +39,11 @@ def getRegex(format_name):
     return regex
 
 
-def getFixedSlice(format_name):
+def getLength(format_name):
     definitions = load_definitions()
     try:
-        fixed_slice = definitions[format_name]['fixed_slice']
+        length = definitions[format_name]['length']
     except KeyError:
-        fixed_slice = fteproxy.conf.getValue('fteproxy.default_fixed_slice')
+        length = fteproxy.conf.getValue('fteproxy.default_length')
 
-    return fixed_slice
+    return length

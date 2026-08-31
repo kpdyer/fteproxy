@@ -14,12 +14,12 @@ import fte
 def main():
     # HTTP GET request format
     regex = "^GET \\/[a-zA-Z0-9]+ HTTP\\/1\\.1\\r\\n\\r\\n$"
-    fixed_slice = 256
+    length = 256
     errors = 0
 
     # libfte 0.4 requires an explicit 32-byte key
     key = os.urandom(32)
-    cipher = fte.FTE(output_format=fte.RegexFormat(regex, length=fixed_slice), key=key)
+    cipher = fte.FTE(output_format=fte.RegexFormat(regex, length=length), key=key)
     
     print("=" * 60)
     print("HTTP FORMAT DEMO")
