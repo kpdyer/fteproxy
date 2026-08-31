@@ -45,8 +45,8 @@ def main():
         print(f"   Regex: {regex}")
         
         try:
-            encoder = fte.FTE(output_format=fte.RegexFormat(regex, length=fixed_slice), key=key)
-            ciphertext = encoder.encrypt(secret)
+            cipher = fte.FTE(output_format=fte.RegexFormat(regex, length=fixed_slice), key=key)
+            ciphertext = cipher.encrypt(secret)
             
             # Show first 60 chars of output
             preview = ciphertext[:60].decode('ascii', errors='ignore')
@@ -54,7 +54,7 @@ def main():
             print(f"   Length: {len(ciphertext)} bytes")
             
             # Verify roundtrip
-            decoded = encoder.decrypt(ciphertext)
+            decoded = cipher.decrypt(ciphertext)
             if decoded != secret:
                 print(f"   [FAIL] Roundtrip failed!")
                 errors += 1

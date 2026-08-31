@@ -31,10 +31,10 @@ def _regex_slice():
 
 def _make_cell(payload):
     """Encode ``payload`` into one covertext record-layer cell."""
-    regex, fixed_slice = _regex_slice()
+    pattern, fixed_slice = _regex_slice()
     key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
     encoder = fteproxy.record_layer.Encoder(
-        encoder=fteproxy._make_cipher(regex, fixed_slice, key))
+        cipher=fteproxy._make_cipher(pattern, fixed_slice, key))
     encoder.push(payload)
     return encoder.pop()
 
