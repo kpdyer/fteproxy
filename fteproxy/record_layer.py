@@ -3,6 +3,7 @@
 
 
 
+import os
 import struct
 
 import fte
@@ -10,9 +11,39 @@ import fte
 import fteproxy.conf
 
 
-# Hybrid-mode header: a fixed-width big-endian body length. The header is one
-# FTE-formatted covertext; the body that follows it is `body_len` raw bytes.
-_BODY_LEN = struct.Struct('>I')
+# Length prefix inside a sealed (random-padded) covertext plaintext.
+_LEN = struct.Struct('>I')
+# Hybrid-mode header payload: the length of the raw body that follows it.
+_OVERFLOW_LEN = struct.Struct('>I')
+
+
+def _seal(cipher, message):
+    """Encrypt ``message`` into one covertext, random-padded to the format's
+    full plaintext capacity.
+
+    A short message otherwise ranks low and unranks into a covertext with a long
+    run of the format's lowest character (the ``GET /0000...`` padding). Filling
+    the plaintext to capacity makes the covertext use its whole rank space, so it
+    reads as random format text and no longer leaks the message length through
+    its rank. The random pad sits inside the authenticated ciphertext, so it
+    costs nothing on the wire (the covertext is a fixed length either way) and
+    reveals nothing.
+    """
+    plaintext = _LEN.pack(len(message)) + message
+    pad = cipher.max_plaintext_bytes - len(plaintext)
+    if pad > 0:
+        plaintext += os.urandom(pad)
+    return cipher.encrypt(plaintext)
+
+
+def _unseal(plaintext):
+    """Recover the message from a sealed plaintext, or ``None`` if it is malformed."""
+    if len(plaintext) < _LEN.size:
+        return None
+    length = _LEN.unpack(plaintext[:_LEN.size])[0]
+    if length > len(plaintext) - _LEN.size:
+        return None
+    return plaintext[_LEN.size:_LEN.size + length]
 
 
 class Encoder:
@@ -24,14 +55,17 @@ class Encoder:
     ):
         self._cipher = cipher
         self._body_cipher = body_cipher
-        # 'format' mode: one fixed-length covertext per capacity-sized chunk, the
-        # whole covertext transformed into the target format.
-        # 'hybrid' mode: a fixed-length FTE header (carrying the body length)
-        # followed by the raw BytesFormat body. Chunk by the body's capacity,
-        # which is far larger (~1 MiB) than a formatted covertext's, so bulk data
-        # pays the DFA cost once per record instead of once per ~150 bytes.
-        carrier = body_cipher if body_cipher is not None else cipher
-        self._capacity = carrier.max_plaintext_bytes
+        if body_cipher is None:
+            # 'format' mode: one sealed covertext per chunk. Reserve the length
+            # prefix; the rest of the covertext capacity is real payload, random-
+            # padded when the payload does not fill it.
+            self._capacity = cipher.max_plaintext_bytes - _LEN.size
+        else:
+            # 'hybrid' mode: a sealed FTE header (carrying the body length)
+            # followed by the raw BytesFormat body. Chunk by the body's capacity,
+            # far larger than a covertext's, so bulk data pays the DFA cost once
+            # per record instead of once per ~150 bytes.
+            self._capacity = body_cipher.max_plaintext_bytes
         self._buffer = b''
 
     def push(self, data):
@@ -57,10 +91,10 @@ class Encoder:
         for offset in range(0, len(buffer), self._capacity):
             chunk = buffer[offset:offset + self._capacity]
             if self._body_cipher is None:
-                records.append(self._cipher.encrypt(chunk))
+                records.append(_seal(self._cipher, chunk))
             else:
                 body = self._body_cipher.encrypt(chunk)
-                header = self._cipher.encrypt(_BODY_LEN.pack(len(body)))
+                header = _seal(self._cipher, _OVERFLOW_LEN.pack(len(body)))
                 records.append(header + body)
 
         self._buffer = b''
@@ -80,8 +114,8 @@ class Decoder:
         # ``max_length`` bytes, and ``decrypt`` consumes exactly one such value
         # (no remainder). The record layer frames the byte stream itself: in
         # 'format' mode a record is that one covertext; in 'hybrid' mode it is
-        # the fixed-length header covertext plus the ``body_len`` raw bytes the
-        # header carries. Either way a trailing partial record stays buffered.
+        # the header covertext plus the ``body_len`` raw bytes the header carries.
+        # Either way a trailing partial record stays buffered.
         self._frame_size = cipher.output_format.max_length
         self._buffer = b''
 
@@ -131,23 +165,27 @@ class Decoder:
             head = self._decrypt(self._cipher, header)
             if head is None:
                 break
+            head = _unseal(head)
+            if head is None:
+                # Authenticated but not a sealed record: a peer on a different
+                # mode, or corruption. Treat it as undecodable.
+                fteproxy.info("fteproxy.record_layer: malformed sealed header")
+                break
 
             if self._body_cipher is None:
-                # 'format' mode: the header covertext IS the message.
+                # 'format' mode: the sealed covertext carried the message.
                 messages.append(head)
                 offset += self._frame_size
             else:
                 # 'hybrid' mode: the header carries the raw body's length. The
                 # header is authenticated, so a successful decrypt means we wrote
-                # it and the length is trustworthy. A header that authenticates
-                # but is not exactly the expected width is a peer running a
-                # different mode (or corruption); treat it as undecodable.
-                if len(head) != _BODY_LEN.size:
+                # it and the length is trustworthy.
+                if len(head) != _OVERFLOW_LEN.size:
                     fteproxy.info(
                         "fteproxy.record_layer: unexpected header width "
                         + str(len(head)))
                     break
-                body_len = _BODY_LEN.unpack(head)[0]
+                body_len = _OVERFLOW_LEN.unpack(head)[0]
                 body_start = offset + self._frame_size
                 if len(buffer) - body_start < body_len:
                     break  # body not fully arrived; wait for more data
