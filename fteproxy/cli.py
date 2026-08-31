@@ -195,6 +195,7 @@ def get_args():
                 "--upstream-format":    "runtime.state.upstream_language",
                 "--release":            "fteproxy.defs.release",
                 "--key":                "runtime.fteproxy.encrypter.key",
+                "--record-layer-mode":  "runtime.fteproxy.record_layer.mode",
             }
 
             if self.dest == "key_file":
@@ -262,6 +263,17 @@ def get_args():
     parser.add_argument('--release', action=setConfValue,
                         help='Definitions file to use, specified as YYYYMMDD',
                         default=fteproxy.conf.getValue('fteproxy.defs.release'))
+    parser.add_argument('--record-layer-mode', action=setConfValue,
+                        metavar='(format|hybrid)',
+                        choices=['format', 'hybrid'],
+                        help='Record framing. "format" (default) transforms '
+                             'every byte into the target format for maximum '
+                             'unobservability. "hybrid" formats only a header '
+                             'per record and sends the body as raw bytes: much '
+                             'faster for bulk, but only the header blends in. '
+                             'Both endpoints must match.',
+                        default=fteproxy.conf.getValue(
+                            'runtime.fteproxy.record_layer.mode'))
     key_group = parser.add_mutually_exclusive_group()
     key_group.add_argument('--key', action=setConfValue,
                         help='Cryptographic key, hex, must be exactly 64 characters',
