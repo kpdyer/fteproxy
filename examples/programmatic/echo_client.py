@@ -32,9 +32,9 @@ def main():
         sock = fteproxy.wrap_socket(
             sock,
             outgoing_regex=CLIENT_TO_SERVER,
-            outgoing_fixed_slice=256,
+            outgoing_length=256,
             incoming_regex=SERVER_TO_CLIENT,
-            incoming_fixed_slice=256,
+            incoming_length=256,
             negotiate=False
         )
         

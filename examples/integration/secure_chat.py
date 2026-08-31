@@ -42,9 +42,9 @@ def chat_server():
     sock = fteproxy.wrap_socket(
         sock,
         outgoing_regex=RECV_FORMAT,  # Server sends in UPPERCASE format
-        outgoing_fixed_slice=256,
+        outgoing_length=256,
         incoming_regex=SEND_FORMAT,   # Client sends in lowercase format
-        incoming_fixed_slice=256,
+        incoming_length=256,
         negotiate=False
     )
     
@@ -81,9 +81,9 @@ def chat_client(host: str):
     sock = fteproxy.wrap_socket(
         sock,
         outgoing_regex=SEND_FORMAT,   # Client sends in lowercase format
-        outgoing_fixed_slice=256,
+        outgoing_length=256,
         incoming_regex=RECV_FORMAT,   # Server sends in UPPERCASE format
-        incoming_fixed_slice=256,
+        incoming_length=256,
         negotiate=False
     )
     

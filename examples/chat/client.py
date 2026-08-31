@@ -45,9 +45,9 @@ def main():
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock = fteproxy.wrap_socket(sock,
                                     outgoing_regex=CLIENT_TO_SERVER,
-                                    outgoing_fixed_slice=520,
+                                    outgoing_length=520,
                                     incoming_regex=SERVER_TO_CLIENT,
-                                    incoming_fixed_slice=520,
+                                    incoming_length=520,
                                     negotiate=False)
         sock.connect((HOST, PORT))
         print("Connected!")

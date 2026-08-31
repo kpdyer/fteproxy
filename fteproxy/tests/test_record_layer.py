@@ -28,8 +28,8 @@ def record_layer_pairs():
     definitions = fteproxy.defs.load_definitions()
     for language in definitions.keys():
         regex = fteproxy.defs.getRegex(language)
-        fixed_slice = fteproxy.defs.getFixedSlice(language)
-        cipher = fteproxy._make_cipher(regex, fixed_slice, key)
+        length = fteproxy.defs.getLength(language)
+        cipher = fteproxy._make_cipher(regex, length, key)
         encoder = fteproxy.record_layer.Encoder(cipher=cipher)
         decoder = fteproxy.record_layer.Decoder(cipher=cipher)
         pairs.append((language, encoder, decoder))

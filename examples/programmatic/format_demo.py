@@ -26,8 +26,8 @@ FORMATS = {
 
 def main():
     secret = b"Secret Message!"
-    # Use a slice large enough for even the low-entropy binary format below
-    fixed_slice = 1024
+    # Use a length large enough for even the low-entropy binary format below
+    length = 1024
     # libfte 0.4 requires an explicit 32-byte key; one key for the whole script is fine
     key = os.urandom(32)
     errors = 0
@@ -45,7 +45,7 @@ def main():
         print(f"   Regex: {regex}")
         
         try:
-            cipher = fte.FTE(output_format=fte.RegexFormat(regex, length=fixed_slice), key=key)
+            cipher = fte.FTE(output_format=fte.RegexFormat(regex, length=length), key=key)
             ciphertext = cipher.encrypt(secret)
             
             # Show first 60 chars of output

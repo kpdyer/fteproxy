@@ -103,11 +103,11 @@ class FTEMain(threading.Thread):
         except fteproxy.defs.InvalidRegexName:
             fteproxy.fatal_error('Invalid format name ' + stream_format)
 
-        fixed_slice = fteproxy.defs.getFixedSlice(stream_format)
+        length = fteproxy.defs.getLength(stream_format)
         # Build the cipher to validate the format is usable with this key.
         # libfte 0.4 raises FormatCapacityError here if the format is too small
         # to carry the cipher's frame overhead.
-        fteproxy._make_cipher(pattern, fixed_slice, key)
+        fteproxy._make_cipher(pattern, length, key)
 
     def do_client(self):
 

@@ -25,16 +25,16 @@ def _defs():
     fteproxy.defs.load_definitions()
 
 
-def _regex_slice():
-    return (fteproxy.defs.getRegex(FORMAT), fteproxy.defs.getFixedSlice(FORMAT))
+def _regex_length():
+    return (fteproxy.defs.getRegex(FORMAT), fteproxy.defs.getLength(FORMAT))
 
 
 def _make_cell(payload):
     """Encode ``payload`` into one covertext record-layer cell."""
-    pattern, fixed_slice = _regex_slice()
+    pattern, length = _regex_length()
     key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
     encoder = fteproxy.record_layer.Encoder(
-        cipher=fteproxy._make_cipher(pattern, fixed_slice, key))
+        cipher=fteproxy._make_cipher(pattern, length, key))
     encoder.push(payload)
     return encoder.pop()
 
@@ -74,11 +74,11 @@ class FakeSocket:
 
 
 def _wrap(fake):
-    regex, fixed_slice = _regex_slice()
+    regex, length = _regex_length()
     return fteproxy.wrap_socket(
         fake,
-        outgoing_regex=regex, outgoing_fixed_slice=fixed_slice,
-        incoming_regex=regex, incoming_fixed_slice=fixed_slice,
+        outgoing_regex=regex, outgoing_length=length,
+        incoming_regex=regex, incoming_length=length,
         negotiate=False)
 
 

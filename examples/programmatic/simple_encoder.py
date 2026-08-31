@@ -16,14 +16,14 @@ def main():
     # This one produces lowercase letters only
     regex = "^[a-z]+$"
 
-    # Fixed slice determines the capacity (bits encoded per output character)
-    fixed_slice = 256
+    # Length determines the capacity (bits encoded per output character)
+    length = 256
 
     # libfte 0.4 requires an explicit 32-byte key (there is no random-key path)
     key = os.urandom(32)
 
     # Create the cipher
-    cipher = fte.FTE(output_format=fte.RegexFormat(regex, length=fixed_slice), key=key)
+    cipher = fte.FTE(output_format=fte.RegexFormat(regex, length=length), key=key)
     
     # Our secret message
     plaintext = b"Hello, World! This is a secret message."
