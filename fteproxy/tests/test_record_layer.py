@@ -159,7 +159,7 @@ class TestDecoderExceptionHandling:
 
 
 class TestHybridRecordLayer:
-    """The hybrid framing: a formatted header covertext + a raw BytesFormat body."""
+    """The hybrid framing: a formatted header covertext + a raw AES-GCM body."""
 
     def _pair(self, language='manual-http-request'):
         fteproxy.conf.setValue('runtime.mode', 'client')
@@ -211,6 +211,23 @@ class TestHybridRecordLayer:
             decoder.push(wire[i:i + 333])
             out += decoder.pop()
         assert out == payload
+
+    def test_reordered_record_is_rejected(self):
+        """A record moved out of its stream position fails the body auth."""
+        encoder, _ = self._pair()
+        encoder.push(b'first'); r0 = encoder.pop()    # seq 0
+        encoder.push(b'second'); r1 = encoder.pop()   # seq 1
+
+        # In order: both records decode.
+        d = self._pair()[1]
+        d.push(r0 + r1)
+        assert d.pop() == b'firstsecond'
+
+        # Swapped: the record built at seq 1 arrives where seq 0 is expected, so
+        # its body AEAD (seq as associated data) fails and nothing decodes.
+        d2 = self._pair()[1]
+        d2.push(r1 + r0)
+        assert d2.pop() == b''
 
 
 def test_seal_fills_covertext_with_random_not_padding():
