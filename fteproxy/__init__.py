@@ -5,6 +5,7 @@ __version__ = "0.3.1"
 
 import os
 import sys
+import hmac
 import socket
 import hashlib
 import traceback
@@ -15,7 +16,8 @@ import fteproxy.record_layer
 
 import fte
 
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 
 def _make_cipher(pattern, length, key):
@@ -45,35 +47,50 @@ def _hybrid_mode():
 
 
 class _AEADBody:
-    """AES-256-GCM carrier for hybrid-mode record bodies.
+    """AES-128-CTR + HMAC-SHA256 (Encrypt-then-MAC) carrier for hybrid-mode bodies.
 
-    libfte's identity format works as a body carrier but routes it through the
-    FTE engine (AES-CTR + HMAC-SHA512 + a big-integer frame), which is ~25-70x
-    slower than OpenSSL's AES-GCM. This carries the body directly: a fresh random
-    nonce per record (prepended to the ciphertext) plus the record's sequence
-    number as associated data, so a body authenticates only in its original
-    stream position -- reorder, drop, or replay a record and the tag check fails.
-    This is a standard AEAD (cryptography's AESGCM), not hand-rolled crypto;
-    fteproxy's only responsibility is a unique nonce per record, which the random
-    nonce satisfies. The body key is a distinct subkey, so body and header
-    ciphers never share key material.
+    Matches libfte's AE construction (the FTE paper's CTR+HMAC). Under
+    fteproxy's static shared key, Encrypt-then-MAC means a nonce collision costs
+    only the confidentiality of the colliding pair, never authenticity. Each
+    record binds its sequence number into the MAC, so a reordered, dropped, or
+    replayed record fails authentication. The encryption and MAC subkeys are derived from
+    a distinct namespace, independent of the header cipher's key. libfte does the
+    same construction for the formatted header; this is the raw-body counterpart
+    the FTE paper appended as unformatted ciphertext.
     """
     _NONCE = 12
+    _TAG = 16
+    _COUNTER = 16  # AES block: 12-byte nonce || 4-byte block counter
     # Largest body a single record carries. Bounds memory and amortizes the one
     # formatted header per record over a large payload.
     max_plaintext_bytes = 2 ** 20
 
     def __init__(self, key):
-        body_key = hashlib.sha256(key + b'fteproxy/record-layer/body/v2').digest()
-        self._aead = AESGCM(body_key)
+        self._enc_key = hashlib.sha256(key + b'fteproxy/record-layer/body/enc/v3').digest()[:16]
+        self._mac_key = hashlib.sha256(key + b'fteproxy/record-layer/body/mac/v3').digest()
+
+    def _counter(self, nonce):
+        return nonce + b'\x00' * (self._COUNTER - self._NONCE)
+
+    def _tag(self, seq, nonce, ciphertext):
+        return hmac.new(
+            self._mac_key, seq.to_bytes(8, 'big') + nonce + ciphertext, hashlib.sha256
+        ).digest()[:self._TAG]
 
     def encrypt(self, plaintext, seq):
         nonce = os.urandom(self._NONCE)
-        return nonce + self._aead.encrypt(nonce, plaintext, seq.to_bytes(8, 'big'))
+        enc = Cipher(algorithms.AES(self._enc_key), modes.CTR(self._counter(nonce))).encryptor()
+        ciphertext = enc.update(plaintext) + enc.finalize()
+        return nonce + ciphertext + self._tag(seq, nonce, ciphertext)
 
     def decrypt(self, framed, seq):
-        nonce, ciphertext = framed[:self._NONCE], framed[self._NONCE:]
-        return self._aead.decrypt(nonce, ciphertext, seq.to_bytes(8, 'big'))
+        nonce = framed[:self._NONCE]
+        tag = framed[-self._TAG:]
+        ciphertext = framed[self._NONCE:-self._TAG]
+        if not hmac.compare_digest(self._tag(seq, nonce, ciphertext), tag):
+            raise InvalidTag()
+        dec = Cipher(algorithms.AES(self._enc_key), modes.CTR(self._counter(nonce))).decryptor()
+        return dec.update(ciphertext) + dec.finalize()
 
 
 def _make_body_cipher(key):
