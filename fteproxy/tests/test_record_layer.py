@@ -159,7 +159,7 @@ class TestDecoderExceptionHandling:
 
 
 class TestHybridRecordLayer:
-    """The hybrid framing: a formatted header covertext + a raw AES-GCM body."""
+    """The hybrid framing: a formatted header covertext + a raw authenticated body."""
 
     def _pair(self, language='manual-http-request'):
         fteproxy.conf.setValue('runtime.mode', 'client')

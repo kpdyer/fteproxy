@@ -63,7 +63,7 @@ class Encoder:
             self._capacity = cipher.max_plaintext_bytes - _LEN.size
         else:
             # 'hybrid' mode: a sealed FTE header (carrying the body length)
-            # followed by the raw AES-GCM body. Chunk by the body's capacity, far
+            # followed by the raw authenticated body. Chunk by the body's capacity, far
             # larger than a covertext's, so bulk data pays the DFA cost once per
             # record instead of once per ~150 bytes.
             self._capacity = body_cipher.max_plaintext_bytes
