@@ -4,5 +4,6 @@
 # rank_offset is what makes hybrid record-layer mode reach bulk line-rate; drop
 # back to master/the PyPI specifier "fte>=0.4.0" once that lands and 0.4 ships.
 fte @ git+https://github.com/kpdyer/libfte.git@78b6b96d4e84e3382c861234300c2c8160ed08dd
+cryptography>=41.0
 pytest>=9.1.1
 pytest-timeout>=2.4.0

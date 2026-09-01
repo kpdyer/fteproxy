@@ -3,6 +3,7 @@
 
 __version__ = "0.3.1"
 
+import os
 import sys
 import socket
 import hashlib
@@ -13,6 +14,8 @@ import fteproxy.defs
 import fteproxy.record_layer
 
 import fte
+
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 
 def _make_cipher(pattern, length, key):
@@ -41,14 +44,41 @@ def _hybrid_mode():
     return fteproxy.conf.getValue('runtime.fteproxy.record_layer.mode') == 'hybrid'
 
 
-def _make_body_cipher(key):
-    """The format-agnostic raw-bytes AEAD carrier used for hybrid-mode bodies.
+class _AEADBody:
+    """AES-256-GCM carrier for hybrid-mode record bodies.
 
-    Uses libfte's identity format (no DFA, so it runs at AEAD speed). The body
-    key is a distinct subkey so body and header ciphers never share key material.
+    libfte's identity format works as a body carrier but routes it through the
+    FTE engine (AES-CTR + HMAC-SHA512 + a big-integer frame), which is ~25-70x
+    slower than OpenSSL's AES-GCM. This carries the body directly: a fresh random
+    nonce per record (prepended to the ciphertext) plus the record's sequence
+    number as associated data, so a body authenticates only in its original
+    stream position -- reorder, drop, or replay a record and the tag check fails.
+    This is a standard AEAD (cryptography's AESGCM), not hand-rolled crypto;
+    fteproxy's only responsibility is a unique nonce per record, which the random
+    nonce satisfies. The body key is a distinct subkey, so body and header
+    ciphers never share key material.
     """
-    body_key = hashlib.sha256(key + b'fteproxy/record-layer/body/v1').digest()
-    return fte.FTE(output_format=fte.BytesFormat(), key=body_key)
+    _NONCE = 12
+    # Largest body a single record carries. Bounds memory and amortizes the one
+    # formatted header per record over a large payload.
+    max_plaintext_bytes = 2 ** 20
+
+    def __init__(self, key):
+        body_key = hashlib.sha256(key + b'fteproxy/record-layer/body/v2').digest()
+        self._aead = AESGCM(body_key)
+
+    def encrypt(self, plaintext, seq):
+        nonce = os.urandom(self._NONCE)
+        return nonce + self._aead.encrypt(nonce, plaintext, seq.to_bytes(8, 'big'))
+
+    def decrypt(self, framed, seq):
+        nonce, ciphertext = framed[:self._NONCE], framed[self._NONCE:]
+        return self._aead.decrypt(nonce, ciphertext, seq.to_bytes(8, 'big'))
+
+
+def _make_body_cipher(key):
+    """The AEAD carrier for hybrid-mode record bodies (see :class:`_AEADBody`)."""
+    return _AEADBody(key)
 
 
 def _record_encoder(header_cipher, key):

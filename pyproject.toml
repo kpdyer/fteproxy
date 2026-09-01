@@ -29,6 +29,7 @@ classifiers = [
 ]
 dependencies = [
     "fte>=0.4.0",
+    "cryptography>=41.0",
 ]
 
 [project.urls]

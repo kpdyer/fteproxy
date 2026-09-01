@@ -99,20 +99,6 @@ conf['runtime.fteproxy.relay.throttle'] = 0.01
 conf['runtime.fteproxy.negotiate.timeout'] = 5
 
 
-"""The maximum plaintext bytes packed into a single outgoing FTE cell.
-
-Each ``encode`` call carries a fixed per-cell cost (rank/unrank only touches
-the format's ~capacity bytes; the rest of the payload rides along as raw
-ciphertext), so throughput is set by how much plaintext each cell amortizes
-that cost over. The relay hands up to ``network_io.recvall_from_socket``'s
-``bufsize`` (2**18) of plaintext per write, so a smaller cell size merely
-re-splits one read into several encode calls. Matching the two lets a full
-read become a single cell -- ~3x single-stream bulk throughput on fast links
-with lower per-cell framing overhead, and no latency cost (a cell is still
-only ever as large as the data already available)."""
-conf['runtime.fteproxy.record_layer.max_cell_size'] = 2 ** 18
-
-
 """Record-layer framing mode.
 
 'hybrid' (the default) formats a fixed-length header per record and carries the
