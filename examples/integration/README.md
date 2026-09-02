@@ -44,7 +44,7 @@ python3 -m fteproxy --mode server --server_port 8080 --proxy_port 8888
 python3 -m fteproxy --mode client --client_port 8079 --server_ip <server-ip> --server_port 8080
 
 # Use curl with the proxy
-curl -x socks5://localhost:8079 https://example.com
+curl -x http://localhost:8079 https://example.com
 ```
 
 ## Netcat File Transfer
@@ -71,20 +71,22 @@ python3 -m fteproxy --mode client --client_port 8079 --server_ip <server-ip> --s
 cat myfile.txt | nc localhost 8079
 ```
 
-## Custom Key
+## Key
 
-For additional security, use a custom encryption key:
+The built-in default key is public (fteproxy warns at startup when it is in
+use), so always supply your own. Both sides must use the same key. Prefer
+`--key-file`, which keeps the key out of shell history and `ps` output:
 
 ```bash
 # Generate a random 64-character hex key
-KEY=$(openssl rand -hex 32)
-echo "Using key: $KEY"
+openssl rand -hex 32 > fteproxy.key
+chmod 600 fteproxy.key
 
 # Server
-python3 -m fteproxy --mode server --key $KEY --server_port 8080 --proxy_port 8081
+python3 -m fteproxy --mode server --key-file fteproxy.key --server_port 8080 --proxy_port 8081
 
-# Client (use the SAME key)
-python3 -m fteproxy --mode client --key $KEY --server_ip <server-ip> --server_port 8080
+# Client (the SAME key file)
+python3 -m fteproxy --mode client --key-file fteproxy.key --server_ip <server-ip> --server_port 8080
 ```
 
 ## Chaining with socat

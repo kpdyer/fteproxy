@@ -18,6 +18,11 @@ Traffic between client and server looks like:
 - anything you want!
 ```
 
+By default (`--record-layer-mode hybrid`) each record *starts* with a
+covertext in the chosen format and carries the rest as raw authenticated
+ciphertext. Use `--record-layer-mode format` on both endpoints to put every
+byte in the format (much slower). See the main README.
+
 ## Directory Structure
 
 ```
@@ -159,19 +164,28 @@ Shows all formats side-by-side:
 python3 comparison_demo.py
 ```
 
-Output:
+Output (the first 50 characters of each 1024-byte covertext):
 ```
 Secret message: Hello, World!
 
-Format       | Sample Output                                          
+Format       | Sample Output                                      | Status
 ----------------------------------------------------------------------
-Lowercase    | cgkotttxwgupqyhdtosnixzyooehpzlgzejthseolfvlkrwcjksxquz
-Uppercase    | CKOOJBEQIDKHJKTZFJSBNJASAQLYUSQHLWXZVAYJEXYQCQJYUFUQKFE
-Digits       | 0231945802172231145855818304822631859446838418075470674
-Hex          | 00af2703420aa54af5d8eb6214085183553156b9761d9acb6d2d334
-Words        | aamfyleiuih umiepyivwfxjnwqwnedqswfq ztpualumddmayzbziz
-Binary       | 0000000010111000100101111011110111011100000111111101001
+Lowercase    | aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa | [OK]
+Uppercase    | AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA | [OK]
+Digits       | 00000000000000000000000000000000000000000000000000 | [OK]
+Hex          | 00000000000000000000000000000000000000000000000000 | [OK]
+Words        | a a a a a a a a a a a a a a a a a a a a a a a a a  | [OK]
+Binary       | 00000000000000000000000000000000000000000000000000 | [OK]
+Base64       | ++++++++++++++++++++++++++++++++++++++++++++++++++ | [OK]
+URL Path     | /0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0/0 | [OK]
+CSV          | 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, | [OK]
 ```
+
+The leading run is the format's spare capacity: a raw libfte covertext is
+always exactly `length` bytes, and a 13-byte message only fills its tail.
+fteproxy's record layer random-pads every message to capacity, so proxied
+covertexts read as random format text end to end; see
+[`formats/README.md`](formats/README.md).
 
 ### words_demo.py
 
@@ -181,7 +195,8 @@ Encodes traffic as space-separated words:
 python3 words_demo.py
 ```
 
-Your "Secret message" becomes: `hello world foo bar qux baz...`
+Your "Secret message" becomes 256 bytes of space-separated words
+(`a a a ... a xkq mfj ...`; see the note above about the leading run).
 
 ### http_demo.py
 
@@ -191,7 +206,8 @@ Encodes traffic to look like HTTP:
 python3 http_demo.py
 ```
 
-Your "Secret message" becomes: `GET /a8Kj2mNp HTTP/1.1\r\n\r\n`
+Your "Secret message" becomes a 256-byte `GET /...0009tD5BiJuMayS7XNqfFDcgvFHK3UbyIuRDkYSpg5Y1 HTTP/1.1\r\n\r\n`
+(see the note above about the leading run).
 
 ---
 
@@ -206,11 +222,13 @@ Learn the Python API with these examples.
 Direct FTE encoding without network sockets. Perfect for understanding the basics:
 
 ```python
+import os
 import fte
 
-encoder = fte.Encoder("^[a-z]+$", 256)
-ciphertext = encoder.encode(b"Secret!")
-plaintext, _ = encoder.decode(ciphertext)
+key = os.urandom(32)  # share a real secret between endpoints
+cipher = fte.FTE(output_format=fte.RegexFormat("^[a-z]+$", length=256), key=key)
+ciphertext = cipher.encrypt(b"Secret!")   # 256 lowercase letters
+plaintext = cipher.decrypt(ciphertext)
 ```
 
 ```bash
@@ -349,7 +367,12 @@ You --> :8079 --> [FTE encode] --> :8080 --> [FTE decode] --> :8081 --> netcat
 
 ## Available Formats
 
-fteproxy includes these built-in formats:
+fteproxy includes these built-in formats. Each exists as `<name>-request`
+(client to server) and `<name>-response` (server to client) in
+`fteproxy/defs/20260110.json`; pass them to `--upstream-format` and
+`--downstream-format`. Every covertext of a format is a fixed number of bytes
+(its `length`): 256 for most, 1032 for `binary`, 312 for `ip-address` and
+`timestamp`, and between 176 and 232 for the other structured formats.
 
 | Format | Output Looks Like | Example |
 |--------|------------------|---------|

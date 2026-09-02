@@ -62,8 +62,18 @@ Even though the conversation looks normal, the actual network traffic is encoded
 
 | Direction | What You See | What's On The Wire |
 |-----------|-------------|-------------------|
-| Client -> Server | "Hi there!" | `0101101011101010110...` |
-| Server -> Client | "Hello!" | `ABBAABABBAABBABA...` |
+| Client -> Server | "Hi there!" | `0101101011101010110...` (520 bytes) + raw ciphertext |
+| Server -> Client | "Hello!" | `ABBAABABBAABBABA...` (520 bytes) + raw ciphertext |
+
+With fteproxy's default record-layer mode (`hybrid`), each record starts with
+a 520-character covertext in the format and carries the message itself as raw
+authenticated ciphertext after it. To make the whole stream binary or letters,
+select `format` mode on both sides before wrapping the socket (there is no
+`wrap_socket` argument for it):
+
+```python
+fteproxy.conf.setValue('runtime.fteproxy.record_layer.mode', 'format')
+```
 
 ## Traffic Flow
 
