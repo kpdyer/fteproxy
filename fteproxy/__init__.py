@@ -415,6 +415,20 @@ class _FTESocketWrapper(FTEHelper, object):
             while True:
                 data = self._socket.recv(bufsize)
                 noData = (data == b'')
+                if noData and self._isServer and not self._negotiationComplete:
+                    # The peer closed before a negotiation cell decoded. Nothing
+                    # more will arrive, so report EOF. Treating this as "not
+                    # ready yet" (a socket.timeout) made the relay worker poll
+                    # the closed socket forever, since recv keeps returning b''.
+                    if self._preNegotiationBuffer_incoming:
+                        fteproxy.warn(
+                            'peer closed before negotiation completed: check '
+                            'that both endpoints share the key, '
+                            '--record-layer-mode, and the same fteproxy/libfte '
+                            'line (0.4 is not wire-compatible with 0.3)')
+                    else:
+                        fteproxy.info('peer closed without sending anything')
+                    return b''
                 data = self._processRecv(data)
 
                 if noData and not self._incoming_buffer and not self._decoder._buffer:
