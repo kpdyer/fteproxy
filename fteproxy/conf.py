@@ -122,8 +122,11 @@ conf['runtime.state.upstream_language'] = 'manual-http-request'
 conf['runtime.state.downstream_language'] = 'manual-http-response'
 
 
-"""The default AE scheme key."""
-conf['runtime.fteproxy.encrypter.key'] = b'\xFF' * 16 + b'\x00' * 16
+"""The key used when neither --key nor --key-file is given. It is public (it
+is in this file), so it gives no confidentiality or integrity; fteproxy warns at
+startup when it is in use. Always supply a secret shared by both endpoints."""
+DEFAULT_KEY = b'\xFF' * 16 + b'\x00' * 16
+conf['runtime.fteproxy.encrypter.key'] = DEFAULT_KEY
 
 
 """The default length parameter to use for buildTable."""

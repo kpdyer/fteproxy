@@ -84,6 +84,34 @@ def _wrap(fake):
         negotiate=False)
 
 
+class TestServerNegotiationEOF:
+    """A server-role wrapper whose peer closes before negotiating reports EOF.
+
+    Regression test for a relay worker leak: a failed negotiation used to raise
+    ``socket.timeout`` ("not ready yet") even after the peer had closed, so the
+    worker re-polled a closed socket at the throttle rate forever. Under libfte
+    0.4 every mismatched peer (a 0.3 client, a wrong key, a wrong
+    --record-layer-mode, a port scanner) takes this path.
+    """
+
+    def _server_wrap(self, fake):
+        return fteproxy.wrap_socket(fake)  # no formats given: server role
+
+    def test_close_without_data_returns_eof(self):
+        fake = FakeSocket([])
+        assert self._server_wrap(fake).recv(65536) == b''
+        assert fake.eof_reads == 1
+
+    def test_garbage_then_close_returns_eof(self):
+        import socket
+        fake = FakeSocket([b'not a negotiation cell'])
+        wrapper = self._server_wrap(fake)
+        with pytest.raises(socket.timeout):  # cell incomplete: keep waiting
+            wrapper.recv(65536)
+        assert wrapper.recv(65536) == b''    # peer gone: EOF, not another wait
+        assert fake.eof_reads == 1
+
+
 class TestRecvEOF:
     """recv() must report EOF (return b'') once the peer has closed."""
 
