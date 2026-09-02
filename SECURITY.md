@@ -46,8 +46,10 @@ first. This section covers what fteproxy adds on top of it.
   active on-path attacker can replay a whole captured stream into a fresh
   connection, or splice record *i* of stream A into stream B. Tunnelled
   protocols with their own authentication (SSH, TLS) detect this themselves;
-  plaintext protocols do not. Closing this needs per-connection key material in
-  the negotiation and is planned as a protocol change.
+  plaintext protocols do not. Closing this would need per-connection key
+  material in the negotiation (a protocol change); the shared key is a known
+  limitation of the 0.4 line, so tunnel protocols that authenticate themselves
+  where this matters.
 
 - **What an observer sees.** In `hybrid` mode (the default) only the first
   `length` bytes of each record are in the target format; the rest of the
