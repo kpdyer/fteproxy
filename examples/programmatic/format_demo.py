@@ -5,6 +5,7 @@ FTE Format Demonstration
 Shows how the same data looks when encoded with different regex formats.
 """
 
+import os
 import sys
 import fte
 
@@ -25,7 +26,10 @@ FORMATS = {
 
 def main():
     secret = b"Secret Message!"
-    fixed_slice = 256
+    # Use a slice large enough for even the low-entropy binary format below
+    fixed_slice = 1024
+    # libfte 0.4 requires an explicit 32-byte key; one key for the whole script is fine
+    key = os.urandom(32)
     errors = 0
     
     print("=" * 70)
@@ -41,8 +45,8 @@ def main():
         print(f"   Regex: {regex}")
         
         try:
-            encoder = fte.Encoder(regex, fixed_slice)
-            ciphertext = encoder.encode(secret)
+            encoder = fte.FTE(output_format=fte.RegexFormat(regex, length=fixed_slice), key=key)
+            ciphertext = encoder.encrypt(secret)
             
             # Show first 60 chars of output
             preview = ciphertext[:60].decode('ascii', errors='ignore')
@@ -50,7 +54,7 @@ def main():
             print(f"   Length: {len(ciphertext)} bytes")
             
             # Verify roundtrip
-            decoded, _ = encoder.decode(ciphertext)
+            decoded = encoder.decrypt(ciphertext)
             if decoded != secret:
                 print(f"   [FAIL] Roundtrip failed!")
                 errors += 1

@@ -12,8 +12,6 @@ import argparse
 import threading
 import traceback
 
-import fte
-
 import fteproxy
 import fteproxy.conf
 import fteproxy.server
@@ -106,7 +104,10 @@ class FTEMain(threading.Thread):
             fteproxy.fatal_error('Invalid format name ' + stream_format)
 
         fixed_slice = fteproxy.defs.getFixedSlice(stream_format)
-        fte.Encoder(regex, fixed_slice, key)
+        # Build the engine to validate the format is usable with this key.
+        # libfte 0.4 raises FormatCapacityError here if the format is too small
+        # to carry the cipher's frame overhead.
+        fteproxy._make_cipher(regex, fixed_slice, key)
 
     def do_client(self):
 

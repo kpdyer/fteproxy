@@ -5,6 +5,7 @@ Custom Format Example
 Shows how to create your own regex format for FTE encoding.
 """
 
+import os
 import sys
 import fte
 
@@ -13,7 +14,10 @@ def main():
     print("=" * 60)
     print("CUSTOM FORMAT EXAMPLE")
     print("=" * 60)
-    
+
+    # libfte 0.4 requires an explicit 32-byte key; one key for the whole script is fine
+    key = os.urandom(32)
+
     errors = 0
     
     # Example 1: DNA sequences
@@ -21,10 +25,10 @@ def main():
     print("    Regex: ^[ACGT]+$")
     dna_regex = "^[ACGT]+$"
     try:
-        encoder = fte.Encoder(dna_regex, 256)
+        encoder = fte.FTE(output_format=fte.RegexFormat(dna_regex, length=512), key=key)
         plaintext = b"Secret genetic data"
-        ciphertext = encoder.encode(plaintext)
-        decoded, _ = encoder.decode(ciphertext)
+        ciphertext = encoder.encrypt(plaintext)
+        decoded = encoder.decrypt(ciphertext)
         print(f"    Input:  {plaintext.decode()}")
         print(f"    Output: {ciphertext[:50].decode('ascii', errors='ignore')}...")
         if decoded == plaintext:
@@ -41,10 +45,10 @@ def main():
     print("    Regex: ^[ox]+$")
     pattern_regex = "^[ox]+$"
     try:
-        encoder = fte.Encoder(pattern_regex, 256)
+        encoder = fte.FTE(output_format=fte.RegexFormat(pattern_regex, length=1024), key=key)
         plaintext = b"Hidden message"
-        ciphertext = encoder.encode(plaintext)
-        decoded, _ = encoder.decode(ciphertext)
+        ciphertext = encoder.encrypt(plaintext)
+        decoded = encoder.decrypt(ciphertext)
         print(f"    Input:  {plaintext.decode()}")
         print(f"    Output: {ciphertext[:50].decode('ascii', errors='ignore')}...")
         if decoded == plaintext:
@@ -58,13 +62,13 @@ def main():
     
     # Example 3: File extension-like
     print("\n[3] Filename Format")
-    print("    Regex: ^[a-z]+\\.[a-z]{3}$")
-    filename_regex = "^[a-z]+\\.[a-z]{3}$"
+    print("    Regex: ^[a-z]+\\.[a-z][a-z][a-z]$")
+    filename_regex = "^[a-z]+\\.[a-z][a-z][a-z]$"
     try:
-        encoder = fte.Encoder(filename_regex, 64)
+        encoder = fte.FTE(output_format=fte.RegexFormat(filename_regex, length=256), key=key)
         plaintext = b"Hi"
-        ciphertext = encoder.encode(plaintext)
-        decoded, _ = encoder.decode(ciphertext)
+        ciphertext = encoder.encrypt(plaintext)
+        decoded = encoder.decrypt(ciphertext)
         print(f"    Input:  {plaintext.decode()}")
         print(f"    Output: {ciphertext[:50].decode('ascii', errors='ignore')}...")
         if decoded == plaintext:
@@ -81,10 +85,10 @@ def main():
     print("    Regex: ^[0-9a-f][0-9a-f]+$")
     mac_regex = "^[0-9a-f][0-9a-f]+$"
     try:
-        encoder = fte.Encoder(mac_regex, 256)
+        encoder = fte.FTE(output_format=fte.RegexFormat(mac_regex, length=256), key=key)
         plaintext = b"Network data"
-        ciphertext = encoder.encode(plaintext)
-        decoded, _ = encoder.decode(ciphertext)
+        ciphertext = encoder.encrypt(plaintext)
+        decoded = encoder.decrypt(ciphertext)
         print(f"    Input:  {plaintext.decode()}")
         print(f"    Output: {ciphertext[:50].decode('ascii', errors='ignore')}...")
         if decoded == plaintext:
