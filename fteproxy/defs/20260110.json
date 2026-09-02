@@ -176,15 +176,15 @@
         "fixed_slice": 312
     },
     "manual-http-request": {
-        "regex": "^GET\\ \\/([a-zA-Z0-9\\.\\/]*) HTTP/1\\.1\\r\\n\\r\\n$"
+        "regex": "^GET\\ \\/([a-zA-Z0-9./]*) HTTP/1\\.1\\r\\n\\r\\n$"
     },
     "manual-http-response": {
-        "regex": "^HTTP/1\\.1\\ 200 OK\\r\\nContent-Type:\\ ([a-zA-Z0-9]+)\\r\\n\\r\\n\\C*$"
+        "regex": "^HTTP/1\\.1\\ 200 OK\\r\\nContent-Type:\\ ([a-zA-Z0-9]+)\\r\\n\\r\\n.*$"
     },
     "dummy-request": {
-        "regex": "^\\C+$"
+        "regex": "^.+$"
     },
     "dummy-response": {
-        "regex": "^\\C+$"
+        "regex": "^.+$"
     }
 }

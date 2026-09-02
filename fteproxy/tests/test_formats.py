@@ -413,7 +413,7 @@ class TestLegacyFormats:
         
         # Test dummy format
         regex = fteproxy.defs.getRegex('dummy-request')
-        assert regex == '^\\C+$'
+        assert regex == '^.+$'
         
         # Test manual-http-request
         regex = fteproxy.defs.getRegex('manual-http-request')
