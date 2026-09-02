@@ -26,8 +26,8 @@ FORMATS = {
 
 def main():
     secret = b"Secret Message!"
-    # Use a slice large enough for even the low-entropy binary format below
-    fixed_slice = 1024
+    # Use a length large enough for even the low-entropy binary format below
+    length = 1024
     # libfte 0.4 requires an explicit 32-byte key; one key for the whole script is fine
     key = os.urandom(32)
     errors = 0
@@ -45,8 +45,8 @@ def main():
         print(f"   Regex: {regex}")
         
         try:
-            encoder = fte.FTE(output_format=fte.RegexFormat(regex, length=fixed_slice), key=key)
-            ciphertext = encoder.encrypt(secret)
+            cipher = fte.FTE(output_format=fte.RegexFormat(regex, length=length), key=key)
+            ciphertext = cipher.encrypt(secret)
             
             # Show first 60 chars of output
             preview = ciphertext[:60].decode('ascii', errors='ignore')
@@ -54,7 +54,7 @@ def main():
             print(f"   Length: {len(ciphertext)} bytes")
             
             # Verify roundtrip
-            decoded = encoder.decrypt(ciphertext)
+            decoded = cipher.decrypt(ciphertext)
             if decoded != secret:
                 print(f"   [FAIL] Roundtrip failed!")
                 errors += 1

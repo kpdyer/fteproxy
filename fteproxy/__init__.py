@@ -14,16 +14,17 @@ import fteproxy.record_layer
 import fte
 
 
-def _make_cipher(regex, fixed_slice, key):
-    """Build a libfte 0.4 engine that hides bytes as one fixed-length covertext
-    matching ``regex``.
+def _make_cipher(pattern, length, key):
+    """Build a libfte 0.4 cipher that hides bytes as one fixed-length covertext.
 
-    This replaces libfte 0.3's ``fte.Encoder(regex, fixed_slice, key)``. The
-    engine ``encrypt``/``decrypt`` one whole covertext per call; the record
+    ``pattern`` is the regex whose language the covertext is drawn from;
+    ``length`` picks the fixed covertext length. This replaces libfte 0.3's
+    ``fte.Encoder(regex, fixed_slice, key)``. The
+    cipher ``encrypt``/``decrypt`` one whole covertext per call; the record
     layer handles stream chunking and framing on top of it.
     """
     return fte.FTE(
-        output_format=fte.RegexFormat(regex, length=fixed_slice),
+        output_format=fte.RegexFormat(pattern, length=length),
         key=key,
     )
 
@@ -155,11 +156,11 @@ class NegotiationManager(object):
                     continue
 
                 incoming_regex = fteproxy.defs.getRegex(incoming_language)
-                incoming_fixed_slice = fteproxy.defs.getFixedSlice(
+                incoming_length = fteproxy.defs.getLength(
                     incoming_language)
 
-                incoming_decoder = _make_cipher(incoming_regex, incoming_fixed_slice, self._key())
-                decoder = fteproxy.record_layer.Decoder(decoder=incoming_decoder)
+                incoming_cipher = _make_cipher(incoming_regex, incoming_length, self._key())
+                decoder = fteproxy.record_layer.Decoder(cipher=incoming_cipher)
 
                 decoder.push(data)
                 negotiate_cell = decoder.pop(oneCell=True)
@@ -172,21 +173,21 @@ class NegotiationManager(object):
         raise NegotiationFailedException()
 
     def _init_encoders(self,
-                       outgoing_regex, outgoing_fixed_slice,
-                       incoming_regex, incoming_fixed_slice):
+                       outgoing_regex, outgoing_length,
+                       incoming_regex, incoming_length):
 
         encoder = None
         decoder = None
 
         key = self._key()
 
-        if outgoing_regex != None and outgoing_fixed_slice != -1:
-            outgoing_encoder = _make_cipher(outgoing_regex, outgoing_fixed_slice, key)
-            encoder = fteproxy.record_layer.Encoder(encoder=outgoing_encoder)
+        if outgoing_regex != None and outgoing_length != -1:
+            outgoing_cipher = _make_cipher(outgoing_regex, outgoing_length, key)
+            encoder = fteproxy.record_layer.Encoder(cipher=outgoing_cipher)
 
-        if incoming_regex != None and incoming_fixed_slice != -1:
-            incoming_decoder = _make_cipher(incoming_regex, incoming_fixed_slice, key)
-            decoder = fteproxy.record_layer.Decoder(decoder=incoming_decoder)
+        if incoming_regex != None and incoming_length != -1:
+            incoming_cipher = _make_cipher(incoming_regex, incoming_length, key)
+            decoder = fteproxy.record_layer.Decoder(cipher=incoming_cipher)
 
         return [encoder, decoder]
 
@@ -202,10 +203,10 @@ class NegotiationManager(object):
         return data
 
     def makeClientNegotiationCell(self,
-                                  outgoing_regex, outgoing_fixed_slice,
-                                  incoming_regex, incoming_fixed_slice):
+                                  outgoing_regex, outgoing_length,
+                                  incoming_regex, incoming_length):
         [encoder, decoder] = self._init_encoders(
-            outgoing_regex, outgoing_fixed_slice, incoming_regex, incoming_fixed_slice)
+            outgoing_regex, outgoing_length, incoming_regex, incoming_length)
         return self._makeNegotiationCell(encoder)
 
     def doServerSideNegotiation(self, data):
@@ -217,12 +218,12 @@ class NegotiationManager(object):
         incoming_language = negotiate.getLanguage() + '-request'
 
         outgoing_regex = fteproxy.defs.getRegex(outgoing_language)
-        outgoing_fixed_slice = fteproxy.defs.getFixedSlice(outgoing_language)
+        outgoing_length = fteproxy.defs.getLength(outgoing_language)
         incoming_regex = fteproxy.defs.getRegex(incoming_language)
-        incoming_fixed_slice = fteproxy.defs.getFixedSlice(incoming_language)
+        incoming_length = fteproxy.defs.getLength(incoming_language)
 
         [encoder, decoder] = self._init_encoders(
-            outgoing_regex, outgoing_fixed_slice, incoming_regex, incoming_fixed_slice)
+            outgoing_regex, outgoing_length, incoming_regex, incoming_length)
 
         decoder.push(remaining_buffer)
 
@@ -253,14 +254,14 @@ class FTEHelper(object):
         if self._isClient and not self._negotiationComplete:
             [encoder, decoder] = self._negotiation_manager._init_encoders(
                 self._outgoing_regex,
-                self._outgoing_fixed_slice,
+                self._outgoing_length,
                 self._incoming_regex,
-                self._incoming_fixed_slice)
+                self._incoming_length)
             self._encoder = encoder
             self._decoder = decoder
             negotiation_cell = self._negotiation_manager.makeClientNegotiationCell(
-                self._outgoing_regex, self._outgoing_fixed_slice,
-                self._incoming_regex, self._incoming_fixed_slice)
+                self._outgoing_regex, self._outgoing_length,
+                self._incoming_regex, self._incoming_length)
             retval = negotiation_cell
             self._negotiationComplete = True
         return retval
@@ -269,16 +270,16 @@ class FTEHelper(object):
 class _FTESocketWrapper(FTEHelper, object):
 
     def __init__(self, _socket,
-                 outgoing_regex=None, outgoing_fixed_slice=-1,
-                 incoming_regex=None, incoming_fixed_slice=-1,
+                 outgoing_regex=None, outgoing_length=-1,
+                 incoming_regex=None, incoming_length=-1,
                  K1=None, K2=None,
                  negotiate=True):
 
         self._socket = _socket
         self._outgoing_regex = outgoing_regex
-        self._outgoing_fixed_slice = outgoing_fixed_slice
+        self._outgoing_length = outgoing_length
         self._incoming_regex = incoming_regex
-        self._incoming_fixed_slice = incoming_fixed_slice
+        self._incoming_length = incoming_length
         self._K1 = K1
         self._K2 = K2
         self._negotiate = negotiate
@@ -299,8 +300,8 @@ class _FTESocketWrapper(FTEHelper, object):
             self._isServer = False
             self._isClient = False
             [self._encoder, self._decoder] = self._negotiation_manager._init_encoders(
-                outgoing_regex, outgoing_fixed_slice,
-                incoming_regex, incoming_fixed_slice)
+                outgoing_regex, outgoing_length,
+                incoming_regex, incoming_length)
 
     def fileno(self):
         return self._socket.fileno()
@@ -393,8 +394,8 @@ class _FTESocketWrapper(FTEHelper, object):
     def accept(self):
         conn, addr = self._socket.accept()
         conn = _FTESocketWrapper(conn,
-                                 self._outgoing_regex, self._outgoing_fixed_slice,
-                                 self._incoming_regex, self._incoming_fixed_slice,
+                                 self._outgoing_regex, self._outgoing_length,
+                                 self._incoming_regex, self._incoming_length,
                                  self._K1, self._K2,
                                  self._negotiate)
 
@@ -408,17 +409,17 @@ class _FTESocketWrapper(FTEHelper, object):
 
 
 def wrap_socket(sock,
-                outgoing_regex=None, outgoing_fixed_slice=-1,
-                incoming_regex=None, incoming_fixed_slice=-1,
+                outgoing_regex=None, outgoing_length=-1,
+                incoming_regex=None, incoming_length=-1,
                 K1=None, K2=None,
                 negotiate=True):
     """``fteproxy.wrap_socket`` turns an existing socket into an fteproxy socket.
 
     The input parameter ``sock`` is the socket to wrap.
     The parameter ``outgoing_regex`` specifies the format of the messages
-    to send via the socket. The ``outgoing_fixed_slice`` parameter specifies the
+    to send via the socket. The ``outgoing_length`` parameter specifies the
     maximum length of the strings in ``outgoing_regex``.
-    The parameters ``incoming_regex`` and ``incoming_fixed_slice`` are defined
+    The parameters ``incoming_regex`` and ``incoming_length`` are defined
     similarly.
     The optional parameters ``K1`` and ``K2`` specify 128-bit keys to be used
     in FTE's underlying AE scheme. If specified, these values must be 16-byte
@@ -435,8 +436,8 @@ def wrap_socket(sock,
 
     socket_wrapped = _FTESocketWrapper(
         sock,
-        outgoing_regex, outgoing_fixed_slice,
-        incoming_regex, incoming_fixed_slice,
+        outgoing_regex, outgoing_length,
+        incoming_regex, incoming_length,
         K1, K2,
         negotiate)
     return socket_wrapped

@@ -14,12 +14,12 @@ import fte
 def main():
     # The words format: space-separated lowercase words
     regex = "^([a-z]+ )+[a-z]+$"
-    fixed_slice = 256
+    length = 256
     errors = 0
 
     # libfte 0.4 requires an explicit 32-byte key
     key = os.urandom(32)
-    encoder = fte.FTE(output_format=fte.RegexFormat(regex, length=fixed_slice), key=key)
+    cipher = fte.FTE(output_format=fte.RegexFormat(regex, length=length), key=key)
     
     messages = [
         b"Hello!",
@@ -34,7 +34,7 @@ def main():
     print("=" * 60)
     
     for msg in messages:
-        ciphertext = encoder.encrypt(msg)
+        ciphertext = cipher.encrypt(msg)
         words = ciphertext[:256].decode('ascii', errors='ignore')
         
         print(f"\nOriginal: {msg}")
@@ -45,7 +45,7 @@ def main():
         print(f"Words:    {word_count} words generated")
         
         # Verify roundtrip
-        decoded = encoder.decrypt(ciphertext)
+        decoded = cipher.decrypt(ciphertext)
         if decoded == msg:
             print("[OK] Roundtrip verified")
         else:

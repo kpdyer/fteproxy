@@ -28,10 +28,10 @@ def record_layer_pairs():
     definitions = fteproxy.defs.load_definitions()
     for language in definitions.keys():
         regex = fteproxy.defs.getRegex(language)
-        fixed_slice = fteproxy.defs.getFixedSlice(language)
-        regex_encoder = fteproxy._make_cipher(regex, fixed_slice, key)
-        encoder = fteproxy.record_layer.Encoder(encoder=regex_encoder)
-        decoder = fteproxy.record_layer.Decoder(decoder=regex_encoder)
+        length = fteproxy.defs.getLength(language)
+        cipher = fteproxy._make_cipher(regex, length, key)
+        encoder = fteproxy.record_layer.Encoder(cipher=cipher)
+        decoder = fteproxy.record_layer.Decoder(cipher=cipher)
         pairs.append((language, encoder, decoder))
     
     return pairs
@@ -98,8 +98,8 @@ class _Format:
         self.max_length = max_length
 
 
-class _RaisingDecoder:
-    """Decoder stub whose decrypt() always raises a given exception."""
+class _RaisingCipher:
+    """Cipher stub whose decrypt() always raises a given exception."""
 
     def __init__(self, exc, frame_size=4):
         self._exc = exc
@@ -109,8 +109,8 @@ class _RaisingDecoder:
         raise self._exc
 
 
-class _FixedCellDecoder:
-    """Decoder stub that decrypts a fixed-size covertext frame to itself."""
+class _FixedCellCipher:
+    """Cipher stub that decrypts a fixed-size covertext frame to itself."""
 
     def __init__(self, cell_size=4):
         self.output_format = _Format(cell_size)
@@ -132,7 +132,7 @@ class TestDecoderExceptionHandling:
         successor to 0.3's ``UnrecoverableDecryptionError``.
         """
         decoder = fteproxy.record_layer.Decoder(
-            decoder=_RaisingDecoder(fte.MessageTooLargeError("boom")))
+            cipher=_RaisingCipher(fte.MessageTooLargeError("boom")))
         decoder.push(b'some-ciphertext-bytes')
 
         with pytest.raises(SystemExit):
@@ -140,7 +140,7 @@ class TestDecoderExceptionHandling:
 
     def test_onecell_returns_exactly_one_cell(self):
         """oneCell=True returns a single decoded cell and advances the buffer."""
-        decoder = fteproxy.record_layer.Decoder(decoder=_FixedCellDecoder(4))
+        decoder = fteproxy.record_layer.Decoder(cipher=_FixedCellCipher(4))
         decoder.push(b'AAAABBBBCCCC')
 
         assert decoder.pop(oneCell=True) == b'AAAA'
@@ -148,7 +148,7 @@ class TestDecoderExceptionHandling:
 
     def test_multicell_drains_entire_buffer(self):
         """oneCell=False drains every cell from the buffer."""
-        decoder = fteproxy.record_layer.Decoder(decoder=_FixedCellDecoder(4))
+        decoder = fteproxy.record_layer.Decoder(cipher=_FixedCellCipher(4))
         decoder.push(b'AAAABBBBCCCC')
 
         assert decoder.pop() == b'AAAABBBBCCCC'

@@ -45,9 +45,9 @@ def send_file(filename: str, host: str = "127.0.0.1"):
     sock = fteproxy.wrap_socket(
         sock,
         outgoing_regex=SENDER_FORMAT,
-        outgoing_fixed_slice=256,
+        outgoing_length=256,
         incoming_regex=RECEIVER_FORMAT,
-        incoming_fixed_slice=256,
+        incoming_length=256,
         negotiate=False
     )
     
@@ -75,9 +75,9 @@ def receive_file(save_dir: str = "."):
     sock = fteproxy.wrap_socket(
         sock,
         outgoing_regex=RECEIVER_FORMAT,
-        outgoing_fixed_slice=256,
+        outgoing_length=256,
         incoming_regex=SENDER_FORMAT,
-        incoming_fixed_slice=256,
+        incoming_length=256,
         negotiate=False
     )
     

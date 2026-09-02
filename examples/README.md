@@ -123,9 +123,9 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 # Wrap it with FTE encoding
 sock = fteproxy.wrap_socket(sock,
     outgoing_regex="^[a-z]+$",      # Send as lowercase letters
-    outgoing_fixed_slice=256,
+    outgoing_length=256,
     incoming_regex="^[A-Z]+$",      # Receive as UPPERCASE
-    incoming_fixed_slice=256,
+    incoming_length=256,
     negotiate=False)
 
 # Use normally - encoding is transparent!
