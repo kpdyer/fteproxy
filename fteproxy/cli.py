@@ -290,7 +290,10 @@ def get_args():
                             'runtime.fteproxy.record_layer.mode'))
     key_group = parser.add_mutually_exclusive_group()
     key_group.add_argument('--key', action=setConfValue,
-                        help='Cryptographic key, hex, must be exactly 64 characters',
+                        help='Shared secret, hex, exactly 64 characters; must '
+                             'match on both endpoints. The built-in default '
+                             'is public and gives no protection: always '
+                             'supply your own (see --key-file).',
                         default=fteproxy.conf.getValue('runtime.fteproxy.encrypter.key'
                                                   ).hex())
     key_group.add_argument('--key-file', action=setConfValue, dest='key_file',

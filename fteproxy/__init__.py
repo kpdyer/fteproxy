@@ -47,10 +47,11 @@ def _make_cipher(pattern, length, key):
 def _hybrid_mode():
     """Whether the record layer runs in 'hybrid' (fast bulk) mode.
 
-    'format' (default) transforms every covertext byte into the target format
-    for maximum unobservability. 'hybrid' formats only a fixed-length header per
-    record and carries the body as raw authenticated bytes: much faster for
-    bulk transfer, but everything past the header looks like random data.
+    'hybrid' (the default) formats only a fixed-length header per record and
+    carries the body as raw authenticated bytes: much faster for bulk transfer,
+    but everything past the header looks like random data. 'format' (opt-in)
+    transforms every covertext byte into the target format for full-stream
+    realism. See ``runtime.fteproxy.record_layer.mode`` in ``fteproxy.conf``.
     """
     return fteproxy.conf.getValue('runtime.fteproxy.record_layer.mode') == 'hybrid'
 
@@ -526,14 +527,24 @@ def wrap_socket(sock,
 
     The input parameter ``sock`` is the socket to wrap.
     The parameter ``outgoing_regex`` specifies the format of the messages
-    to send via the socket. The ``outgoing_length`` parameter specifies the
-    maximum length of the strings in ``outgoing_regex``.
+    to send via the socket. The ``outgoing_length`` parameter is the exact
+    length, in bytes, of every formatted covertext sent (libfte 0.4 emits
+    fixed-length covertexts; the capacity of one covertext follows from the
+    pattern and the length, and building the cipher raises
+    ``fte.FormatCapacityError`` if the format cannot hold even an empty
+    message at that length).
     The parameters ``incoming_regex`` and ``incoming_length`` are defined
     similarly.
     The optional parameters ``K1`` and ``K2`` specify 128-bit keys to be used
     in FTE's underlying AE scheme. If specified, these values must be 16-byte
-    strings.
-    
+    strings. If omitted, the key from ``fteproxy.conf`` is used, which is the
+    public built-in default unless the application has set
+    ``runtime.fteproxy.encrypter.key``; always share a secret key.
+
+    The record-layer mode (``hybrid`` or ``format``) comes from
+    ``runtime.fteproxy.record_layer.mode`` in ``fteproxy.conf`` and must be the
+    same on both endpoints.
+
     The ``negotiate`` parameter controls whether the client sends a negotiation
     cell to establish the format. Set to ``False`` when both sides already know
     the formats (e.g., in symmetric client/server examples). Default is ``True``

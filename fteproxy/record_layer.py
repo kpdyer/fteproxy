@@ -1,7 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""The record layer: frames a byte stream as a sequence of libfte covertexts.
 
+libfte 0.4 encrypts one message into exactly one fixed-length covertext and
+has no stream framing of its own, so this module defines the wire layout.
+Every record starts with a *sealed* covertext of exactly ``length`` bytes (the
+format's fixed covertext length): its plaintext is
+``len(4) || seq(8) || message || random pad`` filled to the format's capacity,
+so it reads as random format text and only unseals at stream position
+``seq``. The two modes differ in what the sealed covertext carries:
 
+``format``
+    The message itself. The stream is a sequence of covertexts, all in the
+    target format.
+
+``hybrid`` (the default)
+    A 4-byte body length, followed on the wire by that many raw bytes:
+    ``nonce(12) || AES-128-CTR ciphertext || HMAC-SHA256 tag(16)`` from
+    :class:`fteproxy._AEADBody`, with ``seq`` bound into the tag. Only the
+    header blends in with the format; the body is high-entropy ciphertext.
+
+``seq`` is the record's position in its stream, counted from 0 by each
+``Encoder``/``Decoder`` pair, so a record moved, replayed, or dropped within
+a stream is rejected. See SECURITY.md for what is not covered.
+"""
 
 import os
 import struct
