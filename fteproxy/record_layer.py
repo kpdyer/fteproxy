@@ -7,6 +7,7 @@ import os
 import struct
 
 import fte
+from cryptography.exceptions import InvalidTag
 
 import fteproxy.conf
 
@@ -62,11 +63,12 @@ class Encoder:
             self._capacity = cipher.max_plaintext_bytes - _LEN.size
         else:
             # 'hybrid' mode: a sealed FTE header (carrying the body length)
-            # followed by the raw BytesFormat body. Chunk by the body's capacity,
-            # far larger than a covertext's, so bulk data pays the DFA cost once
-            # per record instead of once per ~150 bytes.
+            # followed by the raw authenticated body. Chunk by the body's capacity, far
+            # larger than a covertext's, so bulk data pays the DFA cost once per
+            # record instead of once per ~150 bytes.
             self._capacity = body_cipher.max_plaintext_bytes
         self._buffer = b''
+        self._seq = 0
 
     def push(self, data):
         """Push data onto the FIFO buffer."""
@@ -93,7 +95,8 @@ class Encoder:
             if self._body_cipher is None:
                 records.append(_seal(self._cipher, chunk))
             else:
-                body = self._body_cipher.encrypt(chunk)
+                body = self._body_cipher.encrypt(chunk, self._seq)
+                self._seq += 1
                 header = _seal(self._cipher, _OVERFLOW_LEN.pack(len(body)))
                 records.append(header + body)
 
@@ -118,6 +121,7 @@ class Decoder:
         # Either way a trailing partial record stays buffered.
         self._frame_size = cipher.output_format.max_length
         self._buffer = b''
+        self._seq = 0
 
     def push(self, data):
         """Push data onto the FIFO buffer."""
@@ -190,9 +194,16 @@ class Decoder:
                 if len(buffer) - body_start < body_len:
                     break  # body not fully arrived; wait for more data
                 body = buffer[body_start:body_start + body_len]
-                msg = self._decrypt(self._body_cipher, body)
-                if msg is None:
+                try:
+                    msg = self._body_cipher.decrypt(body, self._seq)
+                except InvalidTag:
+                    # Wrong key, corruption, or a record out of its stream
+                    # position (reorder/drop/replay). Stop draining.
+                    fteproxy.info(
+                        "fteproxy.record_layer: body auth failed at seq "
+                        + str(self._seq))
                     break
+                self._seq += 1
                 messages.append(msg)
                 offset = body_start + body_len
 
