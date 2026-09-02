@@ -52,9 +52,12 @@ class _AEADBody:
     Matches libfte's AE construction (the FTE paper's CTR+HMAC). Under
     fteproxy's static shared key, Encrypt-then-MAC means a nonce collision costs
     only the confidentiality of the colliding pair, never authenticity. Each
-    record binds its sequence number into the MAC, so a reordered, dropped, or
-    replayed record fails authentication. The encryption and MAC subkeys are derived from
-    a distinct namespace, independent of the header cipher's key. libfte does the
+    record binds its sequence number into the MAC, so a record reordered,
+    dropped, or replayed within its stream fails authentication. The key is
+    shared by every connection and both directions, so a record replayed at the
+    same position of another stream is not detected (see SECURITY.md). The
+    encryption and MAC subkeys are derived from a distinct namespace,
+    domain-separated from the header cipher's key. libfte does the
     same construction for the formatted header; this is the raw-body counterpart
     the FTE paper appended as unformatted ciphertext.
     """
@@ -64,6 +67,9 @@ class _AEADBody:
     # Largest body a single record carries. Bounds memory and amortizes the one
     # formatted header per record over a large payload.
     max_plaintext_bytes = 2 ** 20
+    # Largest framed body (nonce || ciphertext || tag) a header may announce;
+    # the decoder refuses to buffer more than this for one record.
+    max_framed_bytes = max_plaintext_bytes + _NONCE + _TAG
 
     def __init__(self, key):
         self._enc_key = hashlib.sha256(key + b'fteproxy/record-layer/body/enc/v3').digest()[:16]

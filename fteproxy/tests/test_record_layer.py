@@ -113,13 +113,17 @@ class _RaisingCipher:
 
 class _FixedCellCipher:
     """Cipher stub for a fixed-size covertext frame. Its plaintext seals the
-    covertext bytes so the Decoder's unseal step recovers them."""
+    covertext bytes (length, then the stream position it is decrypted at) so
+    the Decoder's unseal step recovers them."""
 
     def __init__(self, cell_size=4):
         self.output_format = _Format(cell_size)
+        self._seq = 0
 
     def decrypt(self, covertext):
-        return struct.pack('>I', len(covertext)) + covertext
+        sealed = struct.pack('>IQ', len(covertext), self._seq) + covertext
+        self._seq += 1
+        return sealed
 
 
 class TestDecoderExceptionHandling:
@@ -131,11 +135,12 @@ class TestDecoderExceptionHandling:
         ``fatal_error()`` raises ``SystemExit``; a ``break`` in a ``finally``
         block swallows it and lets pop() return normally, silently discarding a
         fatal condition. With ``oneCell=True`` (the negotiation path) the error
-        must still propagate. ``fte.MessageTooLargeError`` is the libfte 0.4
-        successor to 0.3's ``UnrecoverableDecryptionError``.
+        must still propagate. ``fte.FormatContractError`` (a broken format
+        provider) is the condition that keeps libfte 0.3's
+        ``UnrecoverableDecryptionError`` semantics under 0.4.
         """
         decoder = fteproxy.record_layer.Decoder(
-            cipher=_RaisingCipher(fte.MessageTooLargeError("boom")))
+            cipher=_RaisingCipher(fte.FormatContractError("boom")))
         decoder.push(b'some-ciphertext-bytes')
 
         with pytest.raises(SystemExit):
@@ -212,6 +217,17 @@ class TestHybridRecordLayer:
             out += decoder.pop()
         assert out == payload
 
+    def test_oversized_body_length_is_rejected(self, capsys):
+        """A header announcing a body larger than any record can carry is
+        refused instead of buffering up to 4 GiB waiting for it."""
+        encoder, decoder = self._pair()
+        header = fteproxy.record_layer._seal(
+            encoder._cipher, fteproxy.record_layer._OVERFLOW_LEN.pack(2 ** 32 - 1), 0)
+        decoder.push(header + b'x' * 64)
+        assert decoder.pop() == b''
+        assert 'exceeds the record limit' in capsys.readouterr().out
+        assert len(decoder._buffer) == len(header) + 64
+
     def test_reordered_record_is_rejected(self):
         """A record moved out of its stream position fails the body auth."""
         encoder, _ = self._pair()
@@ -228,6 +244,43 @@ class TestHybridRecordLayer:
         d2 = self._pair()[1]
         d2.push(r1 + r0)
         assert d2.pop() == b''
+
+
+class TestFormatModeRecordLayer:
+    """'format' mode: one sealed covertext per record, stamped with its position."""
+
+    def _pair(self, language='manual-http-request'):
+        fteproxy.conf.setValue('runtime.mode', 'client')
+        key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+        cipher = fteproxy._make_cipher(
+            fteproxy.defs.getRegex(language), fteproxy.defs.getLength(language), key)
+        return (fteproxy.record_layer.Encoder(cipher=cipher),
+                fteproxy.record_layer.Decoder(cipher=cipher))
+
+    def test_reordered_or_replayed_record_is_rejected(self):
+        encoder, _ = self._pair()
+        encoder.push(b'first'); r0 = encoder.pop()    # seq 0
+        encoder.push(b'second'); r1 = encoder.pop()   # seq 1
+
+        d = self._pair()[1]
+        d.push(r0 + r1)
+        assert d.pop() == b'firstsecond'
+
+        swapped = self._pair()[1]
+        swapped.push(r1 + r0)
+        assert swapped.pop() == b''
+
+        replayed = self._pair()[1]
+        replayed.push(r0 + r0)
+        assert replayed.pop() == b'first'          # the replay is refused
+        assert replayed._buffer == r0
+
+    def test_multi_record_message_roundtrips(self):
+        encoder, decoder = self._pair()
+        payload = bytes(range(256)) * 8            # several records
+        encoder.push(payload)
+        decoder.push(encoder.pop())
+        assert decoder.pop() == payload
 
 
 def test_seal_fills_covertext_with_random_not_padding():

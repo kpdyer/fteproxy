@@ -14,13 +14,19 @@ import fteproxy.conf
 
 # Length prefix inside a sealed (random-padded) covertext plaintext.
 _LEN = struct.Struct('>I')
+# Sequence number inside a sealed covertext plaintext: the record's position in
+# its stream. A sealed covertext therefore only unseals at that position, so a
+# reordered, replayed, or dropped record is rejected in both modes (in hybrid
+# mode the body MAC binds the same number).
+_SEQ = struct.Struct('>Q')
+_SEAL_OVERHEAD = _LEN.size + _SEQ.size
 # Hybrid-mode header payload: the length of the raw body that follows it.
 _OVERFLOW_LEN = struct.Struct('>I')
 
 
-def _seal(cipher, message):
+def _seal(cipher, message, seq):
     """Encrypt ``message`` into one covertext, random-padded to the format's
-    full plaintext capacity.
+    full plaintext capacity and stamped with its stream position ``seq``.
 
     A short message otherwise ranks low and unranks into a covertext with a long
     run of the format's lowest character (the ``GET /0000...`` padding). Filling
@@ -30,21 +36,24 @@ def _seal(cipher, message):
     costs nothing on the wire (the covertext is a fixed length either way) and
     reveals nothing.
     """
-    plaintext = _LEN.pack(len(message)) + message
+    plaintext = _LEN.pack(len(message)) + _SEQ.pack(seq) + message
     pad = cipher.max_plaintext_bytes - len(plaintext)
     if pad > 0:
         plaintext += os.urandom(pad)
     return cipher.encrypt(plaintext)
 
 
-def _unseal(plaintext):
-    """Recover the message from a sealed plaintext, or ``None`` if it is malformed."""
-    if len(plaintext) < _LEN.size:
+def _unseal(plaintext, seq):
+    """Recover the message from a sealed plaintext, or ``None`` if it is
+    malformed or was sealed at a stream position other than ``seq``."""
+    if len(plaintext) < _SEAL_OVERHEAD:
         return None
-    length = _LEN.unpack(plaintext[:_LEN.size])[0]
-    if length > len(plaintext) - _LEN.size:
+    length = _LEN.unpack_from(plaintext)[0]
+    if _SEQ.unpack_from(plaintext, _LEN.size)[0] != seq:
         return None
-    return plaintext[_LEN.size:_LEN.size + length]
+    if length > len(plaintext) - _SEAL_OVERHEAD:
+        return None
+    return plaintext[_SEAL_OVERHEAD:_SEAL_OVERHEAD + length]
 
 
 class Encoder:
@@ -58,9 +67,9 @@ class Encoder:
         self._body_cipher = body_cipher
         if body_cipher is None:
             # 'format' mode: one sealed covertext per chunk. Reserve the length
-            # prefix; the rest of the covertext capacity is real payload, random-
-            # padded when the payload does not fill it.
-            self._capacity = cipher.max_plaintext_bytes - _LEN.size
+            # prefix and sequence number; the rest of the covertext capacity is
+            # real payload, random-padded when the payload does not fill it.
+            self._capacity = cipher.max_plaintext_bytes - _SEAL_OVERHEAD
         else:
             # 'hybrid' mode: a sealed FTE header (carrying the body length)
             # followed by the raw authenticated body. Chunk by the body's capacity, far
@@ -93,12 +102,12 @@ class Encoder:
         for offset in range(0, len(buffer), self._capacity):
             chunk = buffer[offset:offset + self._capacity]
             if self._body_cipher is None:
-                records.append(_seal(self._cipher, chunk))
+                records.append(_seal(self._cipher, chunk, self._seq))
             else:
                 body = self._body_cipher.encrypt(chunk, self._seq)
-                self._seq += 1
-                header = _seal(self._cipher, _OVERFLOW_LEN.pack(len(body)))
+                header = _seal(self._cipher, _OVERFLOW_LEN.pack(len(body)), self._seq)
                 records.append(header + body)
+            self._seq += 1
 
         self._buffer = b''
         return b''.join(records)
@@ -137,12 +146,14 @@ class Decoder:
         """
         try:
             return cipher.decrypt(covertext)
-        except fte.MessageTooLargeError as e:
-            # A complete, authenticating frame that claims a plaintext the format
-            # cannot hold has no recoverable interpretation. This is the
-            # successor to libfte 0.3's UnrecoverableDecryptionError, so keep the
-            # fatal semantics.
-            fteproxy.fatal_error("fteproxy.record_layer.MessageTooLargeError: "+str(e))
+        except fte.FormatContractError as e:
+            # The format provider broke the RankedFormat contract: a bug in the
+            # format, not bad input, so no frame can be trusted. Keep libfte
+            # 0.3's UnrecoverableDecryptionError semantics and stop the process.
+            # (In 0.4, decrypt never raises MessageTooLargeError; that is an
+            # encrypt-side limit. A corrupt or oversized covertext is the
+            # InvalidCovertextError below.)
+            fteproxy.fatal_error("fteproxy.record_layer.FormatContractError: "+str(e))
             # exit
         except fte.InvalidCovertextError as e:
             # A corrupt, wrong-format, or failed-MAC frame. The negotiation scan
@@ -169,17 +180,21 @@ class Decoder:
             head = self._decrypt(self._cipher, header)
             if head is None:
                 break
-            head = _unseal(head)
+            head = _unseal(head, self._seq)
             if head is None:
-                # Authenticated but not a sealed record: a peer on a different
-                # mode, or corruption. Treat it as undecodable.
-                fteproxy.info("fteproxy.record_layer: malformed sealed header")
+                # Authenticated but not a sealed record at this stream position:
+                # a peer on a different mode, corruption, or a record replayed,
+                # reordered, or dropped. Treat it as undecodable.
+                fteproxy.info(
+                    "fteproxy.record_layer: malformed or out-of-order sealed "
+                    "record at seq " + str(self._seq))
                 break
 
             if self._body_cipher is None:
                 # 'format' mode: the sealed covertext carried the message.
                 messages.append(head)
                 offset += self._frame_size
+                self._seq += 1
             else:
                 # 'hybrid' mode: the header carries the raw body's length. The
                 # header is authenticated, so a successful decrypt means we wrote
@@ -190,6 +205,13 @@ class Decoder:
                         + str(len(head)))
                     break
                 body_len = _OVERFLOW_LEN.unpack(head)[0]
+                if body_len > self._body_cipher.max_framed_bytes:
+                    # The header authenticates, so only a key holder can send
+                    # this, but never buffer up to 4 GiB on its say-so.
+                    fteproxy.info(
+                        "fteproxy.record_layer: body length " + str(body_len)
+                        + " exceeds the record limit")
+                    break
                 body_start = offset + self._frame_size
                 if len(buffer) - body_start < body_len:
                     break  # body not fully arrived; wait for more data
