@@ -19,13 +19,34 @@ jobs:
       !github.event.pull_request.draft
     runs-on: ubuntu-latest
     steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Only patch and minor bumps are approved and merged unattended. A major
+      # bump can change a package's or an action's behaviour, a bump of the
+      # fte line is a wire-format change (see dependabot.yml), and
+      # pypa/gh-action-pypi-publish receives the PyPI trusted-publishing OIDC
+      # token and is never exercised by CI, so those need a human review.
       - name: Approve pull request
+        if: >-
+          (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor') &&
+          !contains(steps.metadata.outputs.dependency-names, 'fte') &&
+          !contains(steps.metadata.outputs.dependency-names, 'pypa/gh-action-pypi-publish')
         run: gh pr review --approve "$PR_URL"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
 
       - name: Enable auto-merge
+        if: >-
+          (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-minor') &&
+          !contains(steps.metadata.outputs.dependency-names, 'fte') &&
+          !contains(steps.metadata.outputs.dependency-names, 'pypa/gh-action-pypi-publish')
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
