@@ -217,6 +217,33 @@ class TestHybridRecordLayer:
             out += decoder.pop()
         assert out == payload
 
+    def test_pending_header_is_decrypted_once(self):
+        """A header whose body arrives over several reads is ranked and
+        verified once, not once per partial delivery."""
+        encoder, decoder = self._pair()
+        real = decoder._cipher
+        calls = []
+
+        class Counting:
+            output_format = real.output_format
+            max_plaintext_bytes = real.max_plaintext_bytes
+
+            def decrypt(self, covertext):
+                calls.append(1)
+                return real.decrypt(covertext)
+
+        decoder._cipher = Counting()
+        encoder.push(b'Q' * 5000)
+        wire = encoder.pop()                     # 256-byte header + 5028-byte body
+        decoder.push(wire[:300]); assert decoder.pop() == b''
+        decoder.push(wire[300:600]); assert decoder.pop() == b''
+        decoder.push(wire[600:]); assert decoder.pop() == b'Q' * 5000
+        assert len(calls) == 1
+        # And the next record is decrypted afresh.
+        encoder.push(b'R' * 10); decoder.push(encoder.pop())
+        assert decoder.pop() == b'R' * 10
+        assert len(calls) == 2
+
     def test_oversized_body_length_is_rejected(self, capsys):
         """A header announcing a body larger than any record can carry is
         refused instead of buffering up to 4 GiB waiting for it."""
