@@ -113,6 +113,7 @@ class FTEMain(threading.Thread):
 
         FTEMain.init_cipher(self, self._args.downstream_format)
         FTEMain.init_cipher(self, self._args.upstream_format)
+        warn_if_default_key()
 
         if not self._args.quiet:
             print('Client ready!')
@@ -127,6 +128,7 @@ class FTEMain(threading.Thread):
         languages = fteproxy.defs.load_definitions()
         for language in languages.keys():
             FTEMain.init_cipher(self, language)
+        warn_if_default_key()
 
         self._server = FTEMain.init_listener(self, 'server')
         self._server.daemon = True
@@ -141,6 +143,18 @@ def get_pid_file():
                               '.' + fteproxy.conf.getValue('runtime.mode')
                             + '-' + str(os.getpid()) + '.pid')
     return pid_file
+
+
+def warn_if_default_key():
+    """Warn when the built-in default key is in use.
+
+    libfte 0.4 requires a key, and fteproxy falls back to the constant in
+    ``fteproxy.conf`` when neither ``--key`` nor ``--key-file`` is given. That
+    key is public, so anyone can read and forge the tunnel's traffic.
+    """
+    if fteproxy.conf.getValue('runtime.fteproxy.encrypter.key') == fteproxy.conf.DEFAULT_KEY:
+        fteproxy.warn('using the built-in default key, which is public: pass '
+                      '--key or --key-file with a secret shared by both endpoints')
 
 
 def parse_hex_key(hex_key):

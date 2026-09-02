@@ -204,6 +204,21 @@ class TestWrapSocket:
         assert received_data[0] == test_data
         assert echo_data == test_data
 
+    def test_default_key_warns(self, capsys):
+        """Starting with the public built-in key prints a warning; a real key does not."""
+        import fteproxy.cli
+        key = 'runtime.fteproxy.encrypter.key'
+        prev = fteproxy.conf.getValue(key)
+        try:
+            fteproxy.conf.setValue(key, fteproxy.conf.DEFAULT_KEY)
+            fteproxy.cli.warn_if_default_key()
+            assert 'default key' in capsys.readouterr().out
+            fteproxy.conf.setValue(key, bytes(range(32)))
+            fteproxy.cli.warn_if_default_key()
+            assert capsys.readouterr().out == ''
+        finally:
+            fteproxy.conf.setValue(key, prev)
+
     @pytest.mark.parametrize("mode", ["format", "hybrid"])
     def test_wrap_socket_bulk_end_to_end(self, mode):
         """Full negotiation + bulk transfer, in each record-layer mode."""
