@@ -62,8 +62,8 @@ def main():
     
     # Example 3: File extension-like
     print("\n[3] Filename Format")
-    print("    Regex: ^[a-z]+\\.[a-z]{3}$")
-    filename_regex = "^[a-z]+\\.[a-z]{3}$"
+    print("    Regex: ^[a-z]+\\.[a-z][a-z][a-z]$")
+    filename_regex = "^[a-z]+\\.[a-z][a-z][a-z]$"
     try:
         encoder = fte.FTE(output_format=fte.RegexFormat(filename_regex, length=256), key=key)
         plaintext = b"Hi"
