@@ -204,6 +204,14 @@ class TestWrapSocket:
         assert received_data[0] == test_data
         assert echo_data == test_data
 
+    def test_make_cipher_is_cached(self):
+        """One cipher per (pattern, length, key); libfte 0.4 does not cache DFAs."""
+        key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+        a = fteproxy._make_cipher('^[a-z]+$', 64, key)
+        assert fteproxy._make_cipher('^[a-z]+$', 64, key) is a
+        assert fteproxy._make_cipher('^[a-z]+$', 96, key) is not a
+        assert fteproxy._make_cipher('^[a-z]+$', 64, bytes(range(32))) is not a
+
     def test_default_key_warns(self, capsys):
         """Starting with the public built-in key prints a warning; a real key does not."""
         import fteproxy.cli
