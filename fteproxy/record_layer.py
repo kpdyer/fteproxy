@@ -20,9 +20,20 @@ so it reads as random format text and only unseals at stream position
     :class:`fteproxy._AEADBody`, with ``seq`` bound into the tag. Only the
     header blends in with the format; the body is high-entropy ciphertext.
 
+The message itself begins with a one-byte record type (:data:`DATA` and the
+other constants below), so one connection carries application bytes, stream
+control and future padding without a second framing layer. In ``format`` mode
+that byte is the first byte inside the sealed covertext; in ``hybrid`` mode it
+is the first byte of the raw body. Either way the sealed ``len`` and ``seq``
+fields are unchanged, so chunking, buffering and the body-length bound are the
+same as they were before types existed.
+
 ``seq`` is the record's position in its stream, counted from 0 by each
 ``Encoder``/``Decoder`` pair, so a record moved, replayed, or dropped within
-a stream is rejected. See SECURITY.md for what is not covered.
+a stream is rejected. Since 0.4 each direction of a connection has its own
+header and body keys, derived per connection by :mod:`fteproxy.handshake`, so
+a record cannot be replayed into another stream or the other direction either.
+See SECURITY.md for what is not covered.
 """
 
 import os
@@ -34,6 +45,19 @@ from cryptography.exceptions import InvalidTag
 import fteproxy.conf
 
 
+#: Application bytes.
+DATA = 0x00
+#: Open a stream to the destination in the payload (see ``fteproxy.stream``).
+OPEN = 0x01
+#: The status of an :data:`OPEN`.
+OPEN_RESULT = 0x02
+#: Ignored on receipt; reserved for traffic shaping.
+PADDING = 0x03
+#: The sender will send no more :data:`DATA` on this connection.
+CLOSE = 0x04
+
+RECORD_TYPES = frozenset((DATA, OPEN, OPEN_RESULT, PADDING, CLOSE))
+
 # Length prefix inside a sealed (random-padded) covertext plaintext.
 _LEN = struct.Struct('>I')
 # Sequence number inside a sealed covertext plaintext: the record's position in
@@ -42,8 +66,19 @@ _LEN = struct.Struct('>I')
 # mode the body MAC binds the same number).
 _SEQ = struct.Struct('>Q')
 _SEAL_OVERHEAD = _LEN.size + _SEQ.size
+# The record type byte that leads every message.
+_TYPE_LEN = 1
 # Hybrid-mode header payload: the length of the raw body that follows it.
 _OVERFLOW_LEN = struct.Struct('>I')
+
+
+class UnknownRecordType(Exception):
+    """An authenticated record whose type this version does not define.
+
+    Only a peer holding the session keys can produce one, so this is a version
+    mismatch rather than an attack, and the connection is closed: continuing
+    would mean guessing at the meaning of the bytes that follow.
+    """
 
 
 def _seal(cipher, message, seq):
@@ -89,17 +124,51 @@ class Encoder:
         self._body_cipher = body_cipher
         if body_cipher is None:
             # 'format' mode: one sealed covertext per chunk. Reserve the length
-            # prefix and sequence number; the rest of the covertext capacity is
-            # real payload, random-padded when the payload does not fill it.
-            self._capacity = cipher.max_plaintext_bytes - _SEAL_OVERHEAD
+            # prefix, sequence number and record type; the rest of the covertext
+            # capacity is real payload, random-padded when the payload does not
+            # fill it.
+            self._capacity = (cipher.max_plaintext_bytes
+                              - _SEAL_OVERHEAD - _TYPE_LEN)
         else:
             # 'hybrid' mode: a sealed FTE header (carrying the body length)
             # followed by the raw authenticated body. Chunk by the body's capacity, far
             # larger than a covertext's, so bulk data pays the DFA cost once per
-            # record instead of once per ~150 bytes.
+            # record instead of once per ~150 bytes. The type byte rides on top
+            # of the body rather than coming out of the payload, so the chunk
+            # boundaries are exactly where they were before types existed.
             self._capacity = body_cipher.max_plaintext_bytes
+        if self._capacity < 1:
+            raise ValueError('format is too small to carry a record')
         self._buffer = b''
         self._seq = 0
+
+    @property
+    def capacity(self):
+        """The largest payload one record of this stream can carry."""
+        return self._capacity
+
+    def _emit(self, record_type, payload):
+        """One complete record on the wire, advancing the stream position."""
+        message = bytes((record_type,)) + payload
+        if self._body_cipher is None:
+            record = _seal(self._cipher, message, self._seq)
+        else:
+            body = self._body_cipher.encrypt(message, self._seq)
+            record = (_seal(self._cipher, _OVERFLOW_LEN.pack(len(body)),
+                            self._seq)
+                      + body)
+        self._seq += 1
+        return record
+
+    def encode(self, record_type, payload=b''):
+        """Encode one record of any type. Control messages go out this way;
+        :meth:`pop` is the bulk path for :data:`DATA`."""
+        if record_type not in RECORD_TYPES:
+            raise ValueError('unknown record type: %r' % (record_type,))
+        if len(payload) > self._capacity:
+            raise ValueError('payload of %d bytes exceeds the %d-byte record '
+                             'capacity' % (len(payload), self._capacity))
+        return self._emit(record_type, payload)
 
     def push(self, data):
         """Push data onto the FIFO buffer."""
@@ -109,8 +178,8 @@ class Encoder:
 
     def pop(self):
         """Pop the whole buffer, sliced into capacity-sized chunks and encrypted
-        into one record each with the ``cipher`` (and, in hybrid mode, the
-        ``body_cipher``) from ``__init__``.
+        into one :data:`DATA` record each with the ``cipher`` (and, in hybrid
+        mode, the ``body_cipher``) from ``__init__``.
         """
         buffer = self._buffer
         if not buffer:
@@ -122,14 +191,8 @@ class Encoder:
         # iteration, making a single large ``push`` quadratic.
         records = []
         for offset in range(0, len(buffer), self._capacity):
-            chunk = buffer[offset:offset + self._capacity]
-            if self._body_cipher is None:
-                records.append(_seal(self._cipher, chunk, self._seq))
-            else:
-                body = self._body_cipher.encrypt(chunk, self._seq)
-                header = _seal(self._cipher, _OVERFLOW_LEN.pack(len(body)), self._seq)
-                records.append(header + body)
-            self._seq += 1
+            records.append(
+                self._emit(DATA, buffer[offset:offset + self._capacity]))
 
         self._buffer = b''
         return b''.join(records)
@@ -182,26 +245,44 @@ class Decoder:
             fteproxy.fatal_error("fteproxy.record_layer.FormatContractError: "+str(e))
             # exit
         except fte.InvalidCovertextError as e:
-            # A corrupt, wrong-format, or failed-MAC frame. The negotiation scan
-            # relies on this to fall through to the next candidate format.
-            fteproxy.info("fteproxy.record_layer.InvalidCovertextError: "+str(e))
+            # A corrupt, wrong-format, or failed-MAC frame. The server's
+            # first-record scan relies on this to fall through to the next
+            # candidate format.
+            fteproxy.debug("fteproxy.record_layer.InvalidCovertextError: "+str(e))
             return None
         except fte.FTEError as e:
             fteproxy.warn("fteproxy.record_layer exception: "+str(e))
             return None
 
-    def pop(self, oneCell=False):
-        """Pop decrypted messages off the FIFO buffer, one record at a time."""
+    @staticmethod
+    def _split_type(message):
+        """``type || payload`` -> ``(type, payload)``, checking the type."""
+        if not message:
+            raise UnknownRecordType('empty record')
+        record_type = message[0]
+        if record_type not in RECORD_TYPES:
+            raise UnknownRecordType('record type 0x%02x' % record_type)
+        return record_type, message[1:]
 
-        # Consume whole records from a local buffer and join the messages once at
-        # the end; ``+= msg`` per record would be quadratic. ``self._buffer`` is
-        # written back once, and the offset never advances past a record that
-        # cannot (yet) be decoded, so the undecodable remainder is preserved.
+    def pop_records(self, limit=None):
+        """Pop decoded records off the FIFO buffer as ``(type, payload)``.
+
+        Stops at ``limit`` records, or when the next record is incomplete or
+        undecodable. Raises :class:`UnknownRecordType` for an authenticated
+        record this version does not define; the caller closes the connection.
+        """
+
+        # Consume whole records from a local buffer and collect the messages,
+        # writing ``self._buffer`` back once. The offset never advances past a
+        # record that cannot (yet) be decoded, so the undecodable remainder is
+        # preserved.
         buffer = self._buffer
-        messages = []
+        records = []
         offset = 0
 
         while len(buffer) - offset >= self._frame_size:
+            if limit is not None and len(records) >= limit:
+                break
             if self._body_cipher is not None and self._pending_body_len is not None:
                 # The header at the front of the buffer was decrypted and
                 # verified on an earlier pop whose body had not fully arrived.
@@ -219,25 +300,23 @@ class Decoder:
                     # position: a peer on a different mode, corruption, or a
                     # record replayed, reordered, or dropped. Treat it as
                     # undecodable.
-                    fteproxy.info(
+                    fteproxy.debug(
                         "fteproxy.record_layer: malformed or out-of-order sealed "
                         "record at seq " + str(self._seq))
                     break
 
                 if self._body_cipher is None:
                     # 'format' mode: the sealed covertext carried the message.
-                    messages.append(head)
-                    offset += self._frame_size
                     self._seq += 1
-                    if oneCell:
-                        break
+                    offset += self._frame_size
+                    records.append(self._split_type(head))
                     continue
 
                 # 'hybrid' mode: the header carries the raw body's length. The
                 # header is authenticated, so a successful decrypt means we
                 # wrote it and the length is trustworthy.
                 if len(head) != _OVERFLOW_LEN.size:
-                    fteproxy.info(
+                    fteproxy.debug(
                         "fteproxy.record_layer: unexpected header width "
                         + str(len(head)))
                     break
@@ -259,24 +338,32 @@ class Decoder:
             self._pending_body_len = None
             body = buffer[body_start:body_start + body_len]
             try:
-                msg = self._body_cipher.decrypt(body, self._seq)
+                message = self._body_cipher.decrypt(body, self._seq)
             except InvalidTag:
                 # Wrong key, corruption, or a record out of its stream
                 # position (reorder/drop/replay). Stop draining.
-                fteproxy.info(
+                fteproxy.debug(
                     "fteproxy.record_layer: body auth failed at seq "
                     + str(self._seq))
                 break
             self._seq += 1
-            messages.append(msg)
             offset = body_start + body_len
-
-            # Stop after a single record only once one decoded successfully. This
-            # must live here, not in a ``finally``: a ``break`` in ``finally``
-            # swallows any in-flight exception (including the SystemExit raised by
-            # ``fatal_error``), silently turning a fatal condition into a return.
-            if oneCell:
-                break
+            records.append(self._split_type(message))
 
         self._buffer = buffer[offset:]
-        return b''.join(messages)
+        return records
+
+    def pop(self, limit=None):
+        """The :data:`DATA` payloads from :meth:`pop_records`, concatenated.
+
+        For callers that carry nothing but application bytes. A control record
+        raises, because silently dropping one would lose a stream's OPEN or its
+        half-close.
+        """
+        records = self.pop_records(limit=limit)
+        for record_type, _payload in records:
+            if record_type != DATA:
+                raise UnknownRecordType(
+                    'unexpected control record 0x%02x on a data-only stream'
+                    % record_type)
+        return b''.join(payload for _type, payload in records)

@@ -4,15 +4,21 @@ FTE-Powered Echo Client
 
 Connects to the FTE echo server and sends a message.
 The transmitted data looks like space-separated words to any observer.
+
+The client picks the format; the server follows. All it needs of the server
+is the server-id below.
 """
 
 import sys
 import socket
 import fteproxy
 
-# Must match the server's formats (but reversed for directions)
-CLIENT_TO_SERVER = "^([a-z]+ )+[a-z]+$"
-SERVER_TO_CLIENT = "^([A-Z]+ )+[A-Z]+$"
+# The server-id: the public half of the demo server's keypair, which is all a
+# client ever needs. A real client reads this out of a connection string.
+DEMO_SERVER_ID = "g7RzVlLwycSzfHmHwo2LOdkvZ2rG_-J4lmsosmKPzQY"
+
+# A base name from the definitions file. `fteproxy formats` lists them all.
+FORMAT = "words"
 
 HOST = "127.0.0.1"
 PORT = 50007
@@ -28,15 +34,9 @@ def main():
         # Create a regular TCP socket
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         
-        # Wrap it with FTE encoding
-        sock = fteproxy.wrap_socket(
-            sock,
-            outgoing_regex=CLIENT_TO_SERVER,
-            outgoing_length=256,
-            incoming_regex=SERVER_TO_CLIENT,
-            incoming_length=256,
-            negotiate=False
-        )
+        # Wrap it with FTE encoding, in the client role
+        sock = fteproxy.wrap_socket(sock, server_id=DEMO_SERVER_ID,
+                                    format=FORMAT)
         
         sock.connect((HOST, PORT))
         

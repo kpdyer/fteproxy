@@ -525,3 +525,60 @@ class TestAllDefinedFormats:
         
         if failed:
             pytest.fail(f"Failed formats: {failed}")
+
+
+class TestDefinitionsCapacity:
+    """Every shipped format must be able to carry a handshake."""
+
+    @pytest.mark.parametrize('release', ['20260110', '20131224'])
+    def test_shipped_releases_pass_the_load_check(self, release):
+        previous = fteproxy.conf.getValue('fteproxy.defs.release')
+        try:
+            fteproxy.conf.setValue('fteproxy.defs.release', release)
+            fteproxy.defs._definitions = None
+            fteproxy.defs._checked_releases.discard(release)
+            definitions = fteproxy.defs.load_definitions()
+            fteproxy.defs.check_capacities(definitions)
+        finally:
+            fteproxy.conf.setValue('fteproxy.defs.release', previous)
+            fteproxy.defs._definitions = None
+
+    def test_a_too_small_format_is_refused(self):
+        """A format that cannot hold a client hello would fail as a client
+        that hangs, so it fails at load instead."""
+        with pytest.raises(fteproxy.defs.DefinitionsError) as excinfo:
+            fteproxy.defs.check_capacities(
+                {'tiny-request': {'regex': '^[01]+$', 'length': 300}})
+        assert 'tiny-request' in str(excinfo.value)
+
+    def test_an_uncompilable_format_is_refused(self):
+        with pytest.raises(fteproxy.defs.DefinitionsError):
+            fteproxy.defs.check_capacities(
+                {'broken-request': {'regex': '^[a-z', 'length': 256}})
+
+    def test_every_base_name_has_both_directions(self):
+        definitions = fteproxy.defs.load_definitions()
+        bases = fteproxy.defs.base_names(definitions)
+        for base in bases:
+            assert base + '-request' in definitions
+            assert base + '-response' in definitions
+        # Nothing in the file is left out of a pair.
+        assert len(bases) * 2 == len(definitions)
+
+    def test_a_client_hello_fits_every_format(self):
+        """The check is a proxy for this: the largest hello a shipped base
+        name can produce, plus the record layer's seal, must fit."""
+        import fteproxy.handshake as hs
+        import fteproxy.record_layer as rl
+
+        definitions = fteproxy.defs.load_definitions()
+        longest = max(fteproxy.defs.base_names(definitions), key=len)
+        hello = hs.ClientHello(mode='hybrid', defs=20260110, format=longest,
+                               client_public=b'\x00' * 32,
+                               epoch=hs.current_epoch()).encode()
+        needed = len(hello) + rl._SEAL_OVERHEAD
+        assert needed <= fteproxy.defs.MIN_CAPACITY
+        for name in definitions:
+            capacity = _cipher(fteproxy.defs.getRegex(name),
+                               fteproxy.defs.getLength(name)).max_plaintext_bytes
+            assert capacity >= needed, name

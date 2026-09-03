@@ -8,6 +8,8 @@ import sys
 import io
 import socket
 import contextlib
+import threading
+import time
 
 import pytest
 
@@ -47,19 +49,21 @@ class TestPython3Compatibility:
         assert len(padded) == 10
         assert padded == "000000test"
 
-    def test_negotiate_cell_bytes_handling(self):
-        """Test NegotiateCell bytes operations."""
-        cell = fteproxy.NegotiateCell()
-        cell.setDefFile("20131224")
-        cell.setLanguage("manual-http")
-        
-        cell_bytes = cell.toBytes()
-        assert len(cell_bytes) == fteproxy.NegotiateCell._CELL_SIZE
-        
-        # Verify padding
-        padding_len = fteproxy.NegotiateCell._PADDING_LEN
-        padding_char = fteproxy.NegotiateCell._PADDING_CHAR
-        assert cell_bytes[:padding_len] == padding_char * padding_len
+    def test_client_hello_bytes_handling(self):
+        """The client hello encodes to bytes and decodes back unchanged."""
+        import fteproxy.handshake as hs
+
+        hello = hs.ClientHello(mode='hybrid', defs=20131224,
+                               format='manual-http',
+                               client_public=bytes(range(32)), epoch=490000)
+        raw = hello.encode()
+        assert isinstance(raw, bytes)
+        back = hs.ClientHello.decode(raw)
+        assert back.format == 'manual-http'
+        assert back.defs == 20131224
+        assert back.mode == 'hybrid'
+        assert back.client_public == bytes(range(32))
+        assert back.epoch == 490000
 
     def test_unicode_handling(self):
         """Test that unicode strings work correctly."""
@@ -128,180 +132,170 @@ class TestNetworkIOBytes:
             server_sock.close()
 
 
-class TestWrapSocket:
-    """Test fteproxy.wrap_socket functionality."""
+class TestCipherCaching:
+    """The DFA is cached; the keyed cipher is not."""
 
-    def test_wrap_socket_no_negotiate(self):
-        """Test wrap_socket with negotiate=False (fixes issue #175)."""
-        import threading
-        
-        client_server_regex = '^(0|1)+$'
-        server_client_regex = '^(A|B)+$'
-        # These are 1-bit-per-character formats. libfte 0.4's expanding cipher
-        # has fixed frame overhead and no unformatted overflow, so the length
-        # must be large enough to hold the payload plus that frame. 520 gives a
-        # 32-byte capacity here (256 would be rejected as too small).
-        length = 520
-        test_data = b'Hello, world!'
-        received_data = []
-        
-        def server_thread(port):
-            server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server_sock = fteproxy.wrap_socket(server_sock,
-                outgoing_regex=server_client_regex,
-                outgoing_length=length,
-                incoming_regex=client_server_regex,
-                incoming_length=length,
-                negotiate=False)
-            server_sock.bind(('127.0.0.1', port))
-            server_sock.listen(1)
-            
-            conn, addr = server_sock.accept()
-            conn.settimeout(5)
+    def test_regex_format_is_cached(self):
+        """``fte.RegexFormat`` compiles a DFA and depends only on the pattern
+        and the length, so one instance serves every connection."""
+        a = fteproxy._regex_format('^[a-z]+$', 64)
+        assert fteproxy._regex_format('^[a-z]+$', 64) is a
+        assert fteproxy._regex_format('^[a-z]+$', 96) is not a
+
+    def test_make_cipher_is_per_session(self):
+        """Every connection derives its own header keys, so caching the keyed
+        cipher would add an entry per connection and never hit."""
+        key = bytes(range(32))
+        a = fteproxy._make_cipher('^[a-z]+$', 64, key)
+        b = fteproxy._make_cipher('^[a-z]+$', 64, key)
+        assert a is not b
+        # ... but they share the expensive half.
+        assert a.output_format is b.output_format
+
+    def test_cover_cipher_is_cached(self):
+        """K_cover is the same for every connection to a given server, and the
+        first-record scan builds several per connection."""
+        key = bytes(range(32))
+        a = fteproxy._cover_cipher('^[a-z]+$', 64, key)
+        assert fteproxy._cover_cipher('^[a-z]+$', 64, key) is a
+
+
+class TestWrapSocket:
+    """End-to-end use of the 0.4 wrap_socket."""
+
+    @staticmethod
+    def _echo_server(port, private, received, ready):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock = fteproxy.wrap_socket(sock, server_key=private)
+        sock.bind(('127.0.0.1', port))
+        sock.listen(1)
+        ready.set()
+        conn, _ = sock.accept()
+        conn.settimeout(10)
+        try:
+            buf = b''
+            while True:
+                try:
+                    data = conn.recv(65536)
+                except socket.timeout:
+                    continue
+                if not data:
+                    break
+                buf += data
+                if buf == received['expected']:
+                    break
+            received['data'] = buf
+            conn.sendall(buf)
+            # Give the client time to drain before the socket goes away.
+            time.sleep(0.3)
+        finally:
+            conn.close()
+            sock.close()
+
+    def _run(self, payload, mode, format='manual-http'):
+        private, public = fteproxy.generate_server_key()
+        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        probe.bind(('127.0.0.1', 0))
+        port = probe.getsockname()[1]
+        probe.close()
+
+        received = {'expected': payload}
+        ready = threading.Event()
+        server = threading.Thread(target=self._echo_server,
+                                  args=(port, private, received, ready))
+        server.start()
+        assert ready.wait(5)
+
+        client = fteproxy.wrap_socket(socket.socket(), server_id=public,
+                                      format=format, mode=mode)
+        try:
+            client.connect(('127.0.0.1', port))
+            client.settimeout(10)
+            client.sendall(payload)
+            echo = b''
+            while len(echo) < len(payload):
+                data = client.recv(65536)
+                if not data:
+                    break
+                echo += data
+        finally:
+            client.close()
+        server.join(timeout=10)
+        return received.get('data'), echo, client
+
+    @pytest.mark.parametrize('mode', ['hybrid', 'format'])
+    def test_bulk_round_trip(self, mode):
+        payload = b'bulk payload ' * 4096  # ~53 KiB, many records
+        got, echo, client = self._run(payload, mode)
+        assert got == payload
+        assert echo == payload
+        assert client.negotiated_mode == mode
+        assert client.negotiated_format == 'manual-http'
+
+    def test_server_learns_a_non_default_format(self):
+        """The server is told nothing; it recovers the format from the first
+        record."""
+        got, echo, client = self._run(b'a non-default format', 'hybrid',
+                                      format='words')
+        assert got == b'a non-default format'
+        assert echo == got
+        assert client.negotiated_format == 'words'
+
+    def test_wrong_server_id_gets_no_reply(self):
+        """A client with the wrong connection string times out rather than
+        receiving an error that would confirm the server."""
+        private, _ = fteproxy.generate_server_key()
+        _, other_public = fteproxy.generate_server_key()
+
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(('127.0.0.1', 0))
+        listener.listen(1)
+        port = listener.getsockname()[1]
+
+        replies = {}
+
+        def serve():
+            conn, _ = listener.accept()
+            wrapped = fteproxy.wrap_socket(conn, server_key=private)
+            wrapped.settimeout(10)
             try:
-                data = conn.recv(1024)
-                received_data.append(data)
-                conn.sendall(data)  # Echo back
+                replies['recv'] = wrapped.recv(65536)
+            except socket.timeout:
+                replies['recv'] = 'timeout'
             finally:
                 conn.close()
-                server_sock.close()
-        
-        # Find an available port
-        temp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        temp_sock.bind(('127.0.0.1', 0))
-        port = temp_sock.getsockname()[1]
-        temp_sock.close()
-        
-        # Start server in background
-        server = threading.Thread(target=server_thread, args=(port,))
+
+        server = threading.Thread(target=serve)
         server.start()
-        
-        import time
-        time.sleep(0.5)  # Give server time to start
-        
-        # Client connects and sends data
-        client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_sock = fteproxy.wrap_socket(client_sock,
-            outgoing_regex=client_server_regex,
-            outgoing_length=length,
-            incoming_regex=server_client_regex,
-            incoming_length=length,
-            negotiate=False)
-        
+
+        previous = fteproxy.conf.getValue('runtime.fteproxy.negotiate.timeout')
+        fteproxy.conf.setValue('runtime.fteproxy.negotiate.timeout', 1)
+        client = fteproxy.wrap_socket(socket.socket(), server_id=other_public)
         try:
-            client_sock.connect(('127.0.0.1', port))
-            client_sock.settimeout(5)
-            client_sock.sendall(test_data)
-            echo_data = client_sock.recv(1024)
-        finally:
-            client_sock.close()
-        
-        server.join(timeout=5)
-
-        # Verify data was received correctly
-        assert len(received_data) == 1
-        assert received_data[0] == test_data
-        assert echo_data == test_data
-
-    def test_make_cipher_is_cached(self):
-        """One cipher per (pattern, length, key); libfte 0.4 does not cache DFAs."""
-        key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
-        a = fteproxy._make_cipher('^[a-z]+$', 64, key)
-        assert fteproxy._make_cipher('^[a-z]+$', 64, key) is a
-        assert fteproxy._make_cipher('^[a-z]+$', 96, key) is not a
-        assert fteproxy._make_cipher('^[a-z]+$', 64, bytes(range(32))) is not a
-
-    def test_default_key_warns(self, caplog):
-        """Starting with the public built-in key logs a warning; a real key does not."""
-        import logging
-
-        import fteproxy.cli
-        key = 'runtime.fteproxy.encrypter.key'
-        prev = fteproxy.conf.getValue(key)
-        try:
-            with caplog.at_level(logging.WARNING, logger='fteproxy'):
-                fteproxy.conf.setValue(key, fteproxy.conf.DEFAULT_KEY)
-                fteproxy.cli.warn_if_default_key()
-                assert 'default key' in caplog.text
-                caplog.clear()
-                fteproxy.conf.setValue(key, bytes(range(32)))
-                fteproxy.cli.warn_if_default_key()
-                assert caplog.text == ''
-        finally:
-            fteproxy.conf.setValue(key, prev)
-
-    @pytest.mark.parametrize("mode", ["format", "hybrid"])
-    def test_wrap_socket_bulk_end_to_end(self, mode):
-        """Full negotiation + bulk transfer, in each record-layer mode."""
-        import threading
-        import time
-
-        prev_mode = fteproxy.conf.getValue('runtime.fteproxy.record_layer.mode')
-        fteproxy.conf.setValue('runtime.fteproxy.record_layer.mode', mode)
-        try:
-            fteproxy.conf.setValue('runtime.mode', 'client')
-            fteproxy.defs.load_definitions()
-            up = fteproxy.conf.getValue('runtime.state.upstream_language')
-            down = fteproxy.conf.getValue('runtime.state.downstream_language')
-            up_rx = fteproxy.defs.getRegex(up)
-            up_fs = fteproxy.defs.getLength(up)
-            dn_rx = fteproxy.defs.getRegex(down)
-            dn_fs = fteproxy.defs.getLength(down)
-            # Large enough to span many records (each body up to ~1 MiB).
-            payload = b'hybrid bulk payload ' * 4096  # ~80 KiB
-            received = {}
-
-            def server_thread(port):
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                s = fteproxy.wrap_socket(s)  # server auto-detects via negotiation
-                s.bind(('127.0.0.1', port))
-                s.listen(1)
-                conn, _ = s.accept()
-                conn.settimeout(5)
-                try:
-                    buf = b''
-                    while len(buf) < len(payload):
-                        data = conn.recv(65536)
-                        if not data:
-                            break
-                        buf += data
-                    received['data'] = buf
-                    conn.sendall(buf)  # echo
-                finally:
-                    conn.close()
-                    s.close()
-
-            probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            probe.bind(('127.0.0.1', 0))
-            port = probe.getsockname()[1]
-            probe.close()
-
-            server = threading.Thread(target=server_thread, args=(port,))
-            server.start()
-            time.sleep(0.5)
-
-            client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client = fteproxy.wrap_socket(
-                client,
-                outgoing_regex=up_rx, outgoing_length=up_fs,
-                incoming_regex=dn_rx, incoming_length=dn_fs)
-            try:
+            with pytest.raises(fteproxy.HandshakeFailedException):
                 client.connect(('127.0.0.1', port))
-                client.settimeout(5)
-                client.sendall(payload)
-                echo = b''
-                while len(echo) < len(payload):
-                    data = client.recv(65536)
-                    if not data:
-                        break
-                    echo += data
-            finally:
-                client.close()
-
-            server.join(timeout=5)
-            assert received.get('data') == payload
-            assert echo == payload
         finally:
-            fteproxy.conf.setValue('runtime.fteproxy.record_layer.mode', prev_mode)
+            fteproxy.conf.setValue('runtime.fteproxy.negotiate.timeout', previous)
+            client.close()
+            server.join(timeout=15)
+            listener.close()
+        # The server read and discarded, then reported EOF; it never replied.
+        assert replies.get('recv') == b''
+
+    def test_wrap_socket_needs_exactly_one_role(self):
+        private, public = fteproxy.generate_server_key()
+        with pytest.raises(fteproxy.InvalidRoleException):
+            fteproxy.wrap_socket(socket.socket())
+        with pytest.raises(fteproxy.InvalidRoleException):
+            fteproxy.wrap_socket(socket.socket(), server_key=private,
+                                 server_id=public)
+
+    def test_server_id_accepts_base64url(self):
+        import base64
+
+        _, public = fteproxy.generate_server_key()
+        text = base64.urlsafe_b64encode(public).rstrip(b'=').decode('ascii')
+        assert len(text) == 43
+        assert fteproxy._as_key_bytes(text, 'server_id') == public

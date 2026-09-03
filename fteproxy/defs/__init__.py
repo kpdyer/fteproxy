@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""Loading and validating the format definitions.
 
+A definitions file maps a format name to the regex its covertexts are drawn
+from and the fixed byte length of one covertext. Names come in pairs: a
+``-request`` for client-to-server and a ``-response`` for server-to-client,
+sharing a base name such as ``manual-http``. The base name is what a
+connection string and a client hello carry; the two directions are derived
+from it.
+"""
 
 
 import os
@@ -12,21 +20,89 @@ import fteproxy.conf
 class InvalidRegexName(Exception):
     pass
 
+
+class DefinitionsError(Exception):
+    """A definitions file that cannot be served as written."""
+
+
+#: Every format must hold a client hello, which is about 55 bytes of fields
+#: plus the record layer's 12-byte seal. 128 leaves room for a longer format
+#: name and for a field a later protocol version adds, and is checked at load
+#: so a format that cannot carry a handshake is caught here rather than as a
+#: client that hangs.
+MIN_CAPACITY = 128
+
 _definitions = None
+_checked_releases = set()
+
+REQUEST_SUFFIX = '-request'
+RESPONSE_SUFFIX = '-response'
 
 
 def load_definitions():
     global _definitions
 
     if _definitions == None:
+        release = fteproxy.conf.getValue('fteproxy.defs.release')
         def_dir = os.path.join(fteproxy.conf.getValue('general.defs_dir'))
-        def_file = fteproxy.conf.getValue('fteproxy.defs.release') + '.json'
-        def_abspath = os.path.join(def_dir, def_file)
+        def_abspath = os.path.join(def_dir, release + '.json')
 
         with open(def_abspath) as fh:
             _definitions = json.load(fh)
 
+        if release not in _checked_releases:
+            check_capacities(_definitions)
+            _checked_releases.add(release)
+
     return _definitions
+
+
+def check_capacities(definitions, minimum=MIN_CAPACITY):
+    """Raise :class:`DefinitionsError` for any format too small for a hello.
+
+    Building the cipher also proves the regex compiles and that libfte can
+    drive it at the configured length, so this doubles as a load-time syntax
+    check. It costs one DFA compile per format, which the cache in
+    :func:`fteproxy._regex_format` then hands back to every connection.
+    """
+    import fteproxy  # deferred: fteproxy imports this module at import time
+
+    too_small = []
+    for name, spec in definitions.items():
+        length = spec.get('length', fteproxy.conf.getValue(
+            'fteproxy.default_length'))
+        try:
+            capacity = fteproxy._make_cipher(
+                spec['regex'], length, b'\x00' * 32).max_plaintext_bytes
+        except Exception as e:
+            raise DefinitionsError('format %s is unusable at length %d: %s'
+                                   % (name, length, e))
+        if capacity < minimum:
+            too_small.append((name, length, capacity))
+
+    if too_small:
+        raise DefinitionsError(
+            'these formats cannot carry a handshake (need %d bytes of '
+            'capacity): %s' % (minimum, ', '.join(
+                '%s at length %d holds %d' % row for row in too_small)))
+
+
+def base_names(definitions=None):
+    """The set of base names that have both a request and a response format."""
+    definitions = load_definitions() if definitions is None else definitions
+    requests = {name[:-len(REQUEST_SUFFIX)] for name in definitions
+                if name.endswith(REQUEST_SUFFIX)}
+    responses = {name[:-len(RESPONSE_SUFFIX)] for name in definitions
+                 if name.endswith(RESPONSE_SUFFIX)}
+    return requests & responses
+
+
+def base_name(format_name):
+    """``manual-http-request`` -> ``manual-http``."""
+    for suffix in (REQUEST_SUFFIX, RESPONSE_SUFFIX):
+        if format_name.endswith(suffix):
+            return format_name[:-len(suffix)]
+    return format_name
 
 
 def getRegex(format_name):

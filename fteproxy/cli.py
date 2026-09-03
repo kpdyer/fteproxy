@@ -295,8 +295,8 @@ def check_format(format_name):
         pattern = fteproxy.defs.getRegex(format_name)
     except fteproxy.defs.InvalidRegexName:
         raise StartupError('invalid format name: ' + format_name)
-    except OSError as e:
-        raise StartupError('failed to read the definitions file: ' + str(e))
+    except (OSError, fteproxy.defs.DefinitionsError) as e:
+        raise StartupError('failed to load the definitions file: ' + str(e))
 
     length = fteproxy.defs.getLength(format_name)
     key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
@@ -310,13 +310,23 @@ def check_startup(mode):
     """Validate every format this role will use, before anything is printed,
     bound, or written to disk."""
     if mode == 'client':
-        check_format(fteproxy.conf.getValue('runtime.state.upstream_language'))
-        check_format(fteproxy.conf.getValue('runtime.state.downstream_language'))
+        upstream = fteproxy.conf.getValue('runtime.state.upstream_language')
+        downstream = fteproxy.conf.getValue('runtime.state.downstream_language')
+        check_format(upstream)
+        check_format(downstream)
+        # TODO(PR4): the 0.4 handshake carries one base name and the server
+        # derives both directions from it, so the two flags can no longer
+        # express a mixed pair. The new command line has a single --format.
+        if fteproxy.defs.base_name(upstream) != fteproxy.defs.base_name(downstream):
+            fteproxy.warn(
+                'the format pair is chosen by base name now: using %s for '
+                'both directions and ignoring --downstream-format %s'
+                % (fteproxy.defs.base_name(upstream), downstream))
     else:
         try:
             definitions = fteproxy.defs.load_definitions()
-        except OSError as e:
-            raise StartupError('failed to read the definitions file: ' + str(e))
+        except (OSError, fteproxy.defs.DefinitionsError) as e:
+            raise StartupError('failed to load the definitions file: ' + str(e))
         # The server accepts any format the client asks for, so all of them
         # have to work here.
         for format_name in definitions.keys():

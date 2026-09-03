@@ -16,9 +16,17 @@ import threading
 import tempfile
 import fteproxy
 
-# Formats for file transfer
-SENDER_FORMAT = "^([a-z]+ )+[a-z]+$"
-RECEIVER_FORMAT = "^([A-Z]+ )+[A-Z]+$"
+# A fixed demo identity so the two scripts agree without exchanging anything.
+# The private key is published here on purpose: it is a demo. A real server
+# generates its own with `fteproxy keygen`, keeps server.key at mode 0600, and
+# hands out only the public half.
+DEMO_SERVER_KEY = bytes.fromhex(
+    "628e1b010509a623c31c54a443d996d10427f2e47ff11258d50e9f70c4b79651")
+DEMO_SERVER_ID = fteproxy.server_id(DEMO_SERVER_KEY)
+
+# A base name from the definitions file: the traffic looks like lowercase
+# words in both directions. `fteproxy formats` lists them all.
+FORMAT = "words"
 
 PORT = 50008
 CHUNK_SIZE = 4096
@@ -42,15 +50,8 @@ def send_file(filename: str, host: str = "127.0.0.1"):
     
     # Create FTE socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock = fteproxy.wrap_socket(
-        sock,
-        outgoing_regex=SENDER_FORMAT,
-        outgoing_length=256,
-        incoming_regex=RECEIVER_FORMAT,
-        incoming_length=256,
-        negotiate=False
-    )
-    
+    sock = fteproxy.wrap_socket(sock, server_id=DEMO_SERVER_ID, format=FORMAT)
+
     sock.connect((host, PORT))
     
     # Send file info first (filename and size)
@@ -72,15 +73,8 @@ def receive_file(save_dir: str = "."):
     
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock = fteproxy.wrap_socket(
-        sock,
-        outgoing_regex=RECEIVER_FORMAT,
-        outgoing_length=256,
-        incoming_regex=SENDER_FORMAT,
-        incoming_length=256,
-        negotiate=False
-    )
-    
+    sock = fteproxy.wrap_socket(sock, server_key=DEMO_SERVER_KEY)
+
     sock.bind(("", PORT))
     sock.listen(1)
     

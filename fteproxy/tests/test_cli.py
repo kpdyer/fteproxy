@@ -286,3 +286,48 @@ class TestLogging:
         captured = capsys.readouterr()
         assert 'a warning' in captured.err
         assert captured.out == ''
+
+
+class TestLogRedaction:
+    """Secrets must not reach a log file, whatever a call site passes.
+
+    The filter lives on the package logger, so it applies to every handler an
+    embedding program attaches as well as to the CLI's own.
+    """
+
+    def test_a_connection_string_keeps_only_its_shape(self, caplog):
+        with caplog.at_level(logging.INFO, logger='fteproxy'):
+            fteproxy.info('checking fte://g7RzVlLwycSzfHmHwo2LOdkvZ2rG_-J4lmso'
+                          'smKPzQY@203.0.113.5:8080')
+        assert 'g7RzVlLwycSz' not in caplog.text
+        assert 'fte://…@203.0.113.5:8080' in caplog.text
+
+    def test_a_hex_key_is_removed(self, caplog):
+        key = '0123456789abcdef' * 4
+        with caplog.at_level(logging.INFO, logger='fteproxy'):
+            fteproxy.info('loaded key %s' % key)
+        assert key not in caplog.text
+        assert '<redacted>' in caplog.text
+
+    def test_a_bare_server_id_is_removed(self, caplog):
+        import base64
+
+        _private, public = fteproxy.generate_server_key()
+        text = base64.urlsafe_b64encode(public).rstrip(b'=').decode('ascii')
+        with caplog.at_level(logging.INFO, logger='fteproxy'):
+            fteproxy.info('server-id ' + text)
+        assert text not in caplog.text
+
+    def test_a_secret_passed_as_an_argument_is_removed(self, caplog):
+        """%-args are expanded before the filter runs, and the arguments are
+        cleared afterwards so a handler cannot re-expand them."""
+        key = 'ab' * 32
+        with caplog.at_level(logging.INFO, logger='fteproxy'):
+            fteproxy.logger.info('key is %s', key)
+        assert key not in caplog.text
+        assert caplog.records[0].args in ((), None)
+
+    def test_ordinary_messages_are_untouched(self, caplog):
+        with caplog.at_level(logging.INFO, logger='fteproxy'):
+            fteproxy.info('listening on 127.0.0.1:1080, format manual-http')
+        assert 'listening on 127.0.0.1:1080, format manual-http' in caplog.text

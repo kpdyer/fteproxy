@@ -3,16 +3,23 @@
 FTE Chat Client
 
 A simple chat client that has a 10-round conversation with the server.
-All traffic is FTE-encoded to look like binary (0s and 1s) or letters (As and Bs).
+All traffic is FTE-encoded to look like binary (0s and 1s).
+
+The client picks the format and the record-layer mode; the server follows.
+All it needs of the server is the server-id below.
 """
 
 import sys
 import socket
 import fteproxy
 
-# Format definitions - must match server
-CLIENT_TO_SERVER = '^(0|1)+$'   # Client sends as binary
-SERVER_TO_CLIENT = '^(A|B)+$'   # Server sends as A/B letters
+# The server-id: the public half of the demo server's keypair, which is all a
+# client ever needs. A real client reads this out of a connection string.
+DEMO_SERVER_ID = "g7RzVlLwycSzfHmHwo2LOdkvZ2rG_-J4lmsosmKPzQY"
+
+# A base name from the definitions file: the server derives the request and
+# response formats from it. `fteproxy formats` lists them all.
+FORMAT = "binary"
 
 HOST = '127.0.0.1'
 PORT = 50007
@@ -36,19 +43,14 @@ def main():
     print("FTE Chat Client")
     print("=" * 50)
     print(f"Connecting to {HOST}:{PORT}")
-    print(f"Client->Server format: binary (0s and 1s)")
-    print(f"Server->Client format: letters (As and Bs)")
+    print(f"Format: {FORMAT} (0s and 1s in both directions)")
     print("=" * 50)
     print()
 
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock = fteproxy.wrap_socket(sock,
-                                    outgoing_regex=CLIENT_TO_SERVER,
-                                    outgoing_length=520,
-                                    incoming_regex=SERVER_TO_CLIENT,
-                                    incoming_length=520,
-                                    negotiate=False)
+        sock = fteproxy.wrap_socket(sock, server_id=DEMO_SERVER_ID,
+                                    format=FORMAT)
         sock.connect((HOST, PORT))
         print("Connected!")
         print()

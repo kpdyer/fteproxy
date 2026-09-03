@@ -6,13 +6,18 @@ __version__ = "0.4.0"
 import os
 import sys
 import hmac
+import collections
 import functools
 import logging
+import re
 import socket
 import hashlib
+import threading
+import time
 
 import fteproxy.conf
 import fteproxy.defs
+import fteproxy.handshake
 import fteproxy.record_layer
 
 import fte
@@ -20,38 +25,65 @@ import fte
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
+from fteproxy.handshake import generate_server_key, server_id
+
 
 @functools.lru_cache(maxsize=256)
+def _regex_format(pattern, length):
+    """The cached half of a libfte cipher: the compiled DFA.
+
+    ``fte.RegexFormat`` compiles the pattern's DFA and builds its ranking
+    tables, which is the expensive part of standing a cipher up and depends
+    only on ``(pattern, length)``. libfte 0.3 cached this globally; 0.4 does
+    not, and fteproxy builds a cipher per connection, so caching it here is
+    what keeps connection setup at a few milliseconds.
+
+    The tables are read-only, so one instance serves every connection and
+    thread.
+    """
+    return fte.RegexFormat(pattern, length=length)
+
+
 def _make_cipher(pattern, length, key):
-    """Build a libfte 0.4 cipher that hides bytes as one fixed-length covertext.
+    """A libfte 0.4 cipher that hides bytes as one fixed-length covertext.
 
     ``pattern`` is the regex whose language the covertext is drawn from;
-    ``length`` picks the fixed covertext length. This replaces libfte 0.3's
-    ``fte.Encoder(regex, fixed_slice, key)``. The
+    ``length`` picks the fixed covertext length; ``key`` is 32 bytes. The
     cipher ``encrypt``/``decrypt`` one whole covertext per call; the record
     layer handles stream chunking and framing on top of it.
 
-    Cached. libfte 0.4 compiles the DFA afresh for every ``RegexFormat``
-    (0.5 to 1.5 ms per format, and libfte 0.3 cached it globally), while
-    fteproxy builds a cipher per socket and per negotiation attempt: that
-    turned connection setup from about 3 ms into about 9 ms. An ``fte.FTE``
-    holds only read-only tables and draws a fresh nonce on every call, so one
-    instance serves every connection and thread.
+    Deliberately not cached: since 0.4 every connection derives its own header
+    keys, so a cache keyed on the key would grow by one entry per connection
+    and never hit. ``fte.FTE`` holds only a reference to the (cached) format
+    and the key schedule, and costs a couple of microseconds to build.
     """
-    return fte.FTE(
-        output_format=fte.RegexFormat(pattern, length=length),
-        key=key,
-    )
+    return fte.FTE(output_format=_regex_format(pattern, length), key=key)
+
+
+@functools.lru_cache(maxsize=256)
+def _cover_cipher(pattern, length, key):
+    """The cipher for handshake records, cached.
+
+    ``K_cover`` is derived from the server's long-term public key, so it is
+    the same for every connection: unlike the session ciphers this one is
+    worth caching, and the server's first-record scan tries several of them
+    per connection.
+    """
+    return _make_cipher(pattern, length, key)
 
 
 def _hybrid_mode():
-    """Whether the record layer runs in 'hybrid' (fast bulk) mode.
+    """Whether this end's *default* record-layer mode is 'hybrid'.
 
     'hybrid' (the default) formats only a fixed-length header per record and
     carries the body as raw authenticated bytes: much faster for bulk transfer,
     but everything past the header looks like random data. 'format' (opt-in)
     transforms every covertext byte into the target format for full-stream
     realism. See ``runtime.fteproxy.record_layer.mode`` in ``fteproxy.conf``.
+
+    Since 0.4 the mode is not a setting both endpoints must match by hand: the
+    client puts its choice in the handshake and the server follows. This is
+    where the client's choice comes from when the caller does not pass one.
     """
     return fteproxy.conf.getValue('runtime.fteproxy.record_layer.mode') == 'hybrid'
 
@@ -59,27 +91,32 @@ def _hybrid_mode():
 class _AEADBody:
     """AES-128-CTR + HMAC-SHA256 (Encrypt-then-MAC) carrier for hybrid-mode bodies.
 
-    Matches libfte's AE construction (the FTE paper's CTR+HMAC). Under
-    fteproxy's static shared key, Encrypt-then-MAC means a nonce collision costs
-    only the confidentiality of the colliding pair, never authenticity. Each
-    record binds its sequence number into the MAC, so a record reordered,
-    dropped, or replayed within its stream fails authentication. The key is
-    shared by every connection and both directions, so a record replayed at the
-    same position of another stream is not detected (see SECURITY.md). The
-    encryption and MAC subkeys are derived from a distinct namespace,
-    domain-separated from the header cipher's key. libfte does the
-    same construction for the formatted header; this is the raw-body counterpart
-    the FTE paper appended as unformatted ciphertext.
+    Matches libfte's AE construction (the FTE paper's CTR+HMAC). Encrypt-then-MAC
+    means a nonce collision costs only the confidentiality of the colliding
+    pair, never authenticity. Each record binds its sequence number into the
+    MAC, so a record reordered, dropped, or replayed within its stream fails
+    authentication. Since 0.4 the key is per connection *and* per direction
+    (``K_c2s_body`` / ``K_s2c_body`` from :mod:`fteproxy.handshake`), so a
+    record replayed into another connection or the other direction fails too --
+    the cross-stream replay gap SECURITY.md used to document. The encryption
+    and MAC subkeys are derived from a distinct namespace, domain-separated
+    from the header cipher's key. libfte does the same construction for the
+    formatted header; this is the raw-body counterpart the FTE paper appended
+    as unformatted ciphertext.
     """
     _NONCE = 12
     _TAG = 16
     _COUNTER = 16  # AES block: 12-byte nonce || 4-byte block counter
-    # Largest body a single record carries. Bounds memory and amortizes the one
-    # formatted header per record over a large payload.
+    # The record layer prepends a one-byte record type before sealing.
+    _TYPE = 1
+    # Largest payload a single record carries. Bounds memory and amortizes the
+    # one formatted header per record over a large payload. The type byte is
+    # not taken out of it: unlike a covertext, the body has no fixed width, so
+    # a 1 MiB write still travels as exactly one record.
     max_plaintext_bytes = 2 ** 20
     # Largest framed body (nonce || ciphertext || tag) a header may announce;
     # the decoder refuses to buffer more than this for one record.
-    max_framed_bytes = max_plaintext_bytes + _NONCE + _TAG
+    max_framed_bytes = max_plaintext_bytes + _TYPE + _NONCE + _TAG
 
     def __init__(self, key):
         self._enc_key = hashlib.sha256(key + b'fteproxy/record-layer/body/enc/v3').digest()[:16]
@@ -114,33 +151,45 @@ def _make_body_cipher(key):
     return _AEADBody(key)
 
 
-def _record_encoder(header_cipher, key):
-    body = _make_body_cipher(key) if _hybrid_mode() else None
-    return fteproxy.record_layer.Encoder(cipher=header_cipher, body_cipher=body)
+# --------------------------------------------------------------------------- #
+# Logging
+# --------------------------------------------------------------------------- #
 
+class RedactingFilter(logging.Filter):
+    """Strips secrets out of every record logged through ``fteproxy``.
 
-def _record_decoder(header_cipher, key):
-    body = _make_body_cipher(key) if _hybrid_mode() else None
-    return fteproxy.record_layer.Decoder(cipher=header_cipher, body_cipher=body)
+    A backstop, not a licence: no call site should format a key, a server-id
+    or handshake material into a message in the first place. What this catches
+    is the case nobody thought of -- an exception's ``str()``, a connection
+    string echoed in an error, a hex key pasted into a debug line -- because a
+    log file is the easiest place for a server-id to escape to.
 
-
-class InvalidRoleException(Exception):
-    pass
-
-
-class NegotiationFailedException(Exception):
-    pass
-
-
-class ChannelNotReadyException(Exception):
-    pass
-
-
-class NegotiateTimeoutException(Exception):
-
-    """Raised when negotiation fails to complete after """ + str(fteproxy.conf.getValue('runtime.fteproxy.negotiate.timeout')) + """ seconds.
+    Installed on the package logger at import, so it applies to every handler,
+    including one an embedding program attaches.
     """
-    pass
+
+    _PATTERNS = (
+        # A connection string: keep the shape, drop the server-id.
+        (re.compile(r'fte://[A-Za-z0-9_\-]+@'), 'fte://…@'),
+        # 16 bytes or more of hex: a key, a MAC, or a transcript hash.
+        (re.compile(r'(?<![0-9A-Fa-f])[0-9A-Fa-f]{32,}(?![0-9A-Fa-f])'),
+         '<redacted>'),
+        # A bare 43-character base64url token is a 32-byte public key.
+        (re.compile(r'(?<![A-Za-z0-9_\-])[A-Za-z0-9_\-]{43}(?![A-Za-z0-9_\-])'),
+         '<redacted>'),
+    )
+
+    def filter(self, record):
+        message = record.getMessage()
+        redacted = message
+        for pattern, replacement in self._PATTERNS:
+            redacted = pattern.sub(replacement, redacted)
+        if redacted != message:
+            # Collapse to a plain string: the arguments are what carried the
+            # secret, so they must not survive for a handler to re-expand.
+            record.msg = redacted
+            record.args = ()
+        return True
 
 
 logger = logging.getLogger('fteproxy')
@@ -152,6 +201,7 @@ fteproxy never changes an application's logging setup.
 Logging goes to stderr, never stdout, so a command whose output is data (for
 example ``fteproxy formats``) stays pipeable.
 """
+logger.addFilter(RedactingFilter())
 
 
 def fatal_error(msg):
@@ -182,245 +232,473 @@ def debug(msg):
     logger.debug(msg)
 
 
-class NegotiateCell(object):
-    _CELL_SIZE = 64
-    _PADDING_LEN = 32
-    _PADDING_CHAR = b'\x00'
-    _DATE_FORMAT = b'YYYYMMDD'
+# --------------------------------------------------------------------------- #
+# Exceptions
+# --------------------------------------------------------------------------- #
 
-    def __init__(self):
-        self._def_file = b""
-        self._language = b""
-
-    def setDefFile(self, def_file):
-        if isinstance(def_file, str):
-            def_file = def_file.encode('utf-8')
-        self._def_file = def_file
-
-    def getDefFile(self):
-        if isinstance(self._def_file, bytes):
-            return self._def_file.decode('utf-8')
-        return self._def_file
-
-    def setLanguage(self, language):
-        if isinstance(language, str):
-            language = language.encode('utf-8')
-        self._language = language
-
-    def getLanguage(self):
-        if isinstance(self._language, bytes):
-            return self._language.decode('utf-8')
-        return self._language
-
-    def toBytes(self):
-        retval = b''
-        retval += self._def_file
-        retval += self._language
-        retval = retval.rjust(NegotiateCell._CELL_SIZE, NegotiateCell._PADDING_CHAR)
-        assert retval[:NegotiateCell._PADDING_LEN] == NegotiateCell._PADDING_CHAR * \
-            NegotiateCell._PADDING_LEN
-        return retval
-
-    def fromBytes(self, negotiate_cell_bytes):
-        assert len(negotiate_cell_bytes) == NegotiateCell._CELL_SIZE
-        assert negotiate_cell_bytes[
-            :NegotiateCell._PADDING_LEN] == NegotiateCell._PADDING_CHAR * NegotiateCell._PADDING_LEN
-        negotiate_cell_bytes = negotiate_cell_bytes.strip(
-            NegotiateCell._PADDING_CHAR)
-        # 8==len(YYYYMMDD)
-        def_file = negotiate_cell_bytes[:len(NegotiateCell._DATE_FORMAT)]
-        language = negotiate_cell_bytes[len(NegotiateCell._DATE_FORMAT):]
-        negotiate_cell = NegotiateCell()
-        negotiate_cell.setDefFile(def_file)
-        negotiate_cell.setLanguage(language)
-        return negotiate_cell
+class InvalidRoleException(Exception):
+    """``wrap_socket`` was given neither, or both, of a server key and a
+    server-id."""
 
 
-class NegotiationManager(object):
+class HandshakeFailedException(Exception):
+    """This connection will never carry a session.
 
-    def __init__(self, K1, K2):
-        self._negotiationComplete = False
-        self._K1 = K1
-        self._K2 = K2
-
-    def _key(self):
-        # libfte 0.4 requires an explicit 32-byte key; the old "key=None means
-        # generate a random key" path is gone (and never interoperated across a
-        # client/server pair anyway). Fall back to the configured shared key.
-        if self._K1 and self._K2:
-            return self._K1 + self._K2
-        return fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
-
-    def getNegotiationComplete(self):
-        return self._negotiationComplete
-
-    def _acceptNegotiation(self, data):
-
-        languages = fteproxy.defs.load_definitions()
-
-        # Try the configured upstream language first. The server otherwise scans
-        # request-languages in definition order and attempts a decode against
-        # each until one succeeds; the default is near the end of that list, so
-        # every connection pays ~20 failed decodes before matching. A client and
-        # server sharing config (the common case) now match on the first try,
-        # while non-default clients still fall through to the full scan.
-        preferred = fteproxy.conf.getValue('runtime.state.upstream_language')
-        scan_order = ([preferred] if preferred in languages else []) + \
-            [lang for lang in languages.keys() if lang != preferred]
-
-        for incoming_language in scan_order:
-            try:
-                if incoming_language.endswith('response'):
-                    continue
-
-                incoming_regex = fteproxy.defs.getRegex(incoming_language)
-                incoming_length = fteproxy.defs.getLength(
-                    incoming_language)
-
-                key = self._key()
-                incoming_cipher = _make_cipher(incoming_regex, incoming_length, key)
-                decoder = _record_decoder(incoming_cipher, key)
-
-                decoder.push(data)
-                negotiate_cell = decoder.pop(oneCell=True)
-                NegotiateCell().fromBytes(negotiate_cell)
-
-                return [negotiate_cell, decoder._buffer]
-            except Exception as e:
-                fteproxy.info('Failed to decode first message as '+incoming_language+': '+str(e))
-
-        raise NegotiationFailedException()
-
-    def _init_encoders(self,
-                       outgoing_regex, outgoing_length,
-                       incoming_regex, incoming_length):
-
-        encoder = None
-        decoder = None
-
-        key = self._key()
-
-        if outgoing_regex != None and outgoing_length != -1:
-            outgoing_cipher = _make_cipher(outgoing_regex, outgoing_length, key)
-            encoder = _record_encoder(outgoing_cipher, key)
-
-        if incoming_regex != None and incoming_length != -1:
-            incoming_cipher = _make_cipher(incoming_regex, incoming_length, key)
-            decoder = _record_decoder(incoming_cipher, key)
-
-        return [encoder, decoder]
-
-    def _makeNegotiationCell(self, encoder):
-        negotiate_cell = NegotiateCell()
-        def_file = fteproxy.conf.getValue('fteproxy.defs.release')
-        negotiate_cell.setDefFile(def_file)
-        language = fteproxy.conf.getValue('runtime.state.upstream_language')
-        language = language[:-len('-request')]
-        negotiate_cell.setLanguage(language)
-        encoder.push(negotiate_cell.toBytes())
-        data = encoder.pop()
-        return data
-
-    def makeClientNegotiationCell(self,
-                                  outgoing_regex, outgoing_length,
-                                  incoming_regex, incoming_length):
-        [encoder, decoder] = self._init_encoders(
-            outgoing_regex, outgoing_length, incoming_regex, incoming_length)
-        return self._makeNegotiationCell(encoder)
-
-    def doServerSideNegotiation(self, data):
-        [negotiate_cell, remaining_buffer] = self._acceptNegotiation(data)
-
-        negotiate = NegotiateCell().fromBytes(negotiate_cell)
-
-        outgoing_language = negotiate.getLanguage() + '-response'
-        incoming_language = negotiate.getLanguage() + '-request'
-
-        outgoing_regex = fteproxy.defs.getRegex(outgoing_language)
-        outgoing_length = fteproxy.defs.getLength(outgoing_language)
-        incoming_regex = fteproxy.defs.getRegex(incoming_language)
-        incoming_length = fteproxy.defs.getLength(incoming_language)
-
-        [encoder, decoder] = self._init_encoders(
-            outgoing_regex, outgoing_length, incoming_regex, incoming_length)
-
-        decoder.push(remaining_buffer)
-
-        return [encoder, decoder]
+    On the server this is answered by silence: read and discard for a random
+    interval, then close, so a prober cannot tell which check failed, or that
+    anything was there to fail.
+    """
 
 
-class FTEHelper(object):
-
-    def _processRecv(self, data):
-        retval = data
-        if self._isServer and not self._negotiationComplete:
-            try:
-                self._preNegotiationBuffer_incoming += data
-                [encoder, decoder] = self._negotiation_manager.doServerSideNegotiation(
-                    self._preNegotiationBuffer_incoming)
-                self._encoder = encoder
-                self._decoder = decoder
-                self._preNegotiationBuffer_incoming = b''
-                self._negotiationComplete = True
-                retval = b''
-            except Exception as e:
-                raise ChannelNotReadyException()
-
-        return retval
-
-    def _processSend(self):
-        retval = b''
-        if self._isClient and not self._negotiationComplete:
-            [encoder, decoder] = self._negotiation_manager._init_encoders(
-                self._outgoing_regex,
-                self._outgoing_length,
-                self._incoming_regex,
-                self._incoming_length)
-            self._encoder = encoder
-            self._decoder = decoder
-            negotiation_cell = self._negotiation_manager.makeClientNegotiationCell(
-                self._outgoing_regex, self._outgoing_length,
-                self._incoming_regex, self._incoming_length)
-            retval = negotiation_cell
-            self._negotiationComplete = True
-        return retval
+class HandshakeTimeoutException(HandshakeFailedException):
+    """No valid handshake reply arrived within the negotiate timeout."""
 
 
-class _FTESocketWrapper(FTEHelper, object):
+class ChannelNotReadyException(Exception):
+    """The handshake has not completed, so this call cannot be served yet."""
 
-    def __init__(self, _socket,
-                 outgoing_regex=None, outgoing_length=-1,
-                 incoming_regex=None, incoming_length=-1,
-                 K1=None, K2=None,
-                 negotiate=True):
 
+class _NeedMoreData(Exception):
+    """Internal: the server has not yet buffered a whole client hello."""
+
+
+class _PeerClosed(Exception):
+    """Internal: the peer closed before the handshake could complete."""
+
+
+# --------------------------------------------------------------------------- #
+# Session set-up
+# --------------------------------------------------------------------------- #
+
+#: The base name of the request format that most recently matched a client
+#: hello. The server's first-record scan tries it first, so a server whose
+#: clients share a format pays one decrypt attempt per connection instead of
+#: one per candidate format. Process-wide and advisory: a wrong guess only
+#: costs the rest of the scan.
+_last_matched_format = None
+
+#: Client ephemeral keys seen inside the epoch window, shared by every
+#: connection this process accepts.
+_replay_filter = fteproxy.handshake.ReplayFilter()
+
+
+def _format_pair(base):
+    """``('base-request', 'base-response')``, validated against the
+    definitions."""
+    request, response = base + '-request', base + '-response'
+    fteproxy.defs.getRegex(request)
+    fteproxy.defs.getRegex(response)
+    return request, response
+
+
+def _cipher_for(format_name, key, cover=False):
+    build = _cover_cipher if cover else _make_cipher
+    return build(fteproxy.defs.getRegex(format_name),
+                 fteproxy.defs.getLength(format_name), key)
+
+
+def _session_channel(base, mode, keys, is_client):
+    """Build the ``(Encoder, Decoder)`` pair for one end of a session.
+
+    Each direction gets its own header key and body key, so the two directions
+    are cryptographically independent streams that happen to share a socket.
+    """
+    request, response = _format_pair(base)
+    outgoing, incoming = ((request, response) if is_client
+                          else (response, request))
+    out_header, out_body = keys.outgoing(is_client)
+    in_header, in_body = keys.incoming(is_client)
+    hybrid = (mode == fteproxy.handshake.MODE_HYBRID)
+    encoder = fteproxy.record_layer.Encoder(
+        cipher=_cipher_for(outgoing, out_header),
+        body_cipher=_make_body_cipher(out_body) if hybrid else None)
+    decoder = fteproxy.record_layer.Decoder(
+        cipher=_cipher_for(incoming, in_header),
+        body_cipher=_make_body_cipher(in_body) if hybrid else None)
+    return encoder, decoder
+
+
+def _request_scan_order():
+    """Candidate request formats, most-recently-matched first."""
+    definitions = fteproxy.defs.load_definitions()
+    names = [name for name in definitions if name.endswith('-request')]
+    preferred = _last_matched_format
+    if preferred in names:
+        return [preferred] + [name for name in names if name != preferred]
+    return names
+
+
+# --------------------------------------------------------------------------- #
+# The socket wrapper
+# --------------------------------------------------------------------------- #
+
+class _FTESocketWrapper(object):
+    """A socket whose bytes travel as a sequence of format-transformed records.
+
+    One of two roles, decided by which key ``wrap_socket`` was given:
+
+    client
+        holds the server-id, opens with a client hello, and will not send an
+        application byte until a server hello has proved the peer holds the
+        matching private key.
+
+    server
+        holds the private key, learns the format and the mode from the first
+        record, and answers a hello it cannot validate with silence rather
+        than an error.
+
+    Threading: one reader and one writer, as the relay uses it. The handshake
+    lock serialises the two while it runs, since neither direction has keys
+    until it finishes, and is released before any long read so a slow peer in
+    one direction never blocks the other.
+    """
+
+    #: Never buffer more than this waiting for a client hello, or waiting for
+    #: the handshake before the server can send. A hello is one covertext;
+    #: anything beyond the largest format plus a margin is a peer that is not
+    #: speaking this protocol.
+    _MAX_PRE_HANDSHAKE_BYTES = 1 << 16
+
+    def __init__(self, _socket, role, server_key=None, server_public=None,
+                 format=None, mode=None, defs=None):
         self._socket = _socket
-        self._outgoing_regex = outgoing_regex
-        self._outgoing_length = outgoing_length
-        self._incoming_regex = incoming_regex
-        self._incoming_length = incoming_length
-        self._K1 = K1
-        self._K2 = K2
-        self._negotiate = negotiate
+        self._role = role
+        self._server_key = server_key
+        self._server_public = server_public
+        self._format = format
+        self._mode = mode
+        self._defs = defs
+        self._cover_key = fteproxy.handshake.cover_key(server_public)
 
-        self._negotiation_manager = NegotiationManager(K1, K2)
+        self._handshake_lock = threading.RLock()
+        self._send_lock = threading.RLock()
+        self._handshake_done = False
+        self._encoder = None
+        self._decoder = None
         self._incoming_buffer = b''
-        self._preNegotiationBuffer_outgoing = b''
-        self._preNegotiationBuffer_incoming = b''
+        self._pre_handshake_incoming = b''
+        self._pre_handshake_outgoing = b''
+        self._control = collections.deque()
+        self._peer_closed = False
+        self._reject_deadline = None
+        self._negotiated_format = None
+        self._negotiated_mode = None
 
-        if negotiate:
-            # Standard relay mode: client sends negotiation cell, server waits for it
-            self._negotiationComplete = False
-            self._isServer = (outgoing_regex is None and incoming_regex is None)
-            self._isClient = (outgoing_regex is not None and incoming_regex is not None)
-        else:
-            # No negotiation: both sides know the formats, set up encoders immediately
-            self._negotiationComplete = True
-            self._isServer = False
-            self._isClient = False
-            [self._encoder, self._decoder] = self._negotiation_manager._init_encoders(
-                outgoing_regex, outgoing_length,
-                incoming_regex, incoming_length)
+    # -- properties -------------------------------------------------------- #
+
+    @property
+    def negotiated_format(self):
+        """The base format name in use, once the handshake has completed."""
+        return self._negotiated_format
+
+    @property
+    def negotiated_mode(self):
+        """``'hybrid'`` or ``'format'``, once the handshake has completed."""
+        return self._negotiated_mode
+
+    @property
+    def handshake_complete(self):
+        return self._handshake_done
+
+    # -- handshake --------------------------------------------------------- #
+
+    def handshake(self):
+        """Complete the handshake now, blocking until it succeeds or fails.
+
+        Idempotent. A client calls this straight after ``connect`` so that a
+        bad connection string fails immediately rather than at the first byte.
+        A server may call it too, once it has a connection to read from.
+        """
+        leftover = self._ensure_handshake()
+        if leftover:
+            self._decode(leftover)
+
+    def _ensure_handshake(self):
+        """Run the handshake if it has not run. Returns any bytes that arrived
+        behind the client hello, which belong to the session stream."""
+        with self._handshake_lock:
+            if self._handshake_done:
+                return b''
+            if self._role == 'client':
+                self._client_handshake()
+                return b''
+            try:
+                return self._await_client_hello()
+            except HandshakeFailedException as e:
+                self._begin_reject(e)
+                raise
+
+    def _client_handshake(self):
+        request, response = _format_pair(self._format)
+        driver = fteproxy.handshake.ClientHandshake(
+            server_public=self._server_public, format=self._format,
+            mode=self._mode, defs=self._defs)
+        request_cipher = _cipher_for(request, self._cover_key, cover=True)
+        response_cipher = _cipher_for(response, self._cover_key, cover=True)
+
+        sealed = fteproxy.record_layer._seal(request_cipher,
+                                             driver.hello_bytes, 0)
+        timeout = fteproxy.conf.getValue('runtime.fteproxy.negotiate.timeout')
+        try:
+            self._socket.sendall(sealed)
+            frame = self._read_exactly(
+                response_cipher.output_format.max_length, timeout)
+        except OSError as e:
+            raise HandshakeFailedException('handshake I/O failed: %s' % e)
+        if frame is None:
+            raise HandshakeTimeoutException(
+                'no valid handshake reply within %ss (wrong connection '
+                'string, or the peer is not running fteproxy 0.4)' % timeout)
+
+        try:
+            plaintext = response_cipher.decrypt(frame)
+        except fte.FTEError:
+            raise HandshakeFailedException(
+                'the reply did not unseal as a %s covertext (wrong connection '
+                'string, format, or definitions release)' % response)
+        reply = fteproxy.record_layer._unseal(plaintext, 0)
+        if reply is None:
+            raise HandshakeFailedException('malformed server hello frame')
+        try:
+            keys = driver.finish(reply)
+        except fteproxy.handshake.HandshakeError as e:
+            raise HandshakeFailedException(str(e))
+
+        self._negotiated_format = self._format
+        self._negotiated_mode = self._mode
+        self._encoder, self._decoder = _session_channel(
+            self._format, self._mode, keys, is_client=True)
+        self._handshake_done = True
+        fteproxy.debug('handshake complete: protocol 1, %s, %s'
+                       % (self._format, self._mode))
+        self._flush_pre_handshake_outgoing()
+
+    def _await_client_hello(self):
+        """Block until a client hello decodes, or the handshake deadline passes.
+
+        The server handshake is synchronous for the same reason the client's
+        is: until it completes there is no format, no mode and no keys, so
+        there is nothing useful to do with the socket. Bounding it also stops a
+        peer that opens a connection, sends a few bytes and falls silent from
+        holding a relay worker open indefinitely.
+        """
+        timeout = fteproxy.conf.getValue('runtime.fteproxy.negotiate.timeout')
+        deadline = time.monotonic() + timeout
+        previous = self._socket.gettimeout()
+        try:
+            while True:
+                try:
+                    return self._server_handshake()
+                except _NeedMoreData:
+                    pass
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise HandshakeFailedException(
+                        'no client hello within %ss' % timeout)
+                self._socket.settimeout(remaining)
+                try:
+                    chunk = self._socket.recv(65536)
+                except socket.timeout:
+                    raise HandshakeFailedException(
+                        'no client hello within %ss' % timeout)
+                if not chunk:
+                    raise _PeerClosed()
+                self._pre_handshake_incoming += chunk
+        finally:
+            try:
+                self._socket.settimeout(previous)
+            except OSError:
+                pass
+
+    def _server_handshake(self):
+        """Try to complete the handshake from ``_pre_handshake_incoming``.
+
+        Tries each request format whose covertext could fit in what has
+        arrived, most-recently-matched first, and asks libfte to unseal the
+        leading covertext under ``K_cover``. A wrong guess is an
+        ``InvalidCovertextError`` from the AE tag, so the scan simply falls
+        through to the next candidate.
+
+        Returns the bytes left over after the hello. Raises
+        :class:`_NeedMoreData` while the hello could still be incomplete and
+        :class:`HandshakeFailedException` once it cannot be one.
+        """
+        buffered = self._pre_handshake_incoming
+        for name in _request_scan_order():
+            length = fteproxy.defs.getLength(name)
+            if len(buffered) < length:
+                continue
+            cipher = _cipher_for(name, self._cover_key, cover=True)
+            try:
+                plaintext = cipher.decrypt(buffered[:length])
+            except fte.FTEError:
+                continue
+            hello_bytes = fteproxy.record_layer._unseal(plaintext, 0)
+            if hello_bytes is None:
+                continue
+            base = name[:-len('-request')]
+            return self._accept_hello(base, hello_bytes, buffered[length:])
+
+        if len(buffered) > self._MAX_PRE_HANDSHAKE_BYTES:
+            raise HandshakeFailedException(
+                'no client hello in the first %d bytes' % len(buffered))
+        raise _NeedMoreData()
+
+    def _accept_hello(self, base, hello_bytes, remainder):
+        global _last_matched_format
+
+        try:
+            hello, reply_bytes, keys = fteproxy.handshake.accept_client_hello(
+                hello_bytes, self._server_key, self._server_public,
+                defs=self._defs, formats={base}, replay=_replay_filter)
+        except fteproxy.handshake.HandshakeError as e:
+            raise HandshakeFailedException(str(e))
+        if hello.format != base:
+            # The covertext format and the name inside it are the same fact
+            # stated twice; a disagreement is not a client.
+            raise HandshakeFailedException('hello format does not match its '
+                                           'covertext format')
+
+        _, response = _format_pair(base)
+        response_cipher = _cipher_for(response, self._cover_key, cover=True)
+        try:
+            self._socket.sendall(
+                fteproxy.record_layer._seal(response_cipher, reply_bytes, 0))
+        except OSError as e:
+            raise HandshakeFailedException('failed to send server hello: %s' % e)
+
+        self._negotiated_format = base
+        self._negotiated_mode = hello.mode
+        self._encoder, self._decoder = _session_channel(
+            base, hello.mode, keys, is_client=False)
+        self._handshake_done = True
+        _last_matched_format = base + '-request'
+        self._pre_handshake_incoming = b''
+        fteproxy.debug('handshake complete: protocol 1, %s, %s'
+                       % (base, hello.mode))
+        self._flush_pre_handshake_outgoing()
+        return remainder
+
+    def _flush_pre_handshake_outgoing(self):
+        pending, self._pre_handshake_outgoing = self._pre_handshake_outgoing, b''
+        if pending:
+            with self._send_lock:
+                self._encoder.push(pending)
+                out = self._encoder.pop()
+                if out:
+                    self._socket.sendall(out)
+
+    def _read_exactly(self, count, timeout):
+        """Read exactly ``count`` bytes within ``timeout`` seconds, or None.
+
+        Used only for the client's single handshake reply, whose length is
+        fixed by the response format.
+        """
+        deadline = time.monotonic() + timeout
+        previous = self._socket.gettimeout()
+        buffer = b''
+        try:
+            while len(buffer) < count:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return None
+                self._socket.settimeout(remaining)
+                try:
+                    chunk = self._socket.recv(count - len(buffer))
+                except socket.timeout:
+                    return None
+                if not chunk:
+                    return None
+                buffer += chunk
+            return buffer
+        finally:
+            try:
+                self._socket.settimeout(previous)
+            except OSError:
+                pass
+
+    # -- rejection --------------------------------------------------------- #
+
+    def _begin_reject(self, reason):
+        """Answer a failed handshake the way obfs4 does: with nothing.
+
+        No error, no close, no timing signal. The connection stays open,
+        reading and discarding, for a random interval, so an active prober
+        that guessed the connection string wrong learns only that something
+        accepted a TCP connection.
+        """
+        self._reject_deadline = time.monotonic() + fteproxy.handshake.reject_delay()
+        fteproxy.debug('rejecting handshake without reply: %s' % (reason,))
+
+    def _discard_until_deadline(self):
+        previous = self._socket.gettimeout()
+        try:
+            while True:
+                remaining = self._reject_deadline - time.monotonic()
+                if remaining <= 0:
+                    return b''
+                self._socket.settimeout(min(remaining, 0.5))
+                try:
+                    if self._socket.recv(65536) == b'':
+                        return b''
+                except socket.timeout:
+                    continue
+                except OSError:
+                    return b''
+        finally:
+            try:
+                self._socket.settimeout(previous)
+            except OSError:
+                pass
+
+    # -- records ----------------------------------------------------------- #
+
+    def _decode(self, data):
+        """Decode ``data`` into the incoming buffer and the control queue.
+
+        Returns False when the peer sent a record type this version does not
+        define, which the caller answers by closing: continuing would mean
+        guessing at the meaning of the bytes that follow.
+        """
+        self._decoder.push(data)
+        try:
+            records = self._decoder.pop_records()
+        except fteproxy.record_layer.UnknownRecordType as e:
+            fteproxy.warn('closing connection: %s' % e)
+            return False
+        for record_type, payload in records:
+            if record_type == fteproxy.record_layer.DATA:
+                self._incoming_buffer += payload
+            elif record_type == fteproxy.record_layer.CLOSE:
+                self._peer_closed = True
+            elif record_type == fteproxy.record_layer.PADDING:
+                continue
+            else:
+                self._control.append((record_type, payload))
+        return True
+
+    def send_record(self, record_type, payload=b''):
+        """Send one control record. Requires a completed handshake."""
+        self._ensure_handshake()
+        if not self._handshake_done:
+            raise ChannelNotReadyException(
+                'cannot send a control record before the handshake')
+        with self._send_lock:
+            self._socket.sendall(self._encoder.encode(record_type, payload))
+
+    def next_control_record(self):
+        """Pop the next received control record, or None."""
+        try:
+            return self._control.popleft()
+        except IndexError:
+            return None
+
+    @property
+    def peer_closed(self):
+        """Whether the peer has sent CLOSE: no more DATA will arrive."""
+        return self._peer_closed
+
+    # -- socket interface -------------------------------------------------- #
 
     def fileno(self):
         return self._socket.fileno()
@@ -434,76 +712,57 @@ class _FTESocketWrapper(FTEHelper, object):
         return self._socket.getsockopt(level, optname, buflen)
 
     def recv(self, bufsize):
-        # <HACK>
-        # Required to deal with case when client attempts to recv
-        # before sending. This checks to ensure that a negotiate
-        # cell is sent no matter what the client does first.
-        to_send = self._processSend()
-        if to_send:
-            numbytes = self._socket.send(to_send)
-            assert numbytes == len(to_send)
-        # </HACK>
-
+        if self._reject_deadline is not None:
+            return self._discard_until_deadline()
         try:
-            while True:
-                data = self._socket.recv(bufsize)
-                noData = (data == b'')
-                if noData and self._isServer and not self._negotiationComplete:
-                    # The peer closed before a negotiation cell decoded. Nothing
-                    # more will arrive, so report EOF. Treating this as "not
-                    # ready yet" (a socket.timeout) made the relay worker poll
-                    # the closed socket forever, since recv keeps returning b''.
-                    if self._preNegotiationBuffer_incoming:
-                        fteproxy.warn(
-                            'peer closed before negotiation completed: check '
-                            'that both endpoints share the key, '
-                            '--record-layer-mode, and the same fteproxy/libfte '
-                            'line (0.4 is not wire-compatible with 0.3)')
-                    else:
-                        fteproxy.info('peer closed without sending anything')
-                    return b''
-                data = self._processRecv(data)
+            leftover = self._ensure_handshake()
+        except _PeerClosed:
+            fteproxy.debug('peer closed before a client hello decoded'
+                           if self._pre_handshake_incoming
+                           else 'peer closed without sending anything')
+            return b''
+        except HandshakeFailedException:
+            return self._discard_until_deadline()
 
-                if noData and not self._incoming_buffer and not self._decoder._buffer:
-                    return b''
+        if leftover and not self._decode(leftover):
+            return b''
 
-                self._decoder.push(data)
-
-                while True:
-                    frag = self._decoder.pop()
-                    if not frag:
-                        break
-                    self._incoming_buffer += frag
-
-                if self._incoming_buffer:
-                    break
-
-                if noData:
-                    # The peer has closed the connection (recv returned b'').
-                    # No further bytes will ever arrive, so any undecodable data
-                    # still sitting in the decoder buffer (e.g. a covertext cell
-                    # the peer was cut off part-way through) can never complete.
-                    # Report EOF instead of busy-looping on the closed socket.
-                    return b''
-
-            retval = self._incoming_buffer
-            self._incoming_buffer = b''
-        except ChannelNotReadyException:
-            raise socket.timeout
-
-        return retval
-    
-    def send(self, data):
-        to_send = self._processSend()
-        if to_send:
-            self._socket.sendall(to_send)
-
-        self._encoder.push(data)
         while True:
-            to_send = self._encoder.pop()
-            if not to_send:
-                break
-            self._socket.sendall(to_send)
+            if self._incoming_buffer:
+                out, self._incoming_buffer = self._incoming_buffer, b''
+                return out
+            if self._peer_closed:
+                return b''
+
+            data = self._socket.recv(bufsize)
+            if not self._decode(data):
+                return b''
+            if data == b'' and not self._incoming_buffer:
+                # No further bytes will ever arrive, so anything still in the
+                # decoder's buffer can never complete. Report EOF instead of
+                # busy-looping on a closed socket.
+                return b''
+
+    def send(self, data):
+        with self._handshake_lock:
+            if not self._handshake_done:
+                if self._role == 'client':
+                    self._client_handshake()
+                else:
+                    # The server has not seen a hello yet, so it knows neither
+                    # the format nor the keys. Hold the bytes; a destination
+                    # that speaks first (an SSH or SMTP banner) is this case.
+                    if (len(self._pre_handshake_outgoing) + len(data)
+                            > self._MAX_PRE_HANDSHAKE_BYTES):
+                        raise ChannelNotReadyException(
+                            'too much data buffered before the handshake')
+                    self._pre_handshake_outgoing += data
+                    return len(data)
+        with self._send_lock:
+            self._encoder.push(data)
+            out = self._encoder.pop()
+            if out:
+                self._socket.sendall(out)
         return len(data)
 
     def sendall(self, data):
@@ -522,17 +781,17 @@ class _FTESocketWrapper(FTEHelper, object):
         return self._socket.close()
 
     def connect(self, addr):
-        return self._socket.connect(addr)
+        self._socket.connect(addr)
+        if self._role == 'client':
+            self.handshake()
 
     def accept(self):
         conn, addr = self._socket.accept()
-        conn = _FTESocketWrapper(conn,
-                                 self._outgoing_regex, self._outgoing_length,
-                                 self._incoming_regex, self._incoming_length,
-                                 self._K1, self._K2,
-                                 self._negotiate)
-
-        return conn, addr
+        return _FTESocketWrapper(conn, self._role,
+                                 server_key=self._server_key,
+                                 server_public=self._server_public,
+                                 format=self._format, mode=self._mode,
+                                 defs=self._defs), addr
 
     def bind(self, addr):
         return self._socket.bind(addr)
@@ -541,46 +800,76 @@ class _FTESocketWrapper(FTEHelper, object):
         return self._socket.listen(N)
 
 
-def wrap_socket(sock,
-                outgoing_regex=None, outgoing_length=-1,
-                incoming_regex=None, incoming_length=-1,
-                K1=None, K2=None,
-                negotiate=True):
-    """``fteproxy.wrap_socket`` turns an existing socket into an fteproxy socket.
+def wrap_socket(sock, server_key=None, server_id=None,
+                format=None, mode=None, defs=None):
+    """Turn an existing socket into an fteproxy socket.
 
-    The input parameter ``sock`` is the socket to wrap.
-    The parameter ``outgoing_regex`` specifies the format of the messages
-    to send via the socket. The ``outgoing_length`` parameter is the exact
-    length, in bytes, of every formatted covertext sent (libfte 0.4 emits
-    fixed-length covertexts; the capacity of one covertext follows from the
-    pattern and the length, and building the cipher raises
-    ``fte.FormatCapacityError`` if the format cannot hold even an empty
-    message at that length).
-    The parameters ``incoming_regex`` and ``incoming_length`` are defined
-    similarly.
-    The optional parameters ``K1`` and ``K2`` specify 128-bit keys to be used
-    in FTE's underlying AE scheme. If specified, these values must be 16-byte
-    strings. If omitted, the key from ``fteproxy.conf`` is used, which is the
-    public built-in default unless the application has set
-    ``runtime.fteproxy.encrypter.key``; always share a secret key.
+    Exactly one of ``server_key`` and ``server_id`` decides the role:
 
-    The record-layer mode (``hybrid`` or ``format``) comes from
-    ``runtime.fteproxy.record_layer.mode`` in ``fteproxy.conf`` and must be the
-    same on both endpoints.
+    ``server_key``
+        the server's 32-byte X25519 private key, from
+        :func:`fteproxy.generate_server_key`. The socket takes the server
+        role: it learns the format, the mode and the definitions release from
+        the client's first record, and answers anything it cannot validate
+        with silence.
 
-    The ``negotiate`` parameter controls whether the client sends a negotiation
-    cell to establish the format. Set to ``False`` when both sides already know
-    the formats (e.g., in symmetric client/server examples). Default is ``True``
-    for backwards compatibility with the relay use case.
+    ``server_id``
+        the matching public key, as 32 bytes or 43 base64url characters. The
+        socket takes the client role and opens with a hello. ``format`` (a
+        base name such as ``manual-http``, default from ``fteproxy.conf``),
+        ``mode`` (``hybrid`` or ``format``) and ``defs`` are the client's
+        choices; the server follows them.
+
+    Both ends derive their own header and body keys for each direction from
+    the handshake, so nothing has to be configured to match and no two
+    connections share a record key.
     """
+    if (server_key is None) == (server_id is None):
+        raise InvalidRoleException(
+            'wrap_socket needs exactly one of server_key (server role) and '
+            'server_id (client role)')
 
-    assert K1 == None or len(K1) == 16
-    assert K2 == None or len(K2) == 16
+    if server_key is not None:
+        role = 'server'
+        server_key = _as_key_bytes(server_key, 'server_key')
+        server_public = fteproxy.handshake.server_id(server_key)
+    else:
+        role = 'client'
+        server_public = _as_key_bytes(server_id, 'server_id')
 
-    socket_wrapped = _FTESocketWrapper(
-        sock,
-        outgoing_regex, outgoing_length,
-        incoming_regex, incoming_length,
-        K1, K2,
-        negotiate)
-    return socket_wrapped
+    if format is None:
+        format = fteproxy.conf.getValue('runtime.state.upstream_language')
+        if format.endswith('-request'):
+            format = format[:-len('-request')]
+    if mode is None:
+        mode = (fteproxy.handshake.MODE_HYBRID if _hybrid_mode()
+                else fteproxy.handshake.MODE_FORMAT)
+    if mode not in fteproxy.handshake.MODES:
+        raise ValueError('mode must be one of %r' % (fteproxy.handshake.MODES,))
+    if defs is None:
+        defs = fteproxy.conf.getValue('fteproxy.defs.release')
+
+    return _FTESocketWrapper(sock, role, server_key=server_key,
+                             server_public=server_public, format=format,
+                             mode=mode, defs=int(defs))
+
+
+def _as_key_bytes(value, what):
+    """Accept a key as raw bytes or as base64url without padding."""
+    if isinstance(value, (bytes, bytearray)):
+        if len(value) != fteproxy.handshake.KEY_BYTES:
+            raise ValueError('%s must be %d bytes'
+                             % (what, fteproxy.handshake.KEY_BYTES))
+        return bytes(value)
+    if isinstance(value, str):
+        import base64
+        padded = value + '=' * (-len(value) % 4)
+        try:
+            raw = base64.urlsafe_b64decode(padded)
+        except (ValueError, TypeError):
+            raise ValueError('%s is not valid base64url' % what)
+        if len(raw) != fteproxy.handshake.KEY_BYTES:
+            raise ValueError('%s must decode to %d bytes'
+                             % (what, fteproxy.handshake.KEY_BYTES))
+        return raw
+    raise TypeError('%s must be bytes or a base64url string' % what)

@@ -11,9 +11,16 @@ import sys
 import threading
 import fteproxy
 
-# Chat traffic will look like space-separated words
-SEND_FORMAT = "^([a-z]+ )+[a-z]+$"
-RECV_FORMAT = "^([A-Z]+ )+[A-Z]+$"
+# A fixed demo identity so the two scripts agree without exchanging anything.
+# The private key is published here on purpose: it is a demo. A real server
+# generates its own with `fteproxy keygen`, keeps server.key at mode 0600, and
+# hands out only the public half.
+DEMO_SERVER_KEY = bytes.fromhex(
+    "628e1b010509a623c31c54a443d996d10427f2e47ff11258d50e9f70c4b79651")
+DEMO_SERVER_ID = fteproxy.server_id(DEMO_SERVER_KEY)
+
+# Chat traffic will look like space-separated words.
+FORMAT = "words"
 
 PORT = 50009
 
@@ -39,15 +46,8 @@ def chat_server():
     print(f"Waiting for connection on port {PORT}...")
     
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock = fteproxy.wrap_socket(
-        sock,
-        outgoing_regex=RECV_FORMAT,  # Server sends in UPPERCASE format
-        outgoing_length=256,
-        incoming_regex=SEND_FORMAT,   # Client sends in lowercase format
-        incoming_length=256,
-        negotiate=False
-    )
-    
+    sock = fteproxy.wrap_socket(sock, server_key=DEMO_SERVER_KEY)
+
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(("", PORT))
     sock.listen(1)
@@ -78,15 +78,8 @@ def chat_client(host: str):
     print(f"Connecting to {host}:{PORT}...")
     
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock = fteproxy.wrap_socket(
-        sock,
-        outgoing_regex=SEND_FORMAT,   # Client sends in lowercase format
-        outgoing_length=256,
-        incoming_regex=RECV_FORMAT,   # Server sends in UPPERCASE format
-        incoming_length=256,
-        negotiate=False
-    )
-    
+    sock = fteproxy.wrap_socket(sock, server_id=DEMO_SERVER_ID, format=FORMAT)
+
     sock.connect((host, PORT))
     print("Connected!")
     print("Type messages and press Enter. Ctrl+C to quit.\n")

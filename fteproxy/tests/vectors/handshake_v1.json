@@ -1,0 +1,87 @@
+{
+  "cases": [
+    {
+      "client_ephemeral_private": "d6f69cb7ca67ca10db63890d5fa1ccae64a235451fb8b89fe233d256fae6d608",
+      "client_ephemeral_public": "0abd6e1705a18a41810163acc4ac6a9706ce8c8da4e73016c6775e5cf2e6ab57",
+      "client_hello": "01000135250e0b6d616e75616c2d687474700abd6e1705a18a41810163acc4ac6a9706ce8c8da4e73016c6775e5cf2e6ab5700077a10",
+      "cover_key": "20224e0b63828602ef3d0073b611469bed6b15faea46d355c8179657e11da488",
+      "defs": 20260110,
+      "dh_ee": "2ac76f183233e8855a601372581f4e6fff00b3285f6526b4751f1eccac6fd638",
+      "dh_es": "9fd338ff83af6205e5725274c20daf074b165cfda9161025564c4230e9cc6001",
+      "epoch": 490000,
+      "format": "manual-http",
+      "keys": {
+        "auth": "a859f573faf08980adc29d89ae3aa57ce9e951c4aeab090762b22327c650861e",
+        "c2s_body": "47ca09b807f6c2b8c57e6f01425ea0342ef8902cd1c89e93aaba4f34a348c7e7",
+        "c2s_header": "9545453c080e8282cf4da03aa04ae743562556a1b892e5e92beabc289b435b46",
+        "s2c_body": "816bbb88272a7a79d17a51756fa1f7df2bc529cb2a8df1c0c2c65882cf706ad8",
+        "s2c_header": "cfd0d0842a72515810c8898fcf5c2c93d4ffb17cad3bdab4c60df359b4d8cdd0"
+      },
+      "mode": "hybrid",
+      "name": "manual-http hybrid",
+      "server_ephemeral_private": "017b04ff89727221401b01a7fa728f430ca3d5bff55252250371fc0a24a0c4cd",
+      "server_ephemeral_public": "03eeac32096b74300f184ee422dc267c84a061b8f9314d489b65f4a1db7ad119",
+      "server_hello": "010003eeac32096b74300f184ee422dc267c84a061b8f9314d489b65f4a1db7ad11979a925597a953a45fb2caff521450bf5",
+      "server_mac": "79a925597a953a45fb2caff521450bf5",
+      "server_private": "589bd270ea528a90177de62911babb35b5ff59b4c68a8fd20ff8ebe322404414",
+      "server_public": "91ead206771bea597c3a7f1b0ecd26fe8692836ed5d061553de6ab0466843641",
+      "transcript_hash": "2e5dd259366fb439496c2fd746277b18af4b1925c650073fcf9fd4cec0c1d487"
+    },
+    {
+      "client_ephemeral_private": "0668b4eef8fecf7d5ec680bd133158f73b72849f5d7ec4e9063ad377e180af44",
+      "client_ephemeral_public": "a81b5fcff70a2a937ca9e06841936120d93792e6ca8641053c9ebab3d8a8c158",
+      "client_hello": "01010135250e05776f726473a81b5fcff70a2a937ca9e06841936120d93792e6ca8641053c9ebab3d8a8c15800077a11",
+      "cover_key": "80111c355bba4249f13ce8c95e35394d74d31e484cc356adf84c7be30fe1d5fb",
+      "defs": 20260110,
+      "dh_ee": "037e0a48ed588eade42bcc1a931a365dfb68d644e4063d5fa5c6570b4080020c",
+      "dh_es": "54881fe84e26d8a2270057d191e44a2fad207ac0c18771433bc2c29c5700f356",
+      "epoch": 490001,
+      "format": "words",
+      "keys": {
+        "auth": "469c40a855df1927b79d96f005062dfcb94e29aab2aee511c24c75d57d7ea755",
+        "c2s_body": "5a32136d6473b911ee43e49cd0325677cbe72350c9d5b4ac32d01d7869736ab0",
+        "c2s_header": "8f59f1fca95bd6808a394c26ae2bf9d7a6dc5795c879b821e9653819fc0b1ae2",
+        "s2c_body": "b92674c200b05e9b88006c912b3ea7388038daae4a456c367a3c4414374a9f01",
+        "s2c_header": "886505f01b6b4b03f247ff521e967a88581667646626e5e4d89691cce2cb6c7c"
+      },
+      "mode": "format",
+      "name": "words format",
+      "server_ephemeral_private": "5bbb7267d6edd788f39d0fddc1ae55ec370408d4a04190714941941a6757f693",
+      "server_ephemeral_public": "c5742ea59e11479517e7f2a750f7c2aaea69aee2a9b7ce649d06f2556ef3761e",
+      "server_hello": "0101c5742ea59e11479517e7f2a750f7c2aaea69aee2a9b7ce649d06f2556ef3761e8ec76a0d50880b082f8f3d50093f70f7",
+      "server_mac": "8ec76a0d50880b082f8f3d50093f70f7",
+      "server_private": "73c6a692b8af5ad9c0cab2f35ba0332803c5e4641d2310a65e43e38fa86ff7de",
+      "server_public": "9cc47300b1b84d0d7e8829c84511fe51abcb94642e01d20c34988fdf11359462",
+      "transcript_hash": "59efc78ec2256d954b0a1a19af5e59c89c8faa03c4fa9136eef5dc80be6e5d79"
+    },
+    {
+      "client_ephemeral_private": "4eeb6e5b291797a0b81f6eff10f21ecde7aff3d7311ab96fc13b7258e307e09b",
+      "client_ephemeral_public": "37ac32ff70fb1a6847b86a0c2642617ad932b5aebce76bb4bfe581af4d2bce6f",
+      "client_hello": "010001332d980c656d61696c2d73696d706c6537ac32ff70fb1a6847b86a0c2642617ad932b5aebce76bb4bfe581af4d2bce6f00000000",
+      "cover_key": "592250c73fe82e765322e6e8a9590d2c4a2db0dea06f195696e1837fa30f5966",
+      "defs": 20131224,
+      "dh_ee": "db7315457753a1527da05f9dcd8cbca5fa09e4b1dcdeaf1497349d6ef6827b0b",
+      "dh_es": "561e989c698a19eb33e04b56f23a7d1cbd3a4f2c0876a214b660345188f44608",
+      "epoch": 0,
+      "format": "email-simple",
+      "keys": {
+        "auth": "22fbee75eb9bea94decd10db4df498825ed046c25a281d6688dec05dba0fb025",
+        "c2s_body": "74b17f041349def84a90fc97b55641cb6cfc1e8cf8473735ab60d8120346c092",
+        "c2s_header": "211178046ac0a8938fc5fb3075c544c851675d9a6953cd2bb61cf20cf50ebd16",
+        "s2c_body": "6953b236cd04dc471af16d7c05b7fa29219fd1d4d6dc954e3f17339470fda874",
+        "s2c_header": "65474902e23edac48cd43a8ce9be950c0f7572f4c486fcaeaa142a0d98c190fb"
+      },
+      "mode": "hybrid",
+      "name": "email-simple hybrid, longest shipped base name",
+      "server_ephemeral_private": "c9aaf9b44e3dd8dd0baecdac2bf026eb7a9b4d025868bbac0a16dc555b2f6cb5",
+      "server_ephemeral_public": "05cf212647f4a25725a7f16e9c7f77a0e3ce8bf4238e2fd8774612a06da4b932",
+      "server_hello": "010005cf212647f4a25725a7f16e9c7f77a0e3ce8bf4238e2fd8774612a06da4b932e282c2b6cbb63668c8b2b719e539f412",
+      "server_mac": "e282c2b6cbb63668c8b2b719e539f412",
+      "server_private": "45a31d6f4c7c82c0c2fe7126e0f804fdc56351011b29d60796bb25a51b61e66d",
+      "server_public": "ded2c5ea177522eea06b16e56b2569e42335c30a0c0cba66e910ae82019a0f63",
+      "transcript_hash": "f58a5efc7593e020ceb68a3fa475d6d7a209178808c1c4e695069ece0f762000"
+    }
+  ],
+  "note": "Test vectors for the fteproxy protocol v1 handshake. Generated once by scripts kept out of the package; the ephemeral keys are derived from fixed labels so a regeneration reproduces the file byte for byte. Everything here is public test data.",
+  "protocol_version": 1
+}

@@ -3,16 +3,23 @@
 FTE Chat Server
 
 A simple chat server that has a 10-round conversation with the client.
-All traffic is FTE-encoded to look like binary (0s and 1s) or letters (As and Bs).
+All traffic is FTE-encoded to look like binary (0s and 1s).
+
+The server is told nothing about the format: it learns it, and the
+record-layer mode, from the client's first record, and proves its identity
+with the private key below.
 """
 
 import sys
 import socket
 import fteproxy
 
-# Format definitions - must match client
-CLIENT_TO_SERVER = '^(0|1)+$'   # Client sends as binary
-SERVER_TO_CLIENT = '^(A|B)+$'   # Server sends as A/B letters
+# A fixed demo identity so the two scripts agree without exchanging anything.
+# The private key is published here on purpose: it is a demo. A real server
+# generates its own with `fteproxy keygen`, keeps server.key at mode 0600, and
+# hands out only the public half.
+DEMO_SERVER_KEY = bytes.fromhex(
+    "628e1b010509a623c31c54a443d996d10427f2e47ff11258d50e9f70c4b79651")
 
 HOST = ''       # All interfaces
 PORT = 50007
@@ -36,20 +43,14 @@ def main():
     print("FTE Chat Server")
     print("=" * 50)
     print(f"Listening on port {PORT}")
-    print(f"Client->Server format: binary (0s and 1s)")
-    print(f"Server->Client format: letters (As and Bs)")
+    print("Format and mode: whatever the client asks for")
     print("=" * 50)
     print()
 
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock = fteproxy.wrap_socket(sock,
-                                    outgoing_regex=SERVER_TO_CLIENT,
-                                    outgoing_length=520,
-                                    incoming_regex=CLIENT_TO_SERVER,
-                                    incoming_length=520,
-                                    negotiate=False)
+        sock = fteproxy.wrap_socket(sock, server_key=DEMO_SERVER_KEY)
         sock.bind((HOST, PORT))
         sock.listen(1)
 

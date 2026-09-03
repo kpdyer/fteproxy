@@ -10,6 +10,7 @@ import struct
 import pytest
 import fte
 
+import fteproxy
 import fteproxy.conf
 import fteproxy.defs
 import fteproxy.record_layer
@@ -113,16 +114,18 @@ class _RaisingCipher:
 
 
 class _FixedCellCipher:
-    """Cipher stub for a fixed-size covertext frame. Its plaintext seals the
-    covertext bytes (length, then the stream position it is decrypted at) so
-    the Decoder's unseal step recovers them."""
+    """Cipher stub for a fixed-size covertext frame. Its plaintext seals a DATA
+    record whose payload is the covertext bytes (length, then the stream
+    position it is decrypted at, then the record type) so the Decoder's unseal
+    and type-split steps recover them."""
 
     def __init__(self, cell_size=4):
         self.output_format = _Format(cell_size)
         self._seq = 0
 
     def decrypt(self, covertext):
-        sealed = struct.pack('>IQ', len(covertext), self._seq) + covertext
+        message = bytes((fteproxy.record_layer.DATA,)) + covertext
+        sealed = struct.pack('>IQ', len(message), self._seq) + message
         self._seq += 1
         return sealed
 
@@ -145,18 +148,18 @@ class TestDecoderExceptionHandling:
         decoder.push(b'some-ciphertext-bytes')
 
         with pytest.raises(SystemExit):
-            decoder.pop(oneCell=True)
+            decoder.pop(limit=1)
 
-    def test_onecell_returns_exactly_one_cell(self):
-        """oneCell=True returns a single decoded cell and advances the buffer."""
+    def test_limit_returns_exactly_one_record(self):
+        """limit=1 returns a single decoded record and advances the buffer."""
         decoder = fteproxy.record_layer.Decoder(cipher=_FixedCellCipher(4))
         decoder.push(b'AAAABBBBCCCC')
 
-        assert decoder.pop(oneCell=True) == b'AAAA'
+        assert decoder.pop(limit=1) == b'AAAA'
         assert decoder._buffer == b'BBBBCCCC'
 
-    def test_multicell_drains_entire_buffer(self):
-        """oneCell=False drains every cell from the buffer."""
+    def test_unlimited_drains_entire_buffer(self):
+        """Without a limit every record in the buffer is drained."""
         decoder = fteproxy.record_layer.Decoder(cipher=_FixedCellCipher(4))
         decoder.push(b'AAAABBBBCCCC')
 
@@ -336,3 +339,97 @@ def test_seal_fills_covertext_with_random_not_padding():
     for path in (fmt_path, hyb_path):
         assert len(path) > 100        # the path fills the covertext capacity
         assert len(set(path)) > 15    # random-looking, not a single-char run
+
+
+class TestRecordTypes:
+    """Every record carries a type byte; unknown types close the connection."""
+
+    def _pair(self, hybrid=True, language='manual-http-request'):
+        fteproxy.conf.setValue('runtime.mode', 'client')
+        key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+        cipher = fteproxy._make_cipher(
+            fteproxy.defs.getRegex(language),
+            fteproxy.defs.getLength(language), key)
+        body = fteproxy._make_body_cipher(key) if hybrid else None
+        return (fteproxy.record_layer.Encoder(cipher=cipher, body_cipher=body),
+                fteproxy.record_layer.Decoder(cipher=cipher, body_cipher=body))
+
+    @pytest.mark.parametrize('hybrid', [True, False])
+    @pytest.mark.parametrize('record_type,payload', [
+        (fteproxy.record_layer.DATA, b'application bytes'),
+        (fteproxy.record_layer.OPEN, b'\x03\x0bexample.com\x01\xbb'),
+        (fteproxy.record_layer.OPEN_RESULT, b'\x00'),
+        (fteproxy.record_layer.PADDING, b'\x00' * 32),
+        (fteproxy.record_layer.CLOSE, b''),
+    ])
+    def test_every_type_round_trips(self, hybrid, record_type, payload):
+        encoder, decoder = self._pair(hybrid=hybrid)
+        decoder.push(encoder.encode(record_type, payload))
+        assert decoder.pop_records() == [(record_type, payload)]
+
+    @pytest.mark.parametrize('hybrid', [True, False])
+    def test_types_interleave_with_data(self, hybrid):
+        encoder, decoder = self._pair(hybrid=hybrid)
+        wire = encoder.encode(fteproxy.record_layer.OPEN, b'dest')
+        encoder.push(b'payload')
+        wire += encoder.pop()
+        wire += encoder.encode(fteproxy.record_layer.CLOSE)
+        decoder.push(wire)
+        assert decoder.pop_records() == [
+            (fteproxy.record_layer.OPEN, b'dest'),
+            (fteproxy.record_layer.DATA, b'payload'),
+            (fteproxy.record_layer.CLOSE, b''),
+        ]
+
+    @pytest.mark.parametrize('hybrid', [True, False])
+    def test_unknown_type_raises(self, hybrid):
+        """Only a peer with the session keys can produce one, so this is a
+        version mismatch: the caller closes rather than guessing."""
+        encoder, decoder = self._pair(hybrid=hybrid)
+        # Reach past encode()'s validation to build a record no version
+        # defines.
+        decoder.push(encoder._emit(0x7f, b'from the future'))
+        with pytest.raises(fteproxy.record_layer.UnknownRecordType):
+            decoder.pop_records()
+
+    def test_encode_rejects_an_unknown_type(self):
+        encoder, _ = self._pair()
+        with pytest.raises(ValueError):
+            encoder.encode(0x7f, b'')
+
+    def test_encode_rejects_an_oversized_payload(self):
+        encoder, _ = self._pair(hybrid=False)
+        with pytest.raises(ValueError):
+            encoder.encode(fteproxy.record_layer.OPEN,
+                           b'x' * (encoder.capacity + 1))
+
+    def test_capacity_accounts_for_the_type_byte(self):
+        """In format mode the type byte comes out of the covertext's fixed
+        capacity. In hybrid mode the body has no fixed width, so it rides on
+        top and the chunk boundaries are unchanged: a 1 MiB write is still one
+        record, not one plus a one-byte straggler."""
+        key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+        cipher = fteproxy._make_cipher(
+            fteproxy.defs.getRegex('manual-http-request'),
+            fteproxy.defs.getLength('manual-http-request'), key)
+        formatted = fteproxy.record_layer.Encoder(cipher=cipher)
+        assert formatted.capacity == cipher.max_plaintext_bytes - 12 - 1
+        body = fteproxy._make_body_cipher(key)
+        hybrid = fteproxy.record_layer.Encoder(cipher=cipher, body_cipher=body)
+        assert hybrid.capacity == body.max_plaintext_bytes
+
+    def test_a_full_capacity_write_is_one_record(self):
+        encoder, decoder = self._pair(hybrid=True)
+        payload = b'z' * encoder.capacity
+        encoder.push(payload)
+        wire = encoder.pop()
+        decoder.push(wire)
+        assert decoder.pop_records() == [(fteproxy.record_layer.DATA, payload)]
+
+    def test_pop_refuses_a_control_record(self):
+        """pop() is the data-only convenience; a control record must not be
+        silently dropped by a caller that only wanted bytes."""
+        encoder, decoder = self._pair()
+        decoder.push(encoder.encode(fteproxy.record_layer.OPEN, b'dest'))
+        with pytest.raises(fteproxy.record_layer.UnknownRecordType):
+            decoder.pop()
