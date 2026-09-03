@@ -401,12 +401,14 @@ class FteProxyTunnel:
     """
 
     def __init__(self, dest_port, upstream_format=None, downstream_format=None,
+                 record_layer_mode=None,
                  shaper_kwargs=None, verbose=False):
         self.dest_port = dest_port
         self.entry_port = free_port()
         self.server_port = free_port()
         self.upstream_format = upstream_format
         self.downstream_format = downstream_format
+        self.record_layer_mode = record_layer_mode
         self.verbose = verbose
         self.procs = []
         self.shaper = None
@@ -419,6 +421,8 @@ class FteProxyTunnel:
         server_cmd = [py, '-m', 'fteproxy', '--mode', 'server', '--quiet',
                       '--server_ip', '127.0.0.1', '--server_port', str(self.server_port),
                       '--proxy_ip', '127.0.0.1', '--proxy_port', str(self.dest_port)]
+        if self.record_layer_mode:
+            server_cmd += ['--record-layer-mode', self.record_layer_mode]
         self.procs.append(subprocess.Popen(server_cmd, stdout=out, stderr=out))
 
         # Client connects either straight to the server, or via the shaper.
@@ -437,6 +441,8 @@ class FteProxyTunnel:
             client_cmd += ['--upstream-format', self.upstream_format]
         if self.downstream_format:
             client_cmd += ['--downstream-format', self.downstream_format]
+        if self.record_layer_mode:
+            client_cmd += ['--record-layer-mode', self.record_layer_mode]
         self.procs.append(subprocess.Popen(client_cmd, stdout=out, stderr=out))
 
         if not wait_listening(self.server_port):
@@ -734,6 +740,7 @@ def run_matrix(args):
                 tunnel = TunnelCls(dest.port, shaper_kwargs=shaper_kwargs,
                                    upstream_format=args.upstream_format,
                                    downstream_format=args.downstream_format,
+                                   record_layer_mode=args.record_layer_mode,
                                    verbose=args.verbose)
             except TypeError:
                 tunnel = TunnelCls(dest.port, shaper_kwargs=shaper_kwargs)
@@ -856,6 +863,9 @@ def main():
     ap.add_argument('--upstream-format', default=None,
                     help="fteproxy --upstream-format (e.g. manual-http-request)")
     ap.add_argument('--downstream-format', default=None)
+    ap.add_argument('--record-layer-mode', choices=['hybrid', 'format'], default=None,
+                    help="fteproxy --record-layer-mode for both endpoints "
+                         "(default: fteproxy's own default, hybrid)")
     ap.add_argument('--json', default=None, metavar='PATH',
                     help="write raw results as JSON")
     ap.add_argument('--verbose', action='store_true',

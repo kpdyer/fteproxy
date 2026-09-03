@@ -109,7 +109,7 @@ high-entropy ciphertext. This is the behavior fteproxy shipped on libfte 0.3.
 
 'format' transforms every covertext byte into the target format, so the whole
 stream is indistinguishable from the protocol: stronger against entropy or
-statistical detectors, but much slower. Turn it up when you want full-stream
+statistical detectors, but much slower. Turn it on when you want full-stream
 realism and can spend the throughput. Both endpoints must use the same mode."""
 conf['runtime.fteproxy.record_layer.mode'] = 'hybrid'
 
@@ -129,7 +129,8 @@ DEFAULT_KEY = b'\xFF' * 16 + b'\x00' * 16
 conf['runtime.fteproxy.encrypter.key'] = DEFAULT_KEY
 
 
-"""The default length parameter to use for buildTable."""
+"""Covertext length for definitions that carry no "length" key (the manual-*
+and dummy-* formats)."""
 conf['fteproxy.default_length'] = 2 ** 8
 
 

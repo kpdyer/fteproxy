@@ -13,6 +13,10 @@
 pip install fteproxy
 ```
 
+> **0.4 is not wire-compatible with 0.3.x.** Upgrade both endpoints together,
+> and give both the same `--key`/`--key-file` (the built-in default key is
+> public) and the same `--record-layer-mode`.
+
 ## Quick Start
 
 ### Server
@@ -33,7 +37,7 @@ python3 -m fteproxy --mode client --client_ip 127.0.0.1 --client_port 8079 --ser
 [Application] <-> [fteproxy client] <--FTE encoded--> [fteproxy server] <-> [Destination]
 ```
 
-fteproxy encodes traffic to match user-specified regular expressions, making it appear as allowed traffic (e.g., HTTP) to network filters.
+fteproxy encodes traffic to match user-specified regular expressions, making it appear as allowed traffic (e.g., HTTP) to network filters. By default each record starts with a covertext in the chosen format and carries the rest as raw authenticated ciphertext (`--record-layer-mode hybrid`); `--record-layer-mode format` puts every byte in the format at much lower throughput.
 
 ## Links
 

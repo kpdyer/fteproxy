@@ -52,5 +52,9 @@ Your Traffic Flow:
                      patterns
 ```
 
-The traffic between the fteproxy client and server looks like HTTP requests/responses,
-making it difficult for network monitors to identify as proxy traffic.
+Each record between the fteproxy client and server starts with a covertext
+shaped like an HTTP request (client to server) or an HTTP response (server to
+client). With the default `--record-layer-mode hybrid` the rest of the record is
+raw authenticated ciphertext; with `--record-layer-mode format` on both sides
+the whole stream is in the format. Either way, give both sides the same
+`--key-file`: the built-in default key is public.

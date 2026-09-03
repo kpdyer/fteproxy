@@ -1,238 +1,172 @@
 # fteproxy performance analysis
 
-Companion to [`benchmark.py`](benchmark.py). All numbers below were produced by that
-script on loopback (macOS, Python 3.14, `fte` 0.2.1), comparing fteproxy against a
-**plain-TCP relay of identical two-hop topology** so the cost of Format-Transforming
-Encryption is isolated from the cost of the network conditions. The "network" is an
-in-process link shaper (one-way delay + jitter + bandwidth cap); see the note in
-`benchmark.py` on why that faithfully models what TCP loss/reorder look like to the
-application layer.
+Companion to [`benchmark.py`](benchmark.py). The numbers below were produced by
+that script on loopback (Apple M3 Pro, macOS, Python 3.14.7) on 2026-09-02 for
+**fteproxy 0.4.0 with `fte` 0.4.0** (the tree of the 0.4 release stack), with
+**fteproxy 0.3.1 + `fte` 0.3.0** measured the same day on the same machine for
+comparison, and a **plain-TCP relay of identical two-hop topology** so the cost
+of Format-Transforming Encryption is isolated from the network. Everything here
+was measured unless marked *estimated*.
 
 Reproduce:
 
 ```bash
-pip install -e .                       # needs the `fte` dependency
+pip install -e .                       # needs fte>=0.4.0,<0.5.0
 python3 benchmark.py --baseline        # default 6 scenarios
-python3 benchmark.py --scenarios lan broadband dsl --sizes 1M 8M --baseline --no-latency --no-setup
+python3 benchmark.py --scenarios lan --sizes 64K 1M 8M --repeat 2 --baseline
+python3 benchmark.py --scenarios lan --sizes 8M --direction upload --no-latency --no-setup
+python3 benchmark.py --scenarios lan --sizes 64K 1M --record-layer-mode format
 ```
 
 ---
 
 ## TL;DR
 
-1. **On any real-world link (≤ ~25 Mbit), fteproxy is as fast as raw TCP.** For bulk
-   transfers it reaches **99%** of the plain-TCP baseline on the 5 Mbit and 25 Mbit
-   links — the network is the bottleneck and FTE overhead is invisible.
-2. **fteproxy's own ceiling is CPU, not the network: ~300 Mbit/s of FTE per stream.**
-   This only becomes the limiter on LAN/datacenter-speed links, where fteproxy is
-   ~25× slower than raw TCP.
-3. **The dominating cost is a large FIXED per-call cost in FTE (~0.7 ms/encode).**
-   Throughput is entirely determined by how much plaintext is packed into each cell:
-   a 64-byte message runs at 0.7 Mbit/s and **expands 4×**; a 32 KB cell runs at
-   ~300 Mbit/s with ~0% expansion.
-4. **Interactive latency overhead is a small, roughly constant few milliseconds** (two
-   encodes + two decodes per round trip) — negligible on any link with real latency,
-   but 10× the raw RTT on loopback.
-5. **Abrupt link drops are *usually* detected fast (~0.5 s) but not reliably.** In ~10–20%
-   of trials the application connection wedges instead — a real robustness bug rooted in
-   the relay's polling design (see below). fteproxy's nominal 30 s socket timeout does
-   **not** rescue it, because the poll loop never lets that timeout fire.
+1. **On any real-world link (≤ ~25 Mbit) fteproxy is as fast as raw TCP.** That was
+   true on 0.3 and is unchanged: the network is the bottleneck and FTE is invisible.
+   Everything below is about LAN/datacenter-speed links and interactive latency.
+2. **The 0.4 record layer is 5–7x faster than 0.3.1 in bulk on LAN** (8 MB echo
+   0.7 → 4.6 Gbit/s, ~75% of plain TCP) and **3x lower in interactive overhead**
+   (64 B RTT 1.5 → 0.5 ms). The per-record fixed cost fell from ~0.9 ms to ~0.17 ms
+   (round trip), and the body is OpenSSL AES-CTR+HMAC instead of a big-integer frame.
+3. **The ceiling is now the relay loop and the GIL, not FTE.** The record layer alone
+   runs 650–950 MB/s (5–7.5 Gbit/s) per direction; the two-thread-per-connection
+   relay gets ~4.6 Gbit/s echo out of it.
+4. **`format` mode (every byte in the target format) is interactive-only:** same RTT
+   class as `hybrid` (0.7 vs 0.5 ms) but 4–7 Mbit/s bulk, because the DFA runs on
+   every ~140 bytes instead of once per record. Its cost is inherent to the mode.
+5. **libfte 0.4 caches nothing.** 0.3 cached its DFA tables globally, so building an
+   encoder was free; 0.4 compiles a DFA per `RegexFormat` (0.5–1.5 ms). fteproxy
+   therefore caches ciphers itself (`_make_cipher`, one per pattern/length/key),
+   which brings connection setup to ~1 ms. Without the cache it was 8–12 ms, and a
+   connection closed before negotiating pinned the server at 64–100% CPU.
+6. **The relay's `select`+throttle poll loop is unchanged** and still carries the
+   caveats from 0.3: do not delete the throttle, and a dropped link can still wedge
+   an application connection (see *Resilience*).
 
 ---
 
-## Measured data
+## Measured data (LAN, loopback)
 
-### Bulk throughput — 8 MB echo (round trip, exercises both FTE directions)
+| metric | plain TCP | 0.3.1 | **0.4 hybrid (default)** | 0.4 format |
+|---|---:|---:|---:|---:|
+| connection setup p50 | – | 2.7–3.3 ms | **1.1 ms** | ~1 ms |
+| RTT 64 B p50 (p90) | 0.15 (0.28) ms | 1.5–1.7 ms | **0.51 (0.55) ms** | 0.73 (0.92) ms |
+| 64 KB echo | 413–1225 Mbit/s | 113–144 Mbit/s | **557 Mbit/s** | 4.4 Mbit/s |
+| 1 MB echo | 2596 Mbit/s | 452–522 Mbit/s | **2540 Mbit/s** | 7.3 Mbit/s |
+| 8 MB echo | 6071 Mbit/s | 655–700 Mbit/s | **4626 Mbit/s** | – |
+| 8 MB upload (one direction) | – | 1069–1275 Mbit/s | **4412 Mbit/s** | – |
 
-| Link (shaper)      | fteproxy | plain-TCP | fteproxy / baseline |
-|--------------------|---------:|----------:|--------------------:|
-| LAN (loopback)     | 210 Mbit/s | 5553 Mbit/s | 3.8% |
-| broadband (25 Mbit)| 24.5 Mbit/s | 24.8 Mbit/s | **99%** |
-| dsl (5 Mbit)       | 4.94 Mbit/s | 4.98 Mbit/s | **99%** |
+Ranges are run-to-run spread across two runs; the 64 KB transfer window
+includes connection setup and negotiation, so it is the noisiest row (the
+plain-TCP 64 KB figure varied 3x between runs). On the shaped links
+(broadband 25 Mbit and slower) fteproxy matches plain TCP within measurement
+noise, as it did on 0.3; those rows are omitted.
 
-> On a constrained link the two lines are on top of each other; on LAN the FTE CPU
-> ceiling (~300 Mbit/s single stream) is the wall.
+### Record layer alone (no sockets), `manual-http-request`/`-response`
 
-### Interactive latency — 64 B request/response, connection reused
+Median encrypt+decrypt round trip through `fteproxy.record_layer`, from the
+release review (same machine):
 
-| Link            | fteproxy RTT | plain-TCP RTT | FTE overhead |
-|-----------------|-------------:|--------------:|-------------:|
-| LAN             | 1.70 ms | 0.19 ms | +1.5 ms |
-| broadband       | 32.2 ms | 24.5 ms | +7.7 ms |
-| dsl             | 59.9 ms | 56.0 ms | +3.9 ms |
-| 3g (200 ms)     | 219.6 ms | 215.9 ms | +3.7 ms |
-| edge (400 ms)   | 424.8 ms | 401.2 ms | +23 ms* |
-| satellite (1200 ms) | 1215 ms | 1213 ms | +2 ms |
+| message | 0.3.1 | 0.4 hybrid | 0.4 format | wire expansion 0.3.1 → 0.4 hybrid / format |
+|---|---:|---:|---:|---:|
+| 64 B | 0.07–0.21 MB/s (0.9 ms/record) | 0.38–0.53 MB/s (0.17 ms) | 0.40–0.65 MB/s | 4.0x → 5.4x / 4.0x |
+| 4 KiB | 4.5–11.7 MB/s | 23–33 MB/s | 0.9–1.9 MB/s | 1.03x → 1.07x / 1.81x |
+| 256 KiB | 75–88 MB/s | 657–713 MB/s | 0.9–1.8 MB/s | 1.001x → 1.001x / 1.75x |
+| 1 MiB | 75–89 MB/s | 920–960 MB/s | 1.0–1.8 MB/s | 1.000x → 1.000x / 1.75x |
 
-> \*edge has ±60 ms of injected jitter, so its overhead figure is mostly noise. The
-> real signal: fteproxy adds a small **constant** delay, so its relative cost vanishes
-> as link latency grows.
-
-### Connection setup (open → first byte back), fteproxy
-
-Tracks **~1 RTT + a few ms** (the FTE negotiation cell rides on the first data segment,
-so setup is one round trip): LAN 2.8 ms, broadband 32 ms, dsl 64 ms, satellite 1221 ms.
-
-### Raw FTE cost by cell size (the root cause)
-
-| plaintext | ciphertext | expansion | encode | decode |
-|----------:|-----------:|----------:|-------:|-------:|
-| 64 B    | 256 B  | 4.0× | 0.7 Mbit/s | 1.0 Mbit/s |
-| 1 KB    | 1.1 KB | 1.1× | 11.8 Mbit/s | 13.6 Mbit/s |
-| 4 KB    | 4.2 KB | 1.0× | 46 Mbit/s | 54 Mbit/s |
-| 16 KB   | 16.5 KB| 1.0× | 168 Mbit/s | 193 Mbit/s |
-| 32 KB   | 32.9 KB| 1.0× | **299 Mbit/s** | **347 Mbit/s** |
-
-Single-call latency is ~0.69 ms/encode and ~0.62 ms/decode regardless of size in the
-small range — i.e. a **fixed per-call cost** that amortizes only when cells are large.
-
-### Resilience — link dropped mid-transfer (bidirectional app: sends and receives)
-
-Most of the time the app is freed within ~0.5 s of the drop (the relay worker reading the
-severed side sees EOF and closes the app connection). **But intermittently — ~10–20% of
-runs in this harness, across both fast and slow links — the app instead hangs past the
-12 s observation window.** This is not a shaper artifact; it is a real behavior:
-
-- A relay `worker` blocked in `sendall` to one peer never checks whether its *other* peer
-  disconnected, so the drop goes unnoticed until it happens to return from that write.
-- The nominal 30 s `runtime.fteproxy.relay.socket_timeout` cannot save it: the worker
-  reads via `select(timeout=0.1)` + a `throttle` sleep, so a blocking `recv` never runs
-  long enough to hit the socket timeout. The backstop is effectively dead code.
-
-See improvement #2 — this is a correctness issue, not only a performance one.
+(Request/response formats differ in capacity, hence the pairs.)
 
 ---
 
-## Where the time goes
+## Where the time goes (0.4, `hybrid`)
 
 ```
 app → [client relay] ──FTE──→ [server relay] → dest
-        │                         │
-        │ worker thread pair      │ worker thread pair
-        │ poll+relay              │ negotiate + poll+relay
-        └─ _FTESocketWrapper.send └─ _FTESocketWrapper.recv
-             = record_layer.Encoder  = record_layer.Decoder
-             = fte.Encoder.encode     = fte.Encoder.decode  ← ~0.7 ms/call, the hot spot
+        worker thread pair         worker thread pair
+        _FTESocketWrapper.send     _FTESocketWrapper.recv
+        = record_layer.Encoder     = record_layer.Decoder
+          per record:                per record:
+          1 sealed header            1 header rank+verify   ~0.07–0.08 ms
+            (DFA unrank, AE)         + body HMAC-SHA256 verify + AES-CTR
+          + body AES-CTR + HMAC        ~0.43 ms/MiB (HMAC is ~78% of it)
 ```
 
-Per interactive round trip the payload is FTE-**encoded twice** (client→server request,
-server→client response) and **decoded twice** — ~2.6 ms of pure CPU on top of the wire
-RTT. For bulk transfer the same CPU is the throughput ceiling (~300 Mbit/s) because a
-single stream's encode/decode is serialized (Python, one core).
+- A record is one 256-byte formatted header plus a raw body. The relay hands
+  at most `2**18` bytes to `send()` per read (`network_io.recvall_from_socket`),
+  so records are ≤ 256 KiB and each pays one header (~0.08 ms ≈ 0.33 ms/MiB,
+  *estimated* ~40% of encode-side record-layer time). The 1 MiB body cap is
+  never reached in the relay.
+- Sealing (random pad to capacity), per-record `Cipher` construction, buffer
+  concatenation and the body/remainder slices are each under 1% of a record.
+- Interactive traffic: one 64 B message costs one 256-byte header plus a
+  92-byte body (348 B, 5.4x; 0.3 and `format` mode send 256 B).
+- In `format` mode every ~140 bytes of payload is one DFA rank/unrank
+  (~0.16 ms), which is the 4–7 Mbit/s.
 
 ---
 
-## Recommended improvements, ranked by impact ÷ effort
+## Improvements landed in 0.4
 
-### 1. Set `TCP_NODELAY` on relay sockets — *low effort, clear win for latency* — ✅ IMPLEMENTED
+1. **Hybrid record layer with an OpenSSL AE body** (the redesign): per-record cost
+   0.9 → 0.17 ms; bulk 75 → 650–950 MB/s in the record layer.
+2. **Cipher cache** (`_make_cipher` is memoized on pattern, length and key): setup
+   8–12 ms → ~1 ms, and the negotiation scan on a failed connection 6 ms → free.
+3. **A pending header is decrypted once.** A 256 KiB record arrives in ~3 reads;
+   the decoder used to re-rank and re-verify the same header on each partial
+   delivery (two wasted header decrypts per record, more than the body itself).
+   +30% on 8 MB echo.
+4. **A peer that closes before negotiating gets EOF** instead of being polled
+   forever. On 0.4 without this, one dead connection (a port scan, a health
+   check, an active probe) cost 64% of a core; five saturated it and pushed
+   RTT p50 to 65 ms.
+5. Carried over from 0.3: `TCP_NODELAY` on both relay hops, O(n) buffer handling
+   in the record layer, the configured `--upstream-format` tried first in the
+   negotiation scan.
 
-The relay used to leave Nagle's algorithm enabled. `_FTESocketWrapper` passes small encoded
-cells straight to the kernel, so on a real network Nagle can hold a small segment up to
-~40 ms waiting to coalesce — exactly the wrong behavior for an interactive, latency-sensitive
-tunnel. `listener.run()` now disables Nagle on both hops right after `accept()`/`connect()`:
+## Remaining levers, ranked by impact ÷ effort
 
-```python
-# fteproxy/relay.py listener.run(), after accept()/connect():
-conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-new_stream.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-```
+1. **Rework the polling relay loop** (large effort; fixes idle CPU, a latency
+   ripple, and the hang on link drop). The 0.3 caveat stands and was re-verified:
+   simply deleting `time.sleep(throttle)` in `worker.run()` regresses the real
+   subprocess deployment ~13x (a GIL-scheduling convoy between the two workers),
+   and a naive blocking-`recv` rework races the in-band negotiation between the
+   two workers. The loop must first make negotiation single-threaded (a
+   dedicated handshake phase, or one `selectors` loop per connection handling
+   both directions). Not a drive-by.
+2. **Carry small messages inline in the sealed header** (medium effort). A message
+   of ≤ ~140 bytes fits in the header's capacity, so it could travel as one
+   256-byte covertext instead of header + 92-byte body: 5.4x → 4.0x expansion
+   for interactive traffic, at the CPU cost `format` mode already pays per
+   record (identical for one record).
+3. **AES-GCM for the body** would roughly halve body CPU (*estimated*; HMAC-SHA256
+   runs at ~3 GB/s vs 16 GB/s for AES-CTR), but the body is now under 10% of
+   end-to-end time and it would be a wire change. Not worth it today.
+4. **`format` mode throughput is inherent** to transforming every byte; the only
+   lever is a faster ranker (a C extension releasing the GIL).
 
-Neutral on loopback (no Nagle delay to remove there, so the benchmark is unchanged), but it
-removes the coalescing stall on real links.
+---
 
-### 2. Rework the polling relay loop — *fixes latency, idle CPU, AND a hang bug* — ⚠️ NEEDS FULL REWORK (not a quick tweak)
+## Resilience — link dropped mid-transfer
 
-> **Empirical caveat (measured on this branch).** The tempting shortcut — just deleting the
-> redundant-looking `time.sleep(throttle)` in `worker.run()`, since `recvall_from_socket`
-> already blocks in `select` when idle — makes things **dramatically worse** in the real
-> subprocess deployment: LAN throughput fell **217 → 16 Mbit/s (~13×)** and interactive RTT
-> rose **1.3 → 32 ms**, reproducibly, even for the throughput path in isolation. (An
-> *in-process* relay is unaffected — it is a subprocess/GIL-scheduling interaction.) The
-> throttle is therefore **load-bearing** under the current `select`-based design; it must stay
-> until the loop is properly reworked as below (blocking `recv` governed by the socket timeout,
-> or a `selectors` event loop). **Do not simply delete the sleep.**
+Unchanged from 0.3, and still real: when a bidirectional application's link is
+cut, the relay usually frees the app within ~0.5 s, but in a minority of runs a
+worker blocked in `sendall` to one peer never checks its other peer and the
+connection wedges past the observation window. The nominal 30 s
+`runtime.fteproxy.relay.socket_timeout` cannot rescue it because the poll loop
+never issues a blocking `recv` that lasts long enough. Lever #1 above is the fix.
 
-This is the highest-value change because it has a **correctness** payoff on top of
-performance. Today `fteproxy/network_io.py:recvall_from_socket` blocks up to
-`select_timeout` (0.1 s) in `select()`, and the worker *also* sleeps
-`runtime.fteproxy.relay.throttle` (10 ms, `conf.py:95`) on every empty poll (`relay.py:47`).
-Three problems:
-
-- **Latency / ripple**: the extra sleep adds delay at every flow transition.
-- **Idle CPU**: every idle connection's *two* threads wake on a fixed 100 ms cadence.
-- **Hang on drop (correctness)**: because the loop never issues a blocking `recv` that
-  lasts, the 30 s `socket_timeout` never fires — so when a peer half-closes/blackholes and
-  the paired worker is stuck in `sendall`, the connection can wedge indefinitely (the
-  intermittent "hung" result above).
-
-Fix: replace the `select`+`sleep` poll with a plain blocking `recv` governed by the
-socket's own timeout (so the 30 s backstop becomes real), and make the worker treat a
-timeout as "tear down both sockets" so a stalled peer can't wedge the pair. A `selectors`
-event loop (see #7) subsumes this.
-
-### 3. Coalesce small writes into fewer FTE cells — *medium effort, big win for chatty traffic*
-
-Because each FTE cell pays ~0.7 ms and (for tiny payloads) expands 4×, throughput for
-chatty/interactive protocols is dominated by cell **count**, not bytes. The record layer
-already buffers (`fteproxy/record_layer.py`), but `_FTESocketWrapper.send` flushes on
-every `send()` call, so N small application writes become N tiny cells. A small
-coalescing window on the encode side (accumulate until ~a few KB **or** ~1–2 ms elapse,
-then flush) would collapse many tiny cells into one, cutting both CPU and the 4×
-expansion. This is a latency/throughput trade-off, so gate it behind a config flag and a
-short timer so interactive latency isn't harmed.
-
-### 4. Fix the O(n²) buffer slicing in the record layer — *low effort, bulk CPU* — ✅ IMPLEMENTED
-
-`record_layer.Encoder.pop` used to do `self._buffer = self._buffer[MAX_CELL_SIZE:]` and
-`retval += covertext` in a loop; `Decoder.pop` was similar. Each iteration re-copied the
-whole remaining buffer, so a single large `push` was quadratic in the number of cells. This
-is now a moving `range()` offset over the buffer with the cells joined once at the end (and
-the decoder writes `self._buffer` back a single time). Isolated buffer-management cost for a
-16 MB push fell **208 ms → 2.0 ms (~105×)**; end-to-end (real FTE) an 8 MB single-push encode
-went **296 → 360 Mbit/s (+22%)** with the large-buffer degradation tail removed. Behavior is
-unchanged and the record-layer round-trip tests pass across all languages.
-
-### 5. Short-circuit the negotiation scan — *low effort, connection-setup CPU at scale* — ✅ IMPLEMENTED (ordering, not caching)
-
-`NegotiationManager._acceptNegotiation` (`fteproxy/__init__.py`) linearly tries to decode the
-first cell against **every** request-language (~23 of them) until one succeeds. The default
-upstream language sits at position **21 of 23** in definition order, so every connection paid
-~20 failed decodes before matching. The scan now tries the configured
-`runtime.state.upstream_language` first (**~0.55 → ~0.39 ms/connection** for the common
-shared-config case), falling through to the full scan for non-default clients — same set of
-languages, just the expected one first.
-
-> The originally-suggested *object caching* was measured to be a non-starter: constructing all
-> 23 `fte.Encoder`s costs **0.01 ms** (the DFA tables are already cached globally by `fte`), so
-> there is nothing worth caching. The only remaining lever beyond ordering is an explicit
-> format id to make the common case truly O(1).
-
-### 6. The single-stream FTE ceiling is fundamental — *large effort, only matters on fast links*
-
-~300 Mbit/s per stream is a CPU limit: FTE ranking/unranking runs in Python and a single
-connection's encode/decode is serialized by the GIL (only the AES step in pycryptodome
-releases it). This is irrelevant for censorship-circumvention over real Internet paths,
-but if datacenter-speed throughput is ever a goal, the levers are: parallelize
-encode/decode across cores (process pool per connection, or offload the ranking to a C
-extension that releases the GIL), and/or raise `record_layer.max_cell_size`
-(`conf.py:103`, currently 32 KB) so fewer, larger cells are encoded.
-
-### 7. Scalability of the thread-per-connection model — *large effort, many-connection servers*
-
-Every proxied connection uses **two** OS threads that poll on a 100 ms cadence
-(`relay.py` `worker`). This is fine for a handful of streams but caps out well before
-C10k and burns CPU on idle-connection wakeups. A `selectors`-based event loop (or
-`asyncio`) would scale to far more concurrent tunnels with far less overhead — but it's a
-real rearchitecture of the relay core.
+What is new in 0.4 is that the *other* stuck state, a connection closed before
+negotiation, is fixed: the server logs `peer closed before negotiation completed`
+and releases both workers.
 
 ---
 
 ## What did *not* turn out to be a problem
 
-- **Slow / high-latency / low-bandwidth links.** fteproxy matches raw TCP there (99% on
-  bulk). The user's instinct was right: TCP absorbs loss/reorder below the app layer, and
-  fteproxy's constant few-ms overhead is lost in the network's own latency.
-- **DFA table build cost.** Expensive per language (~17 ms cold) but cached globally by
-  `fte` and pre-built once at server startup — not a per-connection cost.
-- **The record layer itself.** Its throughput (298 Mbit/s) equals raw 32 KB FTE, so it
-  adds no measurable overhead on top of FTE today (see #4 for the latent quadratic).
+- **Slow, high-latency or low-bandwidth links.** fteproxy matches raw TCP there.
+- **Server startup.** Building ciphers for all 46 formats takes ~23 ms cold.
+- **Random padding.** `os.urandom` for the seal pad is ~1 µs of an ~80 µs header.
+- **The 1 MiB body cap.** Never reached; records are bounded by the relay's read size.
+- **Cell/buffer size tuning.** As on 0.3, `network_io`'s `2**18` read size is the
+  right balance; larger buffers trade small-transfer latency for little bulk gain.

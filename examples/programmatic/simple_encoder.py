@@ -16,7 +16,11 @@ def main():
     # This one produces lowercase letters only
     regex = "^[a-z]+$"
 
-    # Length determines the capacity (bits encoded per output character)
+    # Every covertext is exactly `length` bytes. How many plaintext bytes it can
+    # carry (cipher.max_plaintext_bytes) follows from the pattern's alphabet
+    # and this length; a short message leaves the format's spare capacity as a
+    # run of its lowest character ('a'). fteproxy's record layer random-pads
+    # to capacity so that run never appears on the wire.
     length = 256
 
     # libfte 0.4 requires an explicit 32-byte key (there is no random-key path)

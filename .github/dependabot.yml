@@ -12,6 +12,12 @@ updates:
       python-dependencies:
         patterns:
           - "*"
+    ignore:
+      # libfte is 0.x: a minor bump is a wire-format break (0.3 -> 0.4 was),
+      # and Dependabot would rewrite the fte>=0.4.0,<0.5.0 cap to admit it.
+      # Moving the fte line is a coordinated release, never a bot PR.
+      - dependency-name: "fte"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
   # GitHub Actions used in workflows (grouped into a single PR)
   - package-ecosystem: "github-actions"
