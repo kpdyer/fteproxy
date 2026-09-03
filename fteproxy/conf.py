@@ -6,7 +6,7 @@ What is left here is what a *library* user might want to change and what has
 no better home: buffer sizes, timeouts, and which definitions file to read.
 Everything that describes one run -- the listen address, the destination, the
 formats, the keys -- comes from the command line or from
-:func:`fteproxy.wrap_socket`, not from here. Until 0.4 those lived in this
+:func:`fteproxy.wrap_socket`, not from here. Until 1.0 those lived in this
 dictionary too, which is why a value that never reached it could stop the
 process working.
 """
@@ -90,7 +90,7 @@ stream is indistinguishable from the protocol: stronger against entropy or
 statistical detectors, but much slower. Turn it on when you want full-stream
 realism and can spend the throughput.
 
-Since 0.4 this is the *client's* default choice, not a setting both endpoints
+Since 1.0 this is the *client's* default choice, not a setting both endpoints
 must match by hand: the client puts its choice in the handshake and the server
 follows."""
 conf['runtime.fteproxy.record_layer.mode'] = 'hybrid'

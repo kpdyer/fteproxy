@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-__version__ = "0.4.0"
+__version__ = "1.0.0"
 
 import os
 import sys
@@ -55,7 +55,7 @@ def _make_cipher(pattern, length, key):
     cipher ``encrypt``/``decrypt`` one whole covertext per call; the record
     layer handles stream chunking and framing on top of it.
 
-    Deliberately not cached: since 0.4 every connection derives its own header
+    Deliberately not cached: since 1.0 every connection derives its own header
     keys, so a cache keyed on the key would grow by one entry per connection
     and never hit. ``fte.FTE`` holds only a reference to the (cached) format
     and the key schedule, and costs a couple of microseconds to build.
@@ -84,7 +84,7 @@ def _hybrid_mode():
     transforms every covertext byte into the target format for full-stream
     realism. See ``runtime.fteproxy.record_layer.mode`` in ``fteproxy.conf``.
 
-    Since 0.4 the mode is not a setting both endpoints must match by hand: the
+    Since 1.0 the mode is not a setting both endpoints must match by hand: the
     client puts its choice in the handshake and the server follows. This is
     where the client's choice comes from when the caller does not pass one.
     """
@@ -98,7 +98,7 @@ class _AEADBody:
     means a nonce collision costs only the confidentiality of the colliding
     pair, never authenticity. Each record binds its sequence number into the
     MAC, so a record reordered, dropped, or replayed within its stream fails
-    authentication. Since 0.4 the key is per connection *and* per direction
+    authentication. Since 1.0 the key is per connection *and* per direction
     (``K_c2s_body`` / ``K_s2c_body`` from :mod:`fteproxy.handshake`), so a
     record replayed into another connection or the other direction fails too --
     the cross-stream replay gap SECURITY.md used to document. The encryption

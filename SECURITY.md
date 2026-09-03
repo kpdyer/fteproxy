@@ -7,12 +7,12 @@ supported version before reporting an issue.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.4.x   | :white_check_mark: |
-| < 0.4   | :x:                |
+| 1.0.x   | :white_check_mark: |
+| < 1.0   | :x:                |
 
 ## Security model
 
-fteproxy 0.4 is built on libfte 0.4; read
+fteproxy 1.0 is built on libfte 0.4; read
 [libfte's security model](https://github.com/kpdyer/libfte/blob/master/SECURITY.md)
 first. This section covers what fteproxy adds on top of it.
 

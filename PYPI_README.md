@@ -13,9 +13,9 @@
 pip install fteproxy
 ```
 
-> **0.4 is not wire-compatible with 0.3.x, and its command line has changed.**
+> **1.0 is not wire-compatible with 0.3.x, and its command line has changed.**
 > Every old flag now prints a pointer and exits 2; see
-> [Upgrading to 0.4.0](https://github.com/kpdyer/fteproxy#upgrading-to-040).
+> [Upgrading to 1.0.0](https://github.com/kpdyer/fteproxy#upgrading-to-100).
 
 ## Quick Start
 

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """The connection string and the state directory.
 
-A 0.4 client needs one argument, and this is what it holds::
+A 1.0 client needs one argument, and this is what it holds::
 
     fte://<server-id>@<host>:<port>[?format=<base>&mode=<hybrid|format>&defs=<YYYYMMDD>]
 

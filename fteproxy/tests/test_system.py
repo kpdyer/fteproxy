@@ -379,7 +379,7 @@ class TestCLI:
         result = run_cli([flag, 'value'], timeout=30)
         assert result.returncode == 2
         assert flag in result.stderr
-        assert 'Upgrading to 0.4.0' in result.stderr
+        assert 'Upgrading to 1.0.0' in result.stderr
 
     def test_an_unknown_format_exits_1(self, tmp_path):
         _private, public = fteproxy.generate_server_key()

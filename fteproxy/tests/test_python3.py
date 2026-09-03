@@ -162,7 +162,7 @@ class TestCipherCaching:
 
 
 class TestWrapSocket:
-    """End-to-end use of the 0.4 wrap_socket."""
+    """End-to-end use of the 1.0 wrap_socket."""
 
     @staticmethod
     def _echo_server(port, private, received, ready):

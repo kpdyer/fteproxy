@@ -1,6 +1,6 @@
-# fteproxy 0.4.0
+# fteproxy 1.0.0
 
-0.4.0 replaces the protocol, the command line and the topology together,
+1.0.0 replaces the protocol, the command line and the topology together,
 because none of the three worked without the other two. The short version: a
 server needs no arguments, a client needs one, and there is no shared secret.
 
@@ -19,7 +19,7 @@ SOCKS5 on 127.0.0.1:1080
 ## Breaking changes
 
 **The wire format changed and there is no compatibility mode.** A 0.3.x peer,
-or a peer running an earlier 0.4 development build, gets no reply at all —
+or a peer running an earlier development build, gets no reply at all —
 which is the same thing an active prober gets, deliberately. Upgrade both ends
 together.
 
@@ -90,8 +90,8 @@ exits on SIGINT or SIGTERM.
 
 ## Upgrade steps
 
-1. Upgrade both endpoints to 0.4.0 at the same time. There is no window in
-   which a 0.3 client and a 0.4 server interoperate.
+1. Upgrade both endpoints to 1.0.0 at the same time. There is no window in
+   which a 0.3 client and a 1.0 server interoperate.
 2. Start the server once and keep the connection string it prints:
 
    ```bash
@@ -106,7 +106,7 @@ exits on SIGINT or SIGTERM.
    ```bash
    # 0.3
    fteproxy --mode client --client_port 8079 --server_ip S --server_port 8080
-   # 0.4, with the server's --proxy_ip:--proxy_port as the -L destination
+   # 1.0, with the server's --proxy_ip:--proxy_port as the -L destination
    fteproxy client fte://…@S:8080 -L 8079:127.0.0.1:22
    ```
 

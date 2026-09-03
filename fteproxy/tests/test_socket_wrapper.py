@@ -323,7 +323,7 @@ class TestServerBuffersBeforeTheHandshake:
 
 
 class TestPreProtocolClient:
-    """A client speaking the pre-0.4 shared-key negotiation gets no reply.
+    """A client speaking the pre-1.0 shared-key negotiation gets no reply.
 
     On master the first record was a 64-byte cell sealed under a static shared
     key, with no version, no keypair and no epoch. There is no compatibility

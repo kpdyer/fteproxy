@@ -30,7 +30,7 @@ same as they were before types existed.
 
 ``seq`` is the record's position in its stream, counted from 0 by each
 ``Encoder``/``Decoder`` pair, so a record moved, replayed, or dropped within
-a stream is rejected. Since 0.4 each direction of a connection has its own
+a stream is rejected. Since 1.0 each direction of a connection has its own
 header and body keys, derived per connection by :mod:`fteproxy.handshake`, so
 a record cannot be replayed into another stream or the other direction either.
 See SECURITY.md for what is not covered.

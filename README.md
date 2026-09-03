@@ -16,9 +16,9 @@ Its job is to relay datastreams, such as web browsing traffic, by encoding the s
 
 fteproxy is powered by Format-Transforming Encryption [1] and was presented at CCS 2013.
 
-> **fteproxy 0.4 is not wire-compatible with 0.3.x, and its command line has
+> **fteproxy 1.0 is not wire-compatible with 0.3.x, and its command line has
 > changed.** Upgrade both endpoints together and see
-> [Upgrading to 0.4.0](#upgrading-to-040).
+> [Upgrading to 1.0.0](#upgrading-to-100).
 
 [1] [Protocol Misidentification Made Easy with Format-Transforming Encryption](https://kpdyer.com/publications/ccs2013-fte.pdf), Kevin P. Dyer, Scott E. Coull, Thomas Ristenpart and Thomas Shrimpton
 
@@ -91,7 +91,7 @@ first real connection:
 ```console
 $ fteproxy client fte://…@203.0.113.5:8080
 checking 203.0.113.5:8080 ... failed: no valid handshake reply within 5s
-  (wrong connection string, or the server is not running fteproxy 0.4)
+  (wrong connection string, or the server is not running fteproxy 1.0)
 $ echo $?
 1
 ```
@@ -109,7 +109,7 @@ fteproxy client
 ### A port forward instead of SOCKS
 
 `-L` takes ssh's spelling, and is how you reproduce the fixed-destination
-topology fteproxy had before 0.4:
+topology fteproxy had before 1.0:
 
 ```bash
 fteproxy client fte://…@203.0.113.5:8080 -L 2222:127.0.0.1:22
@@ -239,12 +239,12 @@ sock.open(("example.com", 443))     # raises fteproxy.OpenRefused(status)
 [`examples/`](examples/README.md) directory has programmatic, chat,
 file-transfer and integration examples.
 
-## Upgrading to 0.4.0
+## Upgrading to 1.0.0
 
-0.4.0 changes the wire format, the command line and the topology. There is no
-compatibility mode: a 0.3.x peer, or a peer running an earlier 0.4 development
+1.0.0 changes the wire format, the command line and the topology. There is no
+compatibility mode: a 0.3.x peer, or a peer running an earlier development
 build, gets no reply at all. The full notes are in
-[docs/release-notes-0.4.0.md](docs/release-notes-0.4.0.md).
+[docs/release-notes-1.0.0.md](docs/release-notes-1.0.0.md).
 
 - **The command line is new.** Every old flag (`--mode`, `--server_ip`,
   `--client_port`, `--proxy_ip`, `--proxy_port`, `--key`, `--key-file`,
@@ -265,7 +265,7 @@ build, gets no reply at all. The full notes are in
   becomes
 
   ```bash
-  # 0.4
+  # 1.0
   fteproxy server --listen :8080 --allow 127.0.0.1:22
   fteproxy client fte://…@S:8080 -L 8079:127.0.0.1:22
   ```

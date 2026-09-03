@@ -2,7 +2,7 @@
 
 Companion to [`benchmark.py`](benchmark.py). The numbers below were produced by
 that script on loopback (Apple M3 Pro, macOS, Python 3.14.7) on 2026-09-02 for
-**fteproxy 0.4.0 with `fte` 0.4.0** (the tree of the 0.4 release stack), with
+**fteproxy 1.0.0 with `fte` 0.4.0** (the tree of the 1.0 release stack), with
 **fteproxy 0.3.1 + `fte` 0.3.0** measured the same day on the same machine for
 comparison, and a **plain-TCP relay of identical two-hop topology** so the cost
 of Format-Transforming Encryption is isolated from the network. Everything here

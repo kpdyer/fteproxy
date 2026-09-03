@@ -328,14 +328,14 @@ class TestParser:
 
 
 class TestRemovedFlags:
-    """Every pre-0.4 flag is recognised only to point at the upgrade notes."""
+    """Every pre-1.0 flag is recognised only to point at the upgrade notes."""
 
     @pytest.mark.parametrize('flag', fteproxy.cli.REMOVED_FLAGS)
     def test_each_removed_flag(self, flag, capsys):
         assert fteproxy.cli.main([flag, 'whatever']) == fteproxy.cli.EXIT_USAGE
         err = capsys.readouterr().err
         assert flag in err
-        assert 'Upgrading to 0.4.0' in err
+        assert 'Upgrading to 1.0.0' in err
 
     def test_flag_with_an_equals_sign(self, capsys):
         assert fteproxy.cli.main(['--key=deadbeef']) == fteproxy.cli.EXIT_USAGE
@@ -465,7 +465,7 @@ class TestClientStartup:
         assert status == fteproxy.cli.EXIT_FAILURE
         captured = capsys.readouterr()
         assert 'checking 127.0.0.1:%d' % port in captured.err
-        assert 'not running fteproxy 0.4' in captured.err
+        assert 'not running fteproxy 1.0' in captured.err
 
     def test_no_uri_anywhere_is_a_usage_error(self, tmp_path, monkeypatch):
         monkeypatch.delenv('FTEPROXY_URI', raising=False)

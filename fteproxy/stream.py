@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Stream messages and destination policy.
 
-A 0.4 tunnel carries the destination in band: the client sends an
+A 1.0 tunnel carries the destination in band: the client sends an
 :data:`~fteproxy.record_layer.OPEN` record naming where it wants to go, and the
 server answers with an :data:`~fteproxy.record_layer.OPEN_RESULT` carrying a
 status. The server therefore needs no forward address of its own, and the

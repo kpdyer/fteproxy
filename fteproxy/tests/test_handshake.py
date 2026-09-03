@@ -5,7 +5,7 @@
 The vectors in ``vectors/handshake_v1.json`` pin the wire format and the key
 schedule. They were generated once from fixed seeds; if a change to
 :mod:`fteproxy.handshake` breaks them, that change breaks interoperation with
-every deployed 0.4 peer, and the version must move rather than the vectors.
+every deployed 1.0 peer, and the version must move rather than the vectors.
 """
 
 import json

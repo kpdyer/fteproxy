@@ -54,7 +54,7 @@ DEFAULT_MODE = 'hybrid'
 
 SUBCOMMANDS = ('server', 'client', 'keygen', 'formats')
 
-#: Flags from the pre-0.4 command line. They are recognised only so that a
+#: Flags from the pre-1.0 command line. They are recognised only so that a
 #: script carrying one gets a pointer instead of "unrecognized arguments", and
 #: are never aliased: the destination is chosen on the client now and the
 #: shared key is gone, so a silent alias would run a different topology than
@@ -72,10 +72,10 @@ This program comes with ABSOLUTELY NO WARRANTY. This is free software, and
 you are welcome to redistribute it under certain conditions.""" % FTEPROXY_VERSION
 
 _UPGRADE_POINTER = (
-    "fteproxy: %s was removed in 0.4. The destination is chosen on the client "
+    "fteproxy: %s was removed in 1.0. The destination is chosen on the client "
     "now and the shared key is replaced by a connection string, so the old "
     "flags would run a different topology than you asked for. See 'Upgrading "
-    "to 0.4.0' in the README.")
+    "to 1.0.0' in the README.")
 
 
 class _PrintVersion(argparse.Action):
@@ -249,7 +249,7 @@ def build_parser():
 
 
 def removed_flag(argv):
-    """The first pre-0.4 flag in ``argv``, or None.
+    """The first pre-1.0 flag in ``argv``, or None.
 
     Only the part before a subcommand is scanned, because ``--mode`` means
     something else under ``client``.
@@ -533,7 +533,7 @@ def run_startup_check(args, listener, uri):
             sys.stderr.write(prefix)
         sys.stderr.write('failed: %s\n' % e)
         sys.stderr.write('  (wrong connection string, or the server is not '
-                         'running fteproxy 0.4)\n')
+                         'running fteproxy 1.0)\n')
         sys.stderr.flush()
         return False
     if not args.quiet:

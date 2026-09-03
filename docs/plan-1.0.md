@@ -1,7 +1,7 @@
-# fteproxy 0.4: one-argument client, no-argument server
+# fteproxy 1.0: one-argument client, no-argument server
 
-Status: proposal, 2026-09-02. Target release: 0.4.0, which has not been cut yet
-(master carries the 0.4.0 preparation; the latest published release is 0.3.2).
+Status: proposal, 2026-09-02. Target release: 1.0.0, which has not been cut yet
+(master carries the 1.0.0 preparation; the latest published release is 0.3.2).
 Wire format: not compatible with 0.3.x (see Decision D1). Nothing on master's
 current wire format has shipped, so there is nothing to preserve.
 
@@ -42,7 +42,7 @@ The plan therefore has three parts that only work together:
    wstunnel, hysteria, gost) does.
 3. A CLI with two subcommands and one connection string.
 
-Non-goals for 0.4.0: traffic shaping or padding policy, UDP, stream
+Non-goals for 1.0.0: traffic shaping or padding policy, UDP, stream
 multiplexing, an asyncio rewrite of the relay, a config file, decoy responses
 to failed probes. The record layer's framing, sealing and hybrid body carrier
 stay as they are apart from a one-byte record type.
@@ -79,7 +79,7 @@ Wrong connection string, old client, or the server is not fteproxy:
 ```
 $ fteproxy client fte://…
 checking 203.0.113.5:8080 … failed: no valid handshake reply within 5s
-  (wrong connection string, or the server is not running fteproxy 0.4)
+  (wrong connection string, or the server is not running fteproxy 1.0)
 exit status 1
 ```
 
@@ -369,7 +369,7 @@ stream messages and allow rules in `fteproxy/stream.py`; SOCKS5 in
 ## 4. Documentation and security model
 
 - `README.md`: rewrite Usage around the two commands and the connection
-  string; replace the options table; rewrite "Upgrading to 0.4.0" to cover the wire break from 0.3.x, the new
+  string; replace the options table; rewrite "Upgrading to 1.0.0" to cover the wire break from 0.3.x, the new
   command line, keys, the topology change, and `-L` for the old
   fixed-destination setup. `PYPI_README.md` mirrors the quick start.
 - `SECURITY.md`: replace "The key" with the keypair and connection-string
@@ -412,7 +412,7 @@ Acceptance: `python -m fteproxy` prints usage and exits 2;
 
 ### PR2 (L): handshake, session keys, record types
 
-Wire break from 0.3.x; the version stays 0.4.0 because 0.4.0 has not been
+Wire break from 0.3.x; the version stays 1.0.0 because 1.0.0 has not been
 cut. Library level only.
 
 - `fteproxy/handshake.py`: key generation, `K_cover`, hello encode/decode,
@@ -429,7 +429,7 @@ cut. Library level only.
 - Tests: vectors; tamper each field of each hello; replay within and outside
   the window; epoch skew; wrong `S_pub`; each record type; both modes;
   `benchmark.py` before/after for the per-session cipher construction cost
-  (target: connection setup within 1 ms of 0.4, bulk throughput unchanged).
+  (target: connection setup within 1 ms of master, bulk throughput unchanged).
 - Review gate: a security review of `handshake.py` and the key schedule by
   someone other than the author before merge, as was done for #229.
 
@@ -471,8 +471,8 @@ the server.
 
 ### PR5 (M): docs, examples, release
 
-- Section 4 in full. `__version__` stays `"0.4.0"`; PyPI metadata; the
-  `SECURITY.md` supported-versions table already lists 0.4.x.
+- Section 4 in full. `__version__` stays `"1.0.0"`; PyPI metadata; the
+  `SECURITY.md` supported-versions table already lists 1.0.x.
 - `examples/` scripts and Python files; `test_examples.py`.
 - Release notes: wire break, command-line change, topology change, key
   model, upgrade steps.
