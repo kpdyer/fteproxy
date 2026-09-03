@@ -137,6 +137,16 @@ first. This section covers what fteproxy adds on top of it.
     `ftp` request as `CWD`, every `smtp` request as `VRFY`, and every `ftp`
     reply as `150`. A stream that is all `BYE` with no `INVITE`, or all `CWD`
     with no login, is not a conversation any real client would have.
+  - **Replies do not answer their requests.** Every covertext is an
+    independent unranking of an independently randomised ciphertext, so
+    nothing in the record layer can make a reply depend on the request it
+    follows. For `dns` that is a concrete and cheap tell: a response's
+    16-bit ID and its question section never match the query's, a
+    stateless two-field check that resolvers, connection-tracking DNS
+    helpers and DNS-aware middleboxes already run. Over TCP it is largely
+    moot; over UDP port 53 it would be the first thing flagged. Making a
+    reply echo its request would be a protocol change, not a format
+    change (see `docs/udp-feasibility.md`).
 
   Nothing in the protocol depends on this: confidentiality and integrity come
   from the handshake and the record layer, not from how convincing a covertext
