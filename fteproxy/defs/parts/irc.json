@@ -1,0 +1,20 @@
+{
+  "irc-request": {
+    "regex": "^(NICK [a-zA-Z][a-zA-Z0-9_-]*|USER [a-z][a-z0-9_-]* [0-9] \\* :[a-zA-Z0-9 ._-]+|JOIN #[a-z][a-z0-9._-]*|PART #[a-z][a-z0-9._-]* :[a-zA-Z0-9 .,!?'()_-]+|(PRIVMSG|NOTICE) (#[a-z][a-z0-9._-]*|[a-zA-Z][a-zA-Z0-9_-]*) :[a-zA-Z0-9 .,!?'()_-]+|PING :[a-zA-Z0-9._-]+|PONG :[a-zA-Z0-9._-]+|:[a-z][a-z0-9.-]* [0-9][0-9][0-9] [a-zA-Z][a-zA-Z0-9_-]* :[a-zA-Z0-9 .,!?'()_-]+)\\r\\n$",
+    "length": 256,
+    "port": [6667],
+    "role": "line",
+    "mode_hint": "format",
+    "default": false,
+    "description": "IRC client/server line: NICK/USER/JOIN/PART/PRIVMSG/NOTICE/PING/PONG or a numeric reply, CRLF-terminated"
+  },
+  "irc-response": {
+    "regex": "^(NICK [a-zA-Z][a-zA-Z0-9_-]*|USER [a-z][a-z0-9_-]* [0-9] \\* :[a-zA-Z0-9 ._-]+|JOIN #[a-z][a-z0-9._-]*|PART #[a-z][a-z0-9._-]* :[a-zA-Z0-9 .,!?'()_-]+|(PRIVMSG|NOTICE) (#[a-z][a-z0-9._-]*|[a-zA-Z][a-zA-Z0-9_-]*) :[a-zA-Z0-9 .,!?'()_-]+|PING :[a-zA-Z0-9._-]+|PONG :[a-zA-Z0-9._-]+|:[a-z][a-z0-9.-]* [0-9][0-9][0-9] [a-zA-Z][a-zA-Z0-9_-]* :[a-zA-Z0-9 .,!?'()_-]+)\\r\\n$",
+    "length": 256,
+    "port": [6667],
+    "role": "line",
+    "mode_hint": "format",
+    "default": false,
+    "description": "IRC client/server line: NICK/USER/JOIN/PART/PRIVMSG/NOTICE/PING/PONG or a numeric reply, CRLF-terminated"
+  }
+}
