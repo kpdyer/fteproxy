@@ -27,6 +27,14 @@ def recvall_from_socket(sock,
     retval = b''
     is_alive = False
 
+    # An fteproxy socket can hold an end-of-stream the operating system knows
+    # nothing about: the peer's CLOSE record arrives in the same read as its
+    # last bytes, so nothing will ever make the descriptor readable again and
+    # select would wait for a wakeup that is not coming.
+    pending_eof = getattr(sock, 'pending_eof', None)
+    if pending_eof is not None and pending_eof():
+        return [False, b'']
+
     try:
         ready = select.select([sock], [], [sock], select_timeout)
         if ready[0]:

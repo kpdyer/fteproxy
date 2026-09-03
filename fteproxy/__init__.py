@@ -19,6 +19,7 @@ import fteproxy.conf
 import fteproxy.defs
 import fteproxy.handshake
 import fteproxy.record_layer
+import fteproxy.stream
 
 import fte
 
@@ -255,7 +256,20 @@ class HandshakeTimeoutException(HandshakeFailedException):
 
 
 class ChannelNotReadyException(Exception):
-    """The handshake has not completed, so this call cannot be served yet."""
+    """The peer has not reached the point where this call can be served."""
+
+
+class OpenRefused(Exception):
+    """The peer would not open the requested stream.
+
+    ``status`` is the SOCKS5 reply code it gave, so a SOCKS listener can pass
+    it straight through to the application that asked.
+    """
+
+    def __init__(self, status, message=None):
+        self.status = status
+        super().__init__(message or ('open refused: %s'
+                                     % fteproxy.stream.status_name(status)))
 
 
 class _NeedMoreData(Exception):
@@ -380,6 +394,7 @@ class _FTESocketWrapper(object):
         self._pre_handshake_outgoing = b''
         self._control = collections.deque()
         self._peer_closed = False
+        self._broken = False
         self._reject_deadline = None
         self._negotiated_format = None
         self._negotiated_mode = None
@@ -407,26 +422,32 @@ class _FTESocketWrapper(object):
 
         Idempotent. A client calls this straight after ``connect`` so that a
         bad connection string fails immediately rather than at the first byte.
-        A server may call it too, once it has a connection to read from.
+        The server's relay calls it on a setup thread, so that a slow or
+        hostile peer delays only its own connection and the accept loop never
+        waits on one.
+
+        Raises :class:`HandshakeFailedException` on a peer this end will not
+        talk to (answer it with :meth:`reject_and_close`) and
+        :class:`_PeerClosed` when the peer hung up first.
         """
-        leftover = self._ensure_handshake()
-        if leftover:
-            self._decode(leftover)
+        self._ensure_handshake()
 
     def _ensure_handshake(self):
-        """Run the handshake if it has not run. Returns any bytes that arrived
-        behind the client hello, which belong to the session stream."""
+        """Run the handshake if it has not run, and decode whatever arrived
+        behind the client hello."""
         with self._handshake_lock:
             if self._handshake_done:
-                return b''
+                return
             if self._role == 'client':
                 self._client_handshake()
-                return b''
+                return
             try:
-                return self._await_client_hello()
+                leftover = self._await_client_hello()
             except HandshakeFailedException as e:
                 self._begin_reject(e)
                 raise
+            if leftover:
+                self._decode(leftover)
 
     def _client_handshake(self):
         request, response = _format_pair(self._format)
@@ -656,16 +677,18 @@ class _FTESocketWrapper(object):
     def _decode(self, data):
         """Decode ``data`` into the incoming buffer and the control queue.
 
-        Returns False when the peer sent a record type this version does not
-        define, which the caller answers by closing: continuing would mean
-        guessing at the meaning of the bytes that follow.
+        A record type this version does not define marks the connection
+        broken: only a peer holding the session keys can produce one, so it is
+        a version mismatch, and continuing would mean guessing at the meaning
+        of the bytes that follow.
         """
         self._decoder.push(data)
         try:
             records = self._decoder.pop_records()
         except fteproxy.record_layer.UnknownRecordType as e:
             fteproxy.warn('closing connection: %s' % e)
-            return False
+            self._broken = True
+            return
         for record_type, payload in records:
             if record_type == fteproxy.record_layer.DATA:
                 self._incoming_buffer += payload
@@ -675,7 +698,12 @@ class _FTESocketWrapper(object):
                 continue
             else:
                 self._control.append((record_type, payload))
-        return True
+
+    def _read_once(self, bufsize=65536):
+        """Read once from the socket and decode. False at end of stream."""
+        data = self._socket.recv(bufsize)
+        self._decode(data)
+        return bool(data) and not self._broken
 
     def send_record(self, record_type, payload=b''):
         """Send one control record. Requires a completed handshake."""
@@ -693,10 +721,136 @@ class _FTESocketWrapper(object):
         except IndexError:
             return None
 
+    def _take_control(self, record_type):
+        """Pop the first queued record of ``record_type``, or None.
+
+        Out-of-order control records stay queued rather than being dropped, so
+        a peer that sends OPEN and OPEN_RESULT back to back does not lose one.
+        """
+        for index, (queued_type, payload) in enumerate(self._control):
+            if queued_type == record_type:
+                del self._control[index]
+                return payload
+        return None
+
+    def _wait_control(self, record_type, timeout):
+        """Block until a record of ``record_type`` arrives; return its payload.
+
+        Returns None when the stream ends, or when application data arrives
+        first -- which is how :meth:`wait_open` tells a relay client from a
+        program using the library to send bytes with no OPEN at all.
+        """
+        self._ensure_handshake()
+        deadline = None if timeout is None else time.monotonic() + timeout
+        previous = self._socket.gettimeout()
+        try:
+            while True:
+                payload = self._take_control(record_type)
+                if payload is not None:
+                    return payload
+                if self._incoming_buffer or self._peer_closed or self._broken:
+                    return None
+                if deadline is not None:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise ChannelNotReadyException(
+                            'no record of type 0x%02x within %ss'
+                            % (record_type, timeout))
+                    self._socket.settimeout(remaining)
+                try:
+                    if not self._read_once():
+                        return None
+                except socket.timeout:
+                    raise ChannelNotReadyException(
+                        'no record of type 0x%02x within %ss'
+                        % (record_type, timeout))
+        finally:
+            try:
+                self._socket.settimeout(previous)
+            except OSError:
+                pass
+
+    # -- streams ----------------------------------------------------------- #
+
+    def open(self, address, timeout=None):
+        """Ask the peer to connect to ``address`` and wait for its answer.
+
+        ``address`` is ``(host, port)``; the host may be a name, and the peer
+        resolves it, so the client's DNS never leaves the tunnel. Raises
+        :class:`OpenRefused` carrying the SOCKS5-style status on refusal.
+        """
+        host, port = address
+        self.send_record(fteproxy.record_layer.OPEN,
+                         fteproxy.stream.encode_open(host, port))
+        payload = self._wait_control(fteproxy.record_layer.OPEN_RESULT, timeout)
+        if payload is None:
+            raise OpenRefused(fteproxy.stream.GENERAL_FAILURE,
+                              'the peer closed without answering the OPEN')
+        status = fteproxy.stream.decode_open_result(payload)
+        if status != fteproxy.stream.SUCCEEDED:
+            raise OpenRefused(status)
+        return status
+
+    def wait_open(self, timeout=None):
+        """Wait for the peer's OPEN and return the ``(host, port)`` it names.
+
+        Returns None when the peer sent application data first, which is what
+        a program using the library as a plain encrypted socket does.
+        """
+        payload = self._wait_control(fteproxy.record_layer.OPEN, timeout)
+        if payload is None:
+            return None
+        return fteproxy.stream.decode_open(payload)
+
+    def open_result(self, status):
+        """Answer an OPEN with a SOCKS5-style status byte."""
+        self.send_record(fteproxy.record_layer.OPEN_RESULT,
+                         fteproxy.stream.encode_open_result(status))
+
+    def close_write(self):
+        """Tell the peer this end will send no more application data.
+
+        The record-layer half-close: the connection stays open in the other
+        direction, which is what a plain socket's ``shutdown(SHUT_WR)`` means
+        and what an HTTP client that finishes its request while waiting for a
+        response relies on.
+        """
+        try:
+            self.send_record(fteproxy.record_layer.CLOSE)
+        except (ChannelNotReadyException, OSError) as e:
+            fteproxy.debug('could not send CLOSE: %s' % e)
+
     @property
     def peer_closed(self):
         """Whether the peer has sent CLOSE: no more DATA will arrive."""
         return self._peer_closed
+
+    def pending_eof(self):
+        """Whether :meth:`recv` would return EOF without waiting for the socket.
+
+        The peer's CLOSE can arrive in the same read as its last bytes, in
+        which case nothing more will ever make the socket readable and a relay
+        polling with ``select`` would wait for a wakeup that never comes.
+        ``fteproxy.network_io`` asks this before selecting.
+        """
+        return ((self._peer_closed or self._broken)
+                and not self._incoming_buffer)
+
+    def reject_and_close(self):
+        """Finish a connection whose handshake failed, then close it.
+
+        Runs out the discard interval :meth:`_begin_reject` set, so a prober
+        sees a connection that read its bytes and said nothing, and closes
+        after the same delay whatever it got wrong.
+        """
+        try:
+            if self._reject_deadline is not None:
+                self._discard_until_deadline()
+        finally:
+            try:
+                self._socket.close()
+            except OSError:
+                pass
 
     # -- socket interface -------------------------------------------------- #
 
@@ -715,7 +869,7 @@ class _FTESocketWrapper(object):
         if self._reject_deadline is not None:
             return self._discard_until_deadline()
         try:
-            leftover = self._ensure_handshake()
+            self._ensure_handshake()
         except _PeerClosed:
             fteproxy.debug('peer closed before a client hello decoded'
                            if self._pre_handshake_incoming
@@ -724,23 +878,16 @@ class _FTESocketWrapper(object):
         except HandshakeFailedException:
             return self._discard_until_deadline()
 
-        if leftover and not self._decode(leftover):
-            return b''
-
         while True:
             if self._incoming_buffer:
                 out, self._incoming_buffer = self._incoming_buffer, b''
                 return out
-            if self._peer_closed:
+            if self._peer_closed or self._broken:
                 return b''
-
-            data = self._socket.recv(bufsize)
-            if not self._decode(data):
-                return b''
-            if data == b'' and not self._incoming_buffer:
-                # No further bytes will ever arrive, so anything still in the
-                # decoder's buffer can never complete. Report EOF instead of
-                # busy-looping on a closed socket.
+            # False here means end of stream: no further bytes will ever
+            # arrive, so anything still in the decoder's buffer can never
+            # complete. Report EOF rather than busy-looping on a dead socket.
+            if not self._read_once(bufsize) and not self._incoming_buffer:
                 return b''
 
     def send(self, data):

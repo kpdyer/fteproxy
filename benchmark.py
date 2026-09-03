@@ -434,9 +434,12 @@ class FteProxyTunnel:
         else:
             client_target = self.server_port
 
+        # The destination travels in band since 0.4, so the client is the end
+        # that names it.
         client_cmd = [py, '-m', 'fteproxy', '--mode', 'client', '--quiet',
                       '--client_ip', '127.0.0.1', '--client_port', str(self.entry_port),
-                      '--server_ip', '127.0.0.1', '--server_port', str(client_target)]
+                      '--server_ip', '127.0.0.1', '--server_port', str(client_target),
+                      '--proxy_ip', '127.0.0.1', '--proxy_port', str(self.dest_port)]
         if self.upstream_format:
             client_cmd += ['--upstream-format', self.upstream_format]
         if self.downstream_format:

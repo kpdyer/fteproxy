@@ -31,8 +31,8 @@ import threading
 import fteproxy
 import fteproxy.conf
 import fteproxy.defs
-import fteproxy.server
-import fteproxy.client
+import fteproxy.relay
+import fteproxy.stream
 
 FTEPROXY_VERSION = fteproxy.__version__
 
@@ -452,18 +452,56 @@ def do_stop(mode):
 # The relay
 # --------------------------------------------------------------------------- #
 
+# TODO(PR4): delete with the flat command line.
+def shim_keypair_from_shared_key(key):
+    """Derive a fixed server keypair from the pre-0.4 shared secret.
+
+    The 0.4 protocol authenticates the server with a keypair, and the 0.4
+    command line hands the client that keypair's public half in a connection
+    string. Until PR4 lands the new command line, ``--key``/``--key-file``
+    still name a secret both endpoints hold, so both derive the same keypair
+    from it and the real handshake runs unchanged. Nothing about the protocol
+    is weakened by this; what it lacks is the operational property that the
+    client only ever needs a public key.
+    """
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+    private = HKDF(algorithm=hashes.SHA256(), length=32, salt=b'',
+                   info=b'fteproxy/shim/shared-key-server-identity').derive(key)
+    return private, fteproxy.server_id(private)
+
+
 def init_listener(mode):
+    """Build the listener for ``mode`` out of the flat command line.
+
+    TODO(PR4): the flat interface still describes a fixed-destination
+    topology, so the client becomes a single ``-L`` forward to
+    ``--proxy_ip:--proxy_port`` and the server is given exactly that
+    destination as its allow rule. The new command line replaces both with a
+    connection string, ``-D``/``-L`` and ``--allow``.
+    """
     server_ip = fteproxy.conf.getValue('runtime.server.ip')
     server_port = fteproxy.conf.getValue('runtime.server.port')
+    proxy_ip = fteproxy.conf.getValue('runtime.proxy.ip')
+    proxy_port = fteproxy.conf.getValue('runtime.proxy.port')
+    private, public = shim_keypair_from_shared_key(
+        fteproxy.conf.getValue('runtime.fteproxy.encrypter.key'))
+
     if mode == 'client':
-        return fteproxy.client.listener(
+        base = fteproxy.defs.base_name(
+            fteproxy.conf.getValue('runtime.state.upstream_language'))
+        return fteproxy.relay.ForwardListener(
             fteproxy.conf.getValue('runtime.client.ip'),
             fteproxy.conf.getValue('runtime.client.port'),
-            server_ip, server_port)
-    return fteproxy.server.listener(
-        server_ip, server_port,
-        fteproxy.conf.getValue('runtime.proxy.ip'),
-        fteproxy.conf.getValue('runtime.proxy.port'))
+            (server_ip, server_port), public,
+            destination=(proxy_ip, proxy_port),
+            format=base,
+            mode=fteproxy.conf.getValue('runtime.fteproxy.record_layer.mode'))
+
+    return fteproxy.relay.ServerListener(
+        server_ip, server_port, private,
+        rules=fteproxy.stream.AllowRules(['%s:%d' % (proxy_ip, proxy_port)]))
 
 
 def run_relay(mode):

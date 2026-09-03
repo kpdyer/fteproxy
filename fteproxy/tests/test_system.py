@@ -167,6 +167,9 @@ class TestSystemEndToEnd:
     @pytest.fixture
     def fteproxy_client(self, fteproxy_server):
         """Start an fteproxy client process (requires server)."""
+        # TODO(PR4): the destination is chosen client-side now that it
+        # travels in band, so the flat client needs --proxy_* too. The new
+        # command line spells this -L CLIENT_PORT:HOST:PORT.
         cmd = get_fteproxy_cmd() + [
             '--mode', 'client',
             '--quiet',
@@ -174,6 +177,8 @@ class TestSystemEndToEnd:
             '--client_port', str(CLIENT_PORT),
             '--server_ip', BIND_IP,
             '--server_port', str(SERVER_PORT),
+            '--proxy_ip', BIND_IP,
+            '--proxy_port', str(PROXY_PORT),
         ]
         
         proc = subprocess.Popen(
@@ -371,6 +376,8 @@ class TestKeyFileEndToEnd:
             '--client_port', str(KEYFILE_CLIENT_PORT),
             '--server_ip', BIND_IP,
             '--server_port', str(KEYFILE_SERVER_PORT),
+            '--proxy_ip', BIND_IP,
+            '--proxy_port', str(KEYFILE_PROXY_PORT),
             '--key-file', key_file,
         ]
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -397,3 +404,96 @@ class TestKeyFileEndToEnd:
         )
         assert received_data == test_data, \
             f"Data mismatch: {received_data!r} != {test_data!r}"
+
+
+class TestLibraryEndToEnd:
+    """The 0.4 topology, driven through the library API.
+
+    The command line that spells these ``-D`` and ``-L`` lands in PR4; what
+    these check is that a whole tunnel -- handshake, OPEN, allow rules, relay,
+    half-close -- carries a real transfer in one piece.
+    """
+
+    @pytest.fixture
+    def stack(self):
+        import fteproxy
+        import fteproxy.relay
+        import fteproxy.stream
+        from fteproxy.tests.test_relay import EchoServer
+
+        echo = EchoServer()
+        echo.start()
+
+        private, public = fteproxy.generate_server_key()
+        rules = fteproxy.stream.AllowRules(['%s:%d' % (BIND_IP, echo.port)])
+        server = fteproxy.relay.ServerListener(BIND_IP, 0, private, rules=rules)
+        server.bind()
+        server.daemon = True
+        server.start()
+
+        listeners = [server]
+
+        def add(listener):
+            listener.bind()
+            listener.daemon = True
+            listener.start()
+            listeners.append(listener)
+            return listener
+
+        forward = add(fteproxy.relay.ForwardListener(
+            BIND_IP, 0, server.address, public,
+            destination=(BIND_IP, echo.port)))
+        socks_listener = add(fteproxy.relay.SocksListener(
+            BIND_IP, 0, server.address, public))
+
+        yield {'echo': echo, 'forward': forward, 'socks': socks_listener,
+               'server': server}
+
+        for listener in listeners:
+            listener.stop()
+        echo.stop()
+
+    def test_forward_transfer(self, stack):
+        payload = random_bytes(64 * 1024)
+        sock = socket.create_connection(stack['forward'].address, timeout=30)
+        sock.settimeout(30)
+        try:
+            sock.sendall(payload)
+            received = b''
+            while len(received) < len(payload):
+                chunk = sock.recv(65536)
+                if not chunk:
+                    break
+                received += chunk
+        finally:
+            sock.close()
+        assert received == payload
+
+    def test_socks_transfer(self, stack):
+        from fteproxy.tests.test_relay import socks_connect
+        import fteproxy.stream
+
+        payload = random_bytes(64 * 1024)
+        sock, status = socks_connect(stack['socks'].address[1], BIND_IP,
+                                     stack['echo'].port)
+        try:
+            assert status == fteproxy.stream.SUCCEEDED
+            sock.sendall(payload)
+            received = b''
+            while len(received) < len(payload):
+                chunk = sock.recv(65536)
+                if not chunk:
+                    break
+                received += chunk
+        finally:
+            sock.close()
+        assert received == payload
+
+    def test_socks_refuses_a_destination_outside_the_rules(self, stack):
+        from fteproxy.tests.test_relay import socks_connect
+        import fteproxy.stream
+
+        sock, status = socks_connect(stack['socks'].address[1], BIND_IP,
+                                     stack['echo'].port + 1)
+        sock.close()
+        assert status == fteproxy.stream.NOT_ALLOWED
