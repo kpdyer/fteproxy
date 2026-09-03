@@ -411,6 +411,35 @@ class TestReplayFilter:
                                now)
         assert len(replay) <= 64 + 64
 
+    def test_the_filter_is_bounded_within_one_epoch(self):
+        """The single-bucket path: with one hour in play there is no other
+        bucket to drop, so entries have to go instead."""
+        replay = hs.ReplayFilter(max_entries=64)
+        now = 100
+        for i in range(500):
+            assert replay.observe(i.to_bytes(32, 'big'), now, now)
+        assert len(replay) <= 64
+
+    def test_a_flood_at_a_future_epoch_cannot_evict_the_current_hour(self):
+        """The epoch a hello is filed under is chosen by the client.
+
+        Evicting the *oldest* bucket let a flood stamped an hour ahead clear
+        the hour real clients are using, and re-open replay for exactly the
+        hellos already captured -- for a whole hour, from anywhere, with no
+        key. Eviction has to come out of the bucket doing the flooding.
+        """
+        replay = hs.ReplayFilter(max_entries=64)
+        now = 100
+        legitimate = b'\x09' * 32
+        assert replay.observe(legitimate, now, now)
+
+        for i in range(64 + 16):
+            replay.observe(i.to_bytes(32, 'big'), now + 1, now)
+
+        assert not replay.observe(legitimate, now, now), \
+            'the flood evicted a hello the filter had already seen'
+        assert len(replay) <= 64
+
     def test_a_rejected_hello_does_not_enter_the_filter(self):
         """observe() runs last, so a hello refused for its epoch or format
         cannot be used to fill the filter and lock out a real client."""

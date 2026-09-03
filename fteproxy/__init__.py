@@ -414,9 +414,26 @@ class _FTESocketWrapper(object):
     #: speaking this protocol.
     _MAX_PRE_HANDSHAKE_BYTES = 1 << 16
 
+    #: How many control records may sit unread before the peer is treated as
+    #: hostile. A legitimate peer has at most an OPEN and its OPEN_RESULT
+    #: outstanding, and something has to read them for the session to make
+    #: progress; a peer that keeps sending them without being asked is filling
+    #: this end's memory, which only the holder of the session keys can do.
+    _MAX_CONTROL_RECORDS = 16
+    #: Largest control payload a real peer sends: an OPEN naming a 255-byte
+    #: host is 259 bytes, an OPEN_RESULT is 1. In hybrid mode a record can
+    #: carry a mebibyte, so the count bound alone would still let a peer park
+    #: 16 MiB per connection; the byte bound closes that.
+    _MAX_CONTROL_BYTES = 512
+
     def __init__(self, _socket, role, server_key=None, server_public=None,
                  format=None, mode=None, defs=None):
         self._socket = _socket
+        #: When this connection began, in the monotonic clock the reject path
+        #: measures against. Every rejection is timed from here rather than
+        #: from the moment the failure was noticed, so that *when* a hello
+        #: fails a check cannot be read off the close.
+        self._accepted_at = time.monotonic()
         self._role = role
         self._server_key = server_key
         self._server_public = server_public
@@ -433,6 +450,9 @@ class _FTESocketWrapper(object):
         self._incoming_buffer = b''
         self._pre_handshake_incoming = b''
         self._pre_handshake_outgoing = b''
+        #: Request formats whose covertext this connection's first bytes have
+        #: already failed to unseal; see :meth:`_server_handshake`.
+        self._failed_formats = set()
         self._control = collections.deque()
         self._peer_closed = False
         self._broken = False
@@ -580,12 +600,23 @@ class _FTESocketWrapper(object):
         ``InvalidCovertextError`` from the AE tag, so the scan simply falls
         through to the next candidate.
 
+        This runs again on every chunk that arrives, because a hello can be
+        split across reads -- but a candidate is only ever *tried* once. A
+        covertext starts at the first byte of the connection and has a fixed
+        length, so once enough bytes are in hand to try a candidate, the bytes
+        it would decrypt are settled: they cannot change as more arrive, and a
+        failure cannot turn into a success. Remembering the failures is what
+        stops a peer that dribbles unauthenticated bytes in one at a time from
+        buying a full scan (one AE decrypt per candidate format) per byte.
+
         Returns the bytes left over after the hello. Raises
         :class:`_NeedMoreData` while the hello could still be incomplete and
         :class:`HandshakeFailedException` once it cannot be one.
         """
         buffered = self._pre_handshake_incoming
         for name in _request_scan_order():
+            if name in self._failed_formats:
+                continue
             length = fteproxy.defs.getLength(name)
             if len(buffered) < length:
                 continue
@@ -593,9 +624,11 @@ class _FTESocketWrapper(object):
             try:
                 plaintext = cipher.decrypt(buffered[:length])
             except fte.FTEError:
+                self._failed_formats.add(name)
                 continue
             hello_bytes = fteproxy.record_layer._unseal(plaintext, 0)
             if hello_bytes is None:
+                self._failed_formats.add(name)
                 continue
             return self._accept_hello(name, hello_bytes, buffered[length:])
 
@@ -694,8 +727,23 @@ class _FTESocketWrapper(object):
         reading and discarding, for a random interval, so an active prober
         that guessed the connection string wrong learns only that something
         accepted a TCP connection.
+
+        The interval is measured from when the connection was accepted, not
+        from when the failure was noticed, and covers the whole handshake
+        timeout as well. Otherwise *when* the check failed would leak: a hello
+        that unseals under this server's ``K_cover`` but is refused (replayed,
+        stale epoch, wrong definitions release, unknown format, a reserved
+        flag bit) fails on the first read, while one that does not unseal at
+        all -- the wrong server, or bytes that are not this protocol -- is
+        only known to have failed when the handshake deadline passes. Timing
+        the close from the failure would put those in two disjoint buckets,
+        and one replayed capture would then confirm a bridge for good. Anchored
+        here, every rejection closes at the same distribution of wall-clock
+        times whatever went wrong and whenever it was spotted.
         """
-        self._reject_deadline = time.monotonic() + fteproxy.handshake.reject_delay()
+        timeout = fteproxy.conf.getValue('runtime.fteproxy.handshake.timeout')
+        self._reject_deadline = (self._accepted_at + timeout
+                                 + fteproxy.handshake.reject_delay())
         fteproxy.debug('rejecting handshake without reply: %s' % (reason,))
 
     def _discard_until_deadline(self):
@@ -727,7 +775,9 @@ class _FTESocketWrapper(object):
         A record type this version does not define marks the connection
         broken: only a peer holding the session keys can produce one, so it is
         a version mismatch, and continuing would mean guessing at the meaning
-        of the bytes that follow.
+        of the bytes that follow. So does a peer that queues more control
+        records than :attr:`_MAX_CONTROL_RECORDS`, which is a peer spending
+        this end's memory rather than talking to it.
         """
         if self._broken:
             return
@@ -753,6 +803,23 @@ class _FTESocketWrapper(object):
                 self._peer_closed = True
             elif record_type == fteproxy.record_layer.PADDING:
                 continue
+            elif len(payload) > self._MAX_CONTROL_BYTES:
+                fteproxy.warn('closing connection: a %d-byte control record '
+                              'exceeds the %d-byte limit'
+                              % (len(payload), self._MAX_CONTROL_BYTES))
+                self._broken = True
+                self._control.clear()
+                return
+            elif len(self._control) >= self._MAX_CONTROL_RECORDS:
+                # Dropping the record silently would leave the peer waiting
+                # for an answer that is never coming, so the connection ends
+                # instead: recv() reports EOF and the relay closes it.
+                fteproxy.warn('closing connection: the peer queued more than '
+                              '%d unread control records'
+                              % self._MAX_CONTROL_RECORDS)
+                self._broken = True
+                self._control.clear()
+                return
             else:
                 self._control.append((record_type, payload))
 
@@ -923,6 +990,15 @@ class _FTESocketWrapper(object):
         return self._socket.getsockopt(level, optname, buflen)
 
     def recv(self, bufsize):
+        """Application bytes, or ``b''`` at end of stream.
+
+        On the server role a handshake this end will not accept is answered
+        with silence, so recv() reports the discard interval's end as an
+        ordinary EOF. On the client role there is no prober to mislead and no
+        discard interval: the failure is this end's own, and
+        :class:`HandshakeFailedException` comes out of recv() exactly as it
+        does out of :meth:`handshake`.
+        """
         if self._reject_deadline is not None:
             return self._discard_until_deadline()
         try:
@@ -933,6 +1009,11 @@ class _FTESocketWrapper(object):
                            else 'peer closed without sending anything')
             return b''
         except HandshakeFailedException:
+            if self._reject_deadline is None:
+                # The client role never calls _begin_reject, so there is no
+                # deadline to discard until. Report the failure rather than
+                # tripping over a None.
+                raise
             return self._discard_until_deadline()
 
         while True:

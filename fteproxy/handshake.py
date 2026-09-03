@@ -71,7 +71,7 @@ EPOCH_SECONDS = 3600
 EPOCH_WINDOW = 1
 
 #: A ``c_pub`` is remembered for the whole accepted window. Past this many
-#: entries the oldest hour is forgotten; see :class:`ReplayFilter`.
+#: entries the fullest hour starts forgetting; see :class:`ReplayFilter`.
 REPLAY_MAX_ENTRIES = 1 << 17
 
 _HASH_PREFIX = b'fteproxy/v1'
@@ -424,18 +424,33 @@ class ReplayFilter:
     def _enforce_cap(self):
         """Bound memory under a flood of distinct ``c_pub`` values.
 
-        Dropping the oldest bucket re-opens replay only for hellos that are
-        already at the far edge of the window and about to expire anyway; the
-        alternative, refusing new clients, would hand an attacker a way to
-        deny service to everyone else.
+        The epoch a hello is filed under is chosen by the client, so eviction
+        must not let one bucket push another out: dropping the *oldest* hour
+        would let a flood stamped an hour in the future clear the hour real
+        clients are using, and re-open replay for exactly the hellos the
+        filter exists to refuse. Entries go from whichever bucket holds the
+        most instead, so a flood can only displace itself, and refusing new
+        clients -- which would hand an attacker a way to deny service to
+        everyone else -- never happens.
+
+        Evicting entries rather than whole buckets also bounds the filter when
+        every hello names the same hour, where there is no other bucket to
+        drop.
         """
-        while sum(len(b) for b in self._buckets.values()) > self._max_entries \
-                and len(self._buckets) > 1:
-            del self._buckets[min(self._buckets)]
+        while self._total() > self._max_entries:
+            epoch = max(self._buckets,
+                        key=lambda e: (len(self._buckets[e]), e))
+            bucket = self._buckets[epoch]
+            bucket.pop()
+            if not bucket:
+                del self._buckets[epoch]
+
+    def _total(self):
+        return sum(len(bucket) for bucket in self._buckets.values())
 
     def __len__(self):
         with self._lock:
-            return sum(len(b) for b in self._buckets.values())
+            return self._total()
 
 
 # --------------------------------------------------------------------------- #

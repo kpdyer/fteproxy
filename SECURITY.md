@@ -79,20 +79,31 @@ first. This section covers what fteproxy adds on top of it.
 - **Replay window and filter.** A client hello carries an *epoch*: hours since
   the Unix epoch, accepted within plus or minus one hour. The server remembers
   the client ephemeral public key of every hello it accepted inside that
-  window, bucketed by epoch, and refuses a repeat. So a recorded hello can only
-  be replayed inside a two-hour window, and inside it the filter refuses it.
-  The filter is in memory only and bounded; past its cap the oldest hour is
-  forgotten, which re-opens replay only for hellos already at the edge of the
-  window. The check runs last, so a hello refused for any other reason cannot
-  be used to fill the filter and lock out a real client.
+  window, bucketed by epoch, and refuses a repeat. So a recorded hello can
+  only be replayed inside a window of up to three hours -- the hour it names
+  plus the one on either side, since both are accepted -- and inside that
+  window the filter refuses it, while past it the epoch check does. The
+  filter is in memory only and bounded; past its cap it drops entries from
+  whichever hour holds the most, so a flood cannot evict the hour real clients
+  are using, only itself. A flood that names the *current* hour shares that
+  bucket with real clients and can push their entries out, re-enabling replay
+  of those hellos inside the window; mounting it needs the connection string,
+  so it grants its holder nothing a fresh handshake does not, and a
+  pre-authentication rate limit is the real bound. The check runs last, so a hello refused for any other
+  reason cannot be used to fill the filter and lock out a real client.
 
 - **Behaviour on a failed handshake.** Every rejection is answered
-  identically: no reply, read and discard for a random 1 to 5 seconds, then
-  close, and one line in the DEBUG log. Unknown version, a reserved flag bit,
-  the wrong definitions release, an unknown format, a stale epoch, a replayed
-  hello and a hello sealed under someone else's key are indistinguishable from
-  each other and from a service with nothing to say. This is obfs4's behaviour
-  and is what stops an active prober learning anything from a bad guess.
+  identically: no reply, read and discard, then close, and one line in the
+  DEBUG log. The close comes a random 1 to 5 seconds after the handshake
+  timeout has run out, counted from when the connection was accepted -- not
+  from when the check failed, which would separate the rejections that are
+  decided on the first record from those that are only decided when the
+  timeout expires, and let one replayed capture confirm the server. Unknown
+  version, a reserved flag bit, the wrong definitions release, an unknown
+  format, a stale epoch, a replayed hello and a hello sealed under someone
+  else's key are indistinguishable from each other and from a service with
+  nothing to say. This is obfs4's behaviour and is what stops an active prober
+  learning anything from a bad guess.
 
 - **Which destinations a server will dial.** By default every destination
   *except* the server host's own loopback and link-local addresses, checked

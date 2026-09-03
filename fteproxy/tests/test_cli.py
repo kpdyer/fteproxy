@@ -104,10 +104,23 @@ class TestConnectionString:
         'fte://%s@host:8080?mode=nonsense' % SERVER_ID,
         'fte://%s@host:8080?defs=lastweek' % SERVER_ID,
         'fte://%s@:8080' % SERVER_ID,
+        # urlsplit itself raises on these, rather than returning a bad parse.
+        'fte://[bad',
+        'fte://%s@[::1:8080' % SERVER_ID,
     ])
     def test_bad_strings_are_refused(self, text):
         with pytest.raises(fteproxy.config.ConfigError):
             fteproxy.config.ConnectionString.parse(text)
+
+    def test_an_unsplittable_uri_is_a_config_error(self):
+        """An unbalanced bracket makes urlsplit raise ValueError. That is a
+        malformed connection string, so it has to reach the user as a usage
+        error and not as a traceback -- and still without the string in it."""
+        with pytest.raises(fteproxy.config.ConfigError) as excinfo:
+            fteproxy.config.ConnectionString.parse(
+                'fte://%s@[2001:db8::1:8080' % SERVER_ID)
+        assert SERVER_ID not in str(excinfo.value)
+        assert '2001:db8' not in str(excinfo.value)
 
     def test_errors_never_quote_the_string(self):
         """An unparseable connection string is still a secret."""
@@ -237,6 +250,46 @@ class TestStateDirectory:
             handle.write(contents)
         with pytest.raises(fteproxy.config.ConfigError):
             fteproxy.config.load_server_key(directory)
+
+    @pytest.mark.parametrize('filename', [fteproxy.config.SERVER_KEY_FILE,
+                                          fteproxy.config.CONNECTION_FILE])
+    def test_a_symlink_at_the_target_is_not_followed(self, tmp_path, filename):
+        """Opening the path itself would write the private key wherever a
+        symlink planted in the state directory pointed, and apply the 0600 to
+        that file rather than to ours."""
+        directory = fteproxy.config.ensure_state_dir(str(tmp_path / 'state'))
+        outside = tmp_path / 'outside.txt'
+        outside.write_text('not the key\n')
+        planted = tmp_path / 'state' / filename
+        planted.symlink_to(outside)
+
+        private, public = fteproxy.generate_server_key()
+        fteproxy.config.save_server_key(directory, private)
+        fteproxy.config.write_connection_string(
+            directory, fteproxy.config.ConnectionString(public, 'host', 8080))
+
+        assert outside.read_text() == 'not the key\n'
+        assert not planted.is_symlink()
+        assert stat.S_IMODE(os.stat(str(planted)).st_mode) == 0o600
+        assert fteproxy.config.load_server_key(directory) == private
+        # And nothing was left lying around beside them.
+        assert sorted(entry.name for entry in (tmp_path / 'state').iterdir()) \
+            == sorted([fteproxy.config.SERVER_KEY_FILE,
+                       fteproxy.config.CONNECTION_FILE])
+
+    def test_a_failed_write_leaves_nothing_behind(self, tmp_path):
+        """The error the caller sees is the one that happened.
+
+        A lone surrogate cannot be encoded, so the write fails on the way out.
+        The descriptor has to be closed exactly once on that path: closing it
+        twice raised EBADF from the handler and buried the real error -- or,
+        worse, closed whatever file had since been given the number.
+        """
+        directory = fteproxy.config.ensure_state_dir(str(tmp_path / 'state'))
+        path = fteproxy.config.server_key_path(directory)
+        with pytest.raises(UnicodeEncodeError):
+            fteproxy.config._write_private(path, 'key\ud800\n')
+        assert list((tmp_path / 'state').iterdir()) == []
 
 
 class TestResolveClientUri:
@@ -761,3 +814,38 @@ class TestModeFollowsTheFormat:
         assert fteproxy.cli.mode_hint_for('ftp') == 'format'
         assert fteproxy.cli.mode_hint_for('http') == 'hybrid'
         assert fteproxy.cli.mode_hint_for('no-such-format') is None
+
+
+class TestParseNeverEchoesTheAuthority:
+    """Every part of a malformed connection string is secret, host and port
+    included, so no ConfigError may quote any of it -- not via urlsplit, not
+    via split_host_port, not via the port-range check."""
+
+    @pytest.mark.parametrize('authority,pieces', [
+        ('example-host.test:notaport', ('example-host.test', 'notaport')),
+        ('example-host.test:99999', ('example-host.test', '99999')),
+        ('[::1', ('::1',)),
+        ('example-host.test:1:2', ('example-host.test', '1:2')),
+    ])
+    def test_bad_authority_is_redacted(self, authority, pieces):
+        with pytest.raises(fteproxy.config.ConfigError) as info:
+            fteproxy.config.ConnectionString.parse(
+                'fte://%s@%s' % (SERVER_ID, authority))
+        message = str(info.value)
+        for piece in pieces:
+            assert piece not in message
+
+
+class TestBareMultiColonHostsMustBeIPv6:
+    """An unbracketed host with several colons is accepted only if it really
+    is an IPv6 literal; a host name cannot contain a colon, so anything else
+    is malformed rather than a strange name with the default port."""
+
+    @pytest.mark.parametrize('text', ['2001:db8::1', '::1', 'fe80::1'])
+    def test_a_bare_ipv6_literal_still_works(self, text):
+        assert fteproxy.config.split_host_port(text, default_port=8080) == (text, 8080)
+
+    @pytest.mark.parametrize('text', ['example-host.test:1:2', 'a:b:c', 'host:1:2:3'])
+    def test_colon_bearing_garbage_is_rejected(self, text):
+        with pytest.raises(ValueError):
+            fteproxy.config.split_host_port(text, default_port=8080)

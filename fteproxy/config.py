@@ -24,6 +24,7 @@ hands out. Resolution order: ``--state-dir``, ``FTEPROXY_STATE_DIR``,
 import base64
 import os
 import stat
+import ipaddress
 import urllib.parse
 
 import fteproxy
@@ -100,7 +101,7 @@ class ConnectionString:
         if not host:
             raise ConfigError('a connection string needs a host')
         if not 0 < port <= 0xFFFF:
-            raise ConfigError('port %r is out of range' % (port,))
+            raise ConfigError('connection string port is out of range')
         if mode is not None and mode not in fteproxy.handshake.MODES:
             raise ConfigError('mode must be one of %s'
                               % ', '.join(fteproxy.handshake.MODES))
@@ -123,7 +124,14 @@ class ConnectionString:
         text = text.strip()
         if not text:
             raise ConfigError('empty connection string')
-        parsed = urllib.parse.urlsplit(text)
+        try:
+            parsed = urllib.parse.urlsplit(text)
+        except ValueError:
+            # urlsplit raises on, for instance, an unbalanced [ in the
+            # authority. That is a malformed connection string like any other,
+            # not a bug, so it gets a usage error rather than a traceback --
+            # and, like every other message here, without the string in it.
+            raise ConfigError('connection string is not a valid URI')
         if parsed.scheme != SCHEME:
             raise ConfigError('connection string must start with %s://'
                               % SCHEME)
@@ -139,8 +147,11 @@ class ConnectionString:
 
         try:
             host, port = split_host_port(authority, default_port=DEFAULT_PORT)
-        except ValueError as e:
-            raise ConfigError(str(e))
+        except ValueError:
+            # split_host_port's own messages quote what they were given,
+            # which is fine for a --listen flag and not for a connection
+            # string: the host and port are part of the secret.
+            raise ConfigError('connection string has an invalid host or port')
         if not host:
             raise ConfigError('a connection string needs a host')
 
@@ -254,7 +265,15 @@ def split_host_port(text, default_port=None, allow_bare_port=False):
         host, _, port = text.partition(':')
         return host, _parse_port(port, text)
     if ':' in text:
-        # Several colons and no brackets: a bare IPv6 literal.
+        # Several colons and no brackets: only a bare IPv6 literal belongs
+        # here (a host name cannot contain a colon), and ::1:8080 is a
+        # complete address, so a port never follows a bare literal.
+        try:
+            ipaddress.IPv6Address(text)
+        except ValueError:
+            raise ValueError('%r is neither host:port nor an IPv6 literal; '
+                             'write an IPv6 literal with a port as [addr]:port'
+                             % text)
         return text, _require_port(default_port, text)
     if allow_bare_port and text.isdigit():
         return '', _parse_port(text, text)
@@ -366,16 +385,49 @@ def ensure_state_dir(path):
 
 
 def _write_private(path, text):
-    """Write ``text`` to ``path`` at mode 0600, creating it exclusively."""
-    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
-    descriptor = os.open(path, flags, FILE_MODE)
+    """Write ``text`` to ``path`` at mode 0600, never through a symlink.
+
+    The bytes go to a fresh sibling file, created exclusively (and with
+    ``O_NOFOLLOW`` where the platform has it) so that it is this process's
+    file and no one else's, and that file is then renamed onto ``path``.
+
+    Opening ``path`` itself would follow a symlink another local user had
+    planted in the state directory: the private key would land wherever the
+    link pointed, and the ``chmod`` would be applied to their file rather than
+    to ours. Renaming replaces the link instead of writing through it. It also
+    makes the write atomic, so a reader never sees a half-written key, and it
+    keeps the overwrite that ``fteproxy server`` does on every start.
+    """
+    directory = os.path.dirname(path) or os.curdir
+    flags = (os.O_WRONLY | os.O_CREAT | os.O_EXCL
+             | getattr(os, 'O_NOFOLLOW', 0))
+    temporary = os.path.join(
+        directory, '.%s.%s.tmp' % (os.path.basename(path),
+                                   os.urandom(8).hex()))
+    descriptor = os.open(temporary, flags, FILE_MODE)
     try:
-        os.chmod(path, FILE_MODE)
-        with os.fdopen(descriptor, 'w') as handle:
-            handle.write(text)
-    except Exception:
+        handle = os.fdopen(descriptor, 'w')
+    except BaseException:
+        # fdopen did not take the descriptor, so it is still ours to close;
+        # past this point the file object owns it and closes it exactly once.
         os.close(descriptor)
+        _remove_quietly(temporary)
         raise
+    try:
+        with handle:
+            handle.write(text)
+        os.replace(temporary, path)
+    except BaseException:
+        _remove_quietly(temporary)
+        raise
+
+
+def _remove_quietly(path):
+    """Delete ``path``, ignoring a file that is already gone."""
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
 
 
 def server_key_path(directory):

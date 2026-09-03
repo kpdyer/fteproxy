@@ -59,8 +59,9 @@ exits on SIGINT or SIGTERM.
   ordinary covertexts, so the shape on the wire is unchanged.
 - **A failed handshake is answered with silence.** Wrong key, wrong format,
   stale clock, replayed hello: all identical from outside — no reply, read and
-  discard for a random 1 to 5 seconds, then close. A replay filter keyed on the
-  client's ephemeral key covers the ±1 hour epoch window.
+  discard, then close a random 1 to 5 seconds after the handshake timeout,
+  timed from the accept so that when the check failed does not show. A replay
+  filter keyed on the client's ephemeral key covers the ±1 hour epoch window.
 - **SOCKS5 and ssh-style forwards.** `-D [BIND:]PORT` is a SOCKS5 CONNECT
   listener (the default is `127.0.0.1:1080`); `-L [BIND:]PORT:HOST:PORT` is a
   fixed forward. Both are repeatable and can be mixed. Names are resolved at
