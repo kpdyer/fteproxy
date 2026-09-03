@@ -313,10 +313,56 @@ def _format_pair(base):
     return request, response
 
 
+def _message_length(framing, length):
+    """The covertext length a cipher is built at, given a length on the wire.
+
+    The two differ only for ``length-prefix`` framing, where
+    :data:`fteproxy.defs.LENGTH_PREFIX_BYTES` of the wire record are the framing
+    header rather than covertext. Callers that only want the DFA (the startup
+    warm-up in :func:`fteproxy.cli.check_format`) use this; callers that want a
+    cipher use :func:`_framed_cipher`, which applies it for them.
+    """
+    if framing == fteproxy.defs.FRAMING_LENGTH_PREFIX:
+        return length - fteproxy.defs.LENGTH_PREFIX_BYTES
+    return length
+
+
+def _framed_cipher(regex, length, key, framing, build=None):
+    """The cipher that produces one covertext of ``length`` bytes *on the wire*.
+
+    For every framing but ``length-prefix`` that is just the fixed-length cipher
+    at ``length``. A ``length-prefix`` format carries a
+    :data:`fteproxy.defs.LENGTH_PREFIX_BYTES` framing header in front of each
+    covertext which is *not* part of its language, so the cipher is built two
+    bytes shorter -- at the message length -- and wrapped in
+    :class:`fteproxy.record_layer.LengthPrefixed`, which adds the header on
+    encrypt and checks and strips it on decrypt.
+
+    This subtraction lives here and nowhere else: every caller names a wire
+    length (``spec_length``, one of ``spec_allowed_lengths``) and gets back
+    something whose ``encrypt`` produces exactly that many bytes.
+
+    ``build`` selects the underlying cipher builder, so the handshake can reach
+    the cached :func:`_cover_cipher`.
+    """
+    build = _make_cipher if build is None else build
+    cipher = build(regex, _message_length(framing, length), key)
+    if framing == fteproxy.defs.FRAMING_LENGTH_PREFIX:
+        return fteproxy.record_layer.LengthPrefixed(cipher)
+    return cipher
+
+
+def _spec_cipher(spec, length, key, build=None):
+    """:func:`_framed_cipher` for a definitions entry at one of its wire lengths."""
+    return _framed_cipher(spec['regex'], length, key,
+                          fteproxy.defs.spec_framing(spec), build=build)
+
+
 def _cipher_for(format_name, key, cover=False):
     build = _cover_cipher if cover else _make_cipher
-    return build(fteproxy.defs.getRegex(format_name),
-                 fteproxy.defs.getLength(format_name), key)
+    return _framed_cipher(fteproxy.defs.getRegex(format_name),
+                          fteproxy.defs.getLength(format_name), key,
+                          fteproxy.defs.get_framing(format_name), build=build)
 
 
 def _variable_lengths_for_spec(spec, key):
@@ -328,11 +374,11 @@ def _variable_lengths_for_spec(spec, key):
     process-wide cache, so a connection pays a few microseconds per length
     rather than a compile.
     """
-    regex = spec['regex']
-    ciphers = {length: _make_cipher(regex, length, key)
+    ciphers = {length: _spec_cipher(spec, length, key)
                for length in fteproxy.defs.spec_allowed_lengths(spec)}
     return fteproxy.record_layer.VariableLength(
-        ciphers, fteproxy.defs.spec_terminator(spec))
+        ciphers, fteproxy.defs.spec_terminator(spec),
+        framing=fteproxy.defs.spec_framing(spec))
 
 
 def _variable_for(format_name, key):

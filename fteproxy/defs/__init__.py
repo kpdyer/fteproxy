@@ -11,9 +11,14 @@ from it.
 
 A format is either **fixed length** (``length``: every covertext is exactly
 that many bytes) or **variable length** (``min_length``/``max_length`` plus a
-``terminator``: each record picks one of a small set of allowed lengths and the
-decoder frames the wire on the terminator). :func:`spec_allowed_lengths` is the
-single definition of that set, so the two ends of a connection agree on it
+way to delimit one covertext from the next: each record picks one of a small
+set of allowed lengths and the decoder frames the wire on that delimiter).
+:func:`spec_framing` names the delimiter -- a ``terminator`` the language can
+only produce as a covertext's final suffix, or ``length-prefix`` framing, where
+the covertext is preceded by a two-byte big-endian length that is not part of
+the format's regex at all (this is what DNS-over-TCP is; see
+:data:`LENGTH_PREFIX_BYTES`). :func:`spec_allowed_lengths` is the single
+definition of the length set, so the two ends of a connection agree on it
 without negotiating it. See ``docs/format-authoring.md``.
 """
 
@@ -79,6 +84,35 @@ MODE_HINTS = (MODE_HYBRID, MODE_FORMAT)
 #: the choice, and the record's contents are sealed either way.
 LENGTH_STEPS = 8
 
+#: ``framing`` values: how one covertext is told from the next on the wire.
+#:
+#: ``fixed``
+#:     Every covertext is exactly ``length`` bytes, so the length itself frames
+#:     the stream. The default, and the only framing a fixed-length format has.
+#: ``terminator``
+#:     The covertext ends with a byte string its language cannot produce
+#:     anywhere else, and the decoder reads up to it. Implied by a
+#:     ``terminator`` key, which is how the four text formats declare it.
+#: ``length-prefix``
+#:     The covertext is preceded on the wire by a :data:`LENGTH_PREFIX_BYTES`
+#:     big-endian count of the bytes that follow. The prefix is *framing*, not
+#:     part of the format's language: the regex describes the message alone and
+#:     the record layer adds the prefix on send and frames on it on receive.
+#:     ``dns`` uses it, because that is exactly what RFC 1035 section 4.2.2
+#:     says DNS over TCP is -- and because spelling the prefix as a literal in
+#:     the regex, as ``dns`` did until F7b, pins the format to one covertext
+#:     length: a second length would need a second literal, hence a second
+#:     regex.
+FRAMING_FIXED = 'fixed'
+FRAMING_TERMINATOR = 'terminator'
+FRAMING_LENGTH_PREFIX = 'length-prefix'
+FRAMINGS = (FRAMING_FIXED, FRAMING_TERMINATOR, FRAMING_LENGTH_PREFIX)
+
+#: Width of a ``length-prefix`` format's framing header, in bytes. Two, because
+#: RFC 1035 section 4.2.2 says two; a covertext of ``W`` wire bytes is a message
+#: of ``W - 2`` bytes behind a prefix carrying that number.
+LENGTH_PREFIX_BYTES = 2
+
 
 def _release_path(release):
     """The path of a definitions release, searched in the package's ``defs``
@@ -131,6 +165,11 @@ def check_capacities(definitions, minimum=MIN_CAPACITY):
     A shorter allowed length only has to carry one data record, which
     ``fteproxy.defs.validate`` checks; the cheap load-time pass does not compile
     every allowed length.
+
+    ``length`` is always the length of one covertext *on the wire*, so for a
+    ``length-prefix`` format the cipher is built at ``length -
+    LENGTH_PREFIX_BYTES`` -- the message the regex describes -- and the framing
+    prefix makes up the difference.
     """
     import fteproxy  # deferred: fteproxy imports this module at import time
 
@@ -139,8 +178,8 @@ def check_capacities(definitions, minimum=MIN_CAPACITY):
         _check_variable_keys(name, spec)
         length = spec_length(spec)
         try:
-            capacity = fteproxy._make_cipher(
-                spec['regex'], length, b'\x00' * 32).max_plaintext_bytes
+            capacity = fteproxy._spec_cipher(
+                spec, length, b'\x00' * 32).max_plaintext_bytes
         except Exception as e:
             raise DefinitionsError('format %s is unusable at length %d: %s'
                                    % (name, length, e))
@@ -157,23 +196,43 @@ def check_capacities(definitions, minimum=MIN_CAPACITY):
 def _check_variable_keys(name, spec):
     """Raise :class:`DefinitionsError` on an incoherent length declaration.
 
-    A half-written variable-length entry is the dangerous case: a range with no
-    terminator has nothing to frame on, and a terminator with no range would be
-    ignored, so either would load as a fixed-length format and quietly emit one
-    length again. Caught here, at load, rather than as a fingerprint nobody
-    notices.
+    A half-written variable-length entry is the dangerous case: a range with
+    nothing to frame on has no way to tell one covertext from the next, and a
+    delimiter with no range would be ignored, so either would load as a
+    fixed-length format and quietly emit one length again. Caught here, at
+    load, rather than as a fingerprint nobody notices.
+
+    A variable-length format therefore needs ``min_length``, ``max_length`` and
+    exactly one delimiter: a ``terminator``, or ``"framing": "length-prefix"``.
+
+    Framing is otherwise orthogonal to the length declaration: a *fixed*-length
+    format may carry ``length-prefix`` framing, since the prefix is framing
+    whether or not the length behind it varies. It is only a terminator that
+    makes no sense without a range, because a fixed-length format is already
+    framed by its length.
     """
     low, high = spec_min_length(spec), spec_max_length(spec)
     terminator = spec_terminator(spec)
+    framing = spec.get('framing', None)
+    if framing is not None and framing not in FRAMINGS:
+        raise DefinitionsError(
+            'format %s declares framing %r, which is not one of %r'
+            % (name, framing, FRAMINGS))
+    if framing == FRAMING_LENGTH_PREFIX and terminator is not None:
+        raise DefinitionsError(
+            'format %s declares both a terminator and length-prefix framing; a '
+            'covertext is delimited one way or the other' % name)
+    if low is None and high is None and terminator is None:
+        return                      # fixed length, however it is framed
+    delimiter = (framing if framing == FRAMING_LENGTH_PREFIX else terminator)
     declared = [key for key, value in
                 (('min_length', low), ('max_length', high),
-                 ('terminator', terminator)) if value is not None]
-    if not declared:
-        return
+                 ('a delimiter', delimiter)) if value is not None]
     if len(declared) != 3:
         raise DefinitionsError(
             'format %s declares %s: a variable-length format needs all of '
-            'min_length, max_length and terminator' % (name, ', '.join(declared)))
+            'min_length, max_length and either a terminator or '
+            '"framing": "length-prefix"' % (name, ', '.join(declared)))
     if 'length' in spec:
         raise DefinitionsError(
             'format %s carries both length and min_length/max_length; a format '
@@ -181,6 +240,10 @@ def _check_variable_keys(name, spec):
     if low > high:
         raise DefinitionsError(
             'format %s has min_length %d above max_length %d' % (name, low, high))
+    if delimiter == FRAMING_LENGTH_PREFIX and low <= LENGTH_PREFIX_BYTES:
+        raise DefinitionsError(
+            'format %s has min_length %d, which leaves no message behind its '
+            '%d-byte length prefix' % (name, low, LENGTH_PREFIX_BYTES))
 
 
 def base_names(definitions=None):
@@ -246,7 +309,7 @@ def _infer_role(format_name):
 
 
 def spec_length(spec):
-    """The covertext length a *single* fixed-length cipher is built at.
+    """The wire length of the *single* covertext the fixed frames are built at.
 
     For a fixed-length format that is its ``length`` (or the configured
     default). For a variable-length one it is ``max_length``: the handshake, the
@@ -254,6 +317,11 @@ def spec_length(spec):
     frames, and they use the longest covertext the format emits so that one
     frame size serves every format. Only post-handshake *format*-mode data
     records vary (see :func:`spec_allowed_lengths`).
+
+    Always a length *on the wire*. For a ``length-prefix`` format the cipher
+    behind it is built at ``length - LENGTH_PREFIX_BYTES``, since the prefix is
+    framing rather than covertext; :func:`fteproxy._spec_cipher` is the one
+    place that does that subtraction.
     """
     maximum = spec_max_length(spec)
     if maximum is not None:
@@ -288,21 +356,42 @@ def spec_terminator(spec):
     return bytes(terminator)
 
 
+def spec_framing(spec):
+    """How one covertext of this format is told from the next on the wire.
+
+    One of :data:`FRAMINGS`. ``length-prefix`` is declared outright, with the
+    ``framing`` key; ``terminator`` is implied by a ``terminator`` key, so the
+    formats written before length-prefix framing existed keep their entries
+    unchanged; everything else is ``fixed``, framed by its own length.
+
+    Note what this does *not* mean for a ``length-prefix`` format: the prefix is
+    framing, so it is not in the regex and not in the capacity. A covertext of
+    ``W`` wire bytes is a message of ``W - LENGTH_PREFIX_BYTES``.
+    """
+    framing = spec.get('framing', None)
+    if framing is not None:
+        return framing
+    if spec_terminator(spec) is not None:
+        return FRAMING_TERMINATOR
+    return FRAMING_FIXED
+
+
 def spec_is_variable(spec):
     """Whether this format emits covertexts of more than one length.
 
-    True only when all three of ``min_length``, ``max_length`` and
-    ``terminator`` are present: a length range with nothing to frame on could
-    not be decoded, so a partial declaration is not a variable format (and
+    True only when ``min_length``, ``max_length`` and a delimiter (a
+    ``terminator``, or ``length-prefix`` framing) are all present: a length
+    range with nothing to frame on could not be decoded, so a partial
+    declaration is not a variable format (and
     :func:`fteproxy.defs.validate.validate_format` rejects it outright).
     """
     return (spec_min_length(spec) is not None
             and spec_max_length(spec) is not None
-            and spec_terminator(spec) is not None)
+            and spec_framing(spec) != FRAMING_FIXED)
 
 
 def spec_allowed_lengths(spec):
-    """The covertext lengths this format may emit, ascending.
+    """The covertext lengths this format may emit on the wire, ascending.
 
     One length for a fixed-length format; for a variable-length one,
     :data:`LENGTH_STEPS` points spread evenly across
@@ -363,6 +452,11 @@ def get_port(format_name):
 def get_terminator(format_name):
     """The covertext terminator of a loaded format, or ``None`` if fixed."""
     return spec_terminator(_spec(format_name))
+
+
+def get_framing(format_name):
+    """How a loaded format's covertexts are delimited; one of :data:`FRAMINGS`."""
+    return spec_framing(_spec(format_name))
 
 
 def get_allowed_lengths(format_name):

@@ -129,16 +129,19 @@ mode. `http` is the default format, and a client given neither `--format` nor a
 `?format=` hint picks the format whose protocol runs on the server's port,
 falling back to `http`.
 
-The four text formats no longer emit every covertext at one length. In `format`
-mode each record picks a covertext length from across the format's range --
-`http` 200–700 bytes, `sip` 300–800, `smtp` 80–320, `ftp` 64–256 -- and the
-decoder frames the wire on the format's terminator (`\r\n\r\n`, or `\r\n` for
-the line protocols) rather than on a fixed slice, so a capture shows a spread of
-message sizes instead of one repeated size. The choice leans short for
-interactive traffic and long for bulk. Three things stay fixed length: `dns`
-(its two-byte length prefix is a literal in the regex, so each length would need
-its own regex), a `hybrid` mode header, and the two handshake records, which are
-always at the top of the format's range. `http-response` lost its body field to
+No format emits every covertext at one length any more. In `format` mode each
+record picks a covertext length from across the format's range -- `http`
+200–700 bytes, `sip` 300–800, `smtp` 80–320, `ftp` 64–256, `dns` 90–272 -- so a
+capture shows a spread of message sizes instead of one repeated size, and the
+choice leans short for interactive traffic and long for bulk. The four text
+formats are framed by a terminator (`\r\n\r\n`, or `\r\n` for the line
+protocols) rather than by a fixed slice. `dns` is framed by the two-byte
+big-endian length prefix RFC 1035 puts in front of every DNS-over-TCP message:
+that prefix is framing rather than part of the format's regex, so one pattern
+serves all eight of its lengths, and a `dns` query name now runs 72–254 octets
+instead of padding to 254 every time. Two things stay fixed length: a `hybrid`
+mode header, and the two handshake records, which are always at the top of the
+format's range. `http-response` lost its body field to
 make this safe -- a field that could contain CRLF CRLF would break terminator
 framing -- and is now a header-block-only 200/302/304/404 response with
 `Content-Length: 0`.

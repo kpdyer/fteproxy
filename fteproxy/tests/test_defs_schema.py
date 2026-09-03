@@ -120,6 +120,97 @@ class TestValidate:
         assert mode_hint == 'hybrid'
 
 
+class TestFraming:
+    """The ``framing`` key: how one covertext is told from the next.
+
+    ``fixed`` and ``terminator`` are inferred from what an entry already
+    carries, so every release written before length-prefix framing existed
+    keeps loading unchanged; ``length-prefix`` is the one that has to be
+    declared, because nothing else in an entry implies it.
+    """
+
+    _MESSAGE = r'^[a-z][a-z][a-z]+$'
+
+    def test_framing_is_inferred_for_the_two_older_kinds(self):
+        assert fteproxy.defs.spec_framing(_OLD_ENTRY) == \
+            fteproxy.defs.FRAMING_FIXED
+        assert fteproxy.defs.spec_framing(
+            {'regex': r'^[a-z]+\r\n$', 'min_length': 64, 'max_length': 256,
+             'terminator': '\r\n'}) == fteproxy.defs.FRAMING_TERMINATOR
+
+    def test_length_prefix_must_be_declared(self):
+        spec = {'regex': self._MESSAGE, 'min_length': 64, 'max_length': 256,
+                'framing': 'length-prefix'}
+        assert fteproxy.defs.spec_framing(spec) == \
+            fteproxy.defs.FRAMING_LENGTH_PREFIX
+        assert fteproxy.defs.spec_is_variable(spec)
+        assert fteproxy.defs.spec_terminator(spec) is None
+
+    def test_the_prefix_is_framing_so_the_cipher_is_two_bytes_shorter(self):
+        """The whole point of the third framing kind: a covertext of W wire
+        bytes is a message of W-2 that the regex describes, behind a prefix the
+        record layer writes. So the wire length a caller names and the length
+        the cipher is built at differ by exactly the prefix."""
+        spec = {'regex': self._MESSAGE, 'length': 256,
+                'framing': 'length-prefix'}
+        cipher = fteproxy._spec_cipher(spec, 256, b'\x00' * 32)
+        assert cipher.output_format.max_length == 256
+        assert cipher.message_length == 256 - fteproxy.defs.LENGTH_PREFIX_BYTES
+        record = cipher.encrypt(b'hello')
+        assert len(record) == 256
+        assert int.from_bytes(record[:2], 'big') == 254
+        assert cipher.decrypt(record) == b'hello'
+
+    def test_a_prefix_that_disagrees_with_its_message_is_refused(self):
+        spec = {'regex': self._MESSAGE, 'length': 256,
+                'framing': 'length-prefix'}
+        cipher = fteproxy._spec_cipher(spec, 256, b'\x00' * 32)
+        record = bytearray(cipher.encrypt(b'hello'))
+        record[1] ^= 0x01
+        with pytest.raises(Exception):
+            cipher.decrypt(bytes(record))
+
+    def test_a_fixed_length_format_may_be_length_prefixed(self):
+        """Framing is orthogonal to whether the length varies: the prefix is
+        framing either way. Only a *terminator* makes no sense without a range,
+        because a fixed-length format is already framed by its length."""
+        spec = {'regex': self._MESSAGE, 'length': 320,
+                'framing': 'length-prefix'}
+        fteproxy.defs.check_capacities({'prefixed-request': spec})
+        assert not fteproxy.defs.spec_is_variable(spec)
+        assert fteproxy.defs.spec_allowed_lengths(spec) == (320,)
+        # validate_format round-trips it through the record layer and matches
+        # the regex against the message behind each emitted prefix.
+        validate.validate_format('prefixed-request', spec, samples=4)
+
+    def test_an_unknown_framing_is_refused_at_load(self):
+        with pytest.raises(fteproxy.defs.DefinitionsError):
+            fteproxy.defs.check_capacities({'broken-request': {
+                'regex': self._MESSAGE, 'length': 256, 'framing': 'magic'}})
+
+    def test_declaring_both_delimiters_is_refused(self):
+        """A covertext is delimited one way or the other; wiring both would be
+        a definitions bug that only showed up as a stream that will not
+        decode."""
+        with pytest.raises(fteproxy.defs.DefinitionsError):
+            fteproxy.defs.check_capacities({'broken-request': {
+                'regex': r'^[a-z]+\r\n$', 'min_length': 64, 'max_length': 256,
+                'terminator': '\r\n', 'framing': 'length-prefix'}})
+
+    def test_a_range_framed_as_fixed_is_refused(self):
+        with pytest.raises(fteproxy.defs.DefinitionsError):
+            fteproxy.defs.check_capacities({'broken-request': {
+                'regex': self._MESSAGE, 'min_length': 64, 'max_length': 256,
+                'framing': 'fixed'}})
+
+    def test_a_minimum_inside_the_prefix_is_refused(self):
+        """A wire length at or below the prefix leaves no message behind it."""
+        with pytest.raises(fteproxy.defs.DefinitionsError):
+            fteproxy.defs.check_capacities({'broken-request': {
+                'regex': self._MESSAGE, 'min_length': 2, 'max_length': 256,
+                'framing': 'length-prefix'}})
+
+
 class TestRealismHarness:
 
     def test_statistical_guard_rejects_a_single_char_run(self):

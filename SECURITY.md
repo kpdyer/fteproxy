@@ -145,18 +145,20 @@ first. This section covers what fteproxy adds on top of it.
   - **Message lengths vary, but they are not a real length distribution.**
     Every covertext of a format used to be exactly `length` bytes, so a
     length-distribution test separated a tunnel from real traffic without
-    reading a byte. In `format` mode the four text formats (`http`, `ftp`,
-    `smtp`, `sip`) now choose a covertext length per record from eight lengths
-    spanning the format's range -- weighted towards short lengths for
-    interactive traffic and long ones for bulk -- so a capture shows a spread
-    of message sizes rather than one repeated size. What it does *not* show is
-    the protocol's own length distribution: eight discrete values, sized by
-    what the record layer is carrying, are not the continuous, content-driven
-    lengths of real HTTP or SIP, and an adversary who models message lengths
-    finely can still tell the difference. Three things stay fixed: `dns` (its
-    two-byte length prefix is a literal in the regex, so a second length would
-    need a second regex), a `hybrid` header, and the two handshake records,
-    which are always at the format's longest length.
+    reading a byte. In `format` mode every shipped format now chooses a
+    covertext length per record from eight lengths spanning the format's range
+    -- weighted towards short lengths for interactive traffic and long ones for
+    bulk -- so a capture shows a spread of message sizes rather than one
+    repeated size. The four text formats (`http`, `ftp`, `smtp`, `sip`) are
+    framed by a terminator; `dns` is framed by the two-byte length prefix that
+    RFC 1035 section 4.2.2 puts in front of every DNS-over-TCP message, which
+    is framing rather than part of its regex, so one pattern serves all eight
+    of its lengths. What a spread does *not* show is the protocol's own length
+    distribution: eight discrete values, sized by what the record layer is
+    carrying, are not the continuous, content-driven lengths of real HTTP or
+    SIP, and an adversary who models message lengths finely can still tell the
+    difference. Two things stay fixed: a `hybrid` header, and the two handshake
+    records, which are always at the format's longest length.
   - **One message type dominates.** Unranking a full-capacity plaintext lands
     in the same branch of the alternation nearly every time, so in practice
     every `http` request samples as `GET`, every `sip` request as `ACK`, every
@@ -191,13 +193,23 @@ first. This section covers what fteproxy adds on top of it.
   (every byte in the protocol, at about 1 MB/s) and running them under
   `--mode hybrid` leaks an obvious high-entropy tail after each line -- and,
   because a `hybrid` header is fixed length, gives back the length fingerprint
-  the format-mode records no longer have. `dns` carries one more tell: at a
-  fixed 272-byte covertext the capacity lives in the QNAME, so every query pads
-  out to a ~254-octet name -- legal, under the 255-octet limit, and far longer
-  than any name real traffic resolves. Varying its length is the fix, and it is
-  the one format that cannot have it: the two-byte length prefix at the head of
-  a DNS-over-TCP message is a literal in the regex, so each covertext length
-  would need its own regex.
+  the format-mode records no longer have. `dns` in `hybrid` mode is worse than
+  the others: a DNS message is self-delimiting, so a raw body after the
+  covertext is a tail the length prefix does not account for -- visible to
+  anything that reads DNS-over-TCP framing at all.
+
+- **A `dns` query name is long, though no longer always the same length.** The
+  DNS header is 12 fixed bytes and the question trailer is 4 more, so a
+  covertext's capacity lives almost entirely in the QNAME. At the fixed
+  272-byte covertext `dns` shipped before, *every* query padded out to a
+  254-octet name -- legal, under RFC 1035's 255-octet limit, and far longer
+  than any name real traffic resolves. Length-prefix framing removed the
+  fixed part of that: a query name now runs from 72 octets at the shortest
+  covertext to 254 at the longest (56 to 238 for a reply), so a capture shows
+  a range of name sizes. The 254-octet pad is now the *maximum* rather than
+  every record, but the range still sits above what a real resolver mostly
+  sees, and the short end is where it is because a shorter DNS message has too
+  small a rank space to carry a record at all.
 
 - **Nothing secret is logged.** The package logger carries a redaction filter,
   installed at import, that strips a connection string's server-id, a hex key

@@ -307,7 +307,9 @@ def check_format(base):
     a variable-length format that cannot compile at one of its shorter lengths
     would otherwise fail mid-connection instead of here. The DFAs land in
     :func:`fteproxy._regex_format`'s cache, so the first connection does not pay
-    for them either.
+    for them either -- which means asking for the same lengths a connection
+    will: the *message* length for a length-prefix format, whose framing prefix
+    is not part of the pattern.
     """
     try:
         request, response = fteproxy.defs.getRegex(base + '-request'), \
@@ -317,9 +319,11 @@ def check_format(base):
             'unknown format %r; "fteproxy formats" lists the base names' % base)
     for name, pattern in ((base + '-request', request),
                           (base + '-response', response)):
+        framing = fteproxy.defs.get_framing(name)
         for length in fteproxy.defs.get_allowed_lengths(name):
             try:
-                fteproxy._regex_format(pattern, length)
+                fteproxy._regex_format(
+                    pattern, fteproxy._message_length(framing, length))
             except Exception as e:
                 raise StartupError('format %s is unusable at length %d: %s'
                                    % (name, length, e))
@@ -435,8 +439,8 @@ def do_formats(args):
             lengths = fteproxy.defs.spec_allowed_lengths(spec)
             shortest, longest = lengths[0], lengths[-1]
             try:
-                capacities = [fteproxy._make_cipher(
-                    spec['regex'], length, key).max_plaintext_bytes
+                capacities = [fteproxy._spec_cipher(
+                    spec, length, key).max_plaintext_bytes
                     for length in (shortest, longest)]
             except Exception:
                 row += [_span(shortest, longest), 'unusable']

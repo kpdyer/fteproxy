@@ -1,30 +1,47 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Variable-length covertexts (phase F7).
+"""Variable-length covertexts (phases F7 and F7b).
 
-Until now every covertext of a format was exactly one length, which SECURITY.md
+Until F7 every covertext of a format was exactly one length, which SECURITY.md
 called out as its own fingerprint: a length-distribution test separates a tunnel
-from real traffic without looking at a single byte. The four text formats
-(``http``, ``ftp``, ``smtp``, ``sip``) now pick a covertext length per
-format-mode record from a small set spanning ``[min_length, max_length]``, and
-the decoder frames the wire on the format's terminator instead of on a fixed
-slice.
+from real traffic without looking at a single byte. Every shipped format now
+picks a covertext length per format-mode record from a small set spanning
+``[min_length, max_length]``, and the decoder frames the wire on that format's
+delimiter instead of on a fixed slice.
+
+There are two delimiters, and both are exercised here:
+
+* the four text formats (``http``, ``ftp``, ``smtp``, ``sip``) end each
+  covertext with a **terminator** their language cannot produce anywhere else
+  (F7);
+* ``dns`` carries a two-byte big-endian **length prefix** in front of each
+  covertext (F7b). That prefix is what RFC 1035 section 4.2.2 says DNS over TCP
+  is, and until F7b it was a literal at the head of the regex -- which is
+  exactly why ``dns`` was the one format F7 had to leave fixed: a second
+  covertext length would have needed a second literal, hence a second regex.
+  Lifting it out of the pattern and into the record layer
+  (``fteproxy.defs.FRAMING_LENGTH_PREFIX``) is what let one pattern serve all
+  eight lengths.
 
 What these tests pin down:
 
 * the **length set** both ends derive from the definitions, without negotiating it;
-* **framing**: a record delivered in fragments, including a split inside the
-  terminator itself, reassembles; a length the format does not emit, a corrupted
-  covertext, and a peer that never sends a terminator each fail the stream
-  closed rather than being buffered or guessed at;
+* **framing**, for both delimiters: a record delivered in fragments -- including
+  every split inside the terminator, and every split across a length prefix and
+  a message boundary -- reassembles; a length the format does not emit, a
+  corrupted covertext, a truncated message, and a peer that never sends a
+  terminator each fail the stream closed rather than being buffered or guessed
+  at;
 * the **spread**: a stream of small and large writes produces many distinct
-  covertext lengths and no dominant one, which is the point of the change;
-* **terminator uniqueness**, the property framing rests on, including that the
-  pre-F7 ``http-response`` regex (which absorbed a body and so could carry a
-  CRLF CRLF inside a covertext) is rejected by the check;
+  covertext lengths and no dominant one, which is the point of the change, and
+  for ``dns`` every covertext in that spread is still a message its independent
+  realism parser accepts;
+* **terminator uniqueness**, the property terminator framing rests on, including
+  that the pre-F7 ``http-response`` regex (which absorbed a body and so could
+  carry a CRLF CRLF inside a covertext) is rejected by the check;
 * what did **not** change: the two handshake records and a ``hybrid`` header are
-  still one fixed ``max_length`` covertext, and ``dns`` and the shape catalog
-  are still framed by their fixed length.
+  still one fixed ``max_length`` covertext, the four text formats' fragments are
+  byte for byte what F7 shipped, and the shape catalog is still fixed length.
 """
 
 import collections
@@ -42,12 +59,14 @@ import fteproxy.defs.validate as validate
 import fteproxy.handshake
 import fteproxy.record_layer as rl
 import fteproxy.tests.realism as realism
+import fteproxy.tests.realism.dns as dns_realism
 
 
 _KEY = bytes(range(32))
 
-#: The variable-length formats the 20260903 release ships, with the terminator
-#: each one is framed on.
+#: Every variable-length format the 20260903 release ships, mapped to the
+#: terminator it is framed on -- or to ``None`` for the two that are framed on a
+#: length prefix instead, which have no terminator at all.
 VARIABLE = {
     'http-request': b'\r\n\r\n',
     'http-response': b'\r\n\r\n',
@@ -57,7 +76,17 @@ VARIABLE = {
     'smtp-response': b'\r\n',
     'sip-request': b'\r\n\r\n',
     'sip-response': b'\r\n\r\n',
+    'dns-request': None,
+    'dns-response': None,
 }
+
+#: The subset framed on a terminator: the tests that are *about* terminators.
+TERMINATED = {name: terminator for name, terminator in VARIABLE.items()
+              if terminator is not None}
+
+#: The subset framed on a length prefix.
+PREFIXED = tuple(sorted(name for name, terminator in VARIABLE.items()
+                        if terminator is None))
 
 SERVER_PRIVATE, SERVER_PUBLIC = fteproxy.generate_server_key()
 
@@ -86,6 +115,17 @@ def _pair(name, key=_KEY):
 
 def _variable(name, key=_KEY):
     return fteproxy._variable_lengths_for_spec(_spec(name), key)
+
+
+def _frame(name, wire):
+    """Split a format-mode wire the way *this* format's decoder frames it.
+
+    On the terminator, or on the length prefix. Tests that are about a property
+    every variable-length format has -- the spread, one record per payload that
+    fits -- go through here rather than assuming a terminator, so they cover
+    both framings without being written twice.
+    """
+    return realism.frame_wire(wire, _spec(name))
 
 
 # --------------------------------------------------------------------------- #
@@ -122,6 +162,12 @@ class TestAllowedLengths:
                 == fteproxy.defs.spec_allowed_lengths(spec))
         assert fteproxy.defs.get_terminator(name) == VARIABLE[name]
         assert fteproxy.defs.is_variable(name)
+        # The framing is a function of the entry too, so neither end has to be
+        # told which delimiter the other is writing.
+        expected = (fteproxy.defs.FRAMING_LENGTH_PREFIX if name in PREFIXED
+                    else fteproxy.defs.FRAMING_TERMINATOR)
+        assert fteproxy.defs.get_framing(name) == expected
+        assert _variable(name).framing == expected
 
     @pytest.mark.parametrize('name', sorted(VARIABLE))
     def test_get_length_is_the_top_of_the_range(self, name):
@@ -152,7 +198,7 @@ class TestAllowedLengths:
 # Framing
 # --------------------------------------------------------------------------- #
 
-class TestTerminatorFraming:
+class TestFraming:
 
     @pytest.mark.parametrize('name', sorted(VARIABLE))
     def test_records_of_many_sizes_round_trip(self, name):
@@ -164,7 +210,7 @@ class TestTerminatorFraming:
             assert decoder.pop() == payload
         assert not decoder.failed
 
-    @pytest.mark.parametrize('name', sorted(VARIABLE))
+    @pytest.mark.parametrize('name', sorted(TERMINATED))
     def test_every_covertext_ends_with_the_terminator_and_nothing_else_does(
             self, name):
         terminator = VARIABLE[name]
@@ -178,16 +224,18 @@ class TestTerminatorFraming:
             assert terminator not in covertext[:-len(terminator)]
         assert b''.join(covertexts) == wire
 
-    @pytest.mark.parametrize('name', ['ftp-request', 'http-request'])
+    @pytest.mark.parametrize('name', ['ftp-request', 'http-request',
+                                      'dns-request', 'dns-response'])
     def test_a_record_split_at_every_byte_reassembles(self, name):
-        """Including every split *inside* the terminator, which is the case a
-        fixed-length decoder never had to think about: a partial terminator
-        must read as "not yet", never as a short record."""
+        """Including every split *inside* the delimiter, which is the case a
+        fixed-length decoder never had to think about: a partial terminator, or
+        one byte of a two-byte length prefix, must read as "not yet", never as
+        a short record."""
         encoder, _ = _pair(name)
         payload = b'the quick brown fox'
         encoder.push(payload)
         wire = encoder.pop()
-        assert len(validate.frame_covertexts(wire, VARIABLE[name])) == 1
+        assert len(_frame(name, wire)) == 1
 
         for split in range(1, len(wire)):
             _encoder, decoder = _pair(name)
@@ -291,7 +339,7 @@ class TestFailsClosed:
         assert decoder.pop() == b'first'
         assert decoder.failed
 
-    @pytest.mark.parametrize('name', sorted(VARIABLE))
+    @pytest.mark.parametrize('name', sorted(TERMINATED))
     def test_a_peer_that_never_terminates_cannot_grow_the_buffer(self, name):
         """Terminator framing has no natural bound of its own, so one is
         imposed: more than one longest covertext with no terminator in it is
@@ -327,7 +375,6 @@ class TestLengthSpread:
     def test_a_mixed_stream_produces_many_lengths_and_no_dominant_one(self, name):
         """Interactive-sized writes and bulk writes together, as a relayed
         session carries. Before F7 this histogram had exactly one bar."""
-        terminator = VARIABLE[name]
         encoder, _decoder = _pair(name)
         wire = b''
         for i in range(120):
@@ -337,7 +384,7 @@ class TestLengthSpread:
             encoder.push(os.urandom(4096))                   # bulk
             wire += encoder.pop()
 
-        covertexts = validate.frame_covertexts(wire, terminator)
+        covertexts = _frame(name, wire)
         histogram = collections.Counter(len(c) for c in covertexts)
         allowed = set(fteproxy.defs.spec_allowed_lengths(_spec(name)))
         assert set(histogram) <= allowed
@@ -371,12 +418,11 @@ class TestLengthSpread:
         """A payload that fits in one record travels as one record: the length
         choice never picks a length too small to hold what is queued."""
         for name in sorted(VARIABLE):
-            terminator = VARIABLE[name]
             encoder, _ = _pair(name)
             payload = os.urandom(encoder.capacity)
             encoder.push(payload)
             wire = encoder.pop()
-            assert len(validate.frame_covertexts(wire, terminator)) == 1
+            assert len(_frame(name, wire)) == 1
             assert len(wire) == max(
                 fteproxy.defs.spec_allowed_lengths(_spec(name)))
 
@@ -398,12 +444,12 @@ _PRE_F7_HTTP_RESPONSE = (
 
 class TestTerminatorUniqueness:
 
-    @pytest.mark.parametrize('name', sorted(VARIABLE))
+    @pytest.mark.parametrize('name', sorted(TERMINATED))
     def test_every_shipped_variable_format_passes_the_static_check(self, name):
         validate.check_terminator_uniqueness(
             name, _spec(name)['regex'], VARIABLE[name])
 
-    @pytest.mark.parametrize('name', sorted(VARIABLE))
+    @pytest.mark.parametrize('name', sorted(TERMINATED))
     def test_sampled_covertexts_agree_with_the_static_check(self, name):
         covertexts = realism.format_covertexts(_spec(name), n=64)
         validate._check_sampled_terminators(name, covertexts, VARIABLE[name])
@@ -491,6 +537,186 @@ class TestTerminatorUniqueness:
         assert validate._literal_skeletons('/[a-z]*x') == {'/x', '/' + any_ + 'x'}
         assert validate._literal_skeletons('[a-z]+') == {any_}
         assert validate._literal_skeletons('a?b') == {'b', 'ab'}
+
+
+# --------------------------------------------------------------------------- #
+# Length-prefix framing (F7b): the delimiter dns uses
+# --------------------------------------------------------------------------- #
+
+class TestLengthPrefixFraming:
+    """What terminator framing's tests above prove for the text formats, proved
+    for the delimiter ``dns`` uses instead.
+
+    A record is a two-byte big-endian message length followed by that many
+    bytes. The prefix is framing rather than language, so there is nothing here
+    to prove *about the pattern* -- the questions are all about the wire: does
+    the prefix say what follows it, does the decoder wait for a partial record
+    and refuse an impossible one, and is what comes out still DNS.
+    """
+
+    PREFIX = fteproxy.defs.LENGTH_PREFIX_BYTES
+
+    @pytest.mark.parametrize('name', PREFIXED)
+    def test_the_prefix_announces_the_message_and_the_regex_is_the_message(
+            self, name):
+        """The two halves of "the prefix is framing, not language": on the wire
+        each record's prefix accounts for exactly the bytes after it, and what
+        those bytes match is the format's regex -- which no longer describes the
+        prefix at all."""
+        spec = _spec(name)
+        pattern = re.compile(spec['regex'].encode('latin-1'), re.DOTALL)
+        allowed = set(fteproxy.defs.spec_allowed_lengths(spec))
+
+        encoder, _decoder = _pair(name)
+        wire = b''
+        for i in range(80):
+            encoder.push(os.urandom(1 + (i * 11) % 60))
+            wire += encoder.pop()
+
+        covertexts = _frame(name, wire)
+        assert len(covertexts) > 1
+        assert b''.join(covertexts) == wire
+        for covertext in covertexts:
+            assert len(covertext) in allowed
+            declared = int.from_bytes(covertext[:self.PREFIX], 'big')
+            assert declared == len(covertext) - self.PREFIX
+            assert pattern.fullmatch(covertext[self.PREFIX:])
+            # ... and the prefix itself is not in the language: the regex
+            # matches the message and only the message.
+            assert not pattern.fullmatch(covertext)
+
+    @pytest.mark.parametrize('name', PREFIXED)
+    def test_two_records_split_at_every_byte_reassemble(self, name):
+        """Every split across the whole two-record wire: inside the first
+        prefix, inside the first message, exactly on the record boundary,
+        inside the second prefix, and inside the second message. One byte of a
+        two-byte prefix must read as "not yet", never as a length."""
+        encoder, _ = _pair(name)
+        encoder.push(b'first')
+        wire = encoder.pop()
+        encoder.push(b'second and rather longer')
+        wire += encoder.pop()
+        assert len(_frame(name, wire)) == 2
+
+        for split in range(1, len(wire)):
+            _encoder, decoder = _pair(name)
+            decoder.push(wire[:split])
+            head = decoder.pop()
+            assert not decoder.failed, 'failed at split %d' % split
+            decoder.push(wire[split:])
+            assert head + decoder.pop() == b'firstsecond and rather longer', \
+                'lost at split %d' % split
+            assert not decoder.failed, 'failed at split %d' % split
+
+    @pytest.mark.parametrize('name', PREFIXED)
+    def test_a_prefix_not_in_the_allowed_set_fails_closed(self, name):
+        """A covertext in the format's language, sealed with the right key, at
+        a message length between two allowed ones, behind a prefix that
+        honestly describes it. Only the length is wrong, and that alone kills
+        the stream -- exactly as a terminator-framed record of an unlisted
+        length does."""
+        spec = _spec(name)
+        lengths = fteproxy.defs.spec_allowed_lengths(spec)
+        odd = (lengths[0] + lengths[1]) // 2
+        assert odd not in lengths
+        odd_cipher = fteproxy._spec_cipher(spec, odd, _KEY)
+        record = rl._seal(odd_cipher, bytes((rl.DATA,)) + b'hello', 0)
+        assert len(record) == odd
+        assert int.from_bytes(record[:self.PREFIX], 'big') == odd - self.PREFIX
+
+        _encoder, decoder = _pair(name)
+        decoder.push(record)
+        assert decoder.pop_records() == []
+        assert decoder.failed
+        assert decoder._buffer == b''
+        with pytest.raises(rl.StreamFailedError):
+            decoder.push(b'more')
+
+    @pytest.mark.parametrize('name', PREFIXED)
+    def test_an_impossible_prefix_fails_closed_at_once_and_buffers_nothing(
+            self, name):
+        """The bound this framing gets for free. A 65535-byte prefix is a
+        protocol violation, not a large record still arriving, so it is refused
+        the moment it is read rather than waited on -- which is what stops a
+        peer talking the decoder into holding 64 KiB on its say-so."""
+        _encoder, decoder = _pair(name)
+        decoder.push(b'\xff\xff' + b'A' * 8)
+        assert decoder.pop_records() == []
+        assert decoder.failed
+        assert decoder._buffer == b''
+        with pytest.raises(rl.StreamFailedError):
+            decoder.push(b'A' * 64)
+
+    @pytest.mark.parametrize('name', PREFIXED)
+    def test_a_truncated_message_waits_and_then_fails_on_what_follows(self, name):
+        """A record short of the length its prefix announced is not a short
+        record: while the bytes could still be arriving the decoder waits, and
+        once the announced count is filled by bytes that are not that covertext
+        the seal notices and the stream dies."""
+        encoder, _ = _pair(name)
+        encoder.push(b'first record')
+        first = encoder.pop()
+        encoder.push(b'second record')
+        second = encoder.pop()
+
+        # Still arriving: no record, no failure, everything still buffered.
+        _e, waiting = _pair(name)
+        waiting.push(first[:-1])
+        assert waiting.pop_records() == []
+        assert not waiting.failed
+        assert len(waiting._buffer) == len(first) - 1
+
+        # A byte of the first record dropped: the prefix still says W, so the
+        # frame fills up with the head of the next record and does not decrypt.
+        _e, truncated = _pair(name)
+        truncated.push(first[:-1] + second)
+        assert truncated.pop_records() == []
+        assert truncated.failed
+        assert truncated._buffer == b''
+
+    @pytest.mark.parametrize('name', PREFIXED)
+    def test_the_spread_is_a_spread_and_every_covertext_is_still_dns(self, name):
+        """The point of F7b, and its constraint. A mixed stream produces a
+        histogram of wire lengths rather than one bar -- and every covertext in
+        it is still judged a structurally valid DNS-over-TCP message by the
+        independent parser in ``realism.dns``, which knows only RFC 1035 and
+        never sees the format's regex."""
+        spec = _spec(name)
+        encoder, _decoder = _pair(name)
+        wire = b''
+        for i in range(150):
+            encoder.push(os.urandom(1 + (i * 7) % 30))       # small messages
+            wire += encoder.pop()
+        for _ in range(10):
+            encoder.push(os.urandom(4096))                   # bulk
+            wire += encoder.pop()
+
+        covertexts = _frame(name, wire)
+        histogram = collections.Counter(len(c) for c in covertexts)
+        assert set(histogram) <= set(fteproxy.defs.spec_allowed_lengths(spec))
+        assert len(histogram) >= 6, histogram
+        assert max(histogram.values()) <= 0.5 * len(covertexts), histogram
+
+        for covertext in covertexts:
+            dns_realism.check(covertext)
+        realism.statistical_guard(covertexts)
+
+    @pytest.mark.parametrize('name', PREFIXED)
+    def test_the_question_name_is_what_the_length_buys(self, name):
+        """Why the spread is worth having here: the covertext length lands in
+        QNAME, so a histogram of lengths is a histogram of query-name sizes,
+        and the shortest is a name a resolver could plausibly be asked for
+        rather than the 254-octet pad a fixed length forced."""
+        encoder, _decoder = _pair(name)
+        wire = b''
+        for _ in range(200):
+            encoder.push(b'x')
+            wire += encoder.pop()
+
+        names = {dns_realism.parse(c).name_octets for c in _frame(name, wire)}
+        assert len(names) >= 6, names
+        assert min(names) < 80
+        assert max(names) <= 255
 
 
 # --------------------------------------------------------------------------- #
@@ -622,24 +848,40 @@ class TestFixedFramingSurvives:
             client.close()
             server.close()
 
-    def test_dns_is_still_fixed_length(self):
-        """Its 2-byte length prefix is a literal in the regex, so a second
-        covertext length would need a second regex. It stays at 272."""
-        for name in ('dns-request', 'dns-response'):
-            spec = _spec(name)
-            assert not fteproxy.defs.spec_is_variable(spec)
-            assert fteproxy.defs.spec_allowed_lengths(spec) == (272,)
-            assert fteproxy.defs.getLength(name) == 272
-            assert fteproxy._variable_for(name, _KEY) is None
+    def test_the_dns_hello_is_one_max_length_covertext(self):
+        """F7b changed what a dns *data* record looks like and nothing about the
+        handshake. The hello is still one fixed frame at ``max_length``, still
+        272 bytes, and -- because the record layer writes the framing prefix in
+        front of the sealed message -- still a structurally valid DNS query,
+        which is what it was before the prefix left the regex."""
+        client, server = self._handshaken('dns', 'format')
+        try:
+            hello = client._socket.sent[0]
+            assert len(hello) == fteproxy.defs.getLength('dns-request')
+            assert len(hello) == _spec('dns-request')['max_length'] == 272
+            dns_realism.check(hello)
+            assert server.handshake_complete
+        finally:
+            client.close()
+            server.close()
 
-        encoder, decoder = realism.record_layer_pair(_spec('dns-request'),
-                                                     key=_KEY)
-        assert encoder._variable is None
-        encoder.push(os.urandom(1000))
-        wire = encoder.pop()
-        assert len(wire) % 272 == 0
-        decoder.push(wire)
-        assert len(decoder.pop()) == 1000
+    def test_the_four_text_formats_kept_their_terminator_framing(self):
+        """F7b touched the dns fragment and nothing else. The four formats F7
+        gave a terminator declare exactly what they declared then -- no
+        ``framing`` key, a terminator, and the same range."""
+        expected = {
+            'http-request': (200, 700), 'http-response': (200, 700),
+            'ftp-request': (64, 256), 'ftp-response': (64, 256),
+            'smtp-request': (80, 320), 'smtp-response': (80, 320),
+            'sip-request': (300, 800), 'sip-response': (300, 800),
+        }
+        for name, (low, high) in expected.items():
+            spec = _spec(name)
+            assert 'framing' not in spec, name
+            assert (spec['min_length'], spec['max_length']) == (low, high), name
+            assert fteproxy.defs.spec_framing(spec) == \
+                fteproxy.defs.FRAMING_TERMINATOR, name
+            assert fteproxy.defs.spec_terminator(spec) == TERMINATED[name], name
 
     def test_the_shape_catalog_is_still_fixed_length(self):
         fteproxy.conf.setValue('fteproxy.defs.release', '20260110')

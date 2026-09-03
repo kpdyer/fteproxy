@@ -221,8 +221,10 @@ Per-protocol notes:
   RDLENGTH consistency), not the format regex. A fixed length pads the QNAME into a
   long name, structurally valid but unusual; note it. `mode_hint: format`. length
   chosen so capacity >= 128. (F7 could not fix that padding: the two-byte length
-  prefix is a literal in the regex, so each covertext length would need its own
-  regex. `dns` is the one format that stays fixed length.)
+  prefix was a literal in the regex, so each covertext length would have needed
+  its own regex, which left `dns` the one fixed-length format. **F7b** fixed it
+  by moving the prefix out of the regex and into the record layer as a third
+  framing kind, `"framing": "length-prefix"`; see the F7 section.)
 
 ### F6 — integration (after F1–F5)
 
@@ -256,8 +258,11 @@ a server on 8080 with a no-hint client selects http end to end; `pytest` green.
 
 ### F7 — variable-length covertexts
 
-Status: **done**, 2026-09-03. The fixed-length fingerprint is gone from
-format-mode data records on the four text formats. Suite: 729 passing (was 614).
+Status: **done**, 2026-09-03, in two parts. F7 gave the four text formats a
+terminator-framed length range (suite: 729 passing, was 614). F7b gave `dns` one
+too, framed on its RFC 1035 length prefix (suite: 801 passing, was 765). The
+fixed-length fingerprint is now gone from format-mode data records on every
+shipped format.
 
 The one change that removes the fixed-length fingerprint. Format mode only.
 
@@ -297,9 +302,20 @@ rather than one.
 - Ranges: `http` 200–700, `sip` 300–800, `smtp` 80–320, `ftp` 64–256. The
   128-byte capacity floor applies at `max_length` (where the handshake seals);
   the shortest length only has to carry one data record.
-- **`dns` stays fixed at 272.** Its two-byte big-endian length prefix is a
-  literal in the regex, so each covertext length would need its own regex. Noted
-  in SECURITY.md as the one shipped format that keeps the length fingerprint.
+- **`dns` was fixed at 272 through F7, and is 90–272 since F7b.** The blocker
+  was that its two-byte big-endian length prefix was a literal in the regex, so
+  each covertext length would have needed its own regex. F7b resolved it by
+  treating the prefix as *framing* rather than language, which is what DNS over
+  TCP is: the regex describes the message alone, and the record layer writes the
+  prefix on send and frames on it on receive. That is the third framing kind,
+  `"framing": "length-prefix"` in the schema, alongside fixed and terminator —
+  a covertext of W wire bytes is a message of W-2 sealed at that length behind a
+  prefix carrying W-2, and a prefix naming any other wire length fails the
+  stream closed at once rather than being waited on. The short end is set by
+  capacity, not by the grammar: 90 wire bytes is where a reply's rank space
+  first holds a whole data record. QNAME, which is where a covertext's length
+  lands, now runs 72–254 octets on a query and 56–238 on a reply instead of
+  sitting at 254 (238) every time.
 - Unchanged: both handshake records and every `hybrid` header are one
   `max_length` covertext, so `getLength()` returns `max_length` and the
   first-record scan, `check_capacities` and the hybrid path did not move. The
@@ -316,4 +332,5 @@ rather than one.
   `examples/defs/`. Recommended: yes.
 - **D-F4** Do F7 (variable length) in this cycle or defer. Recommended: land
   F0–F6 first; F7 as a fast follow, since it is the only record-layer change.
-  *Settled: F7 landed 2026-09-03, for the four text formats; `dns` stays fixed.*
+  *Settled: F7 landed 2026-09-03 for the four text formats, and F7b the same
+  day for `dns`; no shipped format is fixed-length any more.*

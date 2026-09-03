@@ -49,9 +49,9 @@ python3 benchmark.py --scenarios lan --sizes 64K 1M --mode format
    which brings connection setup to ~1 ms. Without the cache it was 8–12 ms, and a
    connection closed before negotiating pinned the server at 64–100% CPU. A
    variable-length format needs one DFA per length it can emit, which is why the
-   set of lengths is small (eight) and fixed: the whole shipped catalog is 66
-   DFAs (8 variable entries × 8 lengths, plus one each for the two `dns`
-   entries), compiled once per process and shared by every connection.
+   set of lengths is small (eight) and fixed: the whole shipped catalog is 80
+   DFAs (10 variable entries × 8 lengths each), compiled once per process and
+   shared by every connection.
 6. **Four of the five shipped formats run in `format` mode by design, so point 4
    is their normal operating point.** Since the `20260903` definitions release the
    default catalog is five cleartext protocols: `http` is `mode_hint: hybrid` (an

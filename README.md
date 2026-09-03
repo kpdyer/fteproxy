@@ -153,14 +153,17 @@ real thing:
 | `ftp` | 21 | command / reply | format | 64–256 | `USER …`, `220 … ready` control lines |
 | `smtp` | 25, 587 | command / reply | format | 80–320 | `EHLO …`, `250-…` command and reply lines |
 | `sip` | 5060 | request / response | format | 300–800 | `INVITE sip:…@… SIP/2.0` with Via/From/To/Call-ID/CSeq |
-| `dns` | 53 | query / response | format | 272 (fixed) | DNS over TCP: length prefix, header, question, A record |
+| `dns` | 53 | query / response | format | 90–272 | DNS over TCP: length prefix, header, question, A record |
 
-The four text formats vary their covertext length: in `format` mode each record
-picks a length from across its range, so a captured stream shows a spread of
-message sizes instead of one repeated size. `dns` is fixed at 272 bytes — its
-two-byte length prefix is a literal in the regex, so every covertext length
-would need its own regex. The two handshake records and a `hybrid` mode header
-are always at the top of the range.
+Every format varies its covertext length: in `format` mode each record picks a
+length from across its range, so a captured stream shows a spread of message
+sizes instead of one repeated size. The four text formats are framed by a
+terminator the format's language cannot produce anywhere else; `dns` is framed
+by the two-byte length prefix RFC 1035 puts in front of every DNS-over-TCP
+message, which is framing rather than part of its regex, so one pattern serves
+every length (and its query names run 72–254 octets rather than always 254).
+The two handshake records and a `hybrid` mode header are always at the top of
+the range.
 
 `http` is the default. A client given no `--format` and no `?format=` hint
 picks the format whose protocol runs on the server's port -- a server on 21
@@ -175,7 +178,7 @@ the capacity of one covertext:
 ```console
 $ fteproxy formats
 name  role      port          mode    req len  req cap  resp len  resp cap
-dns   req/resp  53            format      272      154       272       148
+dns   req/resp  53            format   90-272   22-154    90-272    17-148
 ftp   req/resp  21            format   64-256   15-161    64-256    16-163
 http  req/resp  80,8080,8000  hybrid  200-700   63-448   200-700    52-434  (default)
 sip   req/resp  5060          format  300-800   99-472   300-800   101-474
@@ -183,7 +186,8 @@ smtp  req/resp  25,587        format   80-320   20-181    80-320    29-215
 ```
 
 A range in the length column is a format that varies its covertext length; a
-single number is a fixed-length one.
+single number is a fixed-length one (the `20260110` shape catalog is all
+fixed-length).
 
 The comprehensive catalog of abstract *shapes* that earlier versions defaulted
 to -- 46 entries, 23 base names (`manual-http`, `words`, `base64`, …) -- still

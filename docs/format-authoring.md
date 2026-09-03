@@ -52,10 +52,11 @@ high-entropy bytes from its class. Therefore:
 
 The realism harness does this for you: `fteproxy.tests.realism.format_covertexts`
 drives the format-mode `Encoder` and cuts the wire back into individual sealed
-covertexts — by length for a fixed-length format, on the terminator for a
-variable-length one, exactly as the decoder frames it. Pass it the definitions
-entry (`format_covertexts(spec, n=256)`) so it picks the right framing; passing
-`regex, length` still works for a fixed-length format. Use it, and
+covertexts — by length, on the terminator, or on the length prefix, exactly as
+that format's decoder frames it. Pass it the definitions entry
+(`format_covertexts(spec, n=256)`) so it picks the right framing; passing
+`regex, length` still works for a fixed-length format. What comes back is
+always what went on the *wire*, framing included. Use it, and
 `statistical_guard`, in every `test_format_<proto>.py`.
 
 **What this can and cannot buy.** A sealed covertext is *structurally* a valid
@@ -83,7 +84,7 @@ data record — a type byte, the 12-byte seal, and at least one payload byte —
 A fixed-length format emits every covertext at exactly one length, which is a
 fingerprint of its own: a length-distribution test separates it from real
 traffic without reading a byte. A format avoids that by declaring a range and a
-terminator instead of a `length`:
+way to delimit one covertext from the next, instead of a `length`:
 
 ```json
 "ftp-request": {
@@ -102,6 +103,12 @@ that length. Both ends derive the set from the same definitions entry, so
 nothing about it is negotiated. `hybrid` mode, the two handshake records and the
 server's first-record scan all stay at `max_length`.
 
+Those lengths are always lengths **on the wire**. For the two framings below
+that is the same as the cipher's covertext length; for `length-prefix` framing
+the cipher is built two bytes shorter and the prefix makes up the difference.
+`fteproxy._spec_cipher(spec, wire_length, key)` is the one place that
+subtraction happens, so every other caller just names a wire length.
+
 Two rules make this work, and both are easy to get wrong.
 
 ### The length must be chosen per record, not left to libfte
@@ -119,7 +126,7 @@ queued, so a length histogram reflects what the connection is carrying.
 The set is small (eight) because each length costs one compiled DFA. A
 continuous range would cost one per byte.
 
-### The terminator must be impossible anywhere but the end
+### Framing kind 1: the terminator must be impossible anywhere but the end
 
 The decoder frames the wire by reading up to the next terminator, so if the
 format's *language* can produce that byte string anywhere else, a covertext gets
@@ -154,10 +161,73 @@ could carry `\r\n\r\n` inside it. A response with no body (`302`, `304`, or a
 `200` with `Content-Length: 0`) is valid HTTP, and the capacity the body carried
 moved into the `Server`, `Content-Type`, `ETag` and `Set-Cookie` values.
 
-`dns` stays fixed length. A DNS-over-TCP message opens with a two-byte
-big-endian length prefix, which the regex spells as a literal, so a second
-covertext length would need a second regex — out of scope, and noted in
-SECURITY.md as the one format that keeps the length fingerprint.
+### Framing kind 2: a length prefix, which is framing and not language
+
+Some protocols already say how long each message is. DNS over TCP is the plain
+case: RFC 1035 section 4.2.2 puts a two-byte big-endian length in front of every
+message, and that is the whole framing layer.
+
+`dns` originally spelled that prefix as a literal at the head of its regex
+(`\u0001\u000e` — 270, for a fixed 272-byte covertext), and that is precisely
+what kept it fixed-length through F7: a second covertext length needs a second
+prefix, hence a second regex. F7b lifted the prefix out of the pattern:
+
+> **A length prefix is framing, not language.** The regex describes the
+> *message*; the record layer writes the prefix in front of it on send and
+> frames on it on receive.
+
+That is what a `length-prefix` format declares, and it needs no terminator:
+
+```json
+"dns-request": {
+  "regex": "^[\u0000-\u00ff][\u0000-\u00ff]\u0001\u0000...\u0000\u0001$",
+  "min_length": 90,
+  "max_length": 272,
+  "framing": "length-prefix",
+  ...
+}
+```
+
+How it works, end to end:
+
+- **Encoder.** Choose a wire length `W` from `spec_allowed_lengths` (the same
+  chooser and the same short bias as a terminator-framed format), seal the chunk
+  with the fixed-length cipher at message length `W - 2` — padded to that
+  length's capacity, per the seal-padding rule — and emit `prefix(W-2) ||
+  covertext`. `record_layer.LengthPrefixed` wraps the cipher and does the last
+  step, so `_seal`, the handshake and a `hybrid` header all keep working on a
+  cipher whose `encrypt` produces exactly `W` bytes and whose
+  `output_format.max_length` reports `W`.
+- **Decoder.** Wait for two bytes; read `n`; require `W = n + 2` to be one of
+  the allowed wire lengths and **fail the stream closed immediately** if it is
+  not. A 65535-byte prefix is a protocol violation, not a large record still
+  arriving, and treating it as the latter is how a decoder is talked into
+  buffering on a stranger's say-so. Then wait for `n` more bytes, decrypt with
+  the `(pattern, n)` cipher, and unseal at the current sequence number.
+- **The buffer bound comes for free.** Terminator framing has to impose one,
+  because a peer can simply never send a terminator; here every record announces
+  its own size, so the buffer never holds more than one longest covertext
+  without either producing a record or failing.
+- **The invariants are the terminator path's**: the seal must unseal at the
+  current `seq`, any authentication failure is fatal to the stream, and a
+  covertext of an unlisted length is refused rather than reinterpreted.
+
+The capacity floor is what sets `min_length` for this kind of format, and it can
+bite hard. A DNS message's rank space is small — the header and the question
+trailer are fixed bytes and the capacity lives in the QNAME — so a short
+covertext is perfectly good DNS and useless as a record. The binding direction
+is the *reply*, which spends 16 more fixed bytes than a query on its answer
+record: it first holds a whole data record at 86 wire bytes, and `dns` sets
+`min_length` to 90, just above that floor and an exact step of 26 below the
+272-byte maximum. Below 86, `defs-check` refuses the entry rather than shipping
+a length no record fits in.
+
+Checking a `length-prefix` format is different in kind from checking a
+terminator: there is nothing in the pattern to prove, because the prefix is not
+in the pattern. `defs.validate` instead checks what the record layer *emits* —
+per allowed wire length, that the prefix equals `W-2`, that the message behind
+it fullmatches the regex, and that the wire length is one the format declared.
+`check_terminator_uniqueness` does not apply and is not run.
 
 ## Mode suitability
 
@@ -179,20 +249,22 @@ every new key defaults so old files are unchanged). The optional keys:
 
 | key | type | default | meaning |
 |---|---|---|---|
-| `min_length`, `max_length` | int / null | `null` | variable length: the ends of the covertext-length range |
+| `min_length`, `max_length` | int / null | `null` | variable length: the ends of the covertext-length range, **on the wire** |
 | `terminator` | str / null | `null` | variable length: what every covertext ends with, and only ends with |
+| `framing` | `fixed` \| `terminator` \| `length-prefix` | inferred: `terminator` when a terminator is declared, else `fixed` | how one covertext is told from the next |
 | `port` | list[int] | `[]` | ports this format defaults on |
 | `role` | `request` \| `response` \| `line` | inferred from the name suffix | direction |
 | `mode_hint` | `hybrid` \| `format` | `hybrid` | designed-for record-layer mode |
 | `default` | bool | `false` | exactly one base marks itself the release default |
 | `description` | str | `""` | one-line human description |
 
-A format is fixed length (`length`) or variable length (all three of
-`min_length`, `max_length`, `terminator`), never both and never half of one:
-a partial declaration would load as a fixed-length format and quietly emit one
-length again, so `check_capacities` refuses it. `fteproxy.defs.getLength()` and
-`spec_length()` return `max_length` for a variable format, which is what the
-fixed-frame paths use.
+A format is fixed length (`length`) or variable length (`min_length`,
+`max_length`, and a delimiter — a `terminator`, or `"framing":
+"length-prefix"`), never both and never half of one: a partial declaration would
+load as a fixed-length format and quietly emit one length again, so
+`check_capacities` refuses it, as it refuses an entry that declares both
+delimiters. `fteproxy.defs.getLength()` and `spec_length()` return `max_length`
+for a variable format, which is what the fixed-frame paths use.
 
 Example (one line in the JSON; wrapped here):
 
@@ -207,6 +279,23 @@ Example (one line in the JSON; wrapped here):
   "mode_hint": "hybrid",
   "default": true,
   "description": "HTTP/1.1 GET or POST request with common headers"
+}
+```
+
+The length-prefix counterpart, where the delimiter is a `framing` key rather
+than a terminator and the regex describes the message alone:
+
+```json
+"dns-request": {
+  "regex": "^[\u0000-\u00ff][\u0000-\u00ff]\u0001\u0000...\u0000\u0001$",
+  "min_length": 90,
+  "max_length": 272,
+  "framing": "length-prefix",
+  "port": [53],
+  "role": "request",
+  "mode_hint": "format",
+  "default": false,
+  "description": "DNS over TCP query (RFC 1035 4.2.2) ..."
 }
 ```
 

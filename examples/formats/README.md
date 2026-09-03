@@ -45,7 +45,7 @@ carries:
 ```console
 $ fteproxy formats
 name  role      port          mode    req len  req cap  resp len  resp cap
-dns   req/resp  53            format      272      154       272       148
+dns   req/resp  53            format   90-272   22-154    90-272    17-148
 ftp   req/resp  21            format   64-256   15-161    64-256    16-163
 http  req/resp  80,8080,8000  hybrid  200-700   63-448   200-700    52-434  (default)
 sip   req/resp  5060          format  300-800   99-472   300-800   101-474
@@ -54,8 +54,8 @@ smtp  req/resp  25,587        format   80-320   20-181    80-320    29-215
 
 A range means the format varies its covertext length: in `--mode format` each
 record picks a length from across it, so a capture shows a spread of message
-sizes rather than one repeated size. `dns` is the exception and stays fixed at
-272 bytes.
+sizes rather than one repeated size. Every shipped format has one; the
+`20260110` shape catalog is fixed-length throughout.
 
 Given neither `--format` nor a `?format=` hint in the connection string, the
 client picks the format whose protocol runs on the server's port -- `ftp` for a

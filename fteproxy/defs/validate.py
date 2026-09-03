@@ -15,11 +15,16 @@ carry traffic is caught before it ships:
   in the format's ``mode_hint`` -- and in *both* modes when the hint is
   ``hybrid``, since the client's ``--mode`` may override it either way;
 * assert every sealed **format-mode** covertext fully matches the regex, so the
-  bytes on the wire really are drawn from the format's language;
-* for a **variable-length** format, prove its terminator can only ever be the
+  bytes on the wire really are drawn from the format's language -- for a
+  ``length-prefix`` format, after taking the framing prefix off, since the
+  prefix is not part of the language the regex describes;
+* for a **terminator**-framed format, prove its terminator can only ever be the
   final suffix of a covertext -- statically, from the pattern, and again over
   sampled covertexts. Framing depends on that, so it is checked here rather
-  than assumed of whoever wrote the regex.
+  than assumed of whoever wrote the regex. A ``length-prefix`` format has no
+  terminator to prove anything about; what is checked instead is that every
+  emitted prefix announces exactly the bytes that follow it and that the wire
+  length it implies is one the format declared.
 
 The covertexts checked here come out of the record layer's sealing path (see the
 seal-padding note in ``docs/format-authoring.md``), never a bare
@@ -322,6 +327,34 @@ def check_terminator_uniqueness(name, regex, terminator):
                 'before the end of a covertext' % (name, terminator))
 
 
+def _check_sampled_prefixes(name, covertexts, lengths):
+    """The length-prefix counterpart of :func:`_check_sampled_terminators`.
+
+    Framing here is not a property of the language to be proven from the
+    pattern -- the prefix is not in the pattern at all -- it is a property of
+    what the record layer emits. So it is checked on the wire: every covertext
+    carries a prefix announcing exactly the bytes that follow it, and the wire
+    length that implies is one the format declared, which is the only thing the
+    decoder will accept.
+    """
+    prefix_len = fteproxy.defs.LENGTH_PREFIX_BYTES
+    for covertext in covertexts:
+        if len(covertext) < prefix_len:
+            raise FormatValidationError(
+                '%s: a sealed covertext of %d bytes is too short to carry its '
+                '%d-byte length prefix' % (name, len(covertext), prefix_len))
+        declared = int.from_bytes(covertext[:prefix_len], 'big')
+        if declared != len(covertext) - prefix_len:
+            raise FormatValidationError(
+                '%s: a sealed covertext\'s length prefix says %d bytes but %d '
+                'follow it' % (name, declared, len(covertext) - prefix_len))
+        if len(covertext) not in lengths:
+            raise FormatValidationError(
+                '%s: a sealed covertext is %d bytes on the wire, which is not '
+                'one of the lengths %r this format emits'
+                % (name, len(covertext), lengths))
+
+
 def _check_sampled_terminators(name, covertexts, terminator):
     """Confirm on real covertexts what :func:`check_terminator_uniqueness` proves."""
     for covertext in covertexts:
@@ -357,6 +390,48 @@ def frame_covertexts(wire, terminator):
     return covertexts
 
 
+def frame_length_prefixed(wire):
+    """Split a format-mode wire into covertexts on their length prefixes.
+
+    The decoder's framing for a ``length-prefix`` format, without the keys: each
+    record is a :data:`fteproxy.defs.LENGTH_PREFIX_BYTES` big-endian count
+    followed by that many bytes, and the prefix is kept on the covertext because
+    it is part of what went on the wire. A trailing fragment too short for the
+    length its prefix announces is returned as the last element, so a caller can
+    tell a complete wire from a truncated one.
+    """
+    prefix_len = fteproxy.defs.LENGTH_PREFIX_BYTES
+    covertexts = []
+    offset = 0
+    while offset + prefix_len <= len(wire):
+        declared = int.from_bytes(wire[offset:offset + prefix_len], 'big')
+        end = offset + prefix_len + declared
+        if end > len(wire):
+            break
+        covertexts.append(wire[offset:end])
+        offset = end
+    if offset < len(wire):
+        covertexts.append(wire[offset:])
+    return covertexts
+
+
+def frame_spec_covertexts(wire, spec):
+    """Split a format-mode wire the way *this* format's decoder frames it.
+
+    One dispatch point for the three framings, so a caller that holds a
+    definitions entry never has to ask which one it is: fixed-length slices,
+    terminator framing, or length prefixes.
+    """
+    framing = fteproxy.defs.spec_framing(spec)
+    if framing == fteproxy.defs.FRAMING_LENGTH_PREFIX:
+        return frame_length_prefixed(wire)
+    if framing == fteproxy.defs.FRAMING_TERMINATOR:
+        return frame_covertexts(wire, fteproxy.defs.spec_terminator(spec))
+    length = fteproxy.defs.spec_length(spec)
+    return [wire[offset:offset + length]
+            for offset in range(0, len(wire), length)]
+
+
 def _modes_for(mode_hint):
     """Which record-layer modes to exercise for a given ``mode_hint``.
 
@@ -369,7 +444,7 @@ def _modes_for(mode_hint):
     return (fteproxy.defs.MODE_FORMAT,)
 
 
-def _variable_lengths(name, regex, spec):
+def _variable_lengths(name, spec):
     """The :class:`~fteproxy.record_layer.VariableLength` a spec describes.
 
     Building it proves every allowed length compiles and can carry a record;
@@ -380,7 +455,7 @@ def _variable_lengths(name, regex, spec):
 
     for length in fteproxy.defs.spec_allowed_lengths(spec):
         try:
-            fteproxy._make_cipher(regex, length, _KEY)
+            fteproxy._spec_cipher(spec, length, _KEY)
         except Exception as e:
             raise FormatValidationError(
                 '%s: unusable at length %d, one of the lengths it would emit: '
@@ -413,6 +488,8 @@ def validate_format(name, spec, samples=_SAMPLES):
     length = fteproxy.defs.spec_length(spec)
     variable = fteproxy.defs.spec_is_variable(spec)
     terminator = fteproxy.defs.spec_terminator(spec)
+    framing = fteproxy.defs.spec_framing(spec)
+    prefixed = (framing == fteproxy.defs.FRAMING_LENGTH_PREFIX)
     mode_hint = fteproxy.defs.spec_mode_hint(spec)
     if mode_hint not in fteproxy.defs.MODE_HINTS:
         raise FormatValidationError(
@@ -424,7 +501,7 @@ def validate_format(name, spec, samples=_SAMPLES):
             '%s: role %r is not one of %r' % (name, role, fteproxy.defs.ROLES))
 
     try:
-        capacity = fteproxy._make_cipher(regex, length, _KEY).max_plaintext_bytes
+        capacity = fteproxy._spec_cipher(spec, length, _KEY).max_plaintext_bytes
     except Exception as e:
         raise FormatValidationError(
             '%s: unusable at length %d: %s' % (name, length, e))
@@ -436,11 +513,14 @@ def validate_format(name, spec, samples=_SAMPLES):
     lengths = None
     if variable:
         # Every length this format may emit has to compile and carry a record,
-        # and the terminator it is framed by has to be unique to a covertext's
-        # end -- both before the round trip, since the round trip depends on
-        # them.
-        lengths = _variable_lengths(name, regex, spec)
-        check_terminator_uniqueness(name, regex, terminator)
+        # and -- when the framing is a terminator -- that terminator has to be
+        # unique to a covertext's end. Both before the round trip, since the
+        # round trip depends on them. A length-prefix format has no terminator;
+        # its framing is checked on the emitted covertexts below, because the
+        # prefix is not in the pattern for a static check to read.
+        lengths = _variable_lengths(name, spec)
+        if not prefixed:
+            check_terminator_uniqueness(name, regex, terminator)
 
     pattern = _compiled_regex(regex)
     for mode in _modes_for(mode_hint):
@@ -449,11 +529,11 @@ def validate_format(name, spec, samples=_SAMPLES):
         # is a fixed-length header plus a raw body.
         variable_lengths = None if hybrid else lengths
         encoder = rl.Encoder(
-            cipher=fteproxy._make_cipher(regex, length, _KEY),
+            cipher=fteproxy._spec_cipher(spec, length, _KEY),
             body_cipher=fteproxy._make_body_cipher(_KEY) if hybrid else None,
             variable=variable_lengths)
         decoder = rl.Decoder(
-            cipher=fteproxy._make_cipher(regex, length, _KEY),
+            cipher=fteproxy._spec_cipher(spec, length, _KEY),
             body_cipher=fteproxy._make_body_cipher(_KEY) if hybrid else None,
             variable=variable_lengths)
         for i in range(samples):
@@ -461,14 +541,21 @@ def validate_format(name, spec, samples=_SAMPLES):
             encoder.push(payload)
             wire = encoder.pop()
             if not hybrid:
-                if variable_lengths is not None:
-                    covertexts = frame_covertexts(wire, terminator)
+                covertexts = frame_spec_covertexts(wire, spec)
+                if prefixed:
+                    _check_sampled_prefixes(
+                        name, covertexts,
+                        variable_lengths.lengths
+                        if variable_lengths is not None else (length,))
+                elif variable_lengths is not None:
                     _check_sampled_terminators(name, covertexts, terminator)
-                else:
-                    covertexts = [wire[offset:offset + length]
-                                  for offset in range(0, len(wire), length)]
                 for covertext in covertexts:
-                    if not pattern.fullmatch(covertext):
+                    # The framing prefix is not in the format's language: the
+                    # regex describes the message it announces, so it is the
+                    # message that has to match.
+                    message = (covertext[fteproxy.defs.LENGTH_PREFIX_BYTES:]
+                               if prefixed else covertext)
+                    if not pattern.fullmatch(message):
                         raise FormatValidationError(
                             '%s: a sealed format-mode covertext does not match '
                             'the regex' % name)

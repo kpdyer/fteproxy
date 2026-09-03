@@ -36,13 +36,26 @@ See SECURITY.md for what is not covered.
 
 **Framing.** A fixed-length format frames on its length: one record is one
 ``length``-byte slice (plus, in hybrid mode, the raw body its header announces).
-A *variable-length* format (:class:`VariableLength`) instead frames on a
-terminator its language can only produce as a covertext's final suffix: the
-encoder picks one of the format's allowed lengths per record and seals at it,
-and the decoder reads up to the next terminator and checks that what it found
-is a length this format emits. That removes the fixed-length fingerprint from
-format-mode data records; hybrid headers and the two handshake records stay
-fixed-length. See ``docs/format-authoring.md``.
+A *variable-length* format (:class:`VariableLength`) picks one of the format's
+allowed lengths per record and seals at it, and is delimited one of two ways
+(``fteproxy.defs.spec_framing``):
+
+``terminator``
+    The covertext ends with a byte string its language can only produce as that
+    final suffix. The decoder reads up to the next terminator and checks that
+    what it found is a length this format emits.
+
+``length-prefix``
+    The covertext is preceded on the wire by a two-byte big-endian count of the
+    bytes that follow -- :class:`LengthPrefixed`. The prefix is framing, not
+    part of the format's language, which is precisely what DNS over TCP is
+    (RFC 1035 section 4.2.2). The decoder reads the prefix, requires the wire
+    length it implies to be one this format emits, and waits for that many
+    bytes.
+
+Either way the fixed-length fingerprint is gone from format-mode data records,
+while hybrid headers and the two handshake records stay fixed-length. See
+``docs/format-authoring.md``.
 """
 
 import os
@@ -53,6 +66,7 @@ import fte
 from cryptography.exceptions import InvalidTag
 
 import fteproxy.conf
+import fteproxy.defs
 
 
 #: Application bytes.
@@ -80,6 +94,15 @@ _SEAL_OVERHEAD = _LEN.size + _SEQ.size
 _TYPE_LEN = 1
 # Hybrid-mode header payload: the length of the raw body that follows it.
 _OVERFLOW_LEN = struct.Struct('>I')
+
+#: The framing header of a ``length-prefix`` format: a big-endian count of the
+#: message bytes that follow it (RFC 1035 4.2.2). Not part of any format's
+#: language -- see :class:`LengthPrefixed`.
+_PREFIX = struct.Struct('>H')
+#: Width of that header, taken from the schema so the two cannot drift apart;
+#: the struct's own width is checked against it at import.
+PREFIX_LEN = fteproxy.defs.LENGTH_PREFIX_BYTES
+assert _PREFIX.size == PREFIX_LEN
 
 
 class UnknownRecordType(Exception):
@@ -128,6 +151,75 @@ def _unseal(plaintext, seq):
     return plaintext[_SEAL_OVERHEAD:_SEAL_OVERHEAD + length]
 
 
+class _PrefixedFormat:
+    """The ``output_format`` view a :class:`LengthPrefixed` cipher presents.
+
+    Callers that frame a fixed-length record -- the client's handshake read, the
+    decoder's frame size -- ask a cipher's ``output_format`` how many bytes one
+    covertext is. For a length-prefix format that is the message plus its
+    prefix, so this reports the wire length while the cipher underneath keeps
+    ranking messages.
+    """
+
+    def __init__(self, max_length):
+        self.max_length = max_length
+
+
+class LengthPrefixed:
+    """A libfte cipher whose covertext goes on the wire behind a length prefix.
+
+    The prefix is *framing*, not language. A format like ``dns`` is a two-byte
+    big-endian length followed by that many bytes of message (RFC 1035 section
+    4.2.2), and spelling that length as a literal inside the regex -- which is
+    what ``dns`` did until F7b -- pins the format to exactly one covertext
+    length, because a second length would need a second literal and therefore a
+    second regex. Lifting the prefix out of the regex and into this wrapper is
+    what lets one ``dns`` pattern serve every length in
+    ``fteproxy.defs.spec_allowed_lengths``.
+
+    So the regex describes the message alone, the wrapped cipher is built at the
+    *message* length ``W - PREFIX_LEN``, and this class adds and removes the
+    prefix. It presents the same surface a bare ``fte.FTE`` does --
+    ``max_plaintext_bytes``, ``output_format.max_length``, ``encrypt`` and
+    ``decrypt`` -- with lengths reported on the wire, so every path that already
+    handled a fixed-length cipher (``_seal``, the handshake, a hybrid header)
+    handles this one without knowing it exists.
+
+    ``decrypt`` refuses a frame whose prefix disagrees with the bytes it was
+    handed, raising the same :class:`fte.InvalidCovertextError` a failed tag
+    raises, so a wrong prefix fails the stream closed rather than being
+    reinterpreted.
+    """
+
+    def __init__(self, cipher):
+        self._cipher = cipher
+        #: Plaintext one message holds. The prefix costs wire bytes, never
+        #: capacity: it is not ranked and carries nothing of ours.
+        self.max_plaintext_bytes = cipher.max_plaintext_bytes
+        #: Bytes of message behind the prefix.
+        self.message_length = cipher.output_format.max_length
+        self.output_format = _PrefixedFormat(self.message_length + PREFIX_LEN)
+
+    def encrypt(self, plaintext):
+        """One wire record: ``prefix(len(message)) || message``."""
+        message = self._cipher.encrypt(plaintext)
+        return _PREFIX.pack(len(message)) + message
+
+    def decrypt(self, covertext):
+        """The plaintext of one wire record, prefix included in ``covertext``."""
+        if len(covertext) < PREFIX_LEN:
+            raise fte.InvalidCovertextError(
+                'covertext of %d bytes is shorter than the %d-byte length '
+                'prefix' % (len(covertext), PREFIX_LEN))
+        declared = _PREFIX.unpack_from(covertext)[0]
+        message = covertext[PREFIX_LEN:]
+        if declared != len(message):
+            raise fte.InvalidCovertextError(
+                'length prefix says %d bytes but %d follow'
+                % (declared, len(message)))
+        return self._cipher.decrypt(message)
+
+
 #: Where a record's covertext length comes from. ``os.urandom``-backed, so the
 #: length sequence is not predictable from earlier records and cannot be
 #: replayed out of a seeded PRNG.
@@ -139,10 +231,18 @@ class VariableLength:
 
     A format-mode record is sealed with a *fixed-length* cipher, as it always
     was; what changes is that there is now more than one of them and the
-    encoder chooses per record. ``ciphers`` maps each allowed covertext length
-    to the libfte cipher built at that length, and ``terminator`` is the byte
-    string every covertext of the format ends with and that its language cannot
-    produce anywhere else (enforced by ``fteproxy.defs.validate``).
+    encoder chooses per record. ``ciphers`` maps each allowed **wire** length to
+    the cipher that produces one covertext of that length --
+    :func:`fteproxy._spec_cipher` builds them, so a ``length-prefix`` format's
+    entries are :class:`LengthPrefixed` wrappers around a cipher two bytes
+    shorter and the arithmetic here does not change.
+
+    ``framing`` says how the decoder tells one covertext from the next:
+    ``fteproxy.defs.FRAMING_TERMINATOR``, in which case ``terminator`` is the
+    byte string every covertext ends with and that the format's language cannot
+    produce anywhere else (enforced by ``fteproxy.defs.validate``), or
+    ``FRAMING_LENGTH_PREFIX``, in which case the wire length is read off each
+    record's own prefix and no terminator is involved.
 
     **Why the length is chosen here and not by libfte.** ``fte.RegexFormat``
     accepts a ``min_length``/``max_length`` pair and ranks the whole range, but
@@ -159,12 +259,17 @@ class VariableLength:
     microseconds each and hold nothing beyond this connection's key.
     """
 
-    def __init__(self, ciphers, terminator):
+    def __init__(self, ciphers, terminator=None,
+                 framing=fteproxy.defs.FRAMING_TERMINATOR):
         if not ciphers:
             raise ValueError('a variable-length format needs at least one length')
-        if not terminator:
-            raise ValueError('a variable-length format needs a terminator')
-        self.terminator = bytes(terminator)
+        if framing not in (fteproxy.defs.FRAMING_TERMINATOR,
+                           fteproxy.defs.FRAMING_LENGTH_PREFIX):
+            raise ValueError('%r is not a variable-length framing' % (framing,))
+        if framing == fteproxy.defs.FRAMING_TERMINATOR and not terminator:
+            raise ValueError('a terminator-framed format needs a terminator')
+        self.framing = framing
+        self.terminator = bytes(terminator) if terminator else None
         self.lengths = tuple(sorted(ciphers))
         self._ciphers = dict(ciphers)
         self.min_length = self.lengths[0]
@@ -446,6 +551,8 @@ class Decoder:
         if self._failed:
             return []
         if self._variable is not None:
+            if self._variable.framing == fteproxy.defs.FRAMING_LENGTH_PREFIX:
+                return self._pop_length_prefixed_records(limit)
             return self._pop_variable_records(limit)
         buffer = self._buffer
         records = []
@@ -569,6 +676,70 @@ class Decoder:
                     "length this format emits" % length)
                 self._failed = True
                 break
+            plaintext = self._decrypt(self._variable.cipher(length),
+                                      buffer[offset:end])
+            if plaintext is None:
+                self._failed = True
+                break
+            message = _unseal(plaintext, self._seq)
+            if message is None:
+                fteproxy.debug(
+                    "fteproxy.record_layer: malformed or out-of-order sealed "
+                    "record at seq " + str(self._seq))
+                self._failed = True
+                break
+            self._seq += 1
+            offset = end
+            records.append(self._split_type(message))
+
+        self._buffer = b'' if self._failed else buffer[offset:]
+        return records
+
+    def _pop_length_prefixed_records(self, limit=None):
+        """:meth:`pop_records` for a ``length-prefix`` format.
+
+        A record is a two-byte big-endian message length followed by that many
+        bytes (RFC 1035 4.2.2). The prefix is not authenticated -- nothing on the
+        wire is until the covertext decrypts -- so the *only* thing it is
+        trusted for is which of the format's ciphers to try, and it is checked
+        against :attr:`VariableLength.lengths` before a single byte is waited
+        for. A prefix naming any other length is a peer that did not write this
+        stream, so it fails the stream closed **immediately** rather than
+        waiting: a 65535-byte prefix is a protocol violation, not a large record
+        still arriving, and treating it as the latter is how a decoder is talked
+        into buffering on a stranger's say-so.
+
+        That check is also the buffer bound this framing needs. The terminator
+        path has to impose one (a peer can simply never send a terminator);
+        here, every record announces its own size up front, so the buffer never
+        holds more than one longest covertext without either producing a record
+        or failing.
+
+        Every other guarantee is the fixed-length path's: the covertext must
+        decrypt, the seal must unseal at the current sequence number, and any
+        authentication failure is fatal to the stream.
+        """
+        buffer = self._buffer
+        records = []
+        offset = 0
+
+        while True:
+            if limit is not None and len(records) >= limit:
+                break
+            if len(buffer) - offset < PREFIX_LEN:
+                break                       # not even a prefix yet; wait
+            declared = _PREFIX.unpack_from(buffer, offset)[0]
+            length = declared + PREFIX_LEN
+            if length not in self._variable.lengths:
+                fteproxy.debug(
+                    "fteproxy.record_layer: length prefix announces a %d-byte "
+                    "covertext, which is not a length this format emits"
+                    % length)
+                self._failed = True
+                break
+            if len(buffer) - offset < length:
+                break                       # message still arriving; wait
+            end = offset + length
             plaintext = self._decrypt(self._variable.cipher(length),
                                       buffer[offset:end])
             if plaintext is None:
