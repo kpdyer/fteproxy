@@ -15,17 +15,25 @@ This is the seal-padding limitation documented in ``docs/format-authoring.md``
 (realistic value content and length distribution are not reachable by uniform
 rank sampling); the regex and the realism check still model every command and
 reply the format supports.
+
+``ftp`` is variable length (phase F7): a format-mode record picks one of the
+lengths in ``[min_length, max_length]``, so these tests read the length from
+:func:`fteproxy.defs.spec_length` (the ``max_length`` the handshake seals at)
+and check a covertext's length against the allowed set rather than against one
+number. ``fteproxy/tests/test_variable_length.py`` covers the framing itself.
 """
 
+import os
 import re
 
 import pytest
 
 import fteproxy
 import fteproxy.defs
-import fteproxy.record_layer as rl
 from fteproxy.tests.realism import (
+    allowed_lengths,
     format_covertexts,
+    record_layer_pair,
     statistical_guard,
     load_part,
 )
@@ -45,7 +53,8 @@ def _spec(name):
 @pytest.mark.parametrize('name', _ENTRIES)
 def test_cipher_builds_and_clears_capacity_floor(name):
     spec = _spec(name)
-    cipher = fteproxy._make_cipher(spec['regex'], spec['length'], _KEY)
+    cipher = fteproxy._make_cipher(
+        spec['regex'], fteproxy.defs.spec_length(spec), _KEY)
     assert cipher.max_plaintext_bytes >= fteproxy.defs.MIN_CAPACITY
     assert cipher.max_plaintext_bytes >= 128
 
@@ -53,21 +62,7 @@ def test_cipher_builds_and_clears_capacity_floor(name):
 @pytest.mark.parametrize('name', _ENTRIES)
 @pytest.mark.parametrize('hybrid', [False, True], ids=['format', 'hybrid'])
 def test_roundtrip_through_record_layer(name, hybrid):
-    spec = _spec(name)
-    regex, length = spec['regex'], spec['length']
-
-    def make_encoder():
-        return rl.Encoder(
-            cipher=fteproxy._make_cipher(regex, length, _KEY),
-            body_cipher=fteproxy._make_body_cipher(_KEY) if hybrid else None)
-
-    def make_decoder():
-        return rl.Decoder(
-            cipher=fteproxy._make_cipher(regex, length, _KEY),
-            body_cipher=fteproxy._make_body_cipher(_KEY) if hybrid else None)
-
-    encoder, decoder = make_encoder(), make_decoder()
-    import os
+    encoder, decoder = record_layer_pair(_spec(name), hybrid=hybrid, key=_KEY)
     for i in range(16):
         payload = os.urandom((i * 11) % (encoder.capacity + 1))
         encoder.push(payload)
@@ -79,13 +74,14 @@ def test_roundtrip_through_record_layer(name, hybrid):
 @pytest.mark.parametrize('name', _ENTRIES)
 def test_sealed_covertexts_are_real_ftp(name):
     spec = _spec(name)
-    regex, length = spec['regex'], spec['length']
-    pattern = re.compile(regex.encode('latin-1'), re.DOTALL)
+    pattern = re.compile(spec['regex'].encode('latin-1'), re.DOTALL)
+    allowed = allowed_lengths(spec)
 
-    covertexts = format_covertexts(regex, length, n=256)
+    covertexts = format_covertexts(spec, n=256)
     assert len(covertexts) == 256
 
     for covertext in covertexts:
+        assert len(covertext) in allowed
         assert pattern.fullmatch(covertext), covertext[:64]
         ftp_realism.check(covertext)  # raises if not a valid FTP line
 

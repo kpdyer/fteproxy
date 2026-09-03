@@ -103,15 +103,18 @@ first. This section covers what fteproxy adds on top of it.
   connection string would be a route into every service bound to the server's
   own loopback.
 
-- **What an observer sees.** In `hybrid` mode (the default) only the first
-  `length` bytes of each record are in the target format; the rest of the
+- **What an observer sees.** In `hybrid` mode (the default) only each record's
+  fixed-length covertext header is in the target format; the rest of the
   record is high-entropy ciphertext, and its length (the plaintext length plus
   29 bytes) is visible. In `format` mode every byte on the wire is in the
-  target format. Sealed covertexts are always exactly `length` bytes and use
-  the format's whole rank space, so a short message neither shortens the
-  covertext nor leaves a run of the format's lowest character. The two
-  handshake records are one request-format covertext and one response-format
-  covertext, the same shape as any other record.
+  target format, and each record's covertext takes one of the lengths its
+  format may emit (see the next point). A sealed covertext always uses the
+  format's whole rank space at whatever length it was sealed at, so a short
+  message neither shortens the covertext nor leaves a run of the format's
+  lowest character. The two handshake records are one request-format covertext
+  and one response-format covertext, both at the format's longest length: a
+  connection therefore opens with two records of a size fixed by the format,
+  whatever the data records after them do.
 
 - **How realistic a covertext actually is.** The five shipped formats
   (`http`, `ftp`, `smtp`, `sip`, `dns`) model real message *structure*: every
@@ -127,16 +130,31 @@ first. This section covers what fteproxy adds on top of it.
   - **Field values are random.** A covertext's URL path, hostname, mail
     address, SIP tag or DNS label is a random string from the field's
     character class, not a plausible value: a 300-character random path, not
-    `/index.html`; a random Call-ID, not one a phone would mint. Field
-    *lengths* are fixed too -- every covertext of a format is exactly `length`
-    bytes -- so a length-distribution test separates a tunnel from real
-    traffic immediately.
+    `/index.html`; a random Call-ID, not one a phone would mint.
+  - **Message lengths vary, but they are not a real length distribution.**
+    Every covertext of a format used to be exactly `length` bytes, so a
+    length-distribution test separated a tunnel from real traffic without
+    reading a byte. In `format` mode the four text formats (`http`, `ftp`,
+    `smtp`, `sip`) now choose a covertext length per record from eight lengths
+    spanning the format's range -- weighted towards short lengths for
+    interactive traffic and long ones for bulk -- so a capture shows a spread
+    of message sizes rather than one repeated size. What it does *not* show is
+    the protocol's own length distribution: eight discrete values, sized by
+    what the record layer is carrying, are not the continuous, content-driven
+    lengths of real HTTP or SIP, and an adversary who models message lengths
+    finely can still tell the difference. Three things stay fixed: `dns` (its
+    two-byte length prefix is a literal in the regex, so a second length would
+    need a second regex), a `hybrid` header, and the two handshake records,
+    which are always at the format's longest length.
   - **One message type dominates.** Unranking a full-capacity plaintext lands
     in the same branch of the alternation nearly every time, so in practice
-    every `http` request samples as `GET`, every `sip` request as `BYE`, every
+    every `http` request samples as `GET`, every `sip` request as `ACK`, every
     `ftp` request as `CWD`, every `smtp` request as `VRFY`, and every `ftp`
-    reply as `150`. A stream that is all `BYE` with no `INVITE`, or all `CWD`
-    with no login, is not a conversation any real client would have.
+    reply as `150`. Variable length does not fix this: which branch dominates
+    depends on the covertext length, so a stream now shows a *few* message
+    types instead of exactly one, and each length still shows one of them
+    almost exclusively. A stream that is all `ACK` with no `INVITE`, or all
+    `CWD` with no login, is not a conversation any real client would have.
   - **Replies do not answer their requests.** Every covertext is an
     independent unranking of an independently randomised ciphertext, so
     nothing in the record layer can make a reply depend on the request it
@@ -160,12 +178,15 @@ first. This section covers what fteproxy adds on top of it.
   protocol (`ftp`, `smtp`, `sip`) or for the binary `dns` format there is no
   place a high-entropy tail belongs, so those ship as `mode_hint: format`
   (every byte in the protocol, at about 1 MB/s) and running them under
-  `--mode hybrid` leaks an obvious high-entropy tail after each line. `dns`
-  carries one more tell: at a fixed 272-byte covertext the capacity lives in
-  the QNAME, so every query pads out to a ~254-octet name -- legal, under the
-  255-octet limit, and far longer than any name real traffic resolves.
-  Variable-length covertexts (planned, phase F7) are what would narrow both
-  the length fingerprint and this one.
+  `--mode hybrid` leaks an obvious high-entropy tail after each line -- and,
+  because a `hybrid` header is fixed length, gives back the length fingerprint
+  the format-mode records no longer have. `dns` carries one more tell: at a
+  fixed 272-byte covertext the capacity lives in the QNAME, so every query pads
+  out to a ~254-octet name -- legal, under the 255-octet limit, and far longer
+  than any name real traffic resolves. Varying its length is the fix, and it is
+  the one format that cannot have it: the two-byte length prefix at the head of
+  a DNS-over-TCP message is a literal in the regex, so each covertext length
+  would need its own regex.
 
 - **Nothing secret is logged.** The package logger carries a redaction filter,
   installed at import, that strips a connection string's server-id, a hex key
@@ -175,9 +196,11 @@ first. This section covers what fteproxy adds on top of it.
 
 - **Patterns and lengths are trusted input.** The server compiles only the
   formats in its own definitions file; a client's hello can name one of them
-  but cannot supply a pattern. Never load a definitions file (`--defs`) from an
-  untrusted source: as libfte documents, a hostile pattern can make DFA
-  construction take exponential time and memory.
+  but cannot supply a pattern, a length, or a length range. Never load a
+  definitions file (`--defs`) from an untrusted source: as libfte documents, a
+  hostile pattern can make DFA construction take exponential time and memory,
+  and a variable-length entry multiplies that by the number of lengths it
+  declares (a fixed eight per format, so the multiplier is bounded).
 
 - **First-record cost.** For every new connection the server tries to unseal
   the first covertext as each known request format until one succeeds, most

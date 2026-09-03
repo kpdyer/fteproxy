@@ -4,8 +4,7 @@
 
 libfte 0.4 encrypts one message into exactly one fixed-length covertext and
 has no stream framing of its own, so this module defines the wire layout.
-Every record starts with a *sealed* covertext of exactly ``length`` bytes (the
-format's fixed covertext length): its plaintext is
+Every record starts with a *sealed* covertext: its plaintext is
 ``len(4) || seq(8) || message || random pad`` filled to the format's capacity,
 so it reads as random format text and only unseals at stream position
 ``seq``. The two modes differ in what the sealed covertext carries:
@@ -34,9 +33,20 @@ a stream is rejected. Since 1.0 each direction of a connection has its own
 header and body keys, derived per connection by :mod:`fteproxy.handshake`, so
 a record cannot be replayed into another stream or the other direction either.
 See SECURITY.md for what is not covered.
+
+**Framing.** A fixed-length format frames on its length: one record is one
+``length``-byte slice (plus, in hybrid mode, the raw body its header announces).
+A *variable-length* format (:class:`VariableLength`) instead frames on a
+terminator its language can only produce as a covertext's final suffix: the
+encoder picks one of the format's allowed lengths per record and seals at it,
+and the decoder reads up to the next terminator and checks that what it found
+is a length this format emits. That removes the fixed-length fingerprint from
+format-mode data records; hybrid headers and the two handshake records stay
+fixed-length. See ``docs/format-authoring.md``.
 """
 
 import os
+import random
 import struct
 
 import fte
@@ -118,22 +128,117 @@ def _unseal(plaintext, seq):
     return plaintext[_SEAL_OVERHEAD:_SEAL_OVERHEAD + length]
 
 
+#: Where a record's covertext length comes from. ``os.urandom``-backed, so the
+#: length sequence is not predictable from earlier records and cannot be
+#: replayed out of a seeded PRNG.
+_LENGTHS = random.SystemRandom()
+
+
+class VariableLength:
+    """The lengths one variable-length format may emit, and the ciphers for them.
+
+    A format-mode record is sealed with a *fixed-length* cipher, as it always
+    was; what changes is that there is now more than one of them and the
+    encoder chooses per record. ``ciphers`` maps each allowed covertext length
+    to the libfte cipher built at that length, and ``terminator`` is the byte
+    string every covertext of the format ends with and that its language cannot
+    produce anywhere else (enforced by ``fteproxy.defs.validate``).
+
+    **Why the length is chosen here and not by libfte.** ``fte.RegexFormat``
+    accepts a ``min_length``/``max_length`` pair and ranks the whole range, but
+    a language's string count grows exponentially with length, so a uniformly
+    random rank lands in the longest length class almost every time: a 64..512
+    range would emit ~512-byte covertexts and the fingerprint would survive.
+    The record layer therefore picks the length itself, from a small discrete
+    set, and seals at exactly that length.
+
+    One instance serves one direction of one connection: the per-length ciphers
+    are built once here rather than per record, and the expensive half of each
+    (the DFA) comes from the process-wide cache in
+    :func:`fteproxy._regex_format`, so the ciphers themselves cost a few
+    microseconds each and hold nothing beyond this connection's key.
+    """
+
+    def __init__(self, ciphers, terminator):
+        if not ciphers:
+            raise ValueError('a variable-length format needs at least one length')
+        if not terminator:
+            raise ValueError('a variable-length format needs a terminator')
+        self.terminator = bytes(terminator)
+        self.lengths = tuple(sorted(ciphers))
+        self._ciphers = dict(ciphers)
+        self.min_length = self.lengths[0]
+        self.max_length = self.lengths[-1]
+        #: Payload bytes one record of each length carries, after the seal's
+        #: length/sequence fields and the record type byte.
+        self.capacities = {
+            length: (cipher.max_plaintext_bytes - _SEAL_OVERHEAD - _TYPE_LEN)
+            for length, cipher in self._ciphers.items()}
+        smallest = min(self.capacities.values())
+        if smallest < 1:
+            raise ValueError('a covertext length of this format carries no '
+                             'payload (capacity %d)' % smallest)
+        #: The largest payload any one record can carry.
+        self.capacity = max(self.capacities.values())
+
+    def cipher(self, length):
+        """The fixed-length cipher for one allowed covertext length."""
+        return self._ciphers[length]
+
+    def choose_length(self, pending):
+        """A covertext length for a record with ``pending`` payload bytes queued.
+
+        Never shorter than the shortest length that holds ``pending`` bytes, so
+        a record is never split just to make it look short. Beyond that the
+        choice is random, weighted so that a stream's length histogram matches
+        what it is carrying: when more data is queued than the largest record
+        holds the weights favour the long lengths (a bulk transfer looks like
+        long messages), and when the payload fits in one record they favour the
+        short ones (interactive traffic looks like short messages). Throughput
+        is not what the weighting is for -- the byte rate is nearly flat across
+        a format's range, see PERFORMANCE.md -- realism is.
+
+        The weights are quadratic rather than flat so the bias is visible in a
+        histogram, and rather than exponential so no single length takes a
+        commanding share -- an all-shortest stream would be as much of a
+        fingerprint as an all-longest one.
+        """
+        if pending > self.capacity:
+            eligible = self.lengths
+            weights = [(rank + 1) ** 2 for rank in range(len(eligible))]
+        else:
+            eligible = tuple(length for length in self.lengths
+                             if self.capacities[length] >= pending)
+            weights = [(len(eligible) - rank) ** 2
+                       for rank in range(len(eligible))]
+        return _LENGTHS.choices(eligible, weights)[0]
+
+
 class Encoder:
 
     def __init__(
         self,
         cipher,
         body_cipher=None,
+        variable=None,
     ):
         self._cipher = cipher
         self._body_cipher = body_cipher
+        self._variable = variable
+        if body_cipher is not None and variable is not None:
+            raise ValueError('hybrid mode frames a fixed-length header; it '
+                             'cannot also carry variable-length covertexts')
         if body_cipher is None:
             # 'format' mode: one sealed covertext per chunk. Reserve the length
             # prefix, sequence number and record type; the rest of the covertext
             # capacity is real payload, random-padded when the payload does not
-            # fill it.
-            self._capacity = (cipher.max_plaintext_bytes
-                              - _SEAL_OVERHEAD - _TYPE_LEN)
+            # fill it. With a variable-length format the capacity depends on the
+            # length chosen for the record, and this is the largest of them: the
+            # most any one record can carry, which is what bounds a control
+            # record and what chunking measures itself against.
+            self._capacity = (
+                variable.capacity if variable is not None
+                else cipher.max_plaintext_bytes - _SEAL_OVERHEAD - _TYPE_LEN)
         else:
             # 'hybrid' mode: a sealed FTE header (carrying the body length)
             # followed by the raw authenticated body. Chunk by the body's capacity, far
@@ -152,11 +257,22 @@ class Encoder:
         """The largest payload one record of this stream can carry."""
         return self._capacity
 
-    def _emit(self, record_type, payload):
-        """One complete record on the wire, advancing the stream position."""
+    def _emit(self, record_type, payload, length=None):
+        """One complete record on the wire, advancing the stream position.
+
+        ``length`` names the covertext length to seal at, for a variable-length
+        format whose caller has already chosen one (:meth:`pop` picks the length
+        first, because the chunk size follows from it). Otherwise the length is
+        chosen here, from the lengths that can carry this payload.
+        """
         message = bytes((record_type,)) + payload
         if self._body_cipher is None:
-            record = _seal(self._cipher, message, self._seq)
+            cipher = self._cipher
+            if self._variable is not None:
+                if length is None:
+                    length = self._variable.choose_length(len(payload))
+                cipher = self._variable.cipher(length)
+            record = _seal(cipher, message, self._seq)
         else:
             body = self._body_cipher.encrypt(message, self._seq)
             record = (_seal(self._cipher, _OVERFLOW_LEN.pack(len(body)),
@@ -195,9 +311,22 @@ class Encoder:
         # the loop instead would recopy the whole remaining buffer every
         # iteration, making a single large ``push`` quadratic.
         records = []
-        for offset in range(0, len(buffer), self._capacity):
-            records.append(
-                self._emit(DATA, buffer[offset:offset + self._capacity]))
+        if self._variable is None:
+            for offset in range(0, len(buffer), self._capacity):
+                records.append(
+                    self._emit(DATA, buffer[offset:offset + self._capacity]))
+        else:
+            # A variable-length format chunks by the length it picked for this
+            # record, not by one fixed capacity: pick the length from what is
+            # still queued (so a long queue biases long), then fill it.
+            offset = 0
+            while offset < len(buffer):
+                pending = len(buffer) - offset
+                length = self._variable.choose_length(pending)
+                take = min(self._variable.capacities[length], pending)
+                records.append(self._emit(DATA, buffer[offset:offset + take],
+                                          length=length))
+                offset += take
 
         self._buffer = b''
         return b''.join(records)
@@ -209,9 +338,14 @@ class Decoder:
         self,
         cipher,
         body_cipher=None,
+        variable=None,
     ):
         self._cipher = cipher
         self._body_cipher = body_cipher
+        self._variable = variable
+        if body_cipher is not None and variable is not None:
+            raise ValueError('hybrid mode frames a fixed-length header; it '
+                             'cannot also carry variable-length covertexts')
         # A fixed-length output format emits one covertext of exactly
         # ``max_length`` bytes, and ``decrypt`` consumes exactly one such value
         # (no remainder). The record layer frames the byte stream itself: in
@@ -221,11 +355,15 @@ class Decoder:
         self._frame_size = cipher.output_format.max_length
         # The largest record this decoder is ever asked to hold: one header
         # covertext plus, in hybrid mode, the largest framed body a header may
-        # announce. After every pop the buffer is shorter than this, so a
+        # announce; for a variable-length format, one covertext of its longest
+        # allowed length. After every pop the buffer is shorter than this, so a
         # stream that fails to authenticate cannot grow the buffer without
         # bound (see the fail-closed behavior below).
-        self.max_record_bytes = self._frame_size + (
-            body_cipher.max_framed_bytes if body_cipher is not None else 0)
+        if variable is not None:
+            self.max_record_bytes = variable.max_length
+        else:
+            self.max_record_bytes = self._frame_size + (
+                body_cipher.max_framed_bytes if body_cipher is not None else 0)
         self._buffer = b''
         self._seq = 0
         # Set once a record fails to authenticate: nothing later can decode,
@@ -307,6 +445,8 @@ class Decoder:
         # preserved.
         if self._failed:
             return []
+        if self._variable is not None:
+            return self._pop_variable_records(limit)
         buffer = self._buffer
         records = []
         offset = 0
@@ -384,6 +524,65 @@ class Decoder:
                 break
             self._seq += 1
             offset = body_start + body_len
+            records.append(self._split_type(message))
+
+        self._buffer = b'' if self._failed else buffer[offset:]
+        return records
+
+    def _pop_variable_records(self, limit=None):
+        """:meth:`pop_records` for a variable-length format: terminator framing.
+
+        A record runs to the end of the next terminator. Its length must be one
+        the format emits -- anything else is not a covertext this peer wrote, so
+        the stream fails closed exactly as a bad decrypt does, rather than
+        hunting for a later terminator that might line up.
+
+        Every other guarantee is the fixed-length path's: the seal must unseal
+        at the current sequence number, any authentication failure is fatal to
+        the stream, and the buffer is bounded -- here by refusing to hold more
+        than one longest covertext without a terminator, so a peer cannot grow
+        it by simply never sending one.
+        """
+        buffer = self._buffer
+        terminator = self._variable.terminator
+        records = []
+        offset = 0
+
+        while True:
+            if limit is not None and len(records) >= limit:
+                break
+            end = buffer.find(terminator, offset)
+            if end < 0:
+                if len(buffer) - offset > self._variable.max_length:
+                    fteproxy.info(
+                        "fteproxy.record_layer: %d bytes with no covertext "
+                        "terminator, more than the %d-byte maximum"
+                        % (len(buffer) - offset, self._variable.max_length))
+                    self._failed = True
+                # Otherwise: a partial covertext, still arriving. Wait.
+                break
+            end += len(terminator)
+            length = end - offset
+            if length not in self._variable.lengths:
+                fteproxy.debug(
+                    "fteproxy.record_layer: covertext of %d bytes is not a "
+                    "length this format emits" % length)
+                self._failed = True
+                break
+            plaintext = self._decrypt(self._variable.cipher(length),
+                                      buffer[offset:end])
+            if plaintext is None:
+                self._failed = True
+                break
+            message = _unseal(plaintext, self._seq)
+            if message is None:
+                fteproxy.debug(
+                    "fteproxy.record_layer: malformed or out-of-order sealed "
+                    "record at seq " + str(self._seq))
+                self._failed = True
+                break
+            self._seq += 1
+            offset = end
             records.append(self._split_type(message))
 
         self._buffer = b'' if self._failed else buffer[offset:]

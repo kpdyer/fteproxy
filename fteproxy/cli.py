@@ -301,7 +301,14 @@ def select_defs(release):
 
 
 def check_format(base):
-    """Build both directions of ``base`` so an unusable format fails now."""
+    """Build both directions of ``base`` so an unusable format fails now.
+
+    Every length each direction may emit, not just the one the handshake uses:
+    a variable-length format that cannot compile at one of its shorter lengths
+    would otherwise fail mid-connection instead of here. The DFAs land in
+    :func:`fteproxy._regex_format`'s cache, so the first connection does not pay
+    for them either.
+    """
     try:
         request, response = fteproxy.defs.getRegex(base + '-request'), \
             fteproxy.defs.getRegex(base + '-response')
@@ -310,10 +317,12 @@ def check_format(base):
             'unknown format %r; "fteproxy formats" lists the base names' % base)
     for name, pattern in ((base + '-request', request),
                           (base + '-response', response)):
-        try:
-            fteproxy._regex_format(pattern, fteproxy.defs.getLength(name))
-        except Exception as e:
-            raise StartupError('format %s is unusable: %s' % (name, e))
+        for length in fteproxy.defs.get_allowed_lengths(name):
+            try:
+                fteproxy._regex_format(pattern, length)
+            except Exception as e:
+                raise StartupError('format %s is unusable at length %d: %s'
+                                   % (name, length, e))
 
 
 def resolve_state_dir(args, create=True):
@@ -357,6 +366,11 @@ def do_keygen(args):
     return EXIT_OK
 
 
+def _span(low, high):
+    """``512`` for one value, ``200-700`` for a range."""
+    return str(low) if low == high else '%d-%d' % (low, high)
+
+
 def do_formats(args):
     """Print each base format name with its schema-v2 metadata and capacity.
 
@@ -366,6 +380,10 @@ def do_formats(args):
     carries, which is what bounds a record) each row shows the schema-v2
     ``role``, ``port``, ``mode_hint`` and ``description``, and the release
     default base is marked.
+
+    A variable-length format shows both as a range -- ``200-700`` -- because in
+    ``format`` mode it picks a length per record from across that range. The top
+    of the range is the length a handshake record and a ``hybrid`` header use.
     """
     try:
         definitions = select_defs(args.defs)
@@ -413,15 +431,18 @@ def do_formats(args):
             if name is None:
                 row += ['-', '-']
                 continue
-            length = fteproxy.defs.getLength(name)
+            spec = definitions[name]
+            lengths = fteproxy.defs.spec_allowed_lengths(spec)
+            shortest, longest = lengths[0], lengths[-1]
             try:
-                capacity = fteproxy._make_cipher(
-                    fteproxy.defs.getRegex(name), length,
-                    key).max_plaintext_bytes
+                capacities = [fteproxy._make_cipher(
+                    spec['regex'], length, key).max_plaintext_bytes
+                    for length in (shortest, longest)]
             except Exception:
-                row += [str(length), 'unusable']
+                row += [_span(shortest, longest), 'unusable']
                 continue
-            row += [str(length), str(capacity)]
+            row += [_span(shortest, longest),
+                    _span(min(capacities), max(capacities))]
         rows.append(row)
         descriptions[base] = fteproxy.defs.spec_description(primary_spec)
         defaults[base] = (base == default)
@@ -433,6 +454,8 @@ def do_formats(args):
     print('definitions release %s' % args.defs)
     print('role, port, mode, and covertext length / message capacity (bytes) '
           'per direction')
+    print('a length range means the format varies its covertext length per '
+          'record in format mode')
     print()
 
     def _emit(row, trailer):
@@ -474,10 +497,28 @@ def do_defs_check(args):
     print('OK: definitions release %s (%d format%s)'
           % (args.defs, len(summary), '' if len(summary) == 1 else 's'))
     if summary:
+        # The summary reports the length the handshake seals at; a
+        # variable-length format also emits shorter covertexts, so show the
+        # whole span it may emit and mark that the capacity is the largest one.
+        # Read the file directly, as validate_release does, rather than pointing
+        # the process-wide loader at a release the caller only asked to check.
+        import json
+        with open(fteproxy.defs._release_path(args.defs)) as handle:
+            definitions = json.load(handle)
         name_w = max(len(name) for name, _l, _c, _m in summary)
-        for name, length, capacity, mode_hint in summary:
-            print('  %s  length %5d  capacity %5d  %s'
-                  % (name.ljust(name_w), length, capacity, mode_hint))
+        spans = {}
+        for name, length, _capacity, _mode in summary:
+            lengths = fteproxy.defs.spec_allowed_lengths(
+                definitions.get(name, {'length': length}))
+            spans[name] = _span(lengths[0], lengths[-1])
+        span_w = max(len(span) for span in spans.values())
+        for name, _length, capacity, mode_hint in summary:
+            print('  %s  length %s  capacity %5d  %s'
+                  % (name.ljust(name_w), spans[name].rjust(span_w),
+                     capacity, mode_hint))
+        if any('-' in span for span in spans.values()):
+            print('a length range varies per record in format mode; the '
+                  'capacity shown is the one at the top of the range')
     return EXIT_OK
 
 

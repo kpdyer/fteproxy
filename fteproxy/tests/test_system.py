@@ -324,6 +324,26 @@ class TestEndToEnd:
         finally:
             terminate(proc)
 
+    def test_a_line_protocol_in_format_mode_end_to_end(self, server, state_dir,
+                                                       destination):
+        """A variable-length line protocol through the real relay.
+
+        ``ftp`` in ``format`` mode is the demanding combination: every byte on
+        the wire is a covertext, the covertexts vary in length from 64 to 256
+        bytes, and they are framed on a two-byte terminator, so a payload larger
+        than one record crosses many frames and several of the lengths.
+        """
+        proc = start(['client', '--format', 'ftp', '--mode', 'format',
+                      '-L', '%s:%d:%s:%d'
+                      % (BIND_IP, FORWARD_PORT, BIND_IP, destination.port),
+                      '--state-dir', state_dir])
+        try:
+            assert wait_for_port(BIND_IP, FORWARD_PORT)
+            payload = bytes(range(256)) * 12
+            assert transfer((BIND_IP, FORWARD_PORT), payload) == payload
+        finally:
+            terminate(proc)
+
     def test_a_non_default_format_end_to_end(self, server, state_dir,
                                              destination):
         """The server is told no format; it learns it from the first record."""

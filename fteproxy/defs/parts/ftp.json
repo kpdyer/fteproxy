@@ -1,20 +1,24 @@
 {
   "ftp-request": {
     "regex": "^((USER|PASS|CWD|RETR|STOR|LIST) [a-zA-Z0-9._@/-]+|TYPE [AI]|PASV|QUIT)\r\n$",
-    "length": 256,
+    "min_length": 64,
+    "max_length": 256,
+    "terminator": "\r\n",
     "port": [21],
     "role": "request",
     "mode_hint": "format",
     "default": false,
-    "description": "FTP control-channel command: a verb (USER/PASS/CWD/TYPE/PASV/RETR/STOR/LIST/QUIT) with a realistic argument, CRLF-terminated"
+    "description": "FTP control-channel command: a verb (USER/PASS/CWD/TYPE/PASV/RETR/STOR/LIST/QUIT) with a realistic argument, CRLF-terminated; 64-256 bytes per line"
   },
   "ftp-response": {
     "regex": "^(220|230|331|250|150|226|550) [a-zA-Z0-9 .,:()/-]+\r\n$",
-    "length": 256,
+    "min_length": 64,
+    "max_length": 256,
+    "terminator": "\r\n",
     "port": [21],
     "role": "response",
     "mode_hint": "format",
     "default": false,
-    "description": "FTP control-channel reply: a 3-digit status code, a space, human-readable text, CRLF-terminated"
+    "description": "FTP control-channel reply: a 3-digit status code, a space, human-readable text, CRLF-terminated; 64-256 bytes per line"
   }
 }

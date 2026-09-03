@@ -51,16 +51,20 @@ high-entropy bytes from its class. Therefore:
 > `fte.FTE.encrypt(short_message)`.
 
 The realism harness does this for you: `fteproxy.tests.realism.format_covertexts`
-drives the format-mode `Encoder` and slices the wire into individual sealed
-covertexts. Use it, and `statistical_guard`, in every `test_format_<proto>.py`.
+drives the format-mode `Encoder` and cuts the wire back into individual sealed
+covertexts — by length for a fixed-length format, on the terminator for a
+variable-length one, exactly as the decoder frames it. Pass it the definitions
+entry (`format_covertexts(spec, n=256)`) so it picks the right framing; passing
+`regex, length` still works for a fixed-length format. Use it, and
+`statistical_guard`, in every `test_format_<proto>.py`.
 
 **What this can and cannot buy.** A sealed covertext is *structurally* a valid
 message — correct verbs, headers, terminators — but its field *values* are
 random within their character class (a 300-character random URL path, not
-`/index.html`), and every covertext of a fixed-length format is the same length.
-Realistic value *content* and a realistic *length distribution* are not reachable
-by uniform rank sampling; phase F7 (variable length) narrows the length gap.
-State these limits honestly; do not imply more.
+`/index.html`). Realistic value *content* is not reachable by uniform rank
+sampling. A realistic *length distribution* is not either, though a
+variable-length format (below) at least replaces one repeated size with a
+spread of eight. State these limits honestly; do not imply more.
 
 ## The capacity floor: `>= 128`
 
@@ -68,6 +72,92 @@ Every format must carry the protocol-v1 client hello (about 75 bytes plus the
 28-byte AE frame) in one covertext. Build the cipher and require
 `max_plaintext_bytes >= fteproxy.defs.MIN_CAPACITY` (128). Raise `length` until
 it does. `defs-check` and the load-time `check_capacities` both enforce this.
+
+For a variable-length format the floor applies at `max_length`, because that is
+the length the handshake seals at. The *shortest* length only has to carry one
+data record — a type byte, the 12-byte seal, and at least one payload byte — and
+`defs-check` enforces that separately, at every length in the set.
+
+## Variable-length formats
+
+A fixed-length format emits every covertext at exactly one length, which is a
+fingerprint of its own: a length-distribution test separates it from real
+traffic without reading a byte. A format avoids that by declaring a range and a
+terminator instead of a `length`:
+
+```json
+"ftp-request": {
+  "regex": "^((USER|PASS|CWD) [a-zA-Z0-9._@/-]+|PASV|QUIT)\r\n$",
+  "min_length": 64,
+  "max_length": 256,
+  "terminator": "\r\n",
+  ...
+}
+```
+
+Then, in `format` mode, each record picks one of
+`fteproxy.defs.spec_allowed_lengths(spec)` — eight lengths spread evenly across
+the range, including both ends — and is sealed with a fixed-length cipher at
+that length. Both ends derive the set from the same definitions entry, so
+nothing about it is negotiated. `hybrid` mode, the two handshake records and the
+server's first-record scan all stay at `max_length`.
+
+Two rules make this work, and both are easy to get wrong.
+
+### The length must be chosen per record, not left to libfte
+
+`fte.RegexFormat` accepts a `min_length`/`max_length` pair and will happily rank
+the whole range for you. **Do not use it for this.** The number of strings in a
+language grows exponentially with length, so a uniformly random rank lands in
+the longest length class almost every time: a 64–512 range emits ~512-byte
+covertexts and the fingerprint survives, with nothing in the tests to show for
+it. `fteproxy.record_layer.VariableLength.choose_length` therefore picks the
+length itself, from the discrete set, before sealing — biased towards short
+lengths when the payload fits in one record and long ones when more data is
+queued, so a length histogram reflects what the connection is carrying.
+
+The set is small (eight) because each length costs one compiled DFA. A
+continuous range would cost one per byte.
+
+### The terminator must be impossible anywhere but the end
+
+The decoder frames the wire by reading up to the next terminator, so if the
+format's *language* can produce that byte string anywhere else, a covertext gets
+cut in half and the connection fails closed on traffic that was perfectly valid.
+`fteproxy.defs.validate.check_terminator_uniqueness` proves it cannot, from the
+pattern, with two conservative rules:
+
+1. **No character class may admit a terminator byte.** For a CRLF terminator,
+   no field may contain a CR or an LF at all. This is deliberately stronger than
+   "no class admits both": it makes every terminator byte come from a literal,
+   which is what makes rule 2 exhaustive.
+2. **No *literal skeleton* may contain the terminator before its end.** A
+   skeleton is one covertext with each character-class run collapsed to a
+   single placeholder — the literals and their adjacencies, and nothing else.
+   The check expands one skeleton per alternation branch and per
+   present-or-absent optional atom, rather than concatenating the pattern's
+   literals once, because a single concatenation both invents adjacencies that
+   never occur and, worse, *misses* the adjacency between a branch's last
+   character and whatever follows the group. A repetition is expanded to one
+   and two copies, which exposes the junction where a repeated unit meets
+   itself. A pattern that expands to more than 4096 skeletons is refused rather
+   than passed: framing that cannot be proven is not framing.
+
+`validate_format` also re-checks the property on sampled covertexts, which is
+the net for the one gap the static check leaves — a terminator spanning three or
+more copies of a repeated group.
+
+This is why `http-response` ends at the header block's `\r\n\r\n` with
+`Content-Length: 0` and has no body field: the body-absorbing
+`[a-zA-Z0-9/+= \r\n-]*` it used to end with admitted CR and LF, so a covertext
+could carry `\r\n\r\n` inside it. A response with no body (`302`, `304`, or a
+`200` with `Content-Length: 0`) is valid HTTP, and the capacity the body carried
+moved into the `Server`, `Content-Type`, `ETag` and `Set-Cookie` values.
+
+`dns` stays fixed length. A DNS-over-TCP message opens with a two-byte
+big-endian length prefix, which the regex spells as a literal, so a second
+covertext length would need a second regex — out of scope, and noted in
+SECURITY.md as the one format that keeps the length fingerprint.
 
 ## Mode suitability
 
@@ -89,19 +179,29 @@ every new key defaults so old files are unchanged). The optional keys:
 
 | key | type | default | meaning |
 |---|---|---|---|
-| `min_length`, `max_length` | int / null | `null` | reserved for F7 (variable length) |
+| `min_length`, `max_length` | int / null | `null` | variable length: the ends of the covertext-length range |
+| `terminator` | str / null | `null` | variable length: what every covertext ends with, and only ends with |
 | `port` | list[int] | `[]` | ports this format defaults on |
 | `role` | `request` \| `response` \| `line` | inferred from the name suffix | direction |
 | `mode_hint` | `hybrid` \| `format` | `hybrid` | designed-for record-layer mode |
 | `default` | bool | `false` | exactly one base marks itself the release default |
 | `description` | str | `""` | one-line human description |
 
+A format is fixed length (`length`) or variable length (all three of
+`min_length`, `max_length`, `terminator`), never both and never half of one:
+a partial declaration would load as a fixed-length format and quietly emit one
+length again, so `check_capacities` refuses it. `fteproxy.defs.getLength()` and
+`spec_length()` return `max_length` for a variable format, which is what the
+fixed-frame paths use.
+
 Example (one line in the JSON; wrapped here):
 
 ```json
 "http-request": {
-  "regex": "^(GET|POST) /...$",
-  "length": 512,
+  "regex": "^(GET|POST) /...\r\n\r\n$",
+  "min_length": 200,
+  "max_length": 700,
+  "terminator": "\r\n\r\n",
   "port": [80, 8080, 8000],
   "role": "request",
   "mode_hint": "hybrid",
@@ -112,8 +212,9 @@ Example (one line in the JSON; wrapped here):
 
 ## The verified HTTP starting point
 
-This compiles, holds 303 bytes of capacity at length 512, and parses with
-Python's HTTP request parser (one line in the JSON; shown wrapped):
+This compiles, holds 448 bytes of capacity at length 700 (50 at length 200),
+parses with Python's HTTP request parser, and satisfies the terminator rules
+above (one line in the JSON; shown wrapped):
 
 ```
 ^(GET|POST) /[a-zA-Z0-9/._?=&%-]* HTTP/1\.1\r\n
@@ -124,8 +225,10 @@ Accept-Language: [a-z,;=0-9. -]+\r\n
 \r\n$
 ```
 
-The matching response (F1) adds `HTTP/1\.1 (200 OK|302 Found|404 Not Found)`
-with `Content-Type`, `Content-Length`, `Server`, then a body-absorbing field.
+The matching response is `HTTP/1\.1 (200 OK|302 Found|304 Not Modified|404 Not
+Found)` with `Server`, `Content-Type`, `Content-Length: 0`, `ETag` and
+`Set-Cookie`, ending at the header block. It carried a body-absorbing field
+until F7; see the terminator rules for why that field had to go.
 
 ## The fragment-file convention (F1–F5)
 

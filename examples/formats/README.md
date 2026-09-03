@@ -46,11 +46,16 @@ carries:
 $ fteproxy formats
 name  role      port          mode    req len  req cap  resp len  resp cap
 dns   req/resp  53            format      272      154       272       148
-ftp   req/resp  21            format      256      161       256       163
-http  req/resp  80,8080,8000  hybrid      512      303       512       316  (default)
-sip   req/resp  5060          format      512      258       512       259
-smtp  req/resp  25,587        format      320      181       256       166
+ftp   req/resp  21            format   64-256   15-161    64-256    16-163
+http  req/resp  80,8080,8000  hybrid  200-700   63-448   200-700    52-434  (default)
+sip   req/resp  5060          format  300-800   99-472   300-800   101-474
+smtp  req/resp  25,587        format   80-320   20-181    80-320    29-215
 ```
+
+A range means the format varies its covertext length: in `--mode format` each
+record picks a length from across it, so a capture shows a spread of message
+sizes rather than one repeated size. `dns` is the exception and stays fixed at
+272 bytes.
 
 Given neither `--format` nor a `?format=` hint in the connection string, the
 client picks the format whose protocol runs on the server's port -- `ftp` for a
@@ -74,7 +79,8 @@ python3 -m fteproxy client 'fte://<server-id>@<server-ip>:5060'
 
 With the default `--mode hybrid` only a fixed-length header per record is in
 the chosen format and the rest of the record is raw authenticated ciphertext.
-`--mode format` puts every byte in the format, at much lower throughput.
+`--mode format` puts every byte in the format, at much lower throughput, and is
+also the only mode in which a format varies its covertext length.
 
 The same two choices are arguments to `fteproxy.wrap_socket()` on the client
 side:

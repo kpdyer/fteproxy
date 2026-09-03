@@ -8,7 +8,7 @@
     "role": "request",
     "mode_hint": "format",
     "default": false,
-    "description": "DNS over TCP query (RFC 1035 4.2.2): 2-byte length prefix, 12-byte header, one A/AAAA question; the fixed 272-byte covertext pads QNAME to 254 octets -- inside the 255-octet limit but far longer than a real name (see F7)"
+    "description": "DNS over TCP query (RFC 1035 4.2.2): 2-byte length prefix, 12-byte header, one A/AAAA question; the fixed 272-byte covertext pads QNAME to 254 octets -- inside the 255-octet limit but far longer than a real name (dns stays fixed length: its 2-byte length prefix is a literal in the regex, so every covertext length would need its own regex)"
   },
   "dns-response": {
     "regex": "^\u0001\u000e[\u0000-\u00ff][\u0000-\u00ff]\u0081\u0080\u0000\u0001\u0000\u0001\u0000\u0000\u0000\u0000(\u0002[a-zA-Z0-9][a-zA-Z0-9]|\u0003[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9]|\u0004[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0005[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0006[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0007[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0008[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0009[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000a[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000b[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000c[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000d[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000e[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000f[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9])+(\u0003[cC][oO][mM]|\u0003[nN][eE][tT]|\u0003[oO][rR][gG]|\u0003[eE][dD][uU]|\u0004[iI][nN][fF][oO]|\u0002[iI][oO]|\u0002[dD][eE]|\u0002[uU][kK])\u0000\u0000\u0001\u0000\u0001\u00c0\u000c\u0000\u0001\u0000\u0001\u0000\u0000[\u0000-\u00ff][\u0000-\u00ff]\u0000\u0004[\u0001-~\u0080-\u00df][\u0000-\u00ff][\u0000-\u00ff][\u0000-\u00ff]$",
@@ -19,6 +19,6 @@
     "role": "response",
     "mode_hint": "format",
     "default": false,
-    "description": "DNS over TCP NOERROR response (RFC 1035 4.2.2): the question echoed plus one A record via a 0xc00c name pointer; the fixed 272-byte covertext pads QNAME to 238 octets -- valid but far longer than a real name (see F7)"
+    "description": "DNS over TCP NOERROR response (RFC 1035 4.2.2): the question echoed plus one A record via a 0xc00c name pointer; the fixed 272-byte covertext pads QNAME to 238 octets -- valid but far longer than a real name (dns stays fixed length: its 2-byte length prefix is a literal in the regex, so every covertext length would need its own regex)"
   }
 }

@@ -26,7 +26,9 @@ import io
 
 
 _METHODS = ('GET', 'POST', 'HEAD')
-_STATUS = {200: 'OK', 302: 'Found', 404: 'Not Found'}
+#: 304 joined the format when the response dropped its body: a response whose
+#: status says "no body" is the honest shape for a header-block-only covertext.
+_STATUS = {200: 'OK', 302: 'Found', 304: 'Not Modified', 404: 'Not Found'}
 _REQUEST_HEADERS = ('Host', 'User-Agent', 'Accept', 'Accept-Language')
 _RESPONSE_HEADERS = ('Content-Type', 'Content-Length', 'Server')
 

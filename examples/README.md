@@ -381,7 +381,8 @@ covertext (server to client) from it, so `--format http` is right and
 server follows.
 
 `fteproxy formats` is the authoritative list, and prints each format's
-covertext length and how many message bytes it carries.
+covertext length — a range for the four text formats, which vary it per record
+in `--mode format` — and how many message bytes it carries.
 
 The shipped release (`20260903`) is five real cleartext protocols. A client
 given no `--format` picks the one whose protocol runs on the server's port,

@@ -31,7 +31,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from fteproxy.handshake import generate_server_key, server_id  # noqa: F401
 
 
-@functools.lru_cache(maxsize=256)
+@functools.lru_cache(maxsize=1024)
 def _regex_format(pattern, length):
     """The cached half of a libfte cipher: the compiled DFA.
 
@@ -43,6 +43,12 @@ def _regex_format(pattern, length):
 
     The tables are read-only, so one instance serves every connection and
     thread.
+
+    The cache holds one entry per ``(pattern, length)``, and a variable-length
+    format uses :data:`fteproxy.defs.LENGTH_STEPS` lengths rather than one, so
+    it is sized for every shipped format at every length it can emit, several
+    releases over, with room to spare. A definitions file large enough to
+    overflow it would only re-compile, not misbehave.
     """
     return fte.RegexFormat(pattern, length=length)
 
@@ -63,7 +69,7 @@ def _make_cipher(pattern, length, key):
     return fte.FTE(output_format=_regex_format(pattern, length), key=key)
 
 
-@functools.lru_cache(maxsize=256)
+@functools.lru_cache(maxsize=1024)
 def _cover_cipher(pattern, length, key):
     """The cipher for handshake records, cached.
 
@@ -313,11 +319,42 @@ def _cipher_for(format_name, key, cover=False):
                  fteproxy.defs.getLength(format_name), key)
 
 
+def _variable_lengths_for_spec(spec, key):
+    """The :class:`~fteproxy.record_layer.VariableLength` a definitions spec
+    describes, keyed with ``key``.
+
+    Builds the cipher for every length the format may emit. The costly half of
+    each is the DFA, which :func:`_regex_format` hands back from the
+    process-wide cache, so a connection pays a few microseconds per length
+    rather than a compile.
+    """
+    regex = spec['regex']
+    ciphers = {length: _make_cipher(regex, length, key)
+               for length in fteproxy.defs.spec_allowed_lengths(spec)}
+    return fteproxy.record_layer.VariableLength(
+        ciphers, fteproxy.defs.spec_terminator(spec))
+
+
+def _variable_for(format_name, key):
+    """The :class:`~fteproxy.record_layer.VariableLength` for a loaded format
+    name, or ``None`` if that format is fixed length (which leaves its framing
+    exactly as it was)."""
+    spec = fteproxy.defs._spec(format_name)
+    if not fteproxy.defs.spec_is_variable(spec):
+        return None
+    return _variable_lengths_for_spec(spec, key)
+
+
 def _session_channel(base, mode, keys, is_client):
     """Build the ``(Encoder, Decoder)`` pair for one end of a session.
 
     Each direction gets its own header key and body key, so the two directions
     are cryptographically independent streams that happen to share a socket.
+
+    In ``format`` mode a variable-length format also gets the ciphers for every
+    length it may emit; in ``hybrid`` mode it does not, because a hybrid record
+    is a fixed-length header plus a raw body and only the header is in the
+    format at all.
     """
     request, response = _format_pair(base)
     outgoing, incoming = ((request, response) if is_client
@@ -327,10 +364,12 @@ def _session_channel(base, mode, keys, is_client):
     hybrid = (mode == fteproxy.handshake.MODE_HYBRID)
     encoder = fteproxy.record_layer.Encoder(
         cipher=_cipher_for(outgoing, out_header),
-        body_cipher=_make_body_cipher(out_body) if hybrid else None)
+        body_cipher=_make_body_cipher(out_body) if hybrid else None,
+        variable=None if hybrid else _variable_for(outgoing, out_header))
     decoder = fteproxy.record_layer.Decoder(
         cipher=_cipher_for(incoming, in_header),
-        body_cipher=_make_body_cipher(in_body) if hybrid else None)
+        body_cipher=_make_body_cipher(in_body) if hybrid else None,
+        variable=None if hybrid else _variable_for(incoming, in_header))
     return encoder, decoder
 
 

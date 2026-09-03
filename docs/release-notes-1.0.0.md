@@ -128,6 +128,20 @@ mode. `http` is the default format, and a client given neither `--format` nor a
 `?format=` hint picks the format whose protocol runs on the server's port,
 falling back to `http`.
 
+The four text formats no longer emit every covertext at one length. In `format`
+mode each record picks a covertext length from across the format's range --
+`http` 200–700 bytes, `sip` 300–800, `smtp` 80–320, `ftp` 64–256 -- and the
+decoder frames the wire on the format's terminator (`\r\n\r\n`, or `\r\n` for
+the line protocols) rather than on a fixed slice, so a capture shows a spread of
+message sizes instead of one repeated size. The choice leans short for
+interactive traffic and long for bulk. Three things stay fixed length: `dns`
+(its two-byte length prefix is a literal in the regex, so each length would need
+its own regex), a `hybrid` mode header, and the two handshake records, which are
+always at the top of the format's range. `http-response` lost its body field to
+make this safe -- a field that could contain CRLF CRLF would break terminator
+framing -- and is now a header-block-only 200/302/304/404 response with
+`Content-Length: 0`.
+
 The catalog of abstract shapes that earlier builds defaulted to (46 entries,
 `manual-http`, `words`, `base64`, …) is still shipped as release `20260110` and
 is reachable with `--defs 20260110`. Thirty-two of its entries have longer

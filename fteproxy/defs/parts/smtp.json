@@ -1,7 +1,9 @@
 {
   "smtp-request": {
     "regex": "^(EHLO [a-z0-9.-]+|HELO [a-z0-9.-]+|MAIL FROM:<[a-z0-9._%+-]+@[a-z0-9.-]+>|RCPT TO:<[a-z0-9._%+-]+@[a-z0-9.-]+>|VRFY [a-z0-9._%+-]+|DATA|RSET|NOOP|QUIT)\r\n$",
-    "length": 320,
+    "min_length": 80,
+    "max_length": 320,
+    "terminator": "\r\n",
     "port": [
       25,
       587
@@ -9,11 +11,13 @@
     "role": "request",
     "mode_hint": "format",
     "default": false,
-    "description": "SMTP client command line (EHLO/MAIL FROM/RCPT TO/DATA/QUIT), CRLF-terminated"
+    "description": "SMTP client command line (EHLO/MAIL FROM/RCPT TO/DATA/QUIT), CRLF-terminated; 80-320 bytes per line"
   },
   "smtp-response": {
     "regex": "^((220|250|354|421|550) |250-)[a-zA-Z0-9 .,;:()<>@_-]+\r\n$",
-    "length": 256,
+    "min_length": 80,
+    "max_length": 320,
+    "terminator": "\r\n",
     "port": [
       25,
       587
@@ -21,6 +25,6 @@
     "role": "response",
     "mode_hint": "format",
     "default": false,
-    "description": "SMTP server reply line (2xx/3xx/4xx/5xx status), with 250- continuation form"
+    "description": "SMTP server reply line (2xx/3xx/4xx/5xx status), with 250- continuation form; 80-320 bytes per line"
   }
 }

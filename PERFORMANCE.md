@@ -35,11 +35,23 @@ python3 benchmark.py --scenarios lan --sizes 64K 1M --mode format
 4. **`format` mode (every byte in the target format) is interactive-only:** same RTT
    class as `hybrid` (0.7 vs 0.5 ms) but 4–7 Mbit/s bulk, because the DFA runs on
    every ~140 bytes instead of once per record. Its cost is inherent to the mode.
+   Since the variable-length formats landed, the payload per DFA run is whatever
+   the chosen covertext length holds rather than one number — for `http-request`,
+   50 bytes at length 200 and 435 at length 700 — but the rate barely moves,
+   because a longer covertext costs proportionally more to rank. Measured
+   encode-side across that format's whole range: **0.65 MB/s at the shortest
+   length, 0.91 at the middle, 0.71 at the longest** (0.08 to 0.62 ms per
+   record). So variable length costs `format` mode nothing worth quoting, and
+   the mode's cost is still inherent to the mode.
 5. **libfte 0.4 caches nothing.** 0.3 cached its DFA tables globally, so building an
    encoder was free; 0.4 compiles a DFA per `RegexFormat` (0.5–1.5 ms). fteproxy
    therefore caches ciphers itself (`_make_cipher`, one per pattern/length/key),
    which brings connection setup to ~1 ms. Without the cache it was 8–12 ms, and a
-   connection closed before negotiating pinned the server at 64–100% CPU.
+   connection closed before negotiating pinned the server at 64–100% CPU. A
+   variable-length format needs one DFA per length it can emit, which is why the
+   set of lengths is small (eight) and fixed: the whole shipped catalog is 66
+   DFAs (8 variable entries × 8 lengths, plus one each for the two `dns`
+   entries), compiled once per process and shared by every connection.
 6. **Four of the five shipped formats run in `format` mode by design, so point 4
    is their normal operating point.** Since the `20260903` definitions release the
    default catalog is five cleartext protocols: `http` is `mode_hint: hybrid` (an
@@ -117,7 +129,22 @@ app → [client relay] ──FTE──→ [server relay] → dest
 - Interactive traffic: one 64 B message costs one 256-byte header plus a
   92-byte body (348 B, 5.4x; 0.3 and `format` mode send 256 B).
 - In `format` mode every ~140 bytes of payload is one DFA rank/unrank
-  (~0.16 ms), which is the 4–7 Mbit/s.
+  (~0.16 ms), which is the 4–7 Mbit/s. That 140 was the capacity of the
+  fixed-length shape format these numbers were taken on. With the shipped
+  variable-length formats it is the capacity of the length the record picked
+  (50–435 bytes for `http-request`, 2–148 for `ftp-request`) — and the cost of
+  the rank scales with the length too, so the byte rate is nearly flat across a
+  format's range. Encode-side over `http-request`'s eight lengths:
+
+  | covertext length | 200 | 271 | 343 | 414 | 486 | 557 | 629 | 700 |
+  |---|---:|---:|---:|---:|---:|---:|---:|---:|
+  | payload per record (B) | 50 | 105 | 160 | 215 | 270 | 325 | 380 | 435 |
+  | ms per record | 0.08 | 0.12 | 0.18 | 0.24 | 0.32 | 0.41 | 0.51 | 0.62 |
+  | MB/s | 0.65 | 0.88 | 0.91 | 0.88 | 0.84 | 0.80 | 0.75 | 0.71 |
+
+  The shortest length is the worst rate (per-record fixed costs over the least
+  payload) and the middle is the best; the spread is well under 2x, so which
+  length a record picks is not a throughput decision.
 
 ---
 
@@ -129,7 +156,10 @@ app → [client relay] ──FTE──→ [server relay] → dest
    `_regex_format` memoizes it on pattern and length, so setup went 8–12 ms →
    ~1 ms and the server's first-record scan on a failed connection 6 ms → free.
    The keyed `fte.FTE` on top is built per session (a couple of microseconds),
-   because since 0.4 every connection derives its own keys.
+   because since 0.4 every connection derives its own keys. A variable-length
+   format wants one entry per length, so the cache holds 1024 and a connection
+   builds its eight keyed ciphers per direction up front, in
+   `record_layer.VariableLength`, rather than one per record.
 3. **A pending header is decrypted once.** A 256 KiB record arrives in ~3 reads;
    the decoder used to re-rank and re-verify the same header on each partial
    delivery (two wasted header decrypts per record, more than the body itself).

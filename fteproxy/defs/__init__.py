@@ -3,11 +3,18 @@
 """Loading and validating the format definitions.
 
 A definitions file maps a format name to the regex its covertexts are drawn
-from and the fixed byte length of one covertext. Names come in pairs: a
+from and the byte length of one covertext. Names come in pairs: a
 ``-request`` for client-to-server and a ``-response`` for server-to-client,
 sharing a base name such as ``manual-http``. The base name is what a
 connection string and a client hello carry; the two directions are derived
 from it.
+
+A format is either **fixed length** (``length``: every covertext is exactly
+that many bytes) or **variable length** (``min_length``/``max_length`` plus a
+``terminator``: each record picks one of a small set of allowed lengths and the
+decoder frames the wire on the terminator). :func:`spec_allowed_lengths` is the
+single definition of that set, so the two ends of a connection agree on it
+without negotiating it. See ``docs/format-authoring.md``.
 """
 
 
@@ -59,6 +66,19 @@ MODE_HYBRID = 'hybrid'
 MODE_FORMAT = 'format'
 MODE_HINTS = (MODE_HYBRID, MODE_FORMAT)
 
+#: How many covertext lengths a variable-length format may emit.
+#:
+#: The set is small and evenly spaced on purpose. A format-mode record picks one
+#: of these lengths and seals at it with a *fixed-length* cipher, so each allowed
+#: length costs one compiled DFA in :func:`fteproxy._regex_format`: a continuous
+#: range would cost one per byte. Small also keeps the decoder's "is this a
+#: length we emit?" test tight, which is what fails a wrong-length frame closed.
+#: Eight points span a protocol's plausible message sizes finely enough that a
+#: length histogram is a spread rather than a spike, which is the whole point of
+#: the exercise. It is *not* a security parameter: nothing secret is carried by
+#: the choice, and the record's contents are sealed either way.
+LENGTH_STEPS = 8
+
 
 def _release_path(release):
     """The path of a definitions release, searched in the package's ``defs``
@@ -105,13 +125,19 @@ def check_capacities(definitions, minimum=MIN_CAPACITY):
     drive it at the configured length, so this doubles as a load-time syntax
     check. It costs one DFA compile per format, which the cache in
     :func:`fteproxy._regex_format` then hands back to every connection.
+
+    The floor applies at :func:`spec_length` -- ``max_length`` for a
+    variable-length format -- because that is the length the handshake seals at.
+    A shorter allowed length only has to carry one data record, which
+    ``fteproxy.defs.validate`` checks; the cheap load-time pass does not compile
+    every allowed length.
     """
     import fteproxy  # deferred: fteproxy imports this module at import time
 
     too_small = []
     for name, spec in definitions.items():
-        length = spec.get('length', fteproxy.conf.getValue(
-            'fteproxy.default_length'))
+        _check_variable_keys(name, spec)
+        length = spec_length(spec)
         try:
             capacity = fteproxy._make_cipher(
                 spec['regex'], length, b'\x00' * 32).max_plaintext_bytes
@@ -126,6 +152,35 @@ def check_capacities(definitions, minimum=MIN_CAPACITY):
             'these formats cannot carry a handshake (need %d bytes of '
             'capacity): %s' % (minimum, ', '.join(
                 '%s at length %d holds %d' % row for row in too_small)))
+
+
+def _check_variable_keys(name, spec):
+    """Raise :class:`DefinitionsError` on an incoherent length declaration.
+
+    A half-written variable-length entry is the dangerous case: a range with no
+    terminator has nothing to frame on, and a terminator with no range would be
+    ignored, so either would load as a fixed-length format and quietly emit one
+    length again. Caught here, at load, rather than as a fingerprint nobody
+    notices.
+    """
+    low, high = spec_min_length(spec), spec_max_length(spec)
+    terminator = spec_terminator(spec)
+    declared = [key for key, value in
+                (('min_length', low), ('max_length', high),
+                 ('terminator', terminator)) if value is not None]
+    if not declared:
+        return
+    if len(declared) != 3:
+        raise DefinitionsError(
+            'format %s declares %s: a variable-length format needs all of '
+            'min_length, max_length and terminator' % (name, ', '.join(declared)))
+    if 'length' in spec:
+        raise DefinitionsError(
+            'format %s carries both length and min_length/max_length; a format '
+            'is either fixed or variable' % name)
+    if low > high:
+        raise DefinitionsError(
+            'format %s has min_length %d above max_length %d' % (name, low, high))
 
 
 def base_names(definitions=None):
@@ -157,13 +212,19 @@ def getRegex(format_name):
 
 
 def getLength(format_name):
+    """The fixed-frame covertext length of a format.
+
+    For a variable-length format this is its ``max_length``: see
+    :func:`spec_length` for why the fixed-frame paths (the handshake, the
+    first-record scan, a hybrid header) all use the longest covertext.
+    """
     definitions = load_definitions()
     try:
-        length = definitions[format_name]['length']
+        spec = definitions[format_name]
     except KeyError:
-        length = fteproxy.conf.getValue('fteproxy.default_length')
+        return fteproxy.conf.getValue('fteproxy.default_length')
 
-    return length
+    return spec_length(spec)
 
 
 # ------------------------------------------------------------------------- #
@@ -185,18 +246,81 @@ def _infer_role(format_name):
 
 
 def spec_length(spec):
-    """The covertext length of a spec, defaulting to ``fteproxy.default_length``."""
+    """The covertext length a *single* fixed-length cipher is built at.
+
+    For a fixed-length format that is its ``length`` (or the configured
+    default). For a variable-length one it is ``max_length``: the handshake, the
+    server's first-record scan and a hybrid-mode header are all fixed-length
+    frames, and they use the longest covertext the format emits so that one
+    frame size serves every format. Only post-handshake *format*-mode data
+    records vary (see :func:`spec_allowed_lengths`).
+    """
+    maximum = spec_max_length(spec)
+    if maximum is not None:
+        return maximum
     return spec.get('length', fteproxy.conf.getValue('fteproxy.default_length'))
 
 
 def spec_min_length(spec):
-    """Reserved for variable-length covertexts (phase F7); default ``None``."""
+    """The shortest covertext a variable-length format emits; ``None`` if fixed."""
     return spec.get('min_length', None)
 
 
 def spec_max_length(spec):
-    """Reserved for variable-length covertexts (phase F7); default ``None``."""
+    """The longest covertext a variable-length format emits; ``None`` if fixed."""
     return spec.get('max_length', None)
+
+
+def spec_terminator(spec):
+    """The byte string every covertext of a variable-length format ends with.
+
+    It is what the decoder frames on, so the format's regex must be unable to
+    produce it anywhere but as that final suffix -- checked by
+    ``fteproxy.defs.validate``. ``None`` for a fixed-length format, which is
+    framed by its length instead. Returned as ``bytes``; the JSON carries it as
+    a string (``"\\r\\n"``).
+    """
+    terminator = spec.get('terminator', None)
+    if terminator is None:
+        return None
+    if isinstance(terminator, str):
+        return terminator.encode('latin-1')
+    return bytes(terminator)
+
+
+def spec_is_variable(spec):
+    """Whether this format emits covertexts of more than one length.
+
+    True only when all three of ``min_length``, ``max_length`` and
+    ``terminator`` are present: a length range with nothing to frame on could
+    not be decoded, so a partial declaration is not a variable format (and
+    :func:`fteproxy.defs.validate.validate_format` rejects it outright).
+    """
+    return (spec_min_length(spec) is not None
+            and spec_max_length(spec) is not None
+            and spec_terminator(spec) is not None)
+
+
+def spec_allowed_lengths(spec):
+    """The covertext lengths this format may emit, ascending.
+
+    One length for a fixed-length format; for a variable-length one,
+    :data:`LENGTH_STEPS` points spread evenly across
+    ``[min_length, max_length]`` and including both ends. Both ends of a
+    connection derive the set from the same definitions entry, so the sender
+    picks a length out of it and the receiver checks a frame's length against
+    it without either being negotiated.
+
+    Deliberately *not* a continuous range: see :data:`LENGTH_STEPS`, and
+    ``docs/format-authoring.md`` for why the length is chosen per record rather
+    than left to libfte's ranking over a ``min_length``/``max_length`` format.
+    """
+    low, high = spec_min_length(spec), spec_max_length(spec)
+    if low is None or high is None:
+        return (spec_length(spec),)
+    steps = max(2, min(LENGTH_STEPS, high - low + 1))
+    return tuple(sorted({round(low + i * (high - low) / (steps - 1))
+                         for i in range(steps)}))
 
 
 def spec_port(spec):
@@ -234,6 +358,21 @@ def _spec(format_name):
 
 def get_port(format_name):
     return spec_port(_spec(format_name))
+
+
+def get_terminator(format_name):
+    """The covertext terminator of a loaded format, or ``None`` if fixed."""
+    return spec_terminator(_spec(format_name))
+
+
+def get_allowed_lengths(format_name):
+    """The covertext lengths a loaded format may emit, ascending."""
+    return spec_allowed_lengths(_spec(format_name))
+
+
+def is_variable(format_name):
+    """Whether a loaded format emits covertexts of more than one length."""
+    return spec_is_variable(_spec(format_name))
 
 
 def get_role(format_name):

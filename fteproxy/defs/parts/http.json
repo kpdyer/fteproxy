@@ -1,20 +1,24 @@
 {
   "http-request": {
     "regex": "^(GET|POST|HEAD) /[a-zA-Z0-9/._?=&%-]* HTTP/1\\.1\r\nHost: [a-z0-9.-]+\r\nUser-Agent: Mozilla/5\\.0 \\([a-zA-Z0-9;: .()/_-]+\\)\r\nAccept: [a-zA-Z0-9/*,;= .+-]+\r\nAccept-Language: [a-z,;=0-9. -]+\r\n\r\n$",
-    "length": 512,
+    "min_length": 200,
+    "max_length": 700,
+    "terminator": "\r\n\r\n",
     "port": [80, 8080, 8000],
     "role": "request",
     "mode_hint": "hybrid",
     "default": true,
-    "description": "HTTP/1.1 GET, POST, or HEAD request with common browser headers"
+    "description": "HTTP/1.1 GET, POST, or HEAD request with common browser headers; 200-700 bytes per message in format mode"
   },
   "http-response": {
-    "regex": "^HTTP/1\\.1 (200 OK|302 Found|404 Not Found)\r\nContent-Type: [a-zA-Z0-9/;=. +-]+\r\nContent-Length: [0-9]+\r\nServer: [a-zA-Z0-9/. ()_-]+\r\n\r\n[a-zA-Z0-9/+= \r\n-]*$",
-    "length": 512,
+    "regex": "^HTTP/1\\.1 (200 OK|302 Found|304 Not Modified|404 Not Found)\r\nServer: [a-zA-Z0-9/. ()_-]+\r\nContent-Type: [a-zA-Z0-9/;=. +-]+\r\nContent-Length: 0\r\nETag: \"[a-zA-Z0-9]+\"\r\nSet-Cookie: [a-zA-Z0-9]+=[a-zA-Z0-9%_-]+; Path=/\r\n\r\n$",
+    "min_length": 200,
+    "max_length": 700,
+    "terminator": "\r\n\r\n",
     "port": [80, 8080, 8000],
     "role": "response",
     "mode_hint": "hybrid",
     "default": true,
-    "description": "HTTP/1.1 200/302/404 response with headers and a body"
+    "description": "HTTP/1.1 200/302/304/404 response, header block only (Content-Length: 0), so the CRLF CRLF that ends it cannot occur inside it; 200-700 bytes per message in format mode"
   }
 }

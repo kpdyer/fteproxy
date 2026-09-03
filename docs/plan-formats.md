@@ -61,9 +61,11 @@ design decision:
    a fixed-length format is the same length. So the honest quality ceiling for
    v1 is: parses as the real protocol, plausible per-field character classes,
    high-entropy fields. Realistic value *content* (a real User-Agent string) and
-   a realistic *length distribution* are not reachable by uniform rank sampling;
-   variable length (phase F7) narrows the length gap. State these limits in
-   SECURITY.md rather than implying more.
+   a realistic *length distribution* are not reachable by uniform rank sampling.
+   Variable length (phase F7, landed) narrows the length gap: a format-mode
+   covertext takes one of eight lengths across its range instead of one repeated
+   size, which is a spread rather than the protocol's own distribution. State
+   these limits in SECURITY.md rather than implying more.
 
 ## Hard constraints every format must meet
 
@@ -196,6 +198,8 @@ Per-protocol notes:
 - **http (F1):** start from the verified regex above; add a matching response
   (`HTTP/1\.1 (200 OK|302 Found|404 Not Found)` with `Content-Type`,
   `Content-Length`, `Server`, then a body-absorbing field). `mode_hint: hybrid`.
+  (F7 removed that body field: it admitted CR and LF, which terminator framing
+  cannot allow. The response now ends at the header block.)
 - **ftp (F2):** requests `USER/PASS/CWD/TYPE/PASV/RETR/STOR/LIST/QUIT`; replies
   `220/230/331/250/150/226/550 <text>`. `mode_hint: format`.
 - **smtp (F3):** requests `EHLO/MAIL FROM:<...>/RCPT TO:<...>/DATA/QUIT`; replies
@@ -215,8 +219,10 @@ Per-protocol notes:
   capacity lives in the label bytes. realism/dns.py MUST use an independent DNS
   parser (validate the header counts, label lengths, the compression pointer and
   RDLENGTH consistency), not the format regex. A fixed length pads the QNAME into a
-  long name, structurally valid but unusual; note it, and it is the strongest case
-  for F7 variable length. `mode_hint: format`. length chosen so capacity >= 128.
+  long name, structurally valid but unusual; note it. `mode_hint: format`. length
+  chosen so capacity >= 128. (F7 could not fix that padding: the two-byte length
+  prefix is a literal in the regex, so each covertext length would need its own
+  regex. `dns` is the one format that stays fixed length.)
 
 ### F6 — integration (after F1–F5)
 
@@ -248,7 +254,10 @@ exercise it select it by name. Suite: 604 passing (was 566).
 Acceptance: `uv run python -m fteproxy defs-check` (default release) passes;
 a server on 8080 with a no-hint client selects http end to end; `pytest` green.
 
-### F7 — variable-length covertexts (optional, independent)
+### F7 — variable-length covertexts
+
+Status: **done**, 2026-09-03. The fixed-length fingerprint is gone from
+format-mode data records on the four text formats. Suite: 729 passing (was 614).
 
 The one change that removes the fixed-length fingerprint. Format mode only.
 
@@ -266,6 +275,37 @@ The one change that removes the fixed-length fingerprint. Format mode only.
 Acceptance: `pytest` green; a captured stream shows a spread of covertext lengths
 rather than one.
 
+**What was built, and the two things a naive version gets wrong.**
+
+- The record layer picks the covertext length itself, per record, from
+  `fteproxy.defs.spec_allowed_lengths` — eight lengths spread evenly across
+  `[min_length, max_length]` — and seals with a *fixed-length* cipher at that
+  length (`record_layer.VariableLength`). **Not** by handing libfte a
+  `min_length`/`max_length` format: string counts grow exponentially with
+  length, so a uniform rank lands in the longest class almost every time and a
+  64–512 range would still emit ~512-byte covertexts. The choice is weighted
+  towards short lengths when the payload fits in one record and long ones when
+  more is queued, so a histogram reflects interactive versus bulk traffic.
+- Terminator uniqueness is **enforced**, not assumed:
+  `defs.validate.check_terminator_uniqueness` proves from the pattern that no
+  character class admits a terminator byte and that the literal skeleton
+  contains the terminator only at the end, and the sampled covertexts are
+  re-checked. `http-response` failed that check — its body-absorbing trailing
+  field admitted CR and LF — so the response now ends at the header block
+  (`Content-Length: 0`, a 302/304-style message with no body) and its capacity
+  lives in `Server`, `Content-Type`, `ETag` and `Set-Cookie`.
+- Ranges: `http` 200–700, `sip` 300–800, `smtp` 80–320, `ftp` 64–256. The
+  128-byte capacity floor applies at `max_length` (where the handshake seals);
+  the shortest length only has to carry one data record.
+- **`dns` stays fixed at 272.** Its two-byte big-endian length prefix is a
+  literal in the regex, so each covertext length would need its own regex. Noted
+  in SECURITY.md as the one shipped format that keeps the length fingerprint.
+- Unchanged: both handshake records and every `hybrid` header are one
+  `max_length` covertext, so `getLength()` returns `max_length` and the
+  first-record scan, `check_capacities` and the hybrid path did not move. The
+  shape catalog (`20260110`) is fixed-length throughout and behaves exactly as
+  before.
+
 ## Decisions for the maintainer
 
 - **D-F1** The five protocols above (vs a swap for POP3/SIP/NNTP/DNS).
@@ -276,3 +316,4 @@ rather than one.
   `examples/defs/`. Recommended: yes.
 - **D-F4** Do F7 (variable length) in this cycle or defer. Recommended: land
   F0–F6 first; F7 as a fast follow, since it is the only record-layer change.
+  *Settled: F7 landed 2026-09-03, for the four text formats; `dns` stays fixed.*

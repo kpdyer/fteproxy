@@ -17,13 +17,14 @@ calls ``check`` on each, plus :func:`statistical_guard` over the batch.
 
 The seal-padding rule (see ``docs/format-authoring.md``) is why this harness
 samples through :func:`format_covertexts`, which drives the real record-layer
-:class:`fteproxy.record_layer.Encoder` in **format** mode and slices the wire
-into individual sealed covertexts. A bare ``fte.FTE.encrypt`` of a short message
-ranks low and unranks into a degenerate covertext (one long run of the field's
-lowest character); a sealed covertext is padded to the format's full capacity
-first, so its variable fields are filled with high-entropy format bytes exactly
-as they are in production. Realism MUST be judged on sealed covertexts, never on
-raw ``encrypt`` output.
+:class:`fteproxy.record_layer.Encoder` in **format** mode and cuts the wire back
+into individual sealed covertexts -- by length for a fixed-length format, on the
+terminator for a variable-length one, exactly as the decoder frames it. A bare
+``fte.FTE.encrypt`` of a short message ranks low and unranks into a degenerate
+covertext (one long run of the field's lowest character); a sealed covertext is
+padded to the format's full capacity first, so its variable fields are filled
+with high-entropy format bytes exactly as they are in production. Realism MUST
+be judged on sealed covertexts, never on raw ``encrypt`` output.
 """
 
 import json
@@ -32,6 +33,7 @@ import re
 
 import fteproxy
 import fteproxy.defs
+import fteproxy.defs.validate
 import fteproxy.record_layer as rl
 
 
@@ -42,22 +44,83 @@ class RealismError(Exception):
 _KEY = b'\x00' * 32
 
 
-def format_covertexts(regex, length, n=2000):
-    """``n`` individual sealed covertexts of ``length`` bytes each.
+def format_covertexts(spec_or_regex, length=None, n=2000):
+    """``n`` individual sealed covertexts of one format.
 
     Drives the record layer's format-mode :class:`~fteproxy.record_layer.Encoder`
     (which seals: pads plaintext to the format's capacity with random bytes
-    before encrypting) over ``n`` capacity-sized chunks of random payload, then
-    slices the resulting wire into the fixed-length covertexts. This is the
+    before encrypting) over ``n`` records of random payload, then cuts the
+    resulting wire back into individual covertexts. This is the
     seal-padding-correct sampler the module docstring describes; do not sample
     with a bare ``fte.FTE.encrypt``.
+
+    Called either with a **definitions spec** (the dict from a ``parts/*.json``
+    fragment or a release) or, for a fixed-length format, with its
+    ``regex, length`` directly:
+
+    * a **fixed-length** format is chunked at its one capacity and the wire is
+      sliced at ``length``, exactly as the decoder frames it;
+    * a **variable-length** format picks a length per record, so the payloads
+      are varied to exercise the choice and the wire is framed on the format's
+      terminator -- again, exactly as the decoder frames it. The covertexts come
+      back at the mix of lengths a real stream would carry.
     """
-    cipher = fteproxy._make_cipher(regex, length, _KEY)
-    encoder = rl.Encoder(cipher=cipher)  # format mode: one covertext per chunk
-    encoder.push(os.urandom(n * encoder.capacity))
-    wire = encoder.pop()
-    covertexts = [wire[i:i + length] for i in range(0, len(wire), length)]
-    return covertexts[:n]
+    if isinstance(spec_or_regex, dict):
+        spec = spec_or_regex
+        regex = spec['regex']
+        length = fteproxy.defs.spec_length(spec)
+    else:
+        regex, spec = spec_or_regex, None
+
+    if spec is None or not fteproxy.defs.spec_is_variable(spec):
+        cipher = fteproxy._make_cipher(regex, length, _KEY)
+        encoder = rl.Encoder(cipher=cipher)  # format mode: one covertext/chunk
+        encoder.push(os.urandom(n * encoder.capacity))
+        wire = encoder.pop()
+        return [wire[i:i + length] for i in range(0, len(wire), length)][:n]
+
+    variable = fteproxy._variable_lengths_for_spec(spec, _KEY)
+    encoder = rl.Encoder(cipher=fteproxy._make_cipher(regex, length, _KEY),
+                         variable=variable)
+    wire = b''
+    for i in range(n):
+        # One record each time, at a payload size that walks the whole range a
+        # real stream produces, so the sample carries the mix of covertext
+        # lengths the length choice is meant to produce.
+        encoder.push(os.urandom(1 + (i * 37) % variable.capacity))
+        wire += encoder.pop()
+    return frame_covertexts(wire, variable.terminator)[:n]
+
+
+def frame_covertexts(wire, terminator):
+    """Split a format-mode wire into covertexts on ``terminator``."""
+    return fteproxy.defs.validate.frame_covertexts(wire, terminator)
+
+
+def record_layer_pair(spec, hybrid=False, key=_KEY):
+    """An ``(Encoder, Decoder)`` pair for one definitions entry, in one mode.
+
+    The same wiring :func:`fteproxy._session_channel` does for a live
+    connection, minus the handshake: in ``format`` mode a variable-length format
+    also gets the ciphers for every length it may emit, and in ``hybrid`` mode
+    it does not, because a hybrid record is a fixed-length header plus a raw
+    body. A protocol's test file uses this so it exercises the framing the
+    product actually uses rather than a hand-rolled approximation of it.
+    """
+    regex = spec['regex']
+    length = fteproxy.defs.spec_length(spec)
+    variable = (None if hybrid or not fteproxy.defs.spec_is_variable(spec)
+                else fteproxy._variable_lengths_for_spec(spec, key))
+    body = fteproxy._make_body_cipher(key) if hybrid else None
+    return (rl.Encoder(cipher=fteproxy._make_cipher(regex, length, key),
+                       body_cipher=body, variable=variable),
+            rl.Decoder(cipher=fteproxy._make_cipher(regex, length, key),
+                       body_cipher=body, variable=variable))
+
+
+def allowed_lengths(spec):
+    """The covertext lengths one definitions entry may emit, ascending."""
+    return fteproxy.defs.spec_allowed_lengths(spec)
 
 
 def statistical_guard(covertexts, max_run_fraction=0.5):

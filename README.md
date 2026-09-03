@@ -147,13 +147,20 @@ request and response covertexts are derived from it. The shipped release,
 since a protocol that is normally encrypted is better tunnelled inside the
 real thing:
 
-| Format | Ports | Direction split | Mode | What a covertext looks like |
-|---|---|---|---|---|
-| `http` | 80, 8080, 8000 | request / response | hybrid | `GET /… HTTP/1.1` with browser headers **(default)** |
-| `ftp` | 21 | command / reply | format | `USER …`, `220 … ready` control lines |
-| `smtp` | 25, 587 | command / reply | format | `EHLO …`, `250-…` command and reply lines |
-| `sip` | 5060 | request / response | format | `INVITE sip:…@… SIP/2.0` with Via/From/To/Call-ID/CSeq |
-| `dns` | 53 | query / response | format | DNS over TCP: length prefix, header, question, A record |
+| Format | Ports | Direction split | Mode | Covertext length | What a covertext looks like |
+|---|---|---|---|---|---|
+| `http` | 80, 8080, 8000 | request / response | hybrid | 200–700 | `GET /… HTTP/1.1` with browser headers **(default)** |
+| `ftp` | 21 | command / reply | format | 64–256 | `USER …`, `220 … ready` control lines |
+| `smtp` | 25, 587 | command / reply | format | 80–320 | `EHLO …`, `250-…` command and reply lines |
+| `sip` | 5060 | request / response | format | 300–800 | `INVITE sip:…@… SIP/2.0` with Via/From/To/Call-ID/CSeq |
+| `dns` | 53 | query / response | format | 272 (fixed) | DNS over TCP: length prefix, header, question, A record |
+
+The four text formats vary their covertext length: in `format` mode each record
+picks a length from across its range, so a captured stream shows a spread of
+message sizes instead of one repeated size. `dns` is fixed at 272 bytes — its
+two-byte length prefix is a literal in the regex, so every covertext length
+would need its own regex. The two handshake records and a `hybrid` mode header
+are always at the top of the range.
 
 `http` is the default. A client given no `--format` and no `?format=` hint
 picks the format whose protocol runs on the server's port -- a server on 21
@@ -169,11 +176,14 @@ the capacity of one covertext:
 $ fteproxy formats
 name  role      port          mode    req len  req cap  resp len  resp cap
 dns   req/resp  53            format      272      154       272       148
-ftp   req/resp  21            format      256      161       256       163
-http  req/resp  80,8080,8000  hybrid      512      303       512       316  (default)
-sip   req/resp  5060          format      512      258       512       259
-smtp  req/resp  25,587        format      320      181       256       166
+ftp   req/resp  21            format   64-256   15-161    64-256    16-163
+http  req/resp  80,8080,8000  hybrid  200-700   63-448   200-700    52-434  (default)
+sip   req/resp  5060          format  300-800   99-472   300-800   101-474
+smtp  req/resp  25,587        format   80-320   20-181    80-320    29-215
 ```
+
+A range in the length column is a format that varies its covertext length; a
+single number is a fixed-length one.
 
 The comprehensive catalog of abstract *shapes* that earlier versions defaulted
 to -- 46 entries, 23 base names (`manual-http`, `words`, `base64`, …) -- still
@@ -187,8 +197,9 @@ handshake; the server follows. Nothing has to be configured to match.
   followed by raw authenticated ciphertext. Fast — hundreds of MB/s — but only
   the header blends in with the target protocol.
 - `--mode format`: every byte on the wire is in the format, so the whole
-  stream is indistinguishable from the protocol. Much slower (about 1 MB/s),
-  for deployments facing entropy or statistical detectors.
+  stream is indistinguishable from the protocol, and each covertext takes a
+  length from across the format's range. Much slower (about 1 MB/s), for
+  deployments facing entropy or statistical detectors.
 
 Each format records the mode it is designed for (the `mode` column above), and
 that is what the client uses unless `--mode` says otherwise. `http` is hybrid:
