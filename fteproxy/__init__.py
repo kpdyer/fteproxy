@@ -690,13 +690,23 @@ class _FTESocketWrapper(object):
         a version mismatch, and continuing would mean guessing at the meaning
         of the bytes that follow.
         """
-        self._decoder.push(data)
+        if self._broken:
+            return
         try:
+            self._decoder.push(data)
             records = self._decoder.pop_records()
         except fteproxy.record_layer.UnknownRecordType as e:
             fteproxy.warn('closing connection: %s' % e)
             self._broken = True
             return
+        except fteproxy.record_layer.StreamFailedError:
+            self._broken = True
+            return
+        if self._decoder.failed:
+            fteproxy.warn('closing connection: a record failed authentication '
+                          '(wrong key, a corrupted or replayed stream, or a '
+                          'peer on a different record-layer mode)')
+            self._broken = True
         for record_type, payload in records:
             if record_type == fteproxy.record_layer.DATA:
                 self._incoming_buffer += payload

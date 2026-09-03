@@ -257,7 +257,9 @@ class TestHybridRecordLayer:
         with caplog.at_level(logging.INFO, logger='fteproxy'):
             assert decoder.pop() == b''
         assert 'exceeds the record limit' in caplog.text
-        assert len(decoder._buffer) == len(header) + 64
+        # Fail-closed: the bad record marks the stream dead and drops the buffer.
+        assert decoder.failed
+        assert decoder._buffer == b''
 
     def test_reordered_record_is_rejected(self):
         """A record moved out of its stream position fails the body auth."""
@@ -303,7 +305,9 @@ class TestFormatModeRecordLayer:
         replayed = self._pair()[1]
         replayed.push(r0 + r0)
         assert replayed.pop() == b'first'          # the replay is refused
-        assert replayed._buffer == r0
+        # Fail-closed: the duplicate marks the stream dead and drops the buffer.
+        assert replayed.failed
+        assert replayed._buffer == b''
 
     def test_multi_record_message_roundtrips(self):
         encoder, decoder = self._pair()
@@ -429,3 +433,58 @@ class TestRecordTypes:
         decoder.push(encoder.encode(fteproxy.record_layer.OPEN, b'dest'))
         with pytest.raises(fteproxy.record_layer.UnknownRecordType):
             decoder.pop()
+
+
+class TestDecoderFailsClosed:
+    """A stream that fails to authenticate is closed, not buffered.
+
+    Ports the hardening from the pre-1.0 review (was PR #235 against the old
+    negotiation code) onto the 1.0 record layer: after a bad record the decoder
+    fails closed, drops its buffer, and refuses further input, so a peer that
+    holds the keys cannot grow the server's buffer without bound.
+    """
+
+    def _pair(self, hybrid):
+        key = conftest.TEST_KEY
+        regex = fteproxy.defs.getRegex('manual-http-request')
+        length = fteproxy.defs.getLength('manual-http-request')
+        cipher = fteproxy._make_cipher(regex, length, key)
+        body = fteproxy._make_body_cipher(key) if hybrid else None
+        enc = fteproxy.record_layer.Encoder(cipher=cipher, body_cipher=body)
+        dec = fteproxy.record_layer.Decoder(cipher=cipher, body_cipher=body)
+        return enc, dec
+
+    @pytest.mark.parametrize('hybrid', [False, True])
+    def test_good_then_garbage_fails_closed(self, hybrid):
+        enc, dec = self._pair(hybrid)
+        enc.push(b'hello')
+        dec.push(enc.pop())
+        assert dec.pop() == b'hello'
+        assert not dec.failed
+        dec.push(b'\x00' * dec._frame_size)
+        assert dec.pop_records() == []
+        assert dec.failed
+        assert dec._buffer == b''
+        with pytest.raises(fteproxy.record_layer.StreamFailedError):
+            dec.push(b'more')
+
+    @pytest.mark.parametrize('hybrid', [False, True])
+    def test_good_records_before_bad_are_delivered(self, hybrid):
+        enc, dec = self._pair(hybrid)
+        enc.push(b'first')
+        good = enc.pop()
+        dec.push(good + b'\x00' * dec._frame_size)
+        assert dec.pop() == b'first'
+        assert dec.failed
+
+    @pytest.mark.parametrize('hybrid', [False, True])
+    def test_garbage_stream_never_accumulates(self, hybrid):
+        _enc, dec = self._pair(hybrid)
+        dec.push(b'\x00' * dec._frame_size)
+        assert dec.pop_records() == []
+        assert dec.failed
+        # The buffer is dropped and further input is refused, so a flood of
+        # garbage cannot grow it.
+        assert len(dec._buffer) < dec.max_record_bytes
+        with pytest.raises(fteproxy.record_layer.StreamFailedError):
+            dec.push(b'\x00' * (16 * dec._frame_size))

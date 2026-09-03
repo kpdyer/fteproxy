@@ -81,6 +81,11 @@ class UnknownRecordType(Exception):
     """
 
 
+class StreamFailedError(Exception):
+    """Data was pushed into a :class:`Decoder` after one of its records
+    failed authentication. The stream cannot resume; close the connection."""
+
+
 def _seal(cipher, message, seq):
     """Encrypt ``message`` into one covertext, random-padded to the format's
     full plaintext capacity and stamped with its stream position ``seq``.
@@ -214,15 +219,39 @@ class Decoder:
         # the header covertext plus the ``body_len`` raw bytes the header carries.
         # Either way a trailing partial record stays buffered.
         self._frame_size = cipher.output_format.max_length
+        # The largest record this decoder is ever asked to hold: one header
+        # covertext plus, in hybrid mode, the largest framed body a header may
+        # announce. After every pop the buffer is shorter than this, so a
+        # stream that fails to authenticate cannot grow the buffer without
+        # bound (see the fail-closed behavior below).
+        self.max_record_bytes = self._frame_size + (
+            body_cipher.max_framed_bytes if body_cipher is not None else 0)
         self._buffer = b''
         self._seq = 0
+        # Set once a record fails to authenticate: nothing later can decode,
+        # since the sequence number cannot advance past the bad record, so the
+        # stream is dead and push refuses further input.
+        self._failed = False
         # Body length from a hybrid header that was decrypted and verified but
         # whose body had not fully arrived. While set, that header is the first
         # ``_frame_size`` bytes of ``_buffer`` (the buffer only grows).
         self._pending_body_len = None
 
+    @property
+    def failed(self):
+        """Whether a record failed to authenticate and the stream is dead."""
+        return self._failed
+
     def push(self, data):
-        """Push data onto the FIFO buffer."""
+        """Push data onto the FIFO buffer.
+
+        Raises :class:`StreamFailedError` once the stream has failed: nothing
+        pushed after a bad record could decode, and buffering it would let a
+        peer that holds the keys grow the buffer without bound.
+        """
+        if self._failed:
+            raise StreamFailedError('data pushed after a record failed to '
+                                    'authenticate')
         if isinstance(data, str):
             data = data.encode('utf-8')
         self._buffer += data
@@ -276,6 +305,8 @@ class Decoder:
         # writing ``self._buffer`` back once. The offset never advances past a
         # record that cannot (yet) be decoded, so the undecodable remainder is
         # preserved.
+        if self._failed:
+            return []
         buffer = self._buffer
         records = []
         offset = 0
@@ -293,6 +324,7 @@ class Decoder:
                 header = buffer[offset:offset + self._frame_size]
                 head = self._decrypt(self._cipher, header)
                 if head is None:
+                    self._failed = True
                     break
                 head = _unseal(head, self._seq)
                 if head is None:
@@ -303,6 +335,7 @@ class Decoder:
                     fteproxy.debug(
                         "fteproxy.record_layer: malformed or out-of-order sealed "
                         "record at seq " + str(self._seq))
+                    self._failed = True
                     break
 
                 if self._body_cipher is None:
@@ -319,6 +352,7 @@ class Decoder:
                     fteproxy.debug(
                         "fteproxy.record_layer: unexpected header width "
                         + str(len(head)))
+                    self._failed = True
                     break
                 body_len = _OVERFLOW_LEN.unpack(head)[0]
                 if body_len > self._body_cipher.max_framed_bytes:
@@ -327,6 +361,7 @@ class Decoder:
                     fteproxy.info(
                         "fteproxy.record_layer: body length " + str(body_len)
                         + " exceeds the record limit")
+                    self._failed = True
                     break
 
             body_start = offset + self._frame_size
@@ -345,12 +380,13 @@ class Decoder:
                 fteproxy.debug(
                     "fteproxy.record_layer: body auth failed at seq "
                     + str(self._seq))
+                self._failed = True
                 break
             self._seq += 1
             offset = body_start + body_len
             records.append(self._split_type(message))
 
-        self._buffer = buffer[offset:]
+        self._buffer = b'' if self._failed else buffer[offset:]
         return records
 
     def pop(self, limit=None):
