@@ -6,6 +6,7 @@ __version__ = "0.3.2"
 import os
 import sys
 import hmac
+import functools
 import socket
 import hashlib
 import traceback
@@ -20,6 +21,7 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 
+@functools.lru_cache(maxsize=256)
 def _make_cipher(pattern, length, key):
     """Build a libfte 0.4 cipher that hides bytes as one fixed-length covertext.
 
@@ -28,6 +30,13 @@ def _make_cipher(pattern, length, key):
     ``fte.Encoder(regex, fixed_slice, key)``. The
     cipher ``encrypt``/``decrypt`` one whole covertext per call; the record
     layer handles stream chunking and framing on top of it.
+
+    Cached. libfte 0.4 compiles the DFA afresh for every ``RegexFormat``
+    (0.5 to 1.5 ms per format, and libfte 0.3 cached it globally), while
+    fteproxy builds a cipher per socket and per negotiation attempt: that
+    turned connection setup from about 3 ms into about 9 ms. An ``fte.FTE``
+    holds only read-only tables and draws a fresh nonce on every call, so one
+    instance serves every connection and thread.
     """
     return fte.FTE(
         output_format=fte.RegexFormat(pattern, length=length),

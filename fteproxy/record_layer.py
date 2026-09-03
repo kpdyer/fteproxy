@@ -131,6 +131,10 @@ class Decoder:
         self._frame_size = cipher.output_format.max_length
         self._buffer = b''
         self._seq = 0
+        # Body length from a hybrid header that was decrypted and verified but
+        # whose body had not fully arrived. While set, that header is the first
+        # ``_frame_size`` bytes of ``_buffer`` (the buffer only grows).
+        self._pending_body_len = None
 
     def push(self, data):
         """Push data onto the FIFO buffer."""
@@ -176,29 +180,40 @@ class Decoder:
         offset = 0
 
         while len(buffer) - offset >= self._frame_size:
-            header = buffer[offset:offset + self._frame_size]
-            head = self._decrypt(self._cipher, header)
-            if head is None:
-                break
-            head = _unseal(head, self._seq)
-            if head is None:
-                # Authenticated but not a sealed record at this stream position:
-                # a peer on a different mode, corruption, or a record replayed,
-                # reordered, or dropped. Treat it as undecodable.
-                fteproxy.info(
-                    "fteproxy.record_layer: malformed or out-of-order sealed "
-                    "record at seq " + str(self._seq))
-                break
-
-            if self._body_cipher is None:
-                # 'format' mode: the sealed covertext carried the message.
-                messages.append(head)
-                offset += self._frame_size
-                self._seq += 1
+            if self._body_cipher is not None and self._pending_body_len is not None:
+                # The header at the front of the buffer was decrypted and
+                # verified on an earlier pop whose body had not fully arrived.
+                # A large record arrives over several reads, so do not rank
+                # and verify the same header again for each partial delivery.
+                body_len = self._pending_body_len
             else:
+                header = buffer[offset:offset + self._frame_size]
+                head = self._decrypt(self._cipher, header)
+                if head is None:
+                    break
+                head = _unseal(head, self._seq)
+                if head is None:
+                    # Authenticated but not a sealed record at this stream
+                    # position: a peer on a different mode, corruption, or a
+                    # record replayed, reordered, or dropped. Treat it as
+                    # undecodable.
+                    fteproxy.info(
+                        "fteproxy.record_layer: malformed or out-of-order sealed "
+                        "record at seq " + str(self._seq))
+                    break
+
+                if self._body_cipher is None:
+                    # 'format' mode: the sealed covertext carried the message.
+                    messages.append(head)
+                    offset += self._frame_size
+                    self._seq += 1
+                    if oneCell:
+                        break
+                    continue
+
                 # 'hybrid' mode: the header carries the raw body's length. The
-                # header is authenticated, so a successful decrypt means we wrote
-                # it and the length is trustworthy.
+                # header is authenticated, so a successful decrypt means we
+                # wrote it and the length is trustworthy.
                 if len(head) != _OVERFLOW_LEN.size:
                     fteproxy.info(
                         "fteproxy.record_layer: unexpected header width "
@@ -212,22 +227,27 @@ class Decoder:
                         "fteproxy.record_layer: body length " + str(body_len)
                         + " exceeds the record limit")
                     break
-                body_start = offset + self._frame_size
-                if len(buffer) - body_start < body_len:
-                    break  # body not fully arrived; wait for more data
-                body = buffer[body_start:body_start + body_len]
-                try:
-                    msg = self._body_cipher.decrypt(body, self._seq)
-                except InvalidTag:
-                    # Wrong key, corruption, or a record out of its stream
-                    # position (reorder/drop/replay). Stop draining.
-                    fteproxy.info(
-                        "fteproxy.record_layer: body auth failed at seq "
-                        + str(self._seq))
-                    break
-                self._seq += 1
-                messages.append(msg)
-                offset = body_start + body_len
+
+            body_start = offset + self._frame_size
+            if len(buffer) - body_start < body_len:
+                # Body not fully arrived; wait for more data. The write-back
+                # below leaves this header at the front of the buffer.
+                self._pending_body_len = body_len
+                break
+            self._pending_body_len = None
+            body = buffer[body_start:body_start + body_len]
+            try:
+                msg = self._body_cipher.decrypt(body, self._seq)
+            except InvalidTag:
+                # Wrong key, corruption, or a record out of its stream
+                # position (reorder/drop/replay). Stop draining.
+                fteproxy.info(
+                    "fteproxy.record_layer: body auth failed at seq "
+                    + str(self._seq))
+                break
+            self._seq += 1
+            messages.append(msg)
+            offset = body_start + body_len
 
             # Stop after a single record only once one decoded successfully. This
             # must live here, not in a ``finally``: a ``break`` in ``finally``
