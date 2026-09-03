@@ -143,20 +143,25 @@ class NegotiateTimeoutException(Exception):
     pass
 
 
+# Every line is flushed as it is written. Python block-buffers stdout when it
+# is not a terminal (systemd, docker, ``> server.log``), so a bare ``print``
+# would hold diagnostics, including the default-key warning, until the process
+# exited. INFO shares stdout with the CLI status lines; WARN and ERROR go to
+# stderr.
 def fatal_error(msg):
     if fteproxy.conf.getValue('runtime.loglevel') in [1,2,3]:
-        print('ERROR:', msg)
+        print('ERROR:', msg, file=sys.stderr, flush=True)
     sys.exit(1)
 
 
 def warn(msg):
     if fteproxy.conf.getValue('runtime.loglevel') in [2,3]:
-        print('WARN:', msg)
+        print('WARN:', msg, file=sys.stderr, flush=True)
 
 
 def info(msg):
     if fteproxy.conf.getValue('runtime.loglevel') in [3]:
-        print('INFO:', msg)
+        print('INFO:', msg, flush=True)
 
 
 class NegotiateCell(object):

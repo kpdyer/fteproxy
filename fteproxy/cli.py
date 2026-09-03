@@ -35,7 +35,7 @@ class FTEMain(threading.Thread):
                 print("""fteproxy Copyright (C) 2012-2026 Kevin P. Dyer <kpdyer@gmail.com>
     This program comes with ABSOLUTELY NO WARRANTY.
     This is free software, and you are welcome to redistribute it under certain conditions.
-    """)
+    """, flush=True)
 
             if self._args.stop:
                 FTEMain.do_stop(self)
@@ -116,7 +116,7 @@ class FTEMain(threading.Thread):
         warn_if_default_key()
 
         if not self._args.quiet:
-            print('Client ready!')
+            print('Client ready!', flush=True)
 
         self._client = FTEMain.init_listener(self, 'client')
         self._client.daemon = True
@@ -134,7 +134,7 @@ class FTEMain(threading.Thread):
         self._server.daemon = True
         self._server.start()
         if not self._args.quiet:
-            print('Server ready!')
+            print('Server ready!', flush=True)
         self._server.join()
 
 
@@ -316,10 +316,16 @@ def main():
     global running
     running = True
 
-    def signal_handler(signal, frame):
+    def signal_handler(signum, frame):
         global running
         running = False
+    # SIGINT is what Ctrl-C and ``--stop`` send; SIGTERM is what systemd,
+    # docker and a plain ``kill`` send. Both take the same orderly path: the
+    # loop below stops the listener and ``finally`` removes this process's
+    # pid file. Left to its default action, SIGTERM killed the process with
+    # the pid file still on disk, so a later ``--stop`` signalled stale pids.
     signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     try:
         args = get_args()

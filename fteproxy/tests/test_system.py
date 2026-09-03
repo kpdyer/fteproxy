@@ -18,8 +18,11 @@ import signal
 import subprocess
 import random
 import string
+import threading
 
 import pytest
+
+import fteproxy.conf
 
 
 # Test configuration
@@ -372,3 +375,129 @@ class TestKeyFileEndToEnd:
         )
         assert received_data == test_data, \
             f"Data mismatch: {received_data!r} != {test_data!r}"
+
+
+# Ports for the daemon-output and shutdown tests below.
+OUTPUT_SERVER_PORT = 18280
+OUTPUT_PROXY_PORT = 18281
+SIGTERM_SERVER_PORT = 18380
+SIGTERM_PROXY_PORT = 18381
+
+
+class _PipeReader(threading.Thread):
+    """Drain one subprocess pipe on a daemon thread.
+
+    Lets a test wait for a line with a deadline. A plain ``readline`` on the
+    test thread would block forever if the child never flushed its buffer,
+    which is exactly the failure these tests exist to catch.
+    """
+
+    def __init__(self, stream):
+        threading.Thread.__init__(self, daemon=True)
+        self._stream = stream
+        self._cond = threading.Condition()
+        self.text = ''
+        self.start()
+
+    def run(self):
+        for raw in iter(self._stream.readline, b''):
+            with self._cond:
+                self.text += raw.decode('utf-8', 'replace')
+                self._cond.notify_all()
+
+    def wait_for(self, needle, timeout):
+        """Block until ``needle`` has been read or ``timeout`` seconds pass."""
+        deadline = time.time() + timeout
+        with self._cond:
+            while needle not in self.text:
+                remaining = deadline - time.time()
+                if remaining <= 0:
+                    return False
+                self._cond.wait(remaining)
+            return True
+
+
+class TestDaemonOutput:
+    """Startup lines must reach a non-terminal stdout/stderr while the process
+    is still running.
+
+    Under systemd, docker, or ``> server.log`` Python block-buffers stdout, so
+    an unflushed ``print`` (including the default-key security warning) stays
+    invisible until the process exits. The test therefore reads the pipes
+    while the server is listening and only terminates it afterwards.
+    """
+
+    @pytest.fixture
+    def running_server(self):
+        """A server with both pipes captured, plus readers draining them."""
+        cmd = get_fteproxy_cmd() + [
+            '--mode', 'server',
+            '--server_ip', BIND_IP,
+            '--server_port', str(OUTPUT_SERVER_PORT),
+            '--proxy_ip', BIND_IP,
+            '--proxy_port', str(OUTPUT_PROXY_PORT),
+        ]
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = _PipeReader(proc.stdout), _PipeReader(proc.stderr)
+        try:
+            if not wait_for_port(BIND_IP, OUTPUT_SERVER_PORT):
+                pytest.fail("Server failed to start. stdout: %r, stderr: %r"
+                            % (out.text, err.text))
+            yield proc, out, err
+        finally:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+
+    def test_startup_lines_readable_while_running(self, running_server):
+        """Banner and readiness on stdout, the default-key warning on stderr,
+        all readable before the process is terminated."""
+        proc, out, err = running_server
+        assert err.wait_for('default key', 10), \
+            "default-key warning not flushed to stderr; stderr so far: %r" % err.text
+        assert out.wait_for('Server ready!', 10), \
+            "readiness line not flushed to stdout; stdout so far: %r" % out.text
+        assert 'fteproxy Copyright' in out.text
+        assert proc.poll() is None, "server exited before its output was read"
+
+
+@pytest.mark.skipif(sys.platform == 'win32',
+                    reason='SIGTERM cannot be caught on Windows')
+class TestSigterm:
+    """SIGTERM (systemd stop, docker stop, plain ``kill``) must take the same
+    orderly path as SIGINT: exit 0 and remove the pid file, instead of leaving
+    a stale ``.server-<pid>.pid`` for a later ``--stop`` to signal."""
+
+    def test_sigterm_removes_pid_file_and_exits_cleanly(self):
+        cmd = get_fteproxy_cmd() + [
+            '--mode', 'server',
+            '--quiet',
+            '--server_ip', BIND_IP,
+            '--server_port', str(SIGTERM_SERVER_PORT),
+            '--proxy_ip', BIND_IP,
+            '--proxy_port', str(SIGTERM_PROXY_PORT),
+        ]
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        pid_file = os.path.join(fteproxy.conf.getValue('general.pid_dir'),
+                                '.server-%d.pid' % proc.pid)
+        try:
+            if not wait_for_port(BIND_IP, SIGTERM_SERVER_PORT):
+                pytest.fail("Server failed to start")
+            assert os.path.exists(pid_file), "server did not write " + pid_file
+            proc.send_signal(signal.SIGTERM)
+            try:
+                returncode = proc.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                pytest.fail("server did not exit within 15 s of SIGTERM")
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=5)
+            leftover = os.path.exists(pid_file)
+            if leftover:
+                os.unlink(pid_file)
+        assert returncode == 0, "expected a clean exit, got %d" % returncode
+        assert not leftover, "SIGTERM left the pid file behind: " + pid_file

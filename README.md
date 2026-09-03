@@ -135,6 +135,15 @@ python3 -m fteproxy --mode client --key-file fteproxy.key --client_ip 127.0.0.1 
 The file must contain exactly 64 hexadecimal characters (a trailing newline is
 ignored). `--key` and `--key-file` cannot be used together.
 
+### Running as a Service
+
+Status lines (`Client ready!`, `Server ready!`, `INFO:`) go to stdout and
+`WARN:` / `ERROR:` lines to stderr. Every line is flushed as it is written, so
+output appears immediately under systemd, docker, `nohup`, or a shell redirect
+such as `> server.log 2>&1`, not only when the process exits. SIGTERM (what
+`systemctl stop`, `docker stop`, and `kill` send) and SIGINT (Ctrl-C, `--stop`)
+both shut the relay down cleanly and remove its pid file.
+
 ### Python API
 
 `fteproxy.wrap_socket(sock, outgoing_regex=..., outgoing_length=..., incoming_regex=..., incoming_length=...)`

@@ -220,10 +220,13 @@ class TestWrapSocket:
         try:
             fteproxy.conf.setValue(key, fteproxy.conf.DEFAULT_KEY)
             fteproxy.cli.warn_if_default_key()
-            assert 'default key' in capsys.readouterr().out
+            captured = capsys.readouterr()
+            assert 'default key' in captured.err
+            assert captured.out == ''
             fteproxy.conf.setValue(key, bytes(range(32)))
             fteproxy.cli.warn_if_default_key()
-            assert capsys.readouterr().out == ''
+            captured = capsys.readouterr()
+            assert captured.err == '' and captured.out == ''
         finally:
             fteproxy.conf.setValue(key, prev)
 
