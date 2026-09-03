@@ -41,9 +41,12 @@ pip install fteproxy
 ```bash
 git clone https://github.com/kpdyer/fteproxy.git
 cd fteproxy
-pip install -r requirements.txt
-pip install -e .
+pip install -e ".[test]"
 ```
+
+The `[test]` extra adds `pytest` and `pytest-timeout`; drop it (`pip install -e .`)
+if you only want to run fteproxy. Every dependency, including that extra, is
+declared in `pyproject.toml` -- there is no `requirements.txt`.
 
 ## Usage
 
