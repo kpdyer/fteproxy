@@ -113,6 +113,50 @@ first. This section covers what fteproxy adds on top of it.
   handshake records are one request-format covertext and one response-format
   covertext, the same shape as any other record.
 
+- **How realistic a covertext actually is.** The five shipped formats
+  (`http`, `ftp`, `smtp`, `sip`, `dns`) model real message *structure*: every
+  sealed covertext parses as a valid message of its protocol -- correct verb or
+  status line, mandatory headers, terminators -- and, because the record layer
+  pads each plaintext to the format's full capacity with random bytes before
+  encrypting, every variable field is filled with high-entropy characters from
+  its own class rather than a low-entropy run. That is enough to pass a regex
+  or keyword DPI rule, which is the threat model FTE is for. It is **not**
+  enough to pass a classifier that looks at content or behaviour, for two
+  reasons inherent to uniform rank sampling:
+
+  - **Field values are random.** A covertext's URL path, hostname, mail
+    address, SIP tag or DNS label is a random string from the field's
+    character class, not a plausible value: a 300-character random path, not
+    `/index.html`; a random Call-ID, not one a phone would mint. Field
+    *lengths* are fixed too -- every covertext of a format is exactly `length`
+    bytes -- so a length-distribution test separates a tunnel from real
+    traffic immediately.
+  - **One message type dominates.** Unranking a full-capacity plaintext lands
+    in the same branch of the alternation nearly every time, so in practice
+    every `http` request samples as `GET`, every `sip` request as `BYE`, every
+    `ftp` request as `CWD`, every `smtp` request as `VRFY`, and every `ftp`
+    reply as `150`. A stream that is all `BYE` with no `INVITE`, or all `CWD`
+    with no login, is not a conversation any real client would have.
+
+  Nothing in the protocol depends on this: confidentiality and integrity come
+  from the handshake and the record layer, not from how convincing a covertext
+  is. What a weak covertext costs you is *unobservability* against an
+  adversary better than a signature matcher.
+
+- **Mode choice leaks differently per format.** `hybrid` formats only each
+  record's fixed-length header and sends the body as raw authenticated
+  ciphertext, so the bytes past the header are high-entropy. For `http` that
+  reads as a message with a body, which is what HTTP looks like. For a line
+  protocol (`ftp`, `smtp`, `sip`) or for the binary `dns` format there is no
+  place a high-entropy tail belongs, so those ship as `mode_hint: format`
+  (every byte in the protocol, at about 1 MB/s) and running them under
+  `--mode hybrid` leaks an obvious high-entropy tail after each line. `dns`
+  carries one more tell: at a fixed 272-byte covertext the capacity lives in
+  the QNAME, so every query pads out to a ~254-octet name -- legal, under the
+  255-octet limit, and far longer than any name real traffic resolves.
+  Variable-length covertexts (planned, phase F7) are what would narrow both
+  the length fingerprint and this one.
+
 - **Nothing secret is logged.** The package logger carries a redaction filter,
   installed at import, that strips a connection string's server-id, a hex key
   and a bare base64url public key out of any message before a handler sees it.

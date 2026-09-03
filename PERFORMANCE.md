@@ -40,7 +40,19 @@ python3 benchmark.py --scenarios lan --sizes 64K 1M --mode format
    therefore caches ciphers itself (`_make_cipher`, one per pattern/length/key),
    which brings connection setup to ~1 ms. Without the cache it was 8–12 ms, and a
    connection closed before negotiating pinned the server at 64–100% CPU.
-6. **The relay's `select`+throttle poll loop is unchanged** and still carries the
+6. **Four of the five shipped formats run in `format` mode by design, so point 4
+   is their normal operating point.** Since the `20260903` definitions release the
+   default catalog is five cleartext protocols: `http` is `mode_hint: hybrid` (an
+   HTTP message with a raw body is what HTTP looks like), while the line protocols
+   `ftp`, `smtp`, `sip` and the binary `dns` format are `mode_hint: format`,
+   because a line protocol has no place to put a high-entropy tail. Expect about
+   1 MB/s and interactive-class latency on those four — fine for a shell, a chat,
+   or SOCKS-proxied browsing of text, and not a bulk-transfer channel. Pick `http`
+   (or pass `--mode hybrid`, accepting the tail) when throughput is what matters.
+   The measurements below predate the release and were taken on
+   `manual-http-request`/`-response` from the shape catalog; the `hybrid` column
+   is representative of `http`, and the `format` column of the other four.
+7. **The relay's `select`+throttle poll loop is unchanged** and still carries the
    caveats from 0.3: do not delete the throttle, and a dropped link can still wedge
    an application connection (see *Resilience*).
 
@@ -66,7 +78,10 @@ noise, as it did on 0.3; those rows are omitted.
 ### Record layer alone (no sockets), `manual-http-request`/`-response`
 
 Median encrypt+decrypt round trip through `fteproxy.record_layer`, from the
-release review (same machine):
+release review (same machine). `manual-http-*` is the shape catalog's HTTP
+entry (release `20260110`, length 256); the shipped `http` format is length 512
+with more capacity per record, which moves the small-message rows a little and
+leaves the bulk rows where they are:
 
 | message | 0.3.1 | 0.4 hybrid | 0.4 format | wire expansion 0.3.1 → 0.4 hybrid / format |
 |---|---:|---:|---:|---:|

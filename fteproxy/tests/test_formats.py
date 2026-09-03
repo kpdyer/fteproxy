@@ -19,6 +19,23 @@ import fteproxy.record_layer
 _KEY = conftest.TEST_KEY
 
 
+@pytest.fixture(autouse=True)
+def _restore_release():
+    """Put the process-wide definitions release back after every test here.
+
+    This file exercises the comprehensive *shape* catalog, which stopped being
+    the default in the 20260903 release, so every test in it selects 20260110
+    (or 20131224) explicitly. Without this the selection would leak into every
+    later test in the session, which would then quietly run against a release
+    it never asked for.
+    """
+    previous = fteproxy.conf.getValue('fteproxy.defs.release')
+    saved = fteproxy.defs._definitions
+    yield
+    fteproxy.conf.setValue('fteproxy.defs.release', previous)
+    fteproxy.defs._definitions = saved
+
+
 def _cipher(pattern, length):
     """Build a libfte 0.4 cipher (successor to ``fte.Encoder(pattern, length)``)."""
     return fteproxy._make_cipher(pattern, length, _KEY)

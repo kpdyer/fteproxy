@@ -69,7 +69,10 @@ exclude = ["fteproxy.tests*"]
 fteproxy = ["tests/*"]
 
 [tool.setuptools.package-data]
-fteproxy = ["defs/*.json"]
+# The dated releases, and the per-protocol fragments they are assembled from:
+# fteproxy/defs/parts/<proto>.json is the source of truth for one format, and
+# the test suite checks the shipped release against it.
+fteproxy = ["defs/*.json", "defs/parts/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["fteproxy/tests"]

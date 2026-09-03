@@ -137,7 +137,7 @@ sock = fteproxy.wrap_socket(sock, server_key=private_key_bytes)
 # ... and the client needs only the matching public half, as 32 bytes or as
 # the 43-character base64url string a connection string carries.
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock = fteproxy.wrap_socket(sock, server_id=SERVER_ID, format="binary")
+sock = fteproxy.wrap_socket(sock, server_id=SERVER_ID, format="http")
 
 # Use normally - encoding is transparent!
 sock.connect(("localhost", 50007))
@@ -376,16 +376,33 @@ You --> :8079 --> [FTE encode] --> :8080 --> [FTE decode] --> :8081 --> netcat
 
 A format is named by its **base name**. Each base covers both directions:
 fteproxy derives a `-request` covertext (client to server) and a `-response`
-covertext (server to client) from it, so `--format words` is right and
-`--format words-request` is not. The format is the client's choice and the
+covertext (server to client) from it, so `--format http` is right and
+`--format http-request` is not. The format is the client's choice and the
 server follows.
 
 `fteproxy formats` is the authoritative list, and prints each format's
-covertext length and how many message bytes it carries:
+covertext length and how many message bytes it carries.
+
+The shipped release (`20260903`) is five real cleartext protocols. A client
+given no `--format` picks the one whose protocol runs on the server's port,
+falling back to `http`:
+
+| Format | Ports | Mode | Output Looks Like |
+|--------|-------|------|-------------------|
+| `http` | 80, 8080, 8000 | hybrid | `GET /a1b2… HTTP/1.1` with browser headers (default) |
+| `ftp` | 21 | format | `USER a1b2`, `220 … ready` |
+| `smtp` | 25, 587 | format | `EHLO mail.example`, `250-…` |
+| `sip` | 5060 | format | `INVITE sip:a1b2@example SIP/2.0` |
+| `dns` | 53 | format | DNS over TCP query / A-record response |
+
+The abstract *shapes* the earlier releases defaulted to are still shipped as
+release `20260110` (`fteproxy formats --defs 20260110`, `--defs 20260110` on
+the server). They are what the demo scripts in `formats/` and `programmatic/`
+illustrate:
 
 | Format | Output Looks Like | Example |
 |--------|------------------|---------|
-| `manual-http` | HTTP requests/responses (default) | `GET /a1b2 HTTP/1.1` |
+| `manual-http` | HTTP requests/responses | `GET /a1b2 HTTP/1.1` |
 | `alphanumeric` | Letters and digits | `x7Kq2prM9tyz` |
 | `base64` | Base64 characters | `SGVsbG8gV29ybGQ` |
 | `binary` | Binary (0s and 1s) | `01101000011001` |
@@ -394,14 +411,12 @@ covertext length and how many message bytes it carries:
 | `domain` | Domain names | `example.com` |
 | `dummy` | Unconstrained (`^.+$`), for testing | `k#7~Qz!9k` |
 | `email-simple` | Email addresses | `user@host.com` |
-| `ftp` | FTP responses | `220 ftp.com ready` |
 | `hex` | Hexadecimal | `a1b2c3d4e5f6` |
 | `http-simple` | HTTP requests | `GET /page HTTP/1.1` |
 | `ip-address` | IP addresses | `192.168.1.1` |
 | `key-value` | Key-value pairs | `key=value` |
 | `lowercase` | Random letters | `xkwqprmstyz` |
 | `sentences` | Sentences with periods | `Hello world.` |
-| `smtp` | SMTP commands | `EHLO mail.com` |
 | `ssh` | SSH banners | `SSH-2.0-OpenSSH` |
 | `timestamp` | Timestamps | `12:34:56` |
 | `tls-sni` | TLS SNI style | `www.example.com` |

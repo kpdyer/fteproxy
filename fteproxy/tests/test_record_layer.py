@@ -22,6 +22,27 @@ START = 0
 ITERATIONS = 2048
 STEP = 64
 
+#: The comprehensive *shape* catalog. These tests exercise the record layer
+#: against ``manual-http-*`` and against every entry in one release, which is
+#: what this catalog is: 46 formats of every shape, from a single-character
+#: alphabet to a full HTTP message. It stopped being the shipped default when
+#: the 20260903 cleartext-protocol release landed, so it is selected by name
+#: here rather than inherited.
+SHAPE_CATALOG = '20260110'
+SHAPE_FORMAT = 'manual-http-request'
+
+
+@pytest.fixture(autouse=True)
+def _shape_catalog():
+    """Point the loader at the shape catalog for this module, then restore."""
+    previous = fteproxy.conf.getValue('fteproxy.defs.release')
+    saved = fteproxy.defs._definitions
+    fteproxy.conf.setValue('fteproxy.defs.release', SHAPE_CATALOG)
+    fteproxy.defs._definitions = None
+    yield
+    fteproxy.conf.setValue('fteproxy.defs.release', previous)
+    fteproxy.defs._definitions = saved
+
 
 @pytest.fixture
 def record_layer_pairs():
@@ -170,7 +191,7 @@ class TestDecoderExceptionHandling:
 class TestHybridRecordLayer:
     """The hybrid framing: a formatted header covertext + a raw authenticated body."""
 
-    def _pair(self, language='manual-http-request'):
+    def _pair(self, language=SHAPE_FORMAT):
         key = conftest.TEST_KEY
         pattern = fteproxy.defs.getRegex(language)
         length = fteproxy.defs.getLength(language)
@@ -282,7 +303,7 @@ class TestHybridRecordLayer:
 class TestFormatModeRecordLayer:
     """'format' mode: one sealed covertext per record, stamped with its position."""
 
-    def _pair(self, language='manual-http-request'):
+    def _pair(self, language=SHAPE_FORMAT):
         key = conftest.TEST_KEY
         cipher = fteproxy._make_cipher(
             fteproxy.defs.getRegex(language), fteproxy.defs.getLength(language), key)
@@ -345,7 +366,7 @@ def test_seal_fills_covertext_with_random_not_padding():
 class TestRecordTypes:
     """Every record carries a type byte; unknown types close the connection."""
 
-    def _pair(self, hybrid=True, language='manual-http-request'):
+    def _pair(self, hybrid=True, language=SHAPE_FORMAT):
         key = conftest.TEST_KEY
         cipher = fteproxy._make_cipher(
             fteproxy.defs.getRegex(language),
@@ -410,8 +431,8 @@ class TestRecordTypes:
         record, not one plus a one-byte straggler."""
         key = conftest.TEST_KEY
         cipher = fteproxy._make_cipher(
-            fteproxy.defs.getRegex('manual-http-request'),
-            fteproxy.defs.getLength('manual-http-request'), key)
+            fteproxy.defs.getRegex(SHAPE_FORMAT),
+            fteproxy.defs.getLength(SHAPE_FORMAT), key)
         formatted = fteproxy.record_layer.Encoder(cipher=cipher)
         assert formatted.capacity == cipher.max_plaintext_bytes - 12 - 1
         body = fteproxy._make_body_cipher(key)
@@ -446,8 +467,8 @@ class TestDecoderFailsClosed:
 
     def _pair(self, hybrid):
         key = conftest.TEST_KEY
-        regex = fteproxy.defs.getRegex('manual-http-request')
-        length = fteproxy.defs.getLength('manual-http-request')
+        regex = fteproxy.defs.getRegex(SHAPE_FORMAT)
+        length = fteproxy.defs.getLength(SHAPE_FORMAT)
         cipher = fteproxy._make_cipher(regex, length, key)
         body = fteproxy._make_body_cipher(key) if hybrid else None
         enc = fteproxy.record_layer.Encoder(cipher=cipher, body_cipher=body)

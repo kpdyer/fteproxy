@@ -62,7 +62,7 @@ listening on [::]:8080
 key: ~/.local/state/fteproxy/server.key (created)
 allowing: every destination except the loopback and link-local addresses of this host
 clients connect with:
-  fteproxy client fte://Qm3s…ZzE@<server-ip>:8080?defs=20260110
+  fteproxy client fte://Qm3s…ZzE@<server-ip>:8080?defs=20260903
 (also written to ~/.local/state/fteproxy/connection.txt)
 ```
 
@@ -75,7 +75,7 @@ On the client machine, with the string the server printed:
 
 ```console
 $ fteproxy client fte://Qm3s…ZzE@203.0.113.5:8080
-checking 203.0.113.5:8080 ... ok (protocol 1, manual-http, hybrid)
+checking 203.0.113.5:8080 ... ok (protocol 1, http, hybrid)
 SOCKS5 on 127.0.0.1:1080
 
 $ curl --socks5-hostname 127.0.0.1:1080 https://example.com/
@@ -141,17 +141,44 @@ brackets when a port follows.
 
 ### Formats and record-layer modes
 
-A *format* is a base name from the definitions file, such as `manual-http`;
-the request and response covertexts are derived from it. `fteproxy formats`
-lists them with the capacity of one covertext:
+A *format* is a base name from the definitions file, such as `http`; the
+request and response covertexts are derived from it. The shipped release,
+`20260903`, is five cleartext application protocols -- the case FTE is for,
+since a protocol that is normally encrypted is better tunnelled inside the
+real thing:
+
+| Format | Ports | Direction split | Mode | What a covertext looks like |
+|---|---|---|---|---|
+| `http` | 80, 8080, 8000 | request / response | hybrid | `GET /… HTTP/1.1` with browser headers **(default)** |
+| `ftp` | 21 | command / reply | format | `USER …`, `220 … ready` control lines |
+| `smtp` | 25, 587 | command / reply | format | `EHLO …`, `250-…` command and reply lines |
+| `sip` | 5060 | request / response | format | `INVITE sip:…@… SIP/2.0` with Via/From/To/Call-ID/CSeq |
+| `dns` | 53 | query / response | format | DNS over TCP: length prefix, header, question, A record |
+
+`http` is the default. A client given no `--format` and no `?format=` hint
+picks the format whose protocol runs on the server's port -- a server on 21
+gets `ftp`, one on 5060 gets `sip` -- and falls back to `http` for a port no
+protocol claims. `--format` and the connection string's `?format=` hint both
+win over that, and a `--format` that disagrees with the port is honoured with
+a warning.
+
+`fteproxy formats` lists the release with each format's role, ports, mode and
+the capacity of one covertext:
 
 ```console
 $ fteproxy formats
-name          req len  req cap  resp len  resp cap
-...
-manual-http       256      150       256       192  (default)
-words             280      138       280       138
+name  role      port          mode    req len  req cap  resp len  resp cap
+dns   req/resp  53            format      272      154       272       148
+ftp   req/resp  21            format      256      161       256       163
+http  req/resp  80,8080,8000  hybrid      512      303       512       316  (default)
+sip   req/resp  5060          format      512      258       512       259
+smtp  req/resp  25,587        format      320      181       256       166
 ```
+
+The comprehensive catalog of abstract *shapes* that earlier versions defaulted
+to -- 46 entries, 23 base names (`manual-http`, `words`, `base64`, …) -- still
+ships as release `20260110`: list it with `fteproxy formats --defs 20260110`,
+and serve it with `--defs 20260110` on the server.
 
 The client picks the format and the record-layer mode and puts both in the
 handshake; the server follows. Nothing has to be configured to match.
@@ -160,8 +187,15 @@ handshake; the server follows. Nothing has to be configured to match.
   followed by raw authenticated ciphertext. Fast — hundreds of MB/s — but only
   the header blends in with the target protocol.
 - `--mode format`: every byte on the wire is in the format, so the whole
-  stream is indistinguishable from the protocol. Much slower (well under
-  1 MB/s), for deployments facing entropy or statistical detectors.
+  stream is indistinguishable from the protocol. Much slower (about 1 MB/s),
+  for deployments facing entropy or statistical detectors.
+
+Each format records the mode it is designed for (the `mode` column above), and
+that is what the client uses unless `--mode` says otherwise. `http` is hybrid:
+an HTTP message with a body is exactly what HTTP looks like, so the raw body
+past the formatted header costs nothing. The line protocols and `dns` have no
+natural place for a high-entropy body, so they ship as `format` -- every byte
+in the protocol, at about 1 MB/s, which is fine for interactive use.
 
 ### Command line
 
@@ -181,11 +215,11 @@ fteproxy --version
 | `--listen` | server | Address to listen on; `:PORT` means every interface, IPv6 in brackets | `:8080` |
 | `--allow` | server | A destination clients may reach; repeatable | loopback and link-local blocked, everything else allowed |
 | `--advertise` | server, keygen | The address to put in the connection string | a `<server-ip>` placeholder |
-| `--defs` | server, formats | Definitions release, as YYYYMMDD | 20260110 |
+| `--defs` | server, formats | Definitions release, as YYYYMMDD | 20260903 |
 | `URI` | client | `fte://SERVER-ID@HOST:PORT`; falls back to `$FTEPROXY_URI`, then `connection.txt` | |
 | `-D` | client | SOCKS5 listener, `[BIND:]PORT` | `127.0.0.1:1080` when no `-D`/`-L` |
 | `-L` | client | Forward `[BIND:]PORT` to one `HOST:PORT` through the tunnel; repeatable | |
-| `--format` | client | Base format name (see `fteproxy formats`) | the URI's hint, else `manual-http` |
+| `--format` | client | Base format name (see `fteproxy formats`) | the URI's hint, else the format for the server's port, else `http` |
 | `--mode` | client | `hybrid` or `format` | the URI's hint, else `hybrid` |
 | `--no-check` | client | Skip the startup check | check runs |
 | `--state-dir` | all | Where `server.key` and `connection.txt` live | `$FTEPROXY_STATE_DIR`, `$XDG_STATE_HOME/fteproxy`, `~/.local/state/fteproxy` |
@@ -230,7 +264,7 @@ sock.open_result(0x00)
 
 # client side
 sock = fteproxy.wrap_socket(raw, server_id=public,
-                            format="manual-http", mode="hybrid")
+                            format="http", mode="hybrid")
 sock.connect(("203.0.113.5", 8080))
 sock.open(("example.com", 443))     # raises fteproxy.OpenRefused(status)
 ```
@@ -284,11 +318,12 @@ build, gets no reply at all. The full notes are in
   a reason; a wrong connection string fails in a round trip instead of hanging.
   Exit statuses are meaningful (0/1/2), and a no-argument run prints usage
   instead of crashing.
-- **Definitions.** Thirty-two entries in `20260110.json` have longer
-  covertexts, so that every shipped format can carry a handshake; the loader
-  now refuses a release with a format that cannot. The default `manual-http-*`
-  formats are unchanged at length 256, carrying 150 (request) and 192
-  (response) bytes.
+- **Definitions.** The default release is `20260903`: five real cleartext
+  protocols (`http`, `ftp`, `smtp`, `sip`, `dns`), with `http` the default
+  format instead of `manual-http`. The 46 abstract shape entries are still
+  shipped as release `20260110`, reachable with `--defs 20260110`; thirty-two of their
+  entries were given longer covertexts so that every shipped format can carry
+  a handshake, and the loader now refuses a release with a format that cannot.
 - **API.** `wrap_socket`'s `outgoing_regex`/`incoming_regex`/`K1`/`K2`/
   `negotiate` parameters are replaced by `server_key=` or `server_id=` plus
   `format=`/`mode=`. See [Python API](#python-api).

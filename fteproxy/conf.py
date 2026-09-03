@@ -99,8 +99,11 @@ conf['runtime.fteproxy.record_layer.mode'] = 'hybrid'
 """The base format name a client uses when it is given none.
 
 A base name, not a direction: the request and response formats are derived
-from it, and only the base travels in the handshake."""
-conf['fteproxy.default_format'] = 'manual-http'
+from it, and only the base travels in the handshake. The command line goes
+further and picks the format matching the server's port (see
+:func:`fteproxy.config.format_for_port`); this is the last-resort default for
+a library caller that names none."""
+conf['fteproxy.default_format'] = 'http'
 
 
 """Covertext length for definitions that carry no "length" key (the manual-*
@@ -108,5 +111,10 @@ and dummy-* formats)."""
 conf['fteproxy.default_length'] = 2 ** 8
 
 
-"""The default definitions file to use."""
-conf['fteproxy.defs.release'] = '20260110'
+"""The default definitions file to use.
+
+Since the 20260903 release that is the five cleartext protocols (http, ftp,
+smtp, sip, dns), one entry per direction. The comprehensive shape catalog that
+used to be the default is still shipped as 20260110 and is reachable with
+``--defs 20260110``."""
+conf['fteproxy.defs.release'] = '20260903'

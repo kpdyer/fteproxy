@@ -18,7 +18,9 @@ import fteproxy
 DEMO_SERVER_ID = "g7RzVlLwycSzfHmHwo2LOdkvZ2rG_-J4lmsosmKPzQY"
 
 # A base name from the definitions file. `fteproxy formats` lists them all.
-FORMAT = "words"
+# The echo server runs on a port no protocol claims, so this is the shipped
+# default: traffic that looks like HTTP/1.1 requests and responses.
+FORMAT = "http"
 
 HOST = "127.0.0.1"
 PORT = 50007

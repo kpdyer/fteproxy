@@ -19,8 +19,9 @@ DEMO_SERVER_KEY = bytes.fromhex(
     "628e1b010509a623c31c54a443d996d10427f2e47ff11258d50e9f70c4b79651")
 DEMO_SERVER_ID = fteproxy.server_id(DEMO_SERVER_KEY)
 
-# Chat traffic will look like space-separated words.
-FORMAT = "words"
+# Chat traffic will look like HTTP/1.1 requests and responses: this demo runs
+# on a port no protocol claims, so it takes the shipped default.
+FORMAT = "http"
 
 PORT = 50009
 

@@ -3,7 +3,7 @@
 FTE Chat Server
 
 A simple chat server that has a 10-round conversation with the client.
-All traffic is FTE-encoded to look like binary (0s and 1s).
+All traffic is FTE-encoded to look like HTTP/1.1 requests and responses.
 
 The server is told nothing about the format: it learns it, and the
 record-layer mode, from the client's first record, and proves its identity

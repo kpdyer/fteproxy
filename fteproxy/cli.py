@@ -50,7 +50,7 @@ EXIT_USAGE = 2
 
 DEFAULT_LISTEN = ':8080'
 DEFAULT_SOCKS = '127.0.0.1:1080'
-DEFAULT_FORMAT = 'manual-http'
+DEFAULT_FORMAT = 'http'
 DEFAULT_MODE = 'hybrid'
 
 SUBCOMMANDS = ('server', 'client', 'keygen', 'formats', 'defs-check')
@@ -214,8 +214,9 @@ def build_parser():
                              'the tunnel. Repeatable.')
     client.add_argument('--format', metavar='NAME', default=None,
                         help='Base format name; see "fteproxy formats" '
-                             '(default: the URI\'s hint, else %s).'
-                             % DEFAULT_FORMAT)
+                             '(default: the URI\'s hint, else the format '
+                             'whose protocol runs on the server\'s port, '
+                             'else %s).' % DEFAULT_FORMAT)
     client.add_argument('--mode', choices=['hybrid', 'format'], default=None,
                         help='Record framing. "hybrid" formats a header per '
                              'record and sends the body as raw authenticated '
@@ -522,6 +523,20 @@ def do_server(args):
     return serve_forever([listener])
 
 
+def mode_hint_for(base):
+    """The record-layer mode a base format was designed for, or None.
+
+    Read from the request side's ``mode_hint`` in the loaded definitions
+    release. None when the format is not in the release, so the caller falls
+    through to the built-in default; ``check_format`` has already refused an
+    unknown base by the time this runs.
+    """
+    try:
+        return fteproxy.defs.get_mode_hint(base + fteproxy.defs.REQUEST_SUFFIX)
+    except (fteproxy.defs.InvalidRegexName, KeyError):
+        return None
+
+
 def do_client(args):
     directory = resolve_state_dir(args, create=False)
     try:
@@ -541,10 +556,20 @@ def do_client(args):
     defs = uri.defs or fteproxy.conf.getValue('fteproxy.defs.release')
     select_defs(str(defs))
 
-    # Flags beat the URI's hints, which beat the built-in defaults.
-    base = args.format or uri.format_name or DEFAULT_FORMAT
-    mode = args.mode or uri.mode or DEFAULT_MODE
+    # Flags beat the URI's hints, which beat the port default, which beats the
+    # built-in one. The port default is what makes a server parked on 21 speak
+    # FTP-shaped covertexts without anyone saying so.
+    from_port = fteproxy.config.format_for_port(uri.port)
+    base = args.format or uri.format_name or from_port or DEFAULT_FORMAT
     check_format(base)
+    # --mode and the URI's hint beat the format's own mode_hint, which beats
+    # the built-in default. A line protocol or dns is designed for format
+    # mode, so a client that took the port default gets the mode the format
+    # was made for, not a high-entropy hybrid tail it never asked for.
+    mode = args.mode or uri.mode or mode_hint_for(base) or DEFAULT_MODE
+    if args.format and from_port and args.format != from_port:
+        fteproxy.warn('format %s does not match port %d, where %s is what an '
+                      'observer expects' % (args.format, uri.port, from_port))
 
     try:
         socks_specs = [fteproxy.config.split_socks_spec(spec)

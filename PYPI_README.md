@@ -29,14 +29,14 @@ $ fteproxy server --advertise your.host:8080
 listening on [::]:8080
 key: ~/.local/state/fteproxy/server.key (created)
 clients connect with:
-  fteproxy client fte://Qm3s…ZzE@your.host:8080?defs=20260110
+  fteproxy client fte://Qm3s…ZzE@your.host:8080?defs=20260903
 ```
 
 ### Client
 
 ```console
 $ fteproxy client fte://Qm3s…ZzE@your.host:8080
-checking your.host:8080 ... ok (protocol 1, manual-http, hybrid)
+checking your.host:8080 ... ok (protocol 1, http, hybrid)
 SOCKS5 on 127.0.0.1:1080
 
 $ curl --socks5-hostname 127.0.0.1:1080 https://example.com/

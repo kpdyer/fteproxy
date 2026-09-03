@@ -21,6 +21,14 @@ import fteproxy.handshake
 import fteproxy.record_layer
 
 
+#: These tests drive the wrapper against the comprehensive *shape* catalog:
+#: ``manual-http`` is its HTTP-shaped entry, the pre-1.0 negotiation cell below
+#: names that release, and one test synthesises a twin of a shape entry. The
+#: catalog stopped being the shipped default when the 20260903 cleartext-
+#: protocol release landed, so it is selected by name here rather than
+#: inherited.
+SHAPE_CATALOG = '20260110'
+
 FORMAT = 'manual-http'
 MODE = 'hybrid'
 
@@ -29,7 +37,15 @@ SERVER_PRIVATE, SERVER_PUBLIC = fteproxy.generate_server_key()
 
 @pytest.fixture(autouse=True)
 def _defs():
+    """Select the shape catalog for this module, and put it back afterwards."""
+    previous = fteproxy.conf.getValue('fteproxy.defs.release')
+    saved = fteproxy.defs._definitions
+    fteproxy.conf.setValue('fteproxy.defs.release', SHAPE_CATALOG)
+    fteproxy.defs._definitions = None
     fteproxy.defs.load_definitions()
+    yield
+    fteproxy.conf.setValue('fteproxy.defs.release', previous)
+    fteproxy.defs._definitions = saved
 
 
 def _session_keys():
@@ -144,7 +160,7 @@ class TestServerRejectPath:
 
     def _hello_for(self, **overrides):
         settings = dict(server_public=SERVER_PUBLIC, format=FORMAT,
-                        mode=MODE, defs=20260110)
+                        mode=MODE, defs=int(SHAPE_CATALOG))
         settings.update(overrides)
         return fteproxy.handshake.ClientHandshake(**settings)
 
@@ -332,7 +348,7 @@ class TestPreProtocolClient:
     """
 
     LEGACY_KEY = b'\xFF' * 16 + b'\x00' * 16
-    LEGACY_CELL = b'\x00' * 32 + b'20260110' + b'manual-http'
+    LEGACY_CELL = b'\x00' * 32 + SHAPE_CATALOG.encode() + b'manual-http'
 
     def test_no_reply_and_one_debug_line(self, monkeypatch, caplog):
         import logging

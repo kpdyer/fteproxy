@@ -327,7 +327,7 @@ class TestEndToEnd:
     def test_a_non_default_format_end_to_end(self, server, state_dir,
                                              destination):
         """The server is told no format; it learns it from the first record."""
-        proc = start(['client', '--format', 'words',
+        proc = start(['client', '--format', 'ftp',
                       '-L', '%s:%d:%s:%d'
                       % (BIND_IP, FORWARD_PORT, BIND_IP, destination.port),
                       '--state-dir', state_dir])
@@ -362,8 +362,12 @@ class TestCLI:
     def test_formats_goes_to_stdout(self):
         result = run_cli(['formats'], timeout=60)
         assert result.returncode == 0
-        assert 'manual-http' in result.stdout
+        # The shipped release is the five cleartext protocols, http default.
+        for base in ('http', 'ftp', 'smtp', 'sip', 'dns'):
+            assert base in result.stdout
         assert '(default)' in result.stdout
+        assert [line.split()[0] for line in result.stdout.splitlines()
+                if '(default)' in line] == ['http']
 
     def test_keygen_prints_the_connection_string(self, tmp_path):
         result = run_cli(['keygen', '--state-dir', str(tmp_path / 'state')],

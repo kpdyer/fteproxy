@@ -220,6 +220,17 @@ Per-protocol notes:
 
 ### F6 — integration (after F1–F5)
 
+Status: **done**, 2026-09-03. `fteproxy/defs/20260903.json` is the assembly of
+the five `fteproxy/defs/parts/*.json` fragments (which stay the per-protocol
+source of truth, checked against the release by
+`fteproxy/tests/test_release_assembly.py`); `fteproxy.conf`'s
+`fteproxy.defs.release` and `fteproxy.default_format`, and `cli.DEFAULT_FORMAT`,
+now say `20260903` / `http`; the client picks its format from the server's port
+via `fteproxy.config.format_for_port`; README, SECURITY.md, PERFORMANCE.md and
+the examples are updated. The shape catalog stays shipped as release `20260110`
+(`--defs 20260110`) and is only retired from being the *default*; the tests that
+exercise it select it by name. Suite: 604 passing (was 566).
+
 - Make `20260903` the default release (the CLI default is "newest shipped").
 - Port-to-format defaulting: when the client URI carries no `format` hint and no
   `--format` is given, choose the default format for the server port from the

@@ -203,6 +203,28 @@ class ConnectionString:
                    for name in self.__slots__)
 
 
+def format_for_port(port, definitions=None):
+    """The base format a server on ``port`` most likely wants, or ``None``.
+
+    Every shipped format names the ports its protocol is normally seen on
+    (schema v2's ``port`` list), so a client dialing a server parked on 21 can
+    speak FTP-shaped covertexts without being told to. The first entry in file
+    order that claims the port wins, and a release whose formats carry no port
+    lists (the shape catalog) matches nothing, leaving the caller's own default
+    in place.
+
+    This is only a default: ``--format`` and the connection string's
+    ``?format=`` hint both beat it.
+    """
+    import fteproxy.defs  # deferred: fteproxy.defs imports this module's package
+    if definitions is None:
+        definitions = fteproxy.defs.load_definitions()
+    for name, spec in definitions.items():
+        if port in fteproxy.defs.spec_port(spec):
+            return fteproxy.defs.base_name(name)
+    return None
+
+
 def _is_ipv6_literal(host):
     return ':' in host
 

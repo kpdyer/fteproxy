@@ -24,9 +24,12 @@ DEMO_SERVER_KEY = bytes.fromhex(
     "628e1b010509a623c31c54a443d996d10427f2e47ff11258d50e9f70c4b79651")
 DEMO_SERVER_ID = fteproxy.server_id(DEMO_SERVER_KEY)
 
-# A base name from the definitions file: the traffic looks like lowercase
-# words in both directions. `fteproxy formats` lists them all.
-FORMAT = "words"
+# A base name from the definitions file: the traffic looks like HTTP/1.1
+# requests and responses. `fteproxy formats` lists them all. Pick the format
+# your port would carry -- ftp on 21, smtp on 25, sip on 5060, dns on 53 --
+# so a DPI rule for that port matches; this demo is on a port no protocol
+# claims, so it takes the default.
+FORMAT = "http"
 
 PORT = 50008
 CHUNK_SIZE = 4096

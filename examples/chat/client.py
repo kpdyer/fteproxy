@@ -3,7 +3,7 @@
 FTE Chat Client
 
 A simple chat client that has a 10-round conversation with the server.
-All traffic is FTE-encoded to look like binary (0s and 1s).
+All traffic is FTE-encoded to look like HTTP/1.1 requests and responses.
 
 The client picks the format and the record-layer mode; the server follows.
 All it needs of the server is the server-id below.
@@ -18,8 +18,9 @@ import fteproxy
 DEMO_SERVER_ID = "g7RzVlLwycSzfHmHwo2LOdkvZ2rG_-J4lmsosmKPzQY"
 
 # A base name from the definitions file: the server derives the request and
-# response formats from it. `fteproxy formats` lists them all.
-FORMAT = "binary"
+# response formats from it. `fteproxy formats` lists them all. The demo runs
+# on a port no protocol claims, so it takes the shipped default, http.
+FORMAT = "http"
 
 HOST = '127.0.0.1'
 PORT = 50007
@@ -43,7 +44,7 @@ def main():
     print("FTE Chat Client")
     print("=" * 50)
     print(f"Connecting to {HOST}:{PORT}")
-    print(f"Format: {FORMAT} (0s and 1s in both directions)")
+    print(f"Format: {FORMAT} (HTTP requests out, HTTP responses back)")
     print("=" * 50)
     print()
 

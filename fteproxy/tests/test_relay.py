@@ -403,7 +403,7 @@ class TestStartupCheck:
     def test_check_reports_the_negotiated_session(self, tunnel_factory):
         tunnel = tunnel_factory()
         listener = tunnel.forward((LOCAL, 1))
-        assert listener.check() == ('manual-http', 'hybrid')
+        assert listener.check() == ('http', 'hybrid')
 
     def test_check_fails_on_a_wrong_server_id(self, tunnel_factory):
         tunnel = tunnel_factory()

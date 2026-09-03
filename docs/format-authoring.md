@@ -145,9 +145,25 @@ files and touches no shared file:
    regex and passes the realism `check`, and `statistical_guard` over the batch.
 
 Because the five phases write disjoint entries and per-protocol files, they run
-in parallel without colliding. **F6** assembles the fragments in
-`fteproxy/defs/parts/*.json` into `fteproxy/defs/20260903.json` and makes it the
-default release.
+in parallel without colliding. **F6** assembled the fragments in
+`fteproxy/defs/parts/*.json` into `fteproxy/defs/20260903.json` and made it the
+default release (`fteproxy.conf`'s `fteproxy.defs.release`, with
+`fteproxy.default_format` and `fteproxy.cli.DEFAULT_FORMAT` now `http`).
+
+`parts/` stays the per-protocol source of truth: edit the fragment, then
+re-assemble the release from it. `fteproxy/tests/test_release_assembly.py`
+fails if the two drift, so an edit that never reaches the shipped file is
+caught rather than shipped.
+
+```python
+import json
+merged = {}
+for proto in ('http', 'ftp', 'smtp', 'sip', 'dns'):   # the shipped file's order
+    merged.update(json.load(open('fteproxy/defs/parts/%s.json' % proto)))
+with open('fteproxy/defs/20260903.json', 'w') as fh:
+    json.dump(merged, fh, indent=4)
+    fh.write('\n')
+```
 
 ## Running the checks
 

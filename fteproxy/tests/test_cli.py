@@ -18,6 +18,7 @@ import fteproxy.cli
 import fteproxy.conf
 import fteproxy.config
 import fteproxy.defs
+import fteproxy.relay
 
 
 PUBLIC = bytes(range(32))
@@ -414,14 +415,30 @@ class TestKeygen:
 class TestFormats:
 
     def test_lists_base_names_with_capacity(self, capsys):
-        assert fteproxy.cli.main(['formats']) == fteproxy.cli.EXIT_OK
+        """The shape catalog, which is where manual-http lives since the
+        20260903 release made the five cleartext protocols the default."""
+        assert fteproxy.cli.main(['formats', '--defs', '20260110']) == \
+            fteproxy.cli.EXIT_OK
         out = capsys.readouterr().out
         assert 'manual-http' in out
         # Base names only: the direction suffixes are columns, not rows.
         assert 'manual-http-request' not in out
-        assert '(default)' in out
         # manual-http-response carries 192 bytes per covertext at length 256.
         assert '192' in out
+
+    def test_the_default_release_is_the_five_protocols(self, capsys):
+        assert fteproxy.cli.main(['formats']) == fteproxy.cli.EXIT_OK
+        out = capsys.readouterr().out
+        assert '20260903' in out
+        for base in ('http', 'ftp', 'smtp', 'sip', 'dns'):
+            assert base in out
+        # Base names only: the direction suffixes are columns, not rows.
+        assert 'http-request' not in out
+        assert '(default)' in out
+        # The default base is http, and it is the only one marked.
+        assert out.count('(default)') == 1
+        assert 'http' in [line.split()[0] for line in out.splitlines()
+                          if '(default)' in line]
 
     def test_honours_the_release(self, capsys):
         assert fteproxy.cli.main(['formats', '--defs', '20131224']) == \
@@ -473,6 +490,106 @@ class TestClientStartup:
             fteproxy.cli.main(['client', '--no-check',
                                '--state-dir', str(tmp_path / 'empty')])
         assert excinfo.value.code == fteproxy.cli.EXIT_USAGE
+
+
+class TestPortSelectsTheFormat:
+    """A client told no format picks the one whose protocol runs on the port.
+
+    The whole point of an FTE format is that a DPI rule for the port it
+    arrives on matches it, so a server parked on 21 wants FTP-shaped
+    covertexts and one on 8080 wants HTTP-shaped ones. A ``--format`` flag and
+    the connection string's ``?format=`` hint both still win.
+    """
+
+    @pytest.fixture
+    def chosen(self, monkeypatch, tmp_path):
+        """Run ``fteproxy client`` and report the format it handed a listener.
+
+        The listener is replaced, so nothing is dialled and no port is bound:
+        the assertion is about the choice, which is made before either.
+        """
+        captured = {}
+
+        class _Listener:
+            def __init__(self, local_ip, local_port, *args, **kwargs):
+                captured.update(kwargs)
+                self.address = (local_ip, local_port)
+                self.daemon = False
+
+            def bind(self):
+                pass
+
+            def stop(self):
+                pass
+
+        monkeypatch.setattr(fteproxy.relay, 'ForwardListener', _Listener)
+        monkeypatch.setattr(fteproxy.cli, 'serve_forever',
+                            lambda listeners: fteproxy.cli.EXIT_OK)
+
+        def run(port, *extra, query=''):
+            captured.clear()
+            status = fteproxy.cli.main([
+                'client', 'fte://%s@203.0.113.5:%d%s' % (SERVER_ID, port, query),
+                '-L', '19999:127.0.0.1:22', '--no-check',
+                '--state-dir', str(tmp_path)] + list(extra))
+            assert status == fteproxy.cli.EXIT_OK
+            return captured['format']
+
+        return run
+
+    @pytest.mark.parametrize('port,expected', [
+        (21, 'ftp'),
+        (25, 'smtp'),
+        (587, 'smtp'),
+        (53, 'dns'),
+        (5060, 'sip'),
+        (80, 'http'),
+        (8080, 'http'),
+    ])
+    def test_the_port_picks_the_format(self, chosen, port, expected):
+        assert chosen(port) == expected
+
+    @pytest.mark.parametrize('port', [1, 4433, 9001, 51820])
+    def test_an_unlisted_port_falls_back_to_http(self, chosen, port):
+        assert chosen(port) == fteproxy.cli.DEFAULT_FORMAT == 'http'
+
+    def test_the_uri_hint_beats_the_port(self, chosen):
+        assert chosen(21, query='?format=sip') == 'sip'
+
+    def test_the_flag_beats_everything(self, chosen):
+        assert chosen(21, '--format', 'smtp', query='?format=sip') == 'smtp'
+
+    def test_a_flag_that_disagrees_with_the_port_warns(self, chosen, capsys):
+        """The choice is honoured, but an FTP-shaped stream on port 53 is what
+        the format is meant to avoid, so it is said out loud."""
+        assert chosen(21, '--format', 'dns') == 'dns'
+        assert 'does not match port 21' in capsys.readouterr().err
+
+    def test_the_port_default_does_not_warn(self, chosen, capsys):
+        assert chosen(21) == 'ftp'
+        assert 'does not match port' not in capsys.readouterr().err
+
+
+class TestFormatForPort:
+    """The mapping itself, without the command line around it."""
+
+    @pytest.mark.parametrize('port,expected', [
+        (21, 'ftp'), (25, 'smtp'), (587, 'smtp'), (53, 'dns'),
+        (5060, 'sip'), (80, 'http'), (8000, 'http'), (8080, 'http'),
+    ])
+    def test_a_listed_port(self, port, expected):
+        assert fteproxy.config.format_for_port(port) == expected
+
+    @pytest.mark.parametrize('port', [1, 22, 443, 1080, 9001])
+    def test_an_unlisted_port_matches_nothing(self, port):
+        assert fteproxy.config.format_for_port(port) is None
+
+    def test_a_release_without_port_lists_matches_nothing(self):
+        """The shape catalog carries no ports, so the caller's own default
+        stands and nothing is silently renamed."""
+        shapes = {'manual-http-request': {'regex': '^[a-z]+$'},
+                  'manual-http-response': {'regex': '^[a-z]+$'}}
+        assert fteproxy.config.format_for_port(80, shapes) is None
 
 
 class TestServerStartup:
@@ -577,3 +694,70 @@ class TestLogRedaction:
         with caplog.at_level(logging.INFO, logger='fteproxy'):
             fteproxy.info('listening on 127.0.0.1:1080, format manual-http')
         assert 'listening on 127.0.0.1:1080, format manual-http' in caplog.text
+
+
+class TestModeFollowsTheFormat:
+    """A format's ``mode_hint`` is the client's default mode.
+
+    The line protocols and dns are designed for ``format`` mode -- a raw
+    hybrid body has no place inside them and leaks a high-entropy tail -- so a
+    client that took the port default must get the mode the format was made
+    for. ``--mode`` and the connection string's ``?mode=`` hint both still win.
+    """
+
+    @pytest.fixture
+    def chosen_mode(self, monkeypatch, tmp_path):
+        captured = {}
+
+        class _Listener:
+            def __init__(self, local_ip, local_port, *args, **kwargs):
+                captured.update(kwargs)
+                self.address = (local_ip, local_port)
+                self.daemon = False
+
+            def bind(self):
+                pass
+
+            def stop(self):
+                pass
+
+        monkeypatch.setattr(fteproxy.relay, 'ForwardListener', _Listener)
+        monkeypatch.setattr(fteproxy.cli, 'serve_forever',
+                            lambda listeners: fteproxy.cli.EXIT_OK)
+
+        def run(port, *extra, query=''):
+            captured.clear()
+            status = fteproxy.cli.main([
+                'client', 'fte://%s@203.0.113.5:%d%s' % (SERVER_ID, port, query),
+                '-L', '19999:127.0.0.1:22', '--no-check',
+                '--state-dir', str(tmp_path)] + list(extra))
+            assert status == fteproxy.cli.EXIT_OK
+            return captured['format'], captured['mode']
+
+        return run
+
+    @pytest.mark.parametrize('port,expected', [
+        (21, ('ftp', 'format')),
+        (25, ('smtp', 'format')),
+        (53, ('dns', 'format')),
+        (5060, ('sip', 'format')),
+        (80, ('http', 'hybrid')),
+        (8080, ('http', 'hybrid')),
+    ])
+    def test_the_port_default_brings_its_mode(self, chosen_mode, port, expected):
+        assert chosen_mode(port) == expected
+
+    def test_an_unlisted_port_is_http_and_hybrid(self, chosen_mode):
+        assert chosen_mode(9001) == ('http', 'hybrid')
+
+    def test_the_flag_beats_the_format_hint(self, chosen_mode):
+        assert chosen_mode(21, '--mode', 'hybrid') == ('ftp', 'hybrid')
+        assert chosen_mode(8080, '--mode', 'format') == ('http', 'format')
+
+    def test_the_uri_hint_beats_the_format_hint(self, chosen_mode):
+        assert chosen_mode(21, query='?mode=hybrid') == ('ftp', 'hybrid')
+
+    def test_mode_hint_for_reads_the_release(self):
+        assert fteproxy.cli.mode_hint_for('ftp') == 'format'
+        assert fteproxy.cli.mode_hint_for('http') == 'hybrid'
+        assert fteproxy.cli.mode_hint_for('no-such-format') is None

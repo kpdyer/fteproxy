@@ -1,1 +1,118 @@
-{}
+{
+    "http-request": {
+        "regex": "^(GET|POST|HEAD) /[a-zA-Z0-9/._?=&%-]* HTTP/1\\.1\r\nHost: [a-z0-9.-]+\r\nUser-Agent: Mozilla/5\\.0 \\([a-zA-Z0-9;: .()/_-]+\\)\r\nAccept: [a-zA-Z0-9/*,;= .+-]+\r\nAccept-Language: [a-z,;=0-9. -]+\r\n\r\n$",
+        "length": 512,
+        "port": [
+            80,
+            8080,
+            8000
+        ],
+        "role": "request",
+        "mode_hint": "hybrid",
+        "default": true,
+        "description": "HTTP/1.1 GET, POST, or HEAD request with common browser headers"
+    },
+    "http-response": {
+        "regex": "^HTTP/1\\.1 (200 OK|302 Found|404 Not Found)\r\nContent-Type: [a-zA-Z0-9/;=. +-]+\r\nContent-Length: [0-9]+\r\nServer: [a-zA-Z0-9/. ()_-]+\r\n\r\n[a-zA-Z0-9/+= \r\n-]*$",
+        "length": 512,
+        "port": [
+            80,
+            8080,
+            8000
+        ],
+        "role": "response",
+        "mode_hint": "hybrid",
+        "default": true,
+        "description": "HTTP/1.1 200/302/404 response with headers and a body"
+    },
+    "ftp-request": {
+        "regex": "^((USER|PASS|CWD|RETR|STOR|LIST) [a-zA-Z0-9._@/-]+|TYPE [AI]|PASV|QUIT)\r\n$",
+        "length": 256,
+        "port": [
+            21
+        ],
+        "role": "request",
+        "mode_hint": "format",
+        "default": false,
+        "description": "FTP control-channel command: a verb (USER/PASS/CWD/TYPE/PASV/RETR/STOR/LIST/QUIT) with a realistic argument, CRLF-terminated"
+    },
+    "ftp-response": {
+        "regex": "^(220|230|331|250|150|226|550) [a-zA-Z0-9 .,:()/-]+\r\n$",
+        "length": 256,
+        "port": [
+            21
+        ],
+        "role": "response",
+        "mode_hint": "format",
+        "default": false,
+        "description": "FTP control-channel reply: a 3-digit status code, a space, human-readable text, CRLF-terminated"
+    },
+    "smtp-request": {
+        "regex": "^(EHLO [a-z0-9.-]+|HELO [a-z0-9.-]+|MAIL FROM:<[a-z0-9._%+-]+@[a-z0-9.-]+>|RCPT TO:<[a-z0-9._%+-]+@[a-z0-9.-]+>|VRFY [a-z0-9._%+-]+|DATA|RSET|NOOP|QUIT)\r\n$",
+        "length": 320,
+        "port": [
+            25,
+            587
+        ],
+        "role": "request",
+        "mode_hint": "format",
+        "default": false,
+        "description": "SMTP client command line (EHLO/MAIL FROM/RCPT TO/DATA/QUIT), CRLF-terminated"
+    },
+    "smtp-response": {
+        "regex": "^((220|250|354|421|550) |250-)[a-zA-Z0-9 .,;:()<>@_-]+\r\n$",
+        "length": 256,
+        "port": [
+            25,
+            587
+        ],
+        "role": "response",
+        "mode_hint": "format",
+        "default": false,
+        "description": "SMTP server reply line (2xx/3xx/4xx/5xx status), with 250- continuation form"
+    },
+    "sip-request": {
+        "regex": "^(INVITE|REGISTER|ACK|BYE|OPTIONS) sip:[a-z0-9._-]+@[a-z0-9.-]+ SIP/2\\.0\r\nVia: SIP/2\\.0/TCP [a-z0-9.-]+;branch=z9hG4bK[a-zA-Z0-9]+\r\nFrom: <sip:[a-z0-9._-]+@[a-z0-9.-]+>;tag=[a-zA-Z0-9]+\r\nTo: <sip:[a-z0-9._-]+@[a-z0-9.-]+>\r\nCall-ID: [a-zA-Z0-9]+@[a-z0-9.-]+\r\nCSeq: [0-9]+ (INVITE|REGISTER|ACK|BYE|OPTIONS)\r\nContent-Length: 0\r\n\r\n$",
+        "length": 512,
+        "port": [
+            5060
+        ],
+        "role": "request",
+        "mode_hint": "format",
+        "default": false,
+        "description": "SIP/2.0 request line (INVITE/REGISTER/ACK/BYE/OPTIONS) with the mandatory Via/From/To/Call-ID/CSeq headers"
+    },
+    "sip-response": {
+        "regex": "^SIP/2\\.0 (100 Trying|180 Ringing|200 OK|404 Not Found)\r\nVia: SIP/2\\.0/TCP [a-z0-9.-]+;branch=z9hG4bK[a-zA-Z0-9]+\r\nFrom: <sip:[a-z0-9._-]+@[a-z0-9.-]+>;tag=[a-zA-Z0-9]+\r\nTo: <sip:[a-z0-9._-]+@[a-z0-9.-]+>\r\nCall-ID: [a-zA-Z0-9]+@[a-z0-9.-]+\r\nCSeq: [0-9]+ (INVITE|REGISTER|ACK|BYE|OPTIONS)\r\nContent-Length: 0\r\n\r\n$",
+        "length": 512,
+        "port": [
+            5060
+        ],
+        "role": "response",
+        "mode_hint": "format",
+        "default": false,
+        "description": "SIP/2.0 status line (100/180/200/404) with the mandatory Via/From/To/Call-ID/CSeq headers"
+    },
+    "dns-request": {
+        "regex": "^\u0001\u000e[\u0000-\u00ff][\u0000-\u00ff]\u0001\u0000\u0000\u0001\u0000\u0000\u0000\u0000\u0000\u0000(\u0002[a-zA-Z0-9][a-zA-Z0-9]|\u0003[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9]|\u0004[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0005[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0006[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0007[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\b[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\t[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\n[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000b[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\f[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\r[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000e[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000f[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9])+(\u0003[cC][oO][mM]|\u0003[nN][eE][tT]|\u0003[oO][rR][gG]|\u0003[eE][dD][uU]|\u0004[iI][nN][fF][oO]|\u0002[iI][oO]|\u0002[dD][eE]|\u0002[uU][kK])\u0000(\u0000\u0001|\u0000\u001c)\u0000\u0001$",
+        "length": 272,
+        "port": [
+            53
+        ],
+        "role": "request",
+        "mode_hint": "format",
+        "default": false,
+        "description": "DNS over TCP query (RFC 1035 4.2.2): 2-byte length prefix, 12-byte header, one A/AAAA question; the fixed 272-byte covertext pads QNAME to 254 octets -- inside the 255-octet limit but far longer than a real name (see F7)"
+    },
+    "dns-response": {
+        "regex": "^\u0001\u000e[\u0000-\u00ff][\u0000-\u00ff]\u0081\u0080\u0000\u0001\u0000\u0001\u0000\u0000\u0000\u0000(\u0002[a-zA-Z0-9][a-zA-Z0-9]|\u0003[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9]|\u0004[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0005[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0006[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0007[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\b[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\t[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\n[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000b[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\f[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\r[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000e[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000f[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9])+(\u0003[cC][oO][mM]|\u0003[nN][eE][tT]|\u0003[oO][rR][gG]|\u0003[eE][dD][uU]|\u0004[iI][nN][fF][oO]|\u0002[iI][oO]|\u0002[dD][eE]|\u0002[uU][kK])\u0000\u0000\u0001\u0000\u0001\u00c0\f\u0000\u0001\u0000\u0001\u0000\u0000[\u0000-\u00ff][\u0000-\u00ff]\u0000\u0004[\u0001-~\u0080-\u00df][\u0000-\u00ff][\u0000-\u00ff][\u0000-\u00ff]$",
+        "length": 272,
+        "port": [
+            53
+        ],
+        "role": "response",
+        "mode_hint": "format",
+        "default": false,
+        "description": "DNS over TCP NOERROR response (RFC 1035 4.2.2): the question echoed plus one A record via a 0xc00c name pointer; the fixed 272-byte covertext pads QNAME to 238 octets -- valid but far longer than a real name (see F7)"
+    }
+}

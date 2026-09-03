@@ -194,7 +194,7 @@ class TestWrapSocket:
             conn.close()
             sock.close()
 
-    def _run(self, payload, mode, format='manual-http'):
+    def _run(self, payload, mode, format='http'):
         private, public = fteproxy.generate_server_key()
         probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         probe.bind(('127.0.0.1', 0))
@@ -232,16 +232,16 @@ class TestWrapSocket:
         assert got == payload
         assert echo == payload
         assert client.negotiated_mode == mode
-        assert client.negotiated_format == 'manual-http'
+        assert client.negotiated_format == 'http'
 
     def test_server_learns_a_non_default_format(self):
         """The server is told nothing; it recovers the format from the first
         record."""
         got, echo, client = self._run(b'a non-default format', 'hybrid',
-                                      format='words')
+                                      format='ftp')
         assert got == b'a non-default format'
         assert echo == got
-        assert client.negotiated_format == 'words'
+        assert client.negotiated_format == 'ftp'
 
     def test_wrong_server_id_gets_no_reply(self):
         """A client with the wrong connection string times out rather than

@@ -9,10 +9,10 @@ $ fteproxy server
 listening on [::]:8080
 key: ~/.local/state/fteproxy/server.key (created)
 clients connect with:
-  fteproxy client fte://Qm3s…ZzE@<server-ip>:8080?defs=20260110
+  fteproxy client fte://Qm3s…ZzE@<server-ip>:8080?defs=20260903
 
 $ fteproxy client fte://Qm3s…ZzE@203.0.113.5:8080
-checking 203.0.113.5:8080 ... ok (protocol 1, manual-http, hybrid)
+checking 203.0.113.5:8080 ... ok (protocol 1, http, hybrid)
 SOCKS5 on 127.0.0.1:1080
 ```
 
@@ -121,11 +121,20 @@ exits on SIGINT or SIGTERM.
 
 ## Definitions
 
-Thirty-two entries in `20260110.json` have longer covertexts so that every
-shipped format can carry a handshake, and the loader now refuses a release
-containing a format that cannot (capacity below 128 bytes). The default
-`manual-http-*` formats are unchanged at length 256, carrying 150 (request)
-and 192 (response) bytes.
+The shipped release is `20260903`: five real cleartext protocols, a request and
+a response format each -- `http` (ports 80/8080/8000, hybrid), `ftp` (21),
+`smtp` (25/587), `sip` (5060) and `dns` over TCP (53), the last four in format
+mode. `http` is the default format, and a client given neither `--format` nor a
+`?format=` hint picks the format whose protocol runs on the server's port,
+falling back to `http`.
+
+The catalog of abstract shapes that earlier builds defaulted to (46 entries,
+`manual-http`, `words`, `base64`, …) is still shipped as release `20260110` and
+is reachable with `--defs 20260110`. Thirty-two of its entries have longer
+covertexts so that every shipped format can carry a handshake, and the loader
+now refuses a release containing a format that cannot (capacity below 128
+bytes); its `manual-http-*` formats are unchanged at length 256, carrying 150
+(request) and 192 (response) bytes.
 
 ## Performance
 
