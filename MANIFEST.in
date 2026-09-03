@@ -1,6 +1,8 @@
-include LICENSE
-include README.md
-include PYPI_README.md
-include requirements.txt
-include fteproxy/defs/*.json
+# Packaging metadata lives in pyproject.toml. This file only exists because
+# setuptools has no pyproject.toml equivalent for sdist contents, and the one
+# thing the sdist needs beyond the defaults is the test suite: it is excluded
+# from the wheel (see [tool.setuptools.packages.find]) but downstream packagers
+# building from the sdist still want it. Everything else -- LICENSE, README.md,
+# PYPI_README.md, pyproject.toml, the package sources and fteproxy/defs/*.json
+# via [tool.setuptools.package-data] -- setuptools includes on its own.
 recursive-include fteproxy/tests *.py
