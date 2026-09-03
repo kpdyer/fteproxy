@@ -1,0 +1,24 @@
+{
+  "sip-request": {
+    "regex": "^(INVITE|REGISTER|ACK|BYE|OPTIONS) sip:[a-z0-9._-]+@[a-z0-9.-]+ SIP/2\\.0\r\nVia: SIP/2\\.0/TCP [a-z0-9.-]+;branch=z9hG4bK[a-zA-Z0-9]+\r\nFrom: <sip:[a-z0-9._-]+@[a-z0-9.-]+>;tag=[a-zA-Z0-9]+\r\nTo: <sip:[a-z0-9._-]+@[a-z0-9.-]+>\r\nCall-ID: [a-zA-Z0-9]+@[a-z0-9.-]+\r\nCSeq: [0-9]+ (INVITE|REGISTER|ACK|BYE|OPTIONS)\r\nContent-Length: 0\r\n\r\n$",
+    "length": 512,
+    "port": [
+      5060
+    ],
+    "role": "request",
+    "mode_hint": "format",
+    "default": false,
+    "description": "SIP/2.0 request line (INVITE/REGISTER/ACK/BYE/OPTIONS) with the mandatory Via/From/To/Call-ID/CSeq headers"
+  },
+  "sip-response": {
+    "regex": "^SIP/2\\.0 (100 Trying|180 Ringing|200 OK|404 Not Found)\r\nVia: SIP/2\\.0/TCP [a-z0-9.-]+;branch=z9hG4bK[a-zA-Z0-9]+\r\nFrom: <sip:[a-z0-9._-]+@[a-z0-9.-]+>;tag=[a-zA-Z0-9]+\r\nTo: <sip:[a-z0-9._-]+@[a-z0-9.-]+>\r\nCall-ID: [a-zA-Z0-9]+@[a-z0-9.-]+\r\nCSeq: [0-9]+ (INVITE|REGISTER|ACK|BYE|OPTIONS)\r\nContent-Length: 0\r\n\r\n$",
+    "length": 512,
+    "port": [
+      5060
+    ],
+    "role": "response",
+    "mode_hint": "format",
+    "default": false,
+    "description": "SIP/2.0 status line (100/180/200/404) with the mandatory Via/From/To/Call-ID/CSeq headers"
+  }
+}
