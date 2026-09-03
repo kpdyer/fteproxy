@@ -60,10 +60,6 @@ conf['general.pid_dir'] = tempfile.gettempdir()
 conf['runtime.mode'] = None
 
 
-"""Our loglevel = 0|1|2|3"""
-conf['runtime.loglevel'] = 3
-
-
 """The maximum number of queued connections for sockets"""
 conf['runtime.fteproxy.relay.backlog'] = 100
 

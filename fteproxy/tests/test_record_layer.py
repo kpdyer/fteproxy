@@ -4,6 +4,7 @@
 Tests for the FTE record layer encoding/decoding.
 """
 
+import logging
 import struct
 
 import pytest
@@ -244,15 +245,16 @@ class TestHybridRecordLayer:
         assert decoder.pop() == b'R' * 10
         assert len(calls) == 2
 
-    def test_oversized_body_length_is_rejected(self, capsys):
+    def test_oversized_body_length_is_rejected(self, caplog):
         """A header announcing a body larger than any record can carry is
         refused instead of buffering up to 4 GiB waiting for it."""
         encoder, decoder = self._pair()
         header = fteproxy.record_layer._seal(
             encoder._cipher, fteproxy.record_layer._OVERFLOW_LEN.pack(2 ** 32 - 1), 0)
         decoder.push(header + b'x' * 64)
-        assert decoder.pop() == b''
-        assert 'exceeds the record limit' in capsys.readouterr().out
+        with caplog.at_level(logging.INFO, logger='fteproxy'):
+            assert decoder.pop() == b''
+        assert 'exceeds the record limit' in caplog.text
         assert len(decoder._buffer) == len(header) + 64
 
     def test_reordered_record_is_rejected(self):

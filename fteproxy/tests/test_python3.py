@@ -212,18 +212,22 @@ class TestWrapSocket:
         assert fteproxy._make_cipher('^[a-z]+$', 96, key) is not a
         assert fteproxy._make_cipher('^[a-z]+$', 64, bytes(range(32))) is not a
 
-    def test_default_key_warns(self, capsys):
-        """Starting with the public built-in key prints a warning; a real key does not."""
+    def test_default_key_warns(self, caplog):
+        """Starting with the public built-in key logs a warning; a real key does not."""
+        import logging
+
         import fteproxy.cli
         key = 'runtime.fteproxy.encrypter.key'
         prev = fteproxy.conf.getValue(key)
         try:
-            fteproxy.conf.setValue(key, fteproxy.conf.DEFAULT_KEY)
-            fteproxy.cli.warn_if_default_key()
-            assert 'default key' in capsys.readouterr().out
-            fteproxy.conf.setValue(key, bytes(range(32)))
-            fteproxy.cli.warn_if_default_key()
-            assert capsys.readouterr().out == ''
+            with caplog.at_level(logging.WARNING, logger='fteproxy'):
+                fteproxy.conf.setValue(key, fteproxy.conf.DEFAULT_KEY)
+                fteproxy.cli.warn_if_default_key()
+                assert 'default key' in caplog.text
+                caplog.clear()
+                fteproxy.conf.setValue(key, bytes(range(32)))
+                fteproxy.cli.warn_if_default_key()
+                assert caplog.text == ''
         finally:
             fteproxy.conf.setValue(key, prev)
 

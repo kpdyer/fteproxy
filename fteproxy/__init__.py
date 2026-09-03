@@ -7,9 +7,9 @@ import os
 import sys
 import hmac
 import functools
+import logging
 import socket
 import hashlib
-import traceback
 
 import fteproxy.conf
 import fteproxy.defs
@@ -143,20 +143,43 @@ class NegotiateTimeoutException(Exception):
     pass
 
 
+logger = logging.getLogger('fteproxy')
+"""The package logger. ``fteproxy.cli`` attaches a stderr handler to it and
+sets its level from ``-q``/``-v``; embedding programs are free to attach their
+own handlers instead. Nothing here configures the root logger, so importing
+fteproxy never changes an application's logging setup.
+
+Logging goes to stderr, never stdout, so a command whose output is data (for
+example ``fteproxy formats``) stays pipeable.
+"""
+
+
 def fatal_error(msg):
-    if fteproxy.conf.getValue('runtime.loglevel') in [1,2,3]:
-        print('ERROR:', msg)
+    """Log ``msg`` at ERROR and terminate with exit status 1.
+
+    Reserved for conditions from which no connection can recover, such as a
+    format provider that breaks libfte's ranking contract. Callers that can
+    report a failure to their own caller should raise instead: this raises
+    ``SystemExit``, which only unwinds the calling thread when it is not the
+    main one.
+    """
+    logger.error(msg)
     sys.exit(1)
 
 
 def warn(msg):
-    if fteproxy.conf.getValue('runtime.loglevel') in [2,3]:
-        print('WARN:', msg)
+    """Log ``msg`` at WARNING: something is wrong but the process continues."""
+    logger.warning(msg)
 
 
 def info(msg):
-    if fteproxy.conf.getValue('runtime.loglevel') in [3]:
-        print('INFO:', msg)
+    """Log ``msg`` at INFO: normal, low-volume progress reporting."""
+    logger.info(msg)
+
+
+def debug(msg):
+    """Log ``msg`` at DEBUG: per-connection and per-record detail."""
+    logger.debug(msg)
 
 
 class NegotiateCell(object):

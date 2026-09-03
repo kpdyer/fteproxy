@@ -73,28 +73,44 @@ class listener(threading.Thread):
         threading.Thread.__init__(self)
 
         self._running = False
+        self._sock = None
         self._local_ip = local_ip
         self._local_port = local_port
         self._remote_ip = remote_ip
         self._remote_port = remote_port
 
-    def _instantiateSocket(self):
+    def bind(self):
+        """Bind and listen on ``local_ip:local_port``, raising ``OSError`` on
+        failure.
+
+        Separate from :meth:`run` so a caller can claim the port on the main
+        thread and report a bind failure with a non-zero exit status. Binding
+        inside the thread instead only killed the thread, and the process went
+        on to exit 0.
+        """
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self._sock.bind((self._local_ip, self._local_port))
-            self._sock.listen(fteproxy.conf.getValue('runtime.fteproxy.relay.backlog'))
-            self._sock.settimeout(
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind((self._local_ip, self._local_port))
+            sock.listen(fteproxy.conf.getValue('runtime.fteproxy.relay.backlog'))
+            sock.settimeout(
                 fteproxy.conf.getValue('runtime.fteproxy.relay.accept_timeout'))
-        except Exception as e:
-            fteproxy.fatal_error('Failed to bind to ' +
-                            str((self._local_ip, self._local_port)) + ': ' + str(e))
+        except OSError:
+            sock.close()
+            raise
+        self._sock = sock
 
     def run(self):
         """Bind to ``local_ip:local_port`` and forward all connections to
         ``remote_ip:remote_port``.
         """
-        self._instantiateSocket()
+        if self._sock is None:
+            try:
+                self.bind()
+            except OSError as e:
+                fteproxy.fatal_error(
+                    'Failed to bind to '
+                    + str((self._local_ip, self._local_port)) + ': ' + str(e))
 
         self._running = True
         while self._running:
@@ -136,7 +152,8 @@ class listener(threading.Thread):
         """Terminate the thread and stop listening on ``local_ip:local_port``.
         """
         self._running = False
-        fteproxy.network_io.close_socket(self._sock)
+        if self._sock is not None:
+            fteproxy.network_io.close_socket(self._sock)
 
     def onNewIncomingConnection(self, socket):
         """``onNewIncomingConnection`` returns the socket unmodified, by default we do not need to

@@ -246,7 +246,32 @@ class TestCLI:
         """Test that invalid mode is rejected."""
         cmd = get_fteproxy_cmd() + ['--mode', 'invalid']
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        assert result.returncode != 0
+        assert result.returncode == 2
+
+    def test_no_arguments_prints_usage_and_exits_2(self):
+        """A bare run used to crash with a TypeError deep in the relay and
+        still exit 0, because argparse never applied the defaults to conf."""
+        result = subprocess.run(get_fteproxy_cmd(), capture_output=True,
+                                text=True, timeout=10)
+        assert result.returncode == 2
+        assert 'usage:' in result.stderr
+        assert 'Traceback' not in result.stderr
+
+    def test_invalid_format_exits_1(self):
+        """A startup failure is a runtime failure, not a silent success."""
+        cmd = get_fteproxy_cmd() + [
+            '--mode', 'client', '--upstream-format', 'no-such-format']
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        assert result.returncode == 1
+        assert 'no-such-format' in result.stderr
+
+    def test_formats_subcommand(self):
+        """``fteproxy formats`` lists the base names on stdout and exits 0."""
+        cmd = get_fteproxy_cmd() + ['formats']
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        assert result.returncode == 0
+        assert 'manual-http' in result.stdout
+        assert '(default)' in result.stdout
 
     def test_key_file_in_help(self):
         """Test that --key-file appears in the help output."""
@@ -260,7 +285,7 @@ class TestCLI:
         missing = tmp_path / 'does-not-exist.key'
         cmd = get_fteproxy_cmd() + ['--mode', 'server', '--key-file', str(missing)]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        assert result.returncode != 0
+        assert result.returncode == 2
 
     def test_key_file_invalid_length(self, tmp_path):
         """Test that a key file with the wrong length is rejected."""
@@ -268,7 +293,7 @@ class TestCLI:
         key_file.write_text('abcdef')
         cmd = get_fteproxy_cmd() + ['--mode', 'server', '--key-file', str(key_file)]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        assert result.returncode != 0
+        assert result.returncode == 2
 
     def test_key_file_invalid_characters(self, tmp_path):
         """Test that a key file with non-hex characters is rejected."""
@@ -276,7 +301,7 @@ class TestCLI:
         key_file.write_text('z' * 64)
         cmd = get_fteproxy_cmd() + ['--mode', 'server', '--key-file', str(key_file)]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        assert result.returncode != 0
+        assert result.returncode == 2
 
     def test_key_and_key_file_mutually_exclusive(self, tmp_path):
         """Test that --key and --key-file cannot be used together."""
@@ -288,7 +313,7 @@ class TestCLI:
             '--key-file', str(key_file),
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        assert result.returncode != 0
+        assert result.returncode == 2
         assert '--key-file' in result.stderr and '--key' in result.stderr
 
 

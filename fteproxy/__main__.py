@@ -5,7 +5,9 @@
 Allow running fteproxy as a module: python -m fteproxy
 """
 
+import sys
+
 from fteproxy.cli import main
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
