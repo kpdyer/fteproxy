@@ -13,31 +13,54 @@
 pip install fteproxy
 ```
 
-> **0.4 is not wire-compatible with 0.3.x.** Upgrade both endpoints together,
-> and give both the same `--key`/`--key-file` (the built-in default key is
-> public) and the same `--record-layer-mode`.
+> **0.4 is not wire-compatible with 0.3.x, and its command line has changed.**
+> Every old flag now prints a pointer and exits 2; see
+> [Upgrading to 0.4.0](https://github.com/kpdyer/fteproxy#upgrading-to-040).
 
 ## Quick Start
 
 ### Server
 
-```bash
-python3 -m fteproxy --mode server --server_ip 0.0.0.0 --server_port 8080 --proxy_ip 127.0.0.1 --proxy_port 8081
+Once per host. The first start generates the server's keypair and prints the
+connection string clients need:
+
+```console
+$ fteproxy server --advertise your.host:8080
+listening on [::]:8080
+key: ~/.local/state/fteproxy/server.key (created)
+clients connect with:
+  fteproxy client fte://Qm3s…ZzE@your.host:8080?defs=20260110
 ```
 
 ### Client
 
-```bash
-python3 -m fteproxy --mode client --client_ip 127.0.0.1 --client_port 8079 --server_ip <server-ip> --server_port 8080
+```console
+$ fteproxy client fte://Qm3s…ZzE@your.host:8080
+checking your.host:8080 ... ok (protocol 1, manual-http, hybrid)
+SOCKS5 on 127.0.0.1:1080
+
+$ curl --socks5-hostname 127.0.0.1:1080 https://example.com/
 ```
+
+`-L 2222:127.0.0.1:22` gives an ssh-style port forward instead of SOCKS5.
 
 ## How It Works
 
 ```
-[Application] <-> [fteproxy client] <--FTE encoded--> [fteproxy server] <-> [Destination]
+[Application] <-SOCKS5 or -L-> [fteproxy client] <--FTE encoded--> [fteproxy server] -> [Destination]
 ```
 
-fteproxy encodes traffic to match user-specified regular expressions, making it appear as allowed traffic (e.g., HTTP) to network filters. By default each record starts with a covertext in the chosen format and carries the rest as raw authenticated ciphertext (`--record-layer-mode hybrid`); `--record-layer-mode format` puts every byte in the format at much lower throughput.
+fteproxy encodes traffic to match user-specified regular expressions, making it
+appear as allowed traffic (for example HTTP) to network filters. The client
+picks the format and the framing mode and puts both in the handshake, so
+nothing has to be configured to match: `--mode hybrid` (the default) formats a
+header per record and carries the body as raw authenticated ciphertext, and
+`--mode format` puts every byte in the format at much lower throughput.
+
+The destination travels in band, so one server serves SOCKS5 clients and port
+forwards alike, and `--allow` decides which destinations it will dial. The
+server authenticates itself with an X25519 keypair; clients hold only the
+public half, in the connection string.
 
 ## Links
 

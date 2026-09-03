@@ -113,11 +113,12 @@ class Connection:
     the other direction.
     """
 
-    def __init__(self, socket1, socket2):
+    def __init__(self, socket1, socket2, on_close=None):
         self._sockets = (socket1, socket2)
         self._outstanding = 2
         self._lock = threading.Lock()
         self._workers = []
+        self._on_close = on_close
 
     def start(self):
         for source, sink in (self._sockets, self._sockets[::-1]):
@@ -137,6 +138,8 @@ class Connection:
     def close(self):
         for sock in self._sockets:
             fteproxy.network_io.close_socket(sock)
+        if self._on_close is not None:
+            self._on_close(self)
 
     def stop(self):
         for thread in self._workers:
@@ -156,7 +159,11 @@ class listener(threading.Thread):
         self._sock = None
         self._local_ip = local_ip
         self._local_port = local_port
-        self._connections = []
+        # Live connections, so that stop() can tear them down. Entries remove
+        # themselves when both directions end; a long-running server would
+        # otherwise hold one per connection it had ever accepted.
+        self._connections = set()
+        self._connections_lock = threading.Lock()
 
     @property
     def address(self):
@@ -240,9 +247,19 @@ class listener(threading.Thread):
             fteproxy.warn('connection from %s failed: %s' % (_host(addr), e))
             fteproxy.network_io.close_socket(conn)
             return
-        if connection is not None:
-            self._connections.append(connection)
-            connection.start()
+        if connection is None:
+            return
+        with self._connections_lock:
+            if not self._running:
+                # stop() ran while this connection was being set up.
+                connection.close()
+                return
+            self._connections.add(connection)
+        connection.start()
+
+    def _forget(self, connection):
+        with self._connections_lock:
+            self._connections.discard(connection)
 
     def serve(self, conn, addr):
         """Set one accepted connection up and return a :class:`Connection`,
@@ -254,9 +271,11 @@ class listener(threading.Thread):
         self._running = False
         if self._sock is not None:
             fteproxy.network_io.close_socket(self._sock)
-        for connection in self._connections:
+        with self._connections_lock:
+            open_connections = list(self._connections)
+            self._connections.clear()
+        for connection in open_connections:
             connection.stop()
-        self._connections = []
 
 
 def _host(addr):
@@ -293,7 +312,7 @@ class ServerListener(listener):
             fteproxy.network_io.close_socket(conn)
             return None
 
-        timeout = fteproxy.conf.getValue('runtime.fteproxy.negotiate.timeout')
+        timeout = fteproxy.conf.getValue('runtime.fteproxy.handshake.timeout')
         try:
             destination = tunnel.wait_open(timeout=timeout)
         except (fteproxy.ChannelNotReadyException,
@@ -328,7 +347,7 @@ class ServerListener(listener):
         fteproxy.debug('%s -> %s:%d' % (_host(addr), host, port))
         upstream.settimeout(
             fteproxy.conf.getValue('runtime.fteproxy.relay.socket_timeout'))
-        return Connection(tunnel, upstream)
+        return Connection(tunnel, upstream, on_close=self._forget)
 
 
 # --------------------------------------------------------------------------- #
@@ -356,7 +375,7 @@ class _ClientListener(listener):
         """Open and handshake one tunnel to the fteproxy server."""
         raw = socket.create_connection(
             self._server_address,
-            timeout=fteproxy.conf.getValue('runtime.fteproxy.negotiate.timeout'))
+            timeout=fteproxy.conf.getValue('runtime.fteproxy.handshake.timeout'))
         raw.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         tunnel = fteproxy.wrap_socket(raw, server_id=self._server_id,
                                       format=self._format, mode=self._mode,
@@ -420,7 +439,7 @@ class ForwardListener(_ClientListener):
                              fteproxy.stream.status_name(e.status)))
             fteproxy.network_io.close_socket(conn)
             return None
-        return Connection(conn, tunnel)
+        return Connection(conn, tunnel, on_close=self._forget)
 
 
 class SocksListener(_ClientListener):
@@ -455,7 +474,7 @@ class SocksListener(_ClientListener):
             fteproxy.network_io.close_socket(conn)
             fteproxy.network_io.close_socket(tunnel)
             return None
-        return Connection(conn, tunnel)
+        return Connection(conn, tunnel, on_close=self._forget)
 
     @staticmethod
     def _fail(conn, status):

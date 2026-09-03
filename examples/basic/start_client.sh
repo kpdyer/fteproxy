@@ -1,15 +1,10 @@
 #!/bin/bash
-# Start fteproxy client with default settings
+# Start an fteproxy client. Every argument is passed straight through, e.g.
+#   ./start_client.sh fte://<server-id>@203.0.113.5:8080 -D 1080
+#
+# Without a URI argument the client takes one from $FTEPROXY_URI, then from
+# connection.txt in the state directory -- so on the host that ran the server
+# no argument is needed at all. With neither -D nor -L it opens a SOCKS5
+# listener on 127.0.0.1:1080.
 
-SERVER_IP="${1:-127.0.0.1}"
-
-echo "Starting fteproxy client..."
-echo "  Listening for plaintext on: 127.0.0.1:8079"
-echo "  Connecting to FTE server: $SERVER_IP:8080"
-echo ""
-
-python3 -m fteproxy --mode client \
-    --client_ip 127.0.0.1 \
-    --client_port 8079 \
-    --server_ip "$SERVER_IP" \
-    --server_port 8080
+exec python3 -m fteproxy client "$@"

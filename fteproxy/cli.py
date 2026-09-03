@@ -30,7 +30,6 @@ connection string can reach a log file.
 
 import argparse
 import logging
-import os
 import signal
 import sys
 import threading
@@ -485,8 +484,8 @@ def do_client(args):
         listeners.append(fteproxy.relay.ForwardListener(
             bind, port, destination=destination, **common))
 
-    if not args.no_check:
-        run_startup_check(args, listeners[0], uri)
+    if not args.no_check and not run_startup_check(args, listeners[0], uri):
+        return EXIT_FAILURE
 
     for listener in listeners:
         try:
@@ -516,25 +515,33 @@ def run_startup_check(args, listener, uri):
 
     On the wire it is an ordinary session start, and it costs one round trip.
     The alternative is a first connection that hangs until a timeout with
-    nothing to say about why.
+    nothing to say about why. Returns False when the check failed, having said
+    so; the caller exits 1.
+
+    Reported here rather than raised, so that the outcome finishes the
+    "checking ..." line the operator is already looking at instead of arriving
+    as a separate log record.
     """
-    where = _render_address(uri.host, uri.port)
+    prefix = 'checking %s ... ' % _render_address(uri.host, uri.port)
     if not args.quiet:
-        sys.stderr.write('checking %s ... ' % where)
+        sys.stderr.write(prefix)
         sys.stderr.flush()
     try:
         format_name, mode = listener.check()
     except Exception as e:
-        if not args.quiet:
-            sys.stderr.write('failed\n')
-        raise StartupError(
-            '%s: %s\n  (wrong connection string, or the server is not running '
-            'fteproxy 0.4)' % (where, e))
+        if args.quiet:
+            sys.stderr.write(prefix)
+        sys.stderr.write('failed: %s\n' % e)
+        sys.stderr.write('  (wrong connection string, or the server is not '
+                         'running fteproxy 0.4)\n')
+        sys.stderr.flush()
+        return False
     if not args.quiet:
         sys.stderr.write('ok (protocol %d, %s, %s)\n'
                          % (fteproxy.handshake.PROTOCOL_VERSION, format_name,
                             mode))
         sys.stderr.flush()
+    return True
 
 
 def _render_address(host, port):

@@ -16,7 +16,7 @@ requires-python = ">=3.10"
 authors = [
     {name = "Kevin P. Dyer", email = "kpdyer@gmail.com"}
 ]
-keywords = ["fte", "encryption", "proxy", "censorship", "privacy"]
+keywords = ["fte", "encryption", "proxy", "censorship", "privacy", "socks5", "tunnel"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",

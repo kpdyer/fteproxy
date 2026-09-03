@@ -26,7 +26,9 @@ import fte
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
-from fteproxy.handshake import generate_server_key, server_id
+# Re-exported: key generation belongs to the public API even though the
+# implementation lives with the handshake it feeds.
+from fteproxy.handshake import generate_server_key, server_id  # noqa: F401
 
 
 @functools.lru_cache(maxsize=256)
@@ -459,7 +461,7 @@ class _FTESocketWrapper(object):
 
         sealed = fteproxy.record_layer._seal(request_cipher,
                                              driver.hello_bytes, 0)
-        timeout = fteproxy.conf.getValue('runtime.fteproxy.negotiate.timeout')
+        timeout = fteproxy.conf.getValue('runtime.fteproxy.handshake.timeout')
         try:
             self._socket.sendall(sealed)
             frame = self._read_exactly(
@@ -468,8 +470,7 @@ class _FTESocketWrapper(object):
             raise HandshakeFailedException('handshake I/O failed: %s' % e)
         if frame is None:
             raise HandshakeTimeoutException(
-                'no valid handshake reply within %ss (wrong connection '
-                'string, or the peer is not running fteproxy 0.4)' % timeout)
+                'no valid handshake reply within %ss' % timeout)
 
         try:
             plaintext = response_cipher.decrypt(frame)
@@ -503,7 +504,7 @@ class _FTESocketWrapper(object):
         peer that opens a connection, sends a few bytes and falls silent from
         holding a relay worker open indefinitely.
         """
-        timeout = fteproxy.conf.getValue('runtime.fteproxy.negotiate.timeout')
+        timeout = fteproxy.conf.getValue('runtime.fteproxy.handshake.timeout')
         deadline = time.monotonic() + timeout
         previous = self._socket.gettimeout()
         try:
@@ -557,30 +558,37 @@ class _FTESocketWrapper(object):
             hello_bytes = fteproxy.record_layer._unseal(plaintext, 0)
             if hello_bytes is None:
                 continue
-            base = name[:-len('-request')]
-            return self._accept_hello(base, hello_bytes, buffered[length:])
+            return self._accept_hello(name, hello_bytes, buffered[length:])
 
         if len(buffered) > self._MAX_PRE_HANDSHAKE_BYTES:
             raise HandshakeFailedException(
                 'no client hello in the first %d bytes' % len(buffered))
         raise _NeedMoreData()
 
-    def _accept_hello(self, base, hello_bytes, remainder):
+    def _accept_hello(self, matched, hello_bytes, remainder):
         global _last_matched_format
 
         try:
             hello, reply_bytes, keys = fteproxy.handshake.accept_client_hello(
                 hello_bytes, self._server_key, self._server_public,
-                defs=self._defs, formats={base}, replay=_replay_filter)
+                defs=self._defs, formats=fteproxy.defs.base_names(),
+                replay=_replay_filter)
         except fteproxy.handshake.HandshakeError as e:
             raise HandshakeFailedException(str(e))
-        if hello.format != base:
-            # The covertext format and the name inside it are the same fact
-            # stated twice; a disagreement is not a client.
+
+        # The covertext format and the name inside it are the same fact stated
+        # twice, so they have to agree -- but by shape, not by name: two base
+        # names in a definitions file may share a pattern and a length, and
+        # then either one unseals the other's covertext. Comparing the names
+        # would refuse a client that did nothing wrong.
+        base = hello.format
+        request, response = _format_pair(base)
+        if (fteproxy.defs.getRegex(request), fteproxy.defs.getLength(request)) \
+                != (fteproxy.defs.getRegex(matched),
+                    fteproxy.defs.getLength(matched)):
             raise HandshakeFailedException('hello format does not match its '
                                            'covertext format')
 
-        _, response = _format_pair(base)
         response_cipher = _cipher_for(response, self._cover_key, cover=True)
         try:
             self._socket.sendall(
@@ -593,7 +601,7 @@ class _FTESocketWrapper(object):
         self._encoder, self._decoder = _session_channel(
             base, hello.mode, keys, is_client=False)
         self._handshake_done = True
-        _last_matched_format = base + '-request'
+        _last_matched_format = matched
         self._pre_handshake_incoming = b''
         fteproxy.debug('handshake complete: protocol 1, %s, %s'
                        % (base, hello.mode))

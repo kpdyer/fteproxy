@@ -1,13 +1,9 @@
 #!/bin/bash
-# Start fteproxy server with default settings
+# Start an fteproxy server. Every argument is passed straight through, e.g.
+#   ./start_server.sh --listen :8080 --allow 127.0.0.1:8081
+#
+# The first start generates the server's keypair in the state directory
+# (~/.local/state/fteproxy by default) and prints the connection string
+# clients need, which it also writes to connection.txt beside the key.
 
-echo "Starting fteproxy server..."
-echo "  Listening for FTE connections on: 0.0.0.0:8080"
-echo "  Forwarding plaintext to: 127.0.0.1:8081"
-echo ""
-
-python3 -m fteproxy --mode server \
-    --server_ip 0.0.0.0 \
-    --server_port 8080 \
-    --proxy_ip 127.0.0.1 \
-    --proxy_port 8081
+exec python3 -m fteproxy server "$@"

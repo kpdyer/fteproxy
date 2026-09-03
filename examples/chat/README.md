@@ -1,7 +1,7 @@
 # FTE Chat Example
 
 A chat demo with a 10-round conversation between client and server.
-All traffic is FTE-encoded to look like binary or letters.
+All traffic is FTE-encoded to look like binary (0s and 1s).
 
 ## Quick Start
 
@@ -20,8 +20,7 @@ python3 client.py
 FTE Chat Server
 ==================================================
 Listening on port 50007
-Client->Server format: binary (0s and 1s)
-Server->Client format: letters (As and Bs)
+Format and mode: whatever the client asks for
 ==================================================
 
 Waiting for client...
@@ -43,8 +42,7 @@ Client connected from ('127.0.0.1', 52431)
 FTE Chat Client
 ==================================================
 Connecting to 127.0.0.1:50007
-Client->Server format: binary (0s and 1s)
-Server->Client format: letters (As and Bs)
+Format: binary (0s and 1s in both directions)
 ==================================================
 
 Connected!
@@ -56,23 +54,42 @@ Connected!
 ...
 ```
 
+## How The Two Sides Are Configured
+
+The client makes every choice and the server follows. All the client holds is
+the server-id -- the public half of the server's keypair, which is what a
+connection string carries:
+
+```python
+# client.py
+sock = fteproxy.wrap_socket(sock, server_id=DEMO_SERVER_ID, format="binary")
+
+# server.py -- no format, no mode, no shared key
+sock = fteproxy.wrap_socket(sock, server_key=DEMO_SERVER_KEY)
+```
+
+The server learns the format and the record-layer mode from the client's first
+record. A real server generates its keypair with `fteproxy keygen` and hands
+out only the public half; these scripts hardcode a demo keypair so they agree
+without exchanging anything.
+
 ## What's On The Wire
 
 Even though the conversation looks normal, the actual network traffic is encoded:
 
 | Direction | What You See | What's On The Wire |
 |-----------|-------------|-------------------|
-| Client -> Server | "Hi there!" | `0101101011101010110...` (520 bytes) + raw ciphertext |
-| Server -> Client | "Hello!" | `ABBAABABBAABBABA...` (520 bytes) + raw ciphertext |
+| Client -> Server | "Hi there!" | `0101101011101010110...` (1320 bytes) + raw ciphertext |
+| Server -> Client | "Hello!" | `1101001011010110100...` (1320 bytes) + raw ciphertext |
 
-With fteproxy's default record-layer mode (`hybrid`), each record starts with
-a 520-character covertext in the format and carries the message itself as raw
-authenticated ciphertext after it. To make the whole stream binary or letters,
-select `format` mode on both sides before wrapping the socket (there is no
-`wrap_socket` argument for it):
+With fteproxy's default record-layer mode (`hybrid`), each record starts with a
+1320-byte covertext in the `binary` format and carries the message itself as
+raw authenticated ciphertext after it. To make the whole stream binary, ask for
+`format` mode when wrapping the client socket -- the server follows:
 
 ```python
-fteproxy.conf.setValue('runtime.fteproxy.record_layer.mode', 'format')
+sock = fteproxy.wrap_socket(sock, server_id=DEMO_SERVER_ID,
+                            format="binary", mode="format")
 ```
 
 ## Traffic Flow
@@ -83,35 +100,25 @@ fteproxy.conf.setValue('runtime.fteproxy.record_layer.mode', 'format')
 +------------+                      +------------+
       |                                   |
       |  "Hi there!" encoded as binary    |
-      |  010110101110101011010110...       |
+      |  010110101110101011010110...      |
       |---------------------------------->|
       |                                   |
-      |  "Hello!" encoded as A/B letters  |
-      |  ABBAABABBAABBABABAAB...           |
+      |  "Hello!" encoded as binary       |
+      |  110100101101011010011010...      |
       |<----------------------------------|
       |                                   |
      ...         (10 rounds)             ...
 ```
 
-## Formats Used
-
-| Direction | Regex | Looks Like |
-|-----------|-------|------------|
-| Client -> Server | `^(0|1)+$` | `010110101110101...` |
-| Server -> Client | `^(A|B)+$` | `ABBAABABBAABAB...` |
-
 ## Customization
 
-Edit the regex patterns in both files to change the wire format:
+Change `FORMAT` in `client.py` to any base name `fteproxy formats` lists, and
+the wire format changes in both directions:
 
 ```python
-# Look like lowercase words
-CLIENT_TO_SERVER = '^([a-z]+ )+[a-z]+$'
-SERVER_TO_CLIENT = '^([A-Z]+ )+[A-Z]+$'
-
-# Look like hex
-CLIENT_TO_SERVER = '^[0-9a-f]+$'
-SERVER_TO_CLIENT = '^[0-9A-F]+$'
+FORMAT = "words"        # a a a xkq mfj ...
+FORMAT = "hex"          # a1b2c3d4e5f6 ...
+FORMAT = "manual-http"  # GET /... HTTP/1.1
 ```
 
-Both client and server must use matching formats!
+Only the client changes. The server is told nothing and follows.

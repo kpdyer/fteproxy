@@ -18,10 +18,15 @@ Traffic between client and server looks like:
 - anything you want!
 ```
 
-By default (`--record-layer-mode hybrid`) each record *starts* with a
-covertext in the chosen format and carries the rest as raw authenticated
-ciphertext. Use `--record-layer-mode format` on both endpoints to put every
-byte in the format (much slower). See the main README.
+The destination is named on the client -- with `-L` for one fixed address, or
+by whatever application uses the client's `-D` SOCKS5 listener -- and travels
+inside the tunnel. The server has no forward address; it only decides what it
+is willing to dial, with `--allow`.
+
+By default (`--mode hybrid`) each record *starts* with a covertext in the
+chosen format and carries the rest as raw authenticated ciphertext. Use
+`--mode format` for a stream that is entirely in the format (much slower).
+Both are the client's choice and the server follows. See the main README.
 
 ## Directory Structure
 
@@ -70,39 +75,40 @@ examples/
 
 **Location:** `basic/`
 
-The simplest way to get started with fteproxy.
+The simplest way to get started with fteproxy. Both scripts pass their
+arguments straight through to `python3 -m fteproxy server` / `... client`.
 
 ### start_server.sh
 
 Starts an fteproxy server that:
 - Listens for FTE-encoded connections on port 8080
-- Forwards decoded traffic to port 8081
+- Generates a keypair on first start and prints the connection string clients need
 
 ```bash
-./start_server.sh
+./start_server.sh --listen 127.0.0.1:8080 --allow 127.0.0.1:8081
 ```
 
 ### start_client.sh
 
 Starts an fteproxy client that:
-- Listens for plaintext on port 8079
-- Sends FTE-encoded traffic to the server
+- Takes its connection string from the argument, `$FTEPROXY_URI`, or `connection.txt`
+- Listens locally and tunnels to the server
 
 ```bash
-./start_client.sh [server-ip]
+./start_client.sh [connection-string] -L 8079:127.0.0.1:8081
 ```
 
 ### Try it out
 
 ```bash
-# Terminal 1: Start server
-./start_server.sh
+# Terminal 1: Start server, allowing it to dial the service below
+./start_server.sh --listen 127.0.0.1:8080 --allow 127.0.0.1:8081
 
 # Terminal 2: Start a service (e.g., netcat)
 nc -l 8081
 
-# Terminal 3: Start client
-./start_client.sh
+# Terminal 3: Start client (no connection string needed on the same host)
+./start_client.sh -L 8079:127.0.0.1:8081
 
 # Terminal 4: Send data
 echo "Hello through FTE!" | nc localhost 8079
@@ -118,20 +124,20 @@ A simple echo server/client demonstrating `fteproxy.wrap_socket()`.
 
 ### How it works
 
+One of `server_key=` and `server_id=` picks the role. The client also picks the
+format; the server learns it from the client's first record.
+
 ```python
 import socket
 import fteproxy
 
-# Create a regular socket
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+# The server holds the private key ...
+sock = fteproxy.wrap_socket(sock, server_key=private_key_bytes)
 
-# Wrap it with FTE encoding
-sock = fteproxy.wrap_socket(sock,
-    outgoing_regex="^[a-z]+$",      # Send as lowercase letters
-    outgoing_length=256,
-    incoming_regex="^[A-Z]+$",      # Receive as UPPERCASE
-    incoming_length=256,
-    negotiate=False)
+# ... and the client needs only the matching public half, as 32 bytes or as
+# the 43-character base64url string a connection string carries.
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock = fteproxy.wrap_socket(sock, server_id=SERVER_ID, format="binary")
 
 # Use normally - encoding is transparent!
 sock.connect(("localhost", 50007))
@@ -292,32 +298,33 @@ Use fteproxy with real-world tools.
 
 ### ssh_tunnel.sh
 
-Tunnel SSH through FTE so it looks like random text:
+Tunnel SSH through FTE so it looks like HTTP-like text:
 
 ```bash
-# On server (where sshd is running)
+# On server (where sshd is running); it prints a connection string
 ./ssh_tunnel.sh server
 
-# On client
-./ssh_tunnel.sh client server-ip
+# On client, with that string
+./ssh_tunnel.sh client 'fte://<server-id>@<server-ip>:8080'
 
 # Then connect normally
-ssh -p 8079 user@localhost
+ssh -p 2222 user@localhost
 ```
 
 ### web_proxy.sh
 
-Tunnel web traffic through FTE:
+Tunnel web traffic through FTE. SOCKS5 is built in, so nothing extra runs on
+the server:
 
 ```bash
-# On server (with a proxy like tinyproxy on port 8888)
+# On server
 ./web_proxy.sh server
 
 # On client
-./web_proxy.sh client server-ip
+./web_proxy.sh client 'fte://<server-id>@<server-ip>:8080'
 
-# Use with curl
-curl -x http://localhost:8079 https://example.com
+# Use with curl, or point a browser at SOCKS5 127.0.0.1:1080
+curl --socks5-hostname 127.0.0.1:1080 https://example.com/
 ```
 
 ### secure_chat.py
@@ -348,14 +355,14 @@ One-command demo to see fteproxy in action.
 ./demo.sh
 ```
 
-This starts:
-1. FTE server (port 8080)
-2. FTE client (port 8079)  
+This starts, in a throwaway state directory:
+1. FTE server (port 8080, allowed to dial 127.0.0.1:8081)
+2. FTE client (`-L 8079:127.0.0.1:8081`)
 3. Netcat listener (port 8081)
 
 Then in another terminal:
 ```bash
-echo "Hello, FTE!" | nc localhost 8079
+echo "Hello, FTE!" | nc 127.0.0.1 8079
 ```
 
 Traffic flow:
@@ -367,33 +374,40 @@ You --> :8079 --> [FTE encode] --> :8080 --> [FTE decode] --> :8081 --> netcat
 
 ## Available Formats
 
-fteproxy includes these built-in formats. Each exists as `<name>-request`
-(client to server) and `<name>-response` (server to client) in
-`fteproxy/defs/20260110.json`; pass them to `--upstream-format` and
-`--downstream-format`. Every covertext of a format is a fixed number of bytes
-(its `length`): 256 for most, 1032 for `binary`, 312 for `ip-address` and
-`timestamp`, and between 176 and 232 for the other structured formats.
+A format is named by its **base name**. Each base covers both directions:
+fteproxy derives a `-request` covertext (client to server) and a `-response`
+covertext (server to client) from it, so `--format words` is right and
+`--format words-request` is not. The format is the client's choice and the
+server follows.
+
+`fteproxy formats` is the authoritative list, and prints each format's
+covertext length and how many message bytes it carries:
 
 | Format | Output Looks Like | Example |
 |--------|------------------|---------|
-| `lowercase` | Random letters | `xkwqprmstyz` |
-| `uppercase` | CAPITAL LETTERS | `XKWQPRMSTYZ` |
-| `words` | English-like text | `hello world foo` |
-| `sentences` | Sentences with periods | `Hello world.` |
-| `digits` | Numbers | `8675309420` |
-| `hex` | Hexadecimal | `a1b2c3d4e5f6` |
+| `manual-http` | HTTP requests/responses (default) | `GET /a1b2 HTTP/1.1` |
+| `alphanumeric` | Letters and digits | `x7Kq2prM9tyz` |
 | `base64` | Base64 characters | `SGVsbG8gV29ybGQ` |
 | `binary` | Binary (0s and 1s) | `01101000011001` |
 | `csv` | Comma-separated | `foo,bar,baz` |
-| `ip-address` | IP addresses | `192.168.1.1` |
+| `digits` | Numbers | `8675309420` |
 | `domain` | Domain names | `example.com` |
+| `dummy` | Unconstrained (`^.+$`), for testing | `k#7~Qz!9k` |
 | `email-simple` | Email addresses | `user@host.com` |
-| `url-path` | URL paths | `/api/v1/users` |
-| `http-simple` | HTTP requests | `GET /page HTTP/1.1` |
-| `ssh` | SSH banners | `SSH-2.0-OpenSSH` |
-| `smtp` | SMTP commands | `EHLO mail.com` |
 | `ftp` | FTP responses | `220 ftp.com ready` |
+| `hex` | Hexadecimal | `a1b2c3d4e5f6` |
+| `http-simple` | HTTP requests | `GET /page HTTP/1.1` |
+| `ip-address` | IP addresses | `192.168.1.1` |
+| `key-value` | Key-value pairs | `key=value` |
+| `lowercase` | Random letters | `xkwqprmstyz` |
+| `sentences` | Sentences with periods | `Hello world.` |
+| `smtp` | SMTP commands | `EHLO mail.com` |
+| `ssh` | SSH banners | `SSH-2.0-OpenSSH` |
+| `timestamp` | Timestamps | `12:34:56` |
 | `tls-sni` | TLS SNI style | `www.example.com` |
+| `uppercase` | CAPITAL LETTERS | `XKWQPRMSTYZ` |
+| `url-path` | URL paths | `/api/v1/users` |
+| `words` | English-like text | `hello world foo` |
 
 ---
 

@@ -7,11 +7,7 @@ Verifies that each format can successfully encode and decode data.
 """
 
 import pytest
-import json
-import os
-import re
 
-import fte
 import fteproxy
 from fteproxy.tests import conftest
 import fteproxy.conf

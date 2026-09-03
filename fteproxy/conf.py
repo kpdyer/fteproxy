@@ -74,7 +74,7 @@ conf['runtime.fteproxy.relay.throttle'] = 0.01
 
 
 """How long either end waits for the handshake to complete."""
-conf['runtime.fteproxy.negotiate.timeout'] = 5
+conf['runtime.fteproxy.handshake.timeout'] = 5
 
 
 """Record-layer framing mode.

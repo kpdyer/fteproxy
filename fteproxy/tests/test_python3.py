@@ -271,14 +271,14 @@ class TestWrapSocket:
         server = threading.Thread(target=serve)
         server.start()
 
-        previous = fteproxy.conf.getValue('runtime.fteproxy.negotiate.timeout')
-        fteproxy.conf.setValue('runtime.fteproxy.negotiate.timeout', 1)
+        previous = fteproxy.conf.getValue('runtime.fteproxy.handshake.timeout')
+        fteproxy.conf.setValue('runtime.fteproxy.handshake.timeout', 1)
         client = fteproxy.wrap_socket(socket.socket(), server_id=other_public)
         try:
             with pytest.raises(fteproxy.HandshakeFailedException):
                 client.connect(('127.0.0.1', port))
         finally:
-            fteproxy.conf.setValue('runtime.fteproxy.negotiate.timeout', previous)
+            fteproxy.conf.setValue('runtime.fteproxy.handshake.timeout', previous)
             client.close()
             server.join(timeout=15)
             listener.close()

@@ -1,11 +1,13 @@
 # Packaging metadata lives in pyproject.toml. This file only exists because
-# setuptools has no pyproject.toml equivalent for sdist contents, and the one
-# thing the sdist needs beyond the defaults is the test suite: it is excluded
-# from the wheel (see [tool.setuptools.packages.find]) but downstream packagers
-# building from the sdist still want it. Everything else -- LICENSE, README.md,
-# PYPI_README.md, pyproject.toml, the package sources and fteproxy/defs/*.json
-# via [tool.setuptools.package-data] -- setuptools includes on its own.
+# setuptools has no pyproject.toml equivalent for sdist contents, and what the
+# sdist needs beyond the defaults is the test suite (and its vectors) plus the
+# design docs. Everything else -- LICENSE, README.md, PYPI_README.md,
+# pyproject.toml, the package sources and fteproxy/defs/*.json via
+# [tool.setuptools.package-data] -- setuptools includes on its own.
 recursive-include fteproxy/tests *.py
 # The handshake test vectors: the sdist should carry what proves the wire
 # format, not just the code that reads it.
 recursive-include fteproxy/tests/vectors *.json
+# The design docs (plans, release notes, format-authoring) are not package data,
+# so setuptools will not include them on its own.
+include docs/*.md

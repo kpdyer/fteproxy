@@ -16,8 +16,9 @@ Its job is to relay datastreams, such as web browsing traffic, by encoding the s
 
 fteproxy is powered by Format-Transforming Encryption [1] and was presented at CCS 2013.
 
-> **fteproxy 0.4 is not wire-compatible with 0.3.x.** Upgrade both endpoints
-> together, give both the same key, and see [Upgrading to 0.4.0](#upgrading-to-040).
+> **fteproxy 0.4 is not wire-compatible with 0.3.x, and its command line has
+> changed.** Upgrade both endpoints together and see
+> [Upgrading to 0.4.0](#upgrading-to-040).
 
 [1] [Protocol Misidentification Made Easy with Format-Transforming Encryption](https://kpdyer.com/publications/ccs2013-fte.pdf), Kevin P. Dyer, Scott E. Coull, Thomas Ristenpart and Thomas Shrimpton
 
@@ -50,128 +51,251 @@ declared in `pyproject.toml` -- there is no `requirements.txt`.
 
 ## Usage
 
-### Architecture
+### Start the server
 
-fteproxy operates as a client-server proxy:
+Once per host. The first start generates the server's keypair and prints the
+connection string clients need:
 
+```console
+$ fteproxy server
+listening on [::]:8080
+key: ~/.local/state/fteproxy/server.key (created)
+allowing: every destination except the loopback and link-local addresses of this host
+clients connect with:
+  fteproxy client fte://Qm3s…ZzE@<server-ip>:8080?defs=20260110
+(also written to ~/.local/state/fteproxy/connection.txt)
 ```
-[Application] <-> [fteproxy client] <--FTE encoded--> [fteproxy server] <-> [Destination]
+
+Substitute the address your clients will dial for `<server-ip>`, or pass
+`--advertise your.host:8080` and the string comes out ready to hand over.
+
+### Start the client
+
+On the client machine, with the string the server printed:
+
+```console
+$ fteproxy client fte://Qm3s…ZzE@203.0.113.5:8080
+checking 203.0.113.5:8080 ... ok (protocol 1, manual-http, hybrid)
+SOCKS5 on 127.0.0.1:1080
+
+$ curl --socks5-hostname 127.0.0.1:1080 https://example.com/
 ```
 
-### Start the Server
+The client resolves nothing itself: names go through the tunnel and the server
+resolves them, so your DNS does not leak around the proxy.
 
-On the server machine:
+The client checks the server before it binds anything, so a wrong connection
+string fails in a round trip with a reason rather than as a timeout on the
+first real connection:
+
+```console
+$ fteproxy client fte://…@203.0.113.5:8080
+checking 203.0.113.5:8080 ... failed: no valid handshake reply within 5s
+  (wrong connection string, or the server is not running fteproxy 0.4)
+$ echo $?
+1
+```
+
+Pass `--no-check` to skip it.
+
+On one host you can leave the argument out entirely — the client reads
+`connection.txt` from the state directory:
 
 ```bash
-python3 -m fteproxy --mode server --server_ip 0.0.0.0 --server_port 8080 --proxy_ip 127.0.0.1 --proxy_port 8081
+fteproxy server &
+fteproxy client
 ```
 
-This listens for FTE-encoded connections on port 8080 and forwards decoded traffic to 127.0.0.1:8081.
+### A port forward instead of SOCKS
 
-### Start the Client
-
-On the client machine:
+`-L` takes ssh's spelling, and is how you reproduce the fixed-destination
+topology fteproxy had before 0.4:
 
 ```bash
-python3 -m fteproxy --mode client --client_ip 127.0.0.1 --client_port 8079 --server_ip <server-ip> --server_port 8080
+fteproxy client fte://…@203.0.113.5:8080 -L 2222:127.0.0.1:22
+ssh -p 2222 user@localhost
 ```
 
-This listens for plaintext connections on port 8079 and forwards FTE-encoded traffic to the server.
+`-L` and `-D` are repeatable and can be mixed; without either, the client
+opens SOCKS5 on `127.0.0.1:1080`.
 
-Both sides must use the same key (`--key` or `--key-file`; the built-in default
-is public and fteproxy warns when it is in use) and the same
-`--record-layer-mode`.
+### What the server will dial
 
-### Record-layer modes
+By default a server will reach any destination *except* its own loopback and
+link-local addresses, checked both on what the client asked for and on what
+the name resolved to. That keeps a connection string from being a route into
+the server's own admin interfaces.
 
-Every record on the wire starts with a covertext in the chosen format. What
-follows depends on `--record-layer-mode`, which must match on both endpoints:
+`--allow` replaces that policy with a list:
 
-- `hybrid` (default): the covertext is a fixed-length header and the rest of
-  the record is raw authenticated ciphertext. Fast (hundreds of MB/s), but only
+```bash
+fteproxy server --allow 127.0.0.1:8081          # only this local service
+fteproxy server --allow '*.example.com:443'     # only this domain, only TLS
+fteproxy server --allow 10.0.0.0/8              # only this network
+fteproxy server --allow any                     # everything, loopback included
+```
+
+Rules are repeatable. A rule naming an address is matched against addresses
+and CIDRs; a rule naming a name is matched against names. IPv6 literals go in
+brackets when a port follows.
+
+### Formats and record-layer modes
+
+A *format* is a base name from the definitions file, such as `manual-http`;
+the request and response covertexts are derived from it. `fteproxy formats`
+lists them with the capacity of one covertext:
+
+```console
+$ fteproxy formats
+name          req len  req cap  resp len  resp cap
+...
+manual-http       256      150       256       192  (default)
+words             280      138       280       138
+```
+
+The client picks the format and the record-layer mode and puts both in the
+handshake; the server follows. Nothing has to be configured to match.
+
+- `--mode hybrid` (default): each record is a fixed-length covertext header
+  followed by raw authenticated ciphertext. Fast — hundreds of MB/s — but only
   the header blends in with the target protocol.
-- `format`: every byte is transformed into the format, so the whole stream is
-  indistinguishable from the protocol. Much slower (well under 1 MB/s), for
-  deployments facing entropy or statistical detectors.
+- `--mode format`: every byte on the wire is in the format, so the whole
+  stream is indistinguishable from the protocol. Much slower (well under
+  1 MB/s), for deployments facing entropy or statistical detectors.
 
-### Command Line Options
+### Command line
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--mode` | Relay mode: client or server | client |
-| `--upstream-format` | Client-to-server format name (see `fteproxy/defs/20260110.json`) | manual-http-request |
-| `--downstream-format` | Server-to-client format name | manual-http-response |
-| `--record-layer-mode` | `hybrid` or `format` (see [Record-layer modes](#record-layer-modes)); must match on both endpoints | hybrid |
-| `--release` | Definitions file to use, as YYYYMMDD | 20260110 |
-| `--client_ip` | Client-side listening IP | 127.0.0.1 |
-| `--client_port` | Client-side listening port | 8079 |
-| `--server_ip` | Server-side listening IP | 127.0.0.1 |
-| `--server_port` | Server-side listening port | 8080 |
-| `--proxy_ip` | Forwarding-proxy listening IP | 127.0.0.1 |
-| `--proxy_port` | Forwarding-proxy listening port | 8081 |
-| `--key` | Shared secret (64 hex characters); must match on both endpoints. The built-in default is public and gives no protection. | (public default; warns) |
-| `--key-file` | Path to a file containing the key (64 hex characters). Mutually exclusive with `--key`. | |
-| `--quiet` | Suppress output | false |
-| `--stop` | Shut down the running daemon for `--mode` | |
-| `--version` | Show version and exit | |
-
-### Supplying the Key from a File
-
-Passing the key with `--key` places it in your shell history and exposes it in
-process listings (e.g. `ps aux`). To avoid this, write the key to a file and
-point fteproxy at it with `--key-file`:
-
-```bash
-# Generate a random 64-hex-character (32-byte) key
-python3 -c "import secrets; print(secrets.token_hex(32))" > fteproxy.key
-chmod 600 fteproxy.key
+```
+fteproxy server  [--listen [HOST]:PORT] [--allow RULE]... [--advertise HOST[:PORT]]
+                 [--state-dir DIR] [--defs RELEASE] [-q | -v]
+fteproxy client  [URI] [-D [BIND:]PORT] [-L [BIND:]PORT:HOST:PORT]...
+                 [--format NAME] [--mode hybrid|format] [--no-check]
+                 [--state-dir DIR] [-q | -v]
+fteproxy keygen  [--state-dir DIR] [--advertise HOST[:PORT]]
+fteproxy formats [--defs RELEASE]
+fteproxy --version
 ```
 
-Then start each side with `--key-file` (the client and server must use the same
-key):
+| Option | Command | Description | Default |
+|--------|---------|-------------|---------|
+| `--listen` | server | Address to listen on; `:PORT` means every interface, IPv6 in brackets | `:8080` |
+| `--allow` | server | A destination clients may reach; repeatable | loopback and link-local blocked, everything else allowed |
+| `--advertise` | server, keygen | The address to put in the connection string | a `<server-ip>` placeholder |
+| `--defs` | server, formats | Definitions release, as YYYYMMDD | 20260110 |
+| `URI` | client | `fte://SERVER-ID@HOST:PORT`; falls back to `$FTEPROXY_URI`, then `connection.txt` | |
+| `-D` | client | SOCKS5 listener, `[BIND:]PORT` | `127.0.0.1:1080` when no `-D`/`-L` |
+| `-L` | client | Forward `[BIND:]PORT` to one `HOST:PORT` through the tunnel; repeatable | |
+| `--format` | client | Base format name (see `fteproxy formats`) | the URI's hint, else `manual-http` |
+| `--mode` | client | `hybrid` or `format` | the URI's hint, else `hybrid` |
+| `--no-check` | client | Skip the startup check | check runs |
+| `--state-dir` | all | Where `server.key` and `connection.txt` live | `$FTEPROXY_STATE_DIR`, `$XDG_STATE_HOME/fteproxy`, `~/.local/state/fteproxy` |
+| `-q` / `-v` | all | Errors only / per-connection detail | INFO |
+| `--version` | | Version and licence, then quit | |
+
+Exit status is 0 on a clean shutdown, 1 on a runtime failure, 2 on a usage
+error. The process runs in the foreground and stops on SIGINT or SIGTERM;
+there is no daemon mode and no PID file.
+
+### Keys and the connection string
+
+The server holds an X25519 private key in `server.key` (mode 0600, in a
+directory with mode 0700). The connection string carries only its public half,
+so a client never holds anything that would let it impersonate the server.
+
+`fteproxy keygen` does what the first `fteproxy server` start does, without
+starting anything — for provisioning a container or a configuration-management
+run:
 
 ```bash
-python3 -m fteproxy --mode server --key-file fteproxy.key --server_ip 0.0.0.0 --server_port 8080 --proxy_ip 127.0.0.1 --proxy_port 8081
-python3 -m fteproxy --mode client --key-file fteproxy.key --client_ip 127.0.0.1 --client_port 8079 --server_ip <server-ip> --server_port 8080
+fteproxy keygen --advertise vpn.example.com:8080
 ```
 
-The file must contain exactly 64 hexadecimal characters (a trailing newline is
-ignored). `--key` and `--key-file` cannot be used together.
+Treat the connection string like a Tor bridge line: whoever holds it can
+connect, and its secrecy is what stops an active prober from confirming that
+your server is running fteproxy. A prober without it gets no reply at all. It
+does not let its holder impersonate the server or read another client's
+traffic. See [SECURITY.md](SECURITY.md).
 
 ### Python API
 
-`fteproxy.wrap_socket(sock, outgoing_regex=..., outgoing_length=..., incoming_regex=..., incoming_length=...)`
-turns any TCP socket into an FTE socket. The [`examples/`](examples/README.md)
-directory has programmatic, chat, file-transfer and integration examples.
+```python
+import fteproxy
+
+private, public = fteproxy.generate_server_key()
+
+# server side
+sock = fteproxy.wrap_socket(conn, server_key=private)
+destination = sock.wait_open()      # (host, port), or None if the peer sent data
+sock.open_result(0x00)
+
+# client side
+sock = fteproxy.wrap_socket(raw, server_id=public,
+                            format="manual-http", mode="hybrid")
+sock.connect(("203.0.113.5", 8080))
+sock.open(("example.com", 443))     # raises fteproxy.OpenRefused(status)
+```
+
+`fteproxy.ConnectionString.parse(text)` and `.format()` round-trip the URI. The
+[`examples/`](examples/README.md) directory has programmatic, chat,
+file-transfer and integration examples.
 
 ## Upgrading to 0.4.0
 
-fteproxy 0.4.0 moves to libfte 0.4 (`fte.FTE`) and its wire format is **not
-compatible with 0.3.x**. A 0.3 client and a 0.4 server (or the reverse) fail at
-negotiation (the server logs a warning, the client times out), so upgrade both
-endpoints together.
+0.4.0 changes the wire format, the command line and the topology. There is no
+compatibility mode: a 0.3.x peer, or a peer running an earlier 0.4 development
+build, gets no reply at all. The full notes are in
+[docs/release-notes-0.4.0.md](docs/release-notes-0.4.0.md).
 
-- **Key.** libfte 0.4 requires a 32-byte key. If you pass neither `--key` nor
-  `--key-file`, fteproxy uses a built-in default key that is public and warns at
-  startup. Generate one (`python3 -c "import secrets; print(secrets.token_hex(32))"`)
-  and use the same key on both sides.
-- **Record-layer mode.** New `--record-layer-mode` (`hybrid`, the default, or
-  `format`). Both endpoints must use the same mode.
-- **API renames.** `wrap_socket(outgoing_fixed_slice=, incoming_fixed_slice=)`
-  are now `outgoing_length=` / `incoming_length=`; `fteproxy.defs.getFixedSlice`
-  is `getLength`; the definitions JSON key `"fixed_slice"` is `"length"`. Code
-  that used `fte.Encoder` directly must move to `fte.FTE` (see
-  [libfte's README](https://github.com/kpdyer/libfte#readme)).
-- **Formats.** Twenty low-capacity formats got longer covertexts (`binary`
-  256 to 1032, `ip-address` and `timestamp` 64 to 312, and so on; see
-  `fteproxy/defs/20260110.json`). Four patterns were rewritten for libfte
-  0.4's stricter regex dialect (`\C` is now `.`; `manual-http-request` paths
-  no longer admit a backslash). The default `manual-http-*` formats still use
-  length 256 and carry 150 (request) and 192 (response) bytes per covertext.
+- **The command line is new.** Every old flag (`--mode`, `--server_ip`,
+  `--client_port`, `--proxy_ip`, `--proxy_port`, `--key`, `--key-file`,
+  `--upstream-format`, `--downstream-format`, `--record-layer-mode`,
+  `--release`, `--stop`, `--quiet`) is recognised only to print a pointer here
+  and exit 2. None of them is aliased, because the meaning changed rather than
+  the spelling.
+- **The topology changed: the destination is chosen on the client.** The
+  server no longer has a forward address, so `--proxy_ip`/`--proxy_port` have
+  no equivalent on the server. The old setup
+
+  ```bash
+  # 0.3
+  fteproxy --mode server --server_port 8080 --proxy_ip 127.0.0.1 --proxy_port 22
+  fteproxy --mode client --client_port 8079 --server_ip S --server_port 8080
+  ```
+
+  becomes
+
+  ```bash
+  # 0.4
+  fteproxy server --listen :8080 --allow 127.0.0.1:22
+  fteproxy client fte://…@S:8080 -L 8079:127.0.0.1:22
+  ```
+
+  and the same server now also serves `-D` SOCKS5 clients, without being
+  reconfigured.
+- **The shared key is gone.** So are `--key` and `--key-file`. The server has a
+  keypair instead, generated on first start; hand clients the connection string
+  it prints. Nothing needs a pre-shared secret, and there is no public default
+  key to forget to replace.
+- **Formats and modes are negotiated, not configured.** One `--format` base
+  name on the client replaces `--upstream-format`/`--downstream-format`, and
+  `--mode` replaces `--record-layer-mode` on one side only. A mismatch is no
+  longer possible.
+- **Failures are visible.** The client checks the server at startup and prints
+  a reason; a wrong connection string fails in a round trip instead of hanging.
+  Exit statuses are meaningful (0/1/2), and a no-argument run prints usage
+  instead of crashing.
+- **Definitions.** Thirty-two entries in `20260110.json` have longer
+  covertexts, so that every shipped format can carry a handshake; the loader
+  now refuses a release with a format that cannot. The default `manual-http-*`
+  formats are unchanged at length 256, carrying 150 (request) and 192
+  (response) bytes.
+- **API.** `wrap_socket`'s `outgoing_regex`/`incoming_regex`/`K1`/`K2`/
+  `negotiate` parameters are replaced by `server_key=` or `server_id=` plus
+  `format=`/`mode=`. See [Python API](#python-api).
 - **Requires** `fte>=0.4.0,<0.5.0` and `cryptography>=42.0`.
 
 See [SECURITY.md](SECURITY.md) for the security model, including what the
-record layer does and does not authenticate.
+handshake and the record layer do and do not authenticate.
 
 ## Testing
 

@@ -2,13 +2,12 @@
 # -*- coding: utf-8 -*-
 """End-to-end relay tests: SOCKS5 and ``-L`` forwards through a real tunnel.
 
-These build the listeners with the library API rather than the command line,
-which lands in PR4. Everything runs in one process on ephemeral ports, so the
-file can run alongside anything else.
+These build the listeners with the library API rather than the command line;
+``test_system.py`` covers the command line. Everything runs in one process on
+ephemeral ports, so this file can run alongside anything else.
 """
 
 import socket
-import struct
 import threading
 import time
 
@@ -369,8 +368,8 @@ class TestServerRejection:
         monkeypatch.setattr(fteproxy.handshake, 'reject_delay', lambda: 0.1)
         tunnel = tunnel_factory()
         _other_private, other_public = fteproxy.generate_server_key()
-        previous = fteproxy.conf.getValue('runtime.fteproxy.negotiate.timeout')
-        fteproxy.conf.setValue('runtime.fteproxy.negotiate.timeout', 1)
+        previous = fteproxy.conf.getValue('runtime.fteproxy.handshake.timeout')
+        fteproxy.conf.setValue('runtime.fteproxy.handshake.timeout', 1)
         try:
             client = fteproxy.wrap_socket(socket.socket(),
                                           server_id=other_public)
@@ -378,12 +377,12 @@ class TestServerRejection:
                 client.connect(tunnel.address)
             client.close()
         finally:
-            fteproxy.conf.setValue('runtime.fteproxy.negotiate.timeout',
+            fteproxy.conf.setValue('runtime.fteproxy.handshake.timeout',
                                    previous)
 
     def test_a_plain_tcp_probe_gets_nothing(self, tunnel_factory):
-        previous = fteproxy.conf.getValue('runtime.fteproxy.negotiate.timeout')
-        fteproxy.conf.setValue('runtime.fteproxy.negotiate.timeout', 1)
+        previous = fteproxy.conf.getValue('runtime.fteproxy.handshake.timeout')
+        fteproxy.conf.setValue('runtime.fteproxy.handshake.timeout', 1)
         try:
             tunnel = tunnel_factory()
             sock = socket.create_connection(tunnel.address, timeout=15)
@@ -394,7 +393,7 @@ class TestServerRejection:
             finally:
                 sock.close()
         finally:
-            fteproxy.conf.setValue('runtime.fteproxy.negotiate.timeout',
+            fteproxy.conf.setValue('runtime.fteproxy.handshake.timeout',
                                    previous)
 
 
@@ -411,11 +410,32 @@ class TestStartupCheck:
         _other_private, other_public = fteproxy.generate_server_key()
         listener = fteproxy.relay.ForwardListener(
             LOCAL, 0, tunnel.address, other_public, destination=(LOCAL, 1))
-        previous = fteproxy.conf.getValue('runtime.fteproxy.negotiate.timeout')
-        fteproxy.conf.setValue('runtime.fteproxy.negotiate.timeout', 1)
+        previous = fteproxy.conf.getValue('runtime.fteproxy.handshake.timeout')
+        fteproxy.conf.setValue('runtime.fteproxy.handshake.timeout', 1)
         try:
             with pytest.raises(fteproxy.HandshakeFailedException):
                 listener.check()
         finally:
-            fteproxy.conf.setValue('runtime.fteproxy.negotiate.timeout',
+            fteproxy.conf.setValue('runtime.fteproxy.handshake.timeout',
                                    previous)
+
+
+class TestConnectionBookkeeping:
+    """A long-running listener must not hold every connection it ever saw."""
+
+    def test_finished_connections_are_forgotten(self, echo, tunnel_factory):
+        tunnel = tunnel_factory(
+            rules=fteproxy.stream.AllowRules(['%s:%d' % (LOCAL, echo.port)]))
+        listener = tunnel.forward((LOCAL, echo.port))
+        for _ in range(5):
+            sock = socket.create_connection(listener.address, timeout=15)
+            sock.settimeout(15)
+            try:
+                sock.sendall(b'ping')
+                assert sock.recv(4096) == b'ping'
+            finally:
+                sock.close()
+        deadline = time.monotonic() + 15
+        while listener._connections and time.monotonic() < deadline:
+            time.sleep(0.1)
+        assert listener._connections == set()

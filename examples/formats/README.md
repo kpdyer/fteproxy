@@ -35,18 +35,39 @@ plaintext to `cipher.max_plaintext_bytes` yourself.
 
 ## Using a format with the proxy
 
-Every built-in format has a `-request` (client to server) and a `-response`
-(server to client) definition in `fteproxy/defs/20260110.json`. Pick them on
-the client; the server negotiates the matching pair automatically:
+The proxy names a format by its **base name**, such as `manual-http` or
+`words` -- never `words-request`. Each base covers both directions: fteproxy
+derives the `-request` covertext (client to server) and the `-response`
+covertext (server to client) from it. `fteproxy formats` lists the base names
+with the length of one covertext and how many message bytes it carries:
 
-```bash
-python3 -m fteproxy --mode client --upstream-format words-request --downstream-format words-response ...
+```console
+$ fteproxy formats
+name          req len  req cap  resp len  resp cap
+...
+manual-http       256      150       256      192  (default)
+words             280      138       280      138
 ```
 
-By default (`--record-layer-mode hybrid`) only a fixed-length header per record
-is in the chosen format and the rest of the record is raw ciphertext. Add
-`--record-layer-mode format` on both endpoints to put every byte in the format,
-at much lower throughput. See the main README's "Upgrading to 0.4.0" section.
+The format and the record-layer mode are the **client's** choice: both travel
+in the handshake and the server follows, so there is nothing to configure on
+the server and no way for the two ends to disagree.
+
+```bash
+python3 -m fteproxy client 'fte://<server-id>@<server-ip>:8080' --format words
+```
+
+With the default `--mode hybrid` only a fixed-length header per record is in
+the chosen format and the rest of the record is raw authenticated ciphertext.
+`--mode format` puts every byte in the format, at much lower throughput.
+
+The same two choices are arguments to `fteproxy.wrap_socket()` on the client
+side:
+
+```python
+sock = fteproxy.wrap_socket(sock, server_id=SERVER_ID,
+                            format="words", mode="hybrid")
+```
 
 ## Why different formats?
 
@@ -57,4 +78,5 @@ Different formats blend in with different traffic:
 - **Hex / base64**: encoded data, common in APIs
 - **Digits, IP addresses, timestamps**: numeric fields
 
-The full list is in [`../README.md`](../README.md#available-formats).
+`fteproxy formats` is the authoritative list; there is a summary in
+[`../README.md`](../README.md#available-formats).

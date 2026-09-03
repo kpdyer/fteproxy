@@ -58,7 +58,7 @@ python3 benchmark.py --scenarios lan --sizes 64K 1M --mode format
 | 8 MB upload (one direction) | – | 1069–1275 Mbit/s | **4412 Mbit/s** | – |
 
 Ranges are run-to-run spread across two runs; the 64 KB transfer window
-includes connection setup and negotiation, so it is the noisiest row (the
+includes connection setup and the handshake, so it is the noisiest row (the
 plain-TCP 64 KB figure varied 3x between runs). On the shaped links
 (broadband 25 Mbit and slower) fteproxy matches plain TCP within measurement
 noise, as it did on 0.3; those rows are omitted.
@@ -110,19 +110,34 @@ app → [client relay] ──FTE──→ [server relay] → dest
 
 1. **Hybrid record layer with an OpenSSL AE body** (the redesign): per-record cost
    0.9 → 0.17 ms; bulk 75 → 650–950 MB/s in the record layer.
-2. **Cipher cache** (`_make_cipher` is memoized on pattern, length and key): setup
-   8–12 ms → ~1 ms, and the negotiation scan on a failed connection 6 ms → free.
+2. **Cipher cache**: the expensive half of a libfte cipher is the DFA, and
+   `_regex_format` memoizes it on pattern and length, so setup went 8–12 ms →
+   ~1 ms and the server's first-record scan on a failed connection 6 ms → free.
+   The keyed `fte.FTE` on top is built per session (a couple of microseconds),
+   because since 0.4 every connection derives its own keys.
 3. **A pending header is decrypted once.** A 256 KiB record arrives in ~3 reads;
    the decoder used to re-rank and re-verify the same header on each partial
    delivery (two wasted header decrypts per record, more than the body itself).
    +30% on 8 MB echo.
-4. **A peer that closes before negotiating gets EOF** instead of being polled
+4. **A peer that closes before handshaking gets EOF** instead of being polled
    forever. On 0.4 without this, one dead connection (a port scan, a health
    check, an active probe) cost 64% of a core; five saturated it and pushed
    RTT p50 to 65 ms.
-5. Carried over from 0.3: `TCP_NODELAY` on both relay hops, O(n) buffer handling
-   in the record layer, the configured `--upstream-format` tried first in the
-   negotiation scan.
+5. **The handshake moved off the relay workers.** A per-connection setup thread
+   completes it, reads the client's OPEN and dials the destination before
+   either worker starts, so the accept loop no longer waits on a `connect()`
+   and the two workers never touch a half-built encoder. That was the
+   precondition for reworking the poll loop (lever #1 below).
+6. Carried over from 0.3: `TCP_NODELAY` on both relay hops, O(n) buffer handling
+   in the record layer, and trying the most-recently-matched format first in
+   the server's first-record scan.
+
+The handshake and the in-band destination add about 1.6 ms to connection
+setup, measured on one machine against the same build without them
+(0.7 -> 2.3 ms p50 on loopback): two X25519 key generations, four exchanges,
+and two extra round trips (the server hello, then OPEN/OPEN_RESULT). Bulk
+throughput is unchanged -- the record layer microbenchmark reads 673 MB/s at
+256 KiB and 973 MB/s at 1 MiB either way.
 
 ## Remaining levers, ranked by impact ÷ effort
 
@@ -130,10 +145,11 @@ app → [client relay] ──FTE──→ [server relay] → dest
    ripple, and the hang on link drop). The 0.3 caveat stands and was re-verified:
    simply deleting `time.sleep(throttle)` in `worker.run()` regresses the real
    subprocess deployment ~13x (a GIL-scheduling convoy between the two workers),
-   and a naive blocking-`recv` rework races the in-band negotiation between the
-   two workers. The loop must first make negotiation single-threaded (a
-   dedicated handshake phase, or one `selectors` loop per connection handling
-   both directions). Not a drive-by.
+   and on 0.3 a naive blocking-`recv` rework raced the in-band negotiation
+   between the two workers. 0.4 removes that second obstacle — the handshake
+   now finishes on a setup thread before either worker starts — so what is
+   left is the GIL convoy, and the shape to try is one `selectors` loop per
+   connection handling both directions. Still not a drive-by.
 2. **Carry small messages inline in the sealed header** (medium effort). A message
    of ≤ ~140 bytes fits in the header's capacity, so it could travel as one
    256-byte covertext instead of header + 92-byte body: 5.4x → 4.0x expansion
@@ -156,9 +172,9 @@ connection wedges past the observation window. The nominal 30 s
 `runtime.fteproxy.relay.socket_timeout` cannot rescue it because the poll loop
 never issues a blocking `recv` that lasts long enough. Lever #1 above is the fix.
 
-What is new in 0.4 is that the *other* stuck state, a connection closed before
-negotiation, is fixed: the server logs `peer closed before negotiation completed`
-and releases both workers.
+What is new in 0.4 is that the *other* stuck states are fixed: a connection
+closed before the handshake, and one that opens and then falls silent, both
+release their worker — the first at EOF, the second at the handshake deadline.
 
 ---
 

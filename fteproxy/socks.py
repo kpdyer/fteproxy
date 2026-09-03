@@ -13,8 +13,6 @@ a request crosses the tunnel without being re-encoded and the server's answer
 maps straight onto the SOCKS reply.
 """
 
-import socket
-
 import fteproxy.stream
 
 

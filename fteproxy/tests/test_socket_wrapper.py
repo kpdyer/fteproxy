@@ -167,8 +167,8 @@ class TestServerRejectPath:
         """A hello sealed for a different server never decodes here, so the
         server waits out its handshake deadline and then discards."""
         monkeypatch.setattr(fteproxy.handshake, 'reject_delay', lambda: 0.05)
-        previous = fteproxy.conf.getValue('runtime.fteproxy.negotiate.timeout')
-        fteproxy.conf.setValue('runtime.fteproxy.negotiate.timeout', 0.2)
+        previous = fteproxy.conf.getValue('runtime.fteproxy.handshake.timeout')
+        fteproxy.conf.setValue('runtime.fteproxy.handshake.timeout', 0.2)
         try:
             _other_private, other_public = fteproxy.generate_server_key()
             driver = self._hello_for(server_public=other_public)
@@ -180,7 +180,7 @@ class TestServerRejectPath:
             assert server.recv(65536) == b''
             assert fake.sent == b''
         finally:
-            fteproxy.conf.setValue('runtime.fteproxy.negotiate.timeout',
+            fteproxy.conf.setValue('runtime.fteproxy.handshake.timeout',
                                    previous)
 
     def test_reject_discards_for_a_while_before_closing(self, monkeypatch):
@@ -338,8 +338,8 @@ class TestPreProtocolClient:
         import logging
 
         monkeypatch.setattr(fteproxy.handshake, 'reject_delay', lambda: 0.05)
-        previous = fteproxy.conf.getValue('runtime.fteproxy.negotiate.timeout')
-        fteproxy.conf.setValue('runtime.fteproxy.negotiate.timeout', 0.2)
+        previous = fteproxy.conf.getValue('runtime.fteproxy.handshake.timeout')
+        fteproxy.conf.setValue('runtime.fteproxy.handshake.timeout', 0.2)
         try:
             cipher = fteproxy._make_cipher(
                 fteproxy.defs.getRegex(FORMAT + '-request'),
@@ -352,10 +352,57 @@ class TestPreProtocolClient:
             with caplog.at_level(logging.DEBUG, logger='fteproxy'):
                 assert server.recv(65536) == b''
         finally:
-            fteproxy.conf.setValue('runtime.fteproxy.negotiate.timeout',
+            fteproxy.conf.setValue('runtime.fteproxy.handshake.timeout',
                                    previous)
         assert fake.sent == b''
         rejections = [record for record in caplog.records
                       if 'rejecting handshake without reply' in record.message]
         assert len(rejections) == 1
         assert rejections[0].levelno == logging.DEBUG
+
+
+class TestFormatAgreement:
+    """The covertext format and the name inside the hello must agree."""
+
+    def _sealed(self, covertext_format, declared_format):
+        """A hello sealed as ``covertext_format`` but naming ``declared_format``."""
+        cover = fteproxy.handshake.cover_key(SERVER_PUBLIC)
+        driver = fteproxy.handshake.ClientHandshake(
+            server_public=SERVER_PUBLIC, format=declared_format, mode=MODE,
+            defs=int(fteproxy.conf.getValue('fteproxy.defs.release')))
+        cipher = fteproxy._cipher_for(covertext_format + '-request', cover,
+                                      cover=True)
+        return fteproxy.record_layer._seal(cipher, driver.hello_bytes, 0)
+
+    def test_a_mismatched_name_gets_no_reply(self, monkeypatch):
+        monkeypatch.setattr(fteproxy.handshake, 'reject_delay', lambda: 0.05)
+        fake = FakeSocket([self._sealed('manual-http', 'words')])
+        server = fteproxy.wrap_socket(fake, server_key=SERVER_PRIVATE)
+        assert server.recv(65536) == b''
+        assert fake.sent == b''
+
+    def test_an_unknown_name_gets_no_reply(self, monkeypatch):
+        monkeypatch.setattr(fteproxy.handshake, 'reject_delay', lambda: 0.05)
+        fake = FakeSocket([self._sealed('manual-http', 'no-such-format')])
+        server = fteproxy.wrap_socket(fake, server_key=SERVER_PRIVATE)
+        assert server.recv(65536) == b''
+        assert fake.sent == b''
+
+    def test_two_names_sharing_a_pattern_both_work(self, monkeypatch):
+        """A definitions file may give two base names the same pattern and
+        length; then either one unseals the other's covertext, and the name
+        inside the hello is what decides."""
+        definitions = dict(fteproxy.defs.load_definitions())
+        pattern = fteproxy.defs.getRegex('manual-http-request')
+        response = fteproxy.defs.getRegex('manual-http-response')
+        definitions['twin-request'] = {'regex': pattern}
+        definitions['twin-response'] = {'regex': response}
+        monkeypatch.setattr(fteproxy.defs, '_definitions', definitions)
+        monkeypatch.setattr(fteproxy, '_last_matched_format',
+                            'manual-http-request')
+
+        fake = FakeSocket([self._sealed('manual-http', 'twin')])
+        server = fteproxy.wrap_socket(fake, server_key=SERVER_PRIVATE)
+        server.handshake()
+        assert server.negotiated_format == 'twin'
+        assert fake.sent, 'the server answered'
