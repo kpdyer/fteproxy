@@ -6,3 +6,6 @@
 # PYPI_README.md, pyproject.toml, the package sources and fteproxy/defs/*.json
 # via [tool.setuptools.package-data] -- setuptools includes on its own.
 recursive-include fteproxy/tests *.py
+# The handshake test vectors: the sdist should carry what proves the wire
+# format, not just the code that reads it.
+recursive-include fteproxy/tests/vectors *.json

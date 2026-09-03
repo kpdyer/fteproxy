@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""Process-wide defaults.
 
+What is left here is what a *library* user might want to change and what has
+no better home: buffer sizes, timeouts, and which definitions file to read.
+Everything that describes one run -- the listen address, the destination, the
+formats, the keys -- comes from the command line or from
+:func:`fteproxy.wrap_socket`, not from here. Until 0.4 those lived in this
+dictionary too, which is why a value that never reached it could stop the
+process working.
+"""
 
 
 import os
 import sys
-import tempfile
 
 
 def getValue(key):
@@ -38,13 +46,6 @@ else:
     conf['general.base_dir'] = os.path.join(module_path(), '..')
 
 
-"""Directory containing binary executables"""
-if we_are_frozen():
-    conf['general.bin_dir'] = os.path.join(module_path())
-else:
-    conf['general.bin_dir'] = os.path.join(module_path(), '..', 'bin')
-
-
 """The path for fte *.json definition files."""
 if we_are_frozen():
     conf['general.defs_dir'] = os.path.join(module_path(), 'fteproxy', 'defs')
@@ -52,31 +53,8 @@ else:
     conf['general.defs_dir'] = os.path.join(module_path(), '..', 'fteproxy', 'defs')
 
 
-"""The location that we store *.pid files, such that we can kill fteproxy from the command line."""
-conf['general.pid_dir'] = tempfile.gettempdir()
-
-
-"""Our runtime mode: client|server|test"""
-conf['runtime.mode'] = None
-
-
 """The maximum number of queued connections for sockets"""
 conf['runtime.fteproxy.relay.backlog'] = 100
-
-
-"""Our client-side ip:port to listen for incoming connections"""
-conf['runtime.client.ip'] = '127.0.0.1'
-conf['runtime.client.port'] = 8079
-
-
-"""Our server-side ip:port to listen for connections from fteproxy clients"""
-conf['runtime.server.ip'] = '127.0.0.1'
-conf['runtime.server.port'] = 8080
-
-
-"""Our proxy server, where the fteproxy server forwards outgoing connections."""
-conf['runtime.proxy.ip'] = '127.0.0.1'
-conf['runtime.proxy.port'] = 8081
 
 
 """The default socket timeout."""
@@ -87,11 +65,15 @@ conf['runtime.fteproxy.relay.socket_timeout'] = 30
 conf['runtime.fteproxy.relay.accept_timeout'] = 0.1
 
 
-"""The default penalty after polling for network data, and not recieving anything."""
+"""The default penalty after polling for network data, and not recieving anything.
+
+Load-bearing, despite looking like a busy-wait tax: it is a GIL yield that
+keeps a connection's two relay workers from convoying, and deleting it costs
+an order of magnitude in a real two-process deployment. See PERFORMANCE.md."""
 conf['runtime.fteproxy.relay.throttle'] = 0.01
 
 
-"""The default timeout when establishing a new fteproxy socket."""
+"""How long either end waits for the handshake to complete."""
 conf['runtime.fteproxy.negotiate.timeout'] = 5
 
 
@@ -106,23 +88,19 @@ high-entropy ciphertext. This is the behavior fteproxy shipped on libfte 0.3.
 'format' transforms every covertext byte into the target format, so the whole
 stream is indistinguishable from the protocol: stronger against entropy or
 statistical detectors, but much slower. Turn it on when you want full-stream
-realism and can spend the throughput. Both endpoints must use the same mode."""
+realism and can spend the throughput.
+
+Since 0.4 this is the *client's* default choice, not a setting both endpoints
+must match by hand: the client puts its choice in the handshake and the server
+follows."""
 conf['runtime.fteproxy.record_layer.mode'] = 'hybrid'
 
 
-"""The default client-to-server language."""
-conf['runtime.state.upstream_language'] = 'manual-http-request'
+"""The base format name a client uses when it is given none.
 
-
-"""The default server-to-client language."""
-conf['runtime.state.downstream_language'] = 'manual-http-response'
-
-
-"""The key used when neither --key nor --key-file is given. It is public (it
-is in this file), so it gives no confidentiality or integrity; fteproxy warns at
-startup when it is in use. Always supply a secret shared by both endpoints."""
-DEFAULT_KEY = b'\xFF' * 16 + b'\x00' * 16
-conf['runtime.fteproxy.encrypter.key'] = DEFAULT_KEY
+A base name, not a direction: the request and response formats are derived
+from it, and only the base travels in the handshake."""
+conf['fteproxy.default_format'] = 'manual-http'
 
 
 """Covertext length for definitions that carry no "length" key (the manual-*

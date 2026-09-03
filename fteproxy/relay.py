@@ -172,19 +172,38 @@ class listener(threading.Thread):
         thread and report a bind failure with a non-zero exit status. Binding
         inside the thread instead only killed the thread, and the process went
         on to exit 0.
+
+        An empty host means every interface, which is one socket on the usual
+        Unix system (``::`` with ``IPV6_V6ONLY`` off accepts IPv4 too) and two
+        families on one that will not allow that, so the fallback is a plain
+        IPv4 bind rather than an error.
         """
+        if not self._local_ip:
+            try:
+                self._sock = self._bind_socket(socket.AF_INET6, '::',
+                                               dual_stack=True)
+                return
+            except OSError as e:
+                fteproxy.debug('dual-stack bind failed (%s); using IPv4' % e)
+                self._sock = self._bind_socket(socket.AF_INET, '0.0.0.0')
+                return
         family = socket.AF_INET6 if ':' in self._local_ip else socket.AF_INET
+        self._sock = self._bind_socket(family, self._local_ip)
+
+    def _bind_socket(self, family, host, dual_stack=False):
         sock = socket.socket(family, socket.SOCK_STREAM)
         try:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind((self._local_ip, self._local_port))
+            if dual_stack:
+                sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+            sock.bind((host, self._local_port))
             sock.listen(fteproxy.conf.getValue('runtime.fteproxy.relay.backlog'))
             sock.settimeout(
                 fteproxy.conf.getValue('runtime.fteproxy.relay.accept_timeout'))
         except OSError:
             sock.close()
             raise
-        self._sock = sock
+        return sock
 
     def run(self):
         if self._sock is None:

@@ -13,13 +13,14 @@ import re
 
 import fte
 import fteproxy
+from fteproxy.tests import conftest
 import fteproxy.conf
 import fteproxy.defs
 import fteproxy.record_layer
 
 
 # libfte 0.4 requires an explicit key; use fteproxy's configured shared key.
-_KEY = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+_KEY = conftest.TEST_KEY
 
 
 def _cipher(pattern, length):

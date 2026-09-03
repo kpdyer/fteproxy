@@ -14,6 +14,7 @@ import time
 import pytest
 
 import fteproxy
+from fteproxy.tests import conftest
 import fteproxy.conf
 import fteproxy.defs
 import fteproxy.network_io
@@ -28,7 +29,7 @@ class TestPython3Compatibility:
 
     def test_bytes_key_config(self):
         """Test that the encryption key is properly stored as bytes."""
-        key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+        key = conftest.TEST_KEY
         assert isinstance(key, bytes)
         assert len(key) == 32
 

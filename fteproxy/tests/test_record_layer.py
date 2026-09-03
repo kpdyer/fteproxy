@@ -11,6 +11,7 @@ import pytest
 import fte
 
 import fteproxy
+from fteproxy.tests import conftest
 import fteproxy.conf
 import fteproxy.defs
 import fteproxy.record_layer
@@ -25,9 +26,8 @@ STEP = 64
 @pytest.fixture
 def record_layer_pairs():
     """Create encoder/decoder pairs for all defined languages."""
-    fteproxy.conf.setValue('runtime.mode', 'client')
     
-    key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+    key = conftest.TEST_KEY
     pairs = []
     definitions = fteproxy.defs.load_definitions()
     for language in definitions.keys():
@@ -171,8 +171,7 @@ class TestHybridRecordLayer:
     """The hybrid framing: a formatted header covertext + a raw authenticated body."""
 
     def _pair(self, language='manual-http-request'):
-        fteproxy.conf.setValue('runtime.mode', 'client')
-        key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+        key = conftest.TEST_KEY
         pattern = fteproxy.defs.getRegex(language)
         length = fteproxy.defs.getLength(language)
         header = fteproxy._make_cipher(pattern, length, key)
@@ -282,8 +281,7 @@ class TestFormatModeRecordLayer:
     """'format' mode: one sealed covertext per record, stamped with its position."""
 
     def _pair(self, language='manual-http-request'):
-        fteproxy.conf.setValue('runtime.mode', 'client')
-        key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+        key = conftest.TEST_KEY
         cipher = fteproxy._make_cipher(
             fteproxy.defs.getRegex(language), fteproxy.defs.getLength(language), key)
         return (fteproxy.record_layer.Encoder(cipher=cipher),
@@ -318,9 +316,8 @@ class TestFormatModeRecordLayer:
 def test_seal_fills_covertext_with_random_not_padding():
     """A short message fills the covertext with random format text, so there is
     no 'GET /0000...' low-rank padding run in either mode."""
-    fteproxy.conf.setValue('runtime.mode', 'client')
     fteproxy.defs.load_definitions()
-    key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+    key = conftest.TEST_KEY
     pattern = fteproxy.defs.getRegex('http-simple-request')
     header = fteproxy._make_cipher(pattern, 256, key)
 
@@ -345,8 +342,7 @@ class TestRecordTypes:
     """Every record carries a type byte; unknown types close the connection."""
 
     def _pair(self, hybrid=True, language='manual-http-request'):
-        fteproxy.conf.setValue('runtime.mode', 'client')
-        key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+        key = conftest.TEST_KEY
         cipher = fteproxy._make_cipher(
             fteproxy.defs.getRegex(language),
             fteproxy.defs.getLength(language), key)
@@ -408,7 +404,7 @@ class TestRecordTypes:
         capacity. In hybrid mode the body has no fixed width, so it rides on
         top and the chunk boundaries are unchanged: a 1 MiB write is still one
         record, not one plus a one-byte straggler."""
-        key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+        key = conftest.TEST_KEY
         cipher = fteproxy._make_cipher(
             fteproxy.defs.getRegex('manual-http-request'),
             fteproxy.defs.getLength('manual-http-request'), key)

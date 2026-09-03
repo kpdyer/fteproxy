@@ -15,7 +15,7 @@ pip install -e .                       # needs fte>=0.4.0,<0.5.0
 python3 benchmark.py --baseline        # default 6 scenarios
 python3 benchmark.py --scenarios lan --sizes 64K 1M 8M --repeat 2 --baseline
 python3 benchmark.py --scenarios lan --sizes 8M --direction upload --no-latency --no-setup
-python3 benchmark.py --scenarios lan --sizes 64K 1M --record-layer-mode format
+python3 benchmark.py --scenarios lan --sizes 64K 1M --mode format
 ```
 
 ---

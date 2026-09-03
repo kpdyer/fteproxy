@@ -10,13 +10,11 @@ import fteproxy
 import fteproxy.conf
 
 
-@pytest.fixture(autouse=True)
-def setup_test_mode():
-    """Automatically set runtime mode for all tests."""
-    fteproxy.conf.setValue('runtime.mode', 'client')
-    yield
-    # Reset after test if needed
-    fteproxy.conf.setValue('runtime.mode', None)
+#: A fixed key for tests that exercise the record layer directly, where the
+#: value does not matter but both ends must agree. Real connections derive
+#: their keys per direction from the handshake; nothing in the package ships a
+#: default key any more.
+TEST_KEY = bytes(range(32))
 
 
 @pytest.fixture(autouse=True)
@@ -41,5 +39,5 @@ def restore_fteproxy_logger():
 
 @pytest.fixture
 def sample_key():
-    """Provide a sample encryption key for testing."""
-    return b'\xff' * 16 + b'\x00' * 16
+    """A 32-byte key for tests that need one but not a real handshake."""
+    return TEST_KEY

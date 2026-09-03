@@ -29,7 +29,6 @@ SERVER_PRIVATE, SERVER_PUBLIC = fteproxy.generate_server_key()
 
 @pytest.fixture(autouse=True)
 def _defs():
-    fteproxy.conf.setValue('runtime.mode', 'client')
     fteproxy.defs.load_definitions()
 
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Tests for the command line: parsing, applying to conf, and exit statuses.
+"""Tests for the command line and the configuration it reads.
 
 These call :func:`fteproxy.cli.main` in process, so they assert on the status
 the process would exit with rather than on a subprocess return code.
@@ -8,21 +8,28 @@ the process would exit with rather than on a subprocess return code.
 """
 
 import logging
+import os
+import stat
 
 import pytest
 
 import fteproxy
 import fteproxy.cli
 import fteproxy.conf
+import fteproxy.config
 import fteproxy.defs
+
+
+PUBLIC = bytes(range(32))
+SERVER_ID = fteproxy.config.encode_server_id(PUBLIC)
 
 
 @pytest.fixture(autouse=True)
 def restore_conf():
     """Snapshot and restore the global configuration around each test.
 
-    ``apply_args_to_conf`` writes process-global state; without this a test
-    that sets a non-default release or key would leak into the next one.
+    The CLI writes process-global state; without this a test that selects a
+    non-default definitions release would leak into the next one.
     """
     saved = dict(fteproxy.conf.conf)
     saved_defs = fteproxy.defs._definitions
@@ -36,195 +43,329 @@ def parse(argv):
     return fteproxy.cli.build_parser().parse_args(argv)
 
 
+# --------------------------------------------------------------------------- #
+# The connection string
+# --------------------------------------------------------------------------- #
+
+class TestConnectionString:
+
+    @pytest.mark.parametrize('host', [
+        'example.com', '203.0.113.5', '2001:db8::1', '::1',
+    ])
+    def test_round_trip(self, host):
+        uri = fteproxy.config.ConnectionString(PUBLIC, host, 8080)
+        assert fteproxy.config.ConnectionString.parse(uri.format()) == uri
+
+    def test_round_trip_with_hints(self):
+        uri = fteproxy.config.ConnectionString(
+            PUBLIC, 'example.com', 443, format_name='words', mode='format',
+            defs='20260110')
+        text = uri.format()
+        assert 'format=words' in text
+        assert 'mode=format' in text
+        assert 'defs=20260110' in text
+        assert fteproxy.config.ConnectionString.parse(text) == uri
+
+    def test_ipv6_is_bracketed(self):
+        uri = fteproxy.config.ConnectionString(PUBLIC, '2001:db8::1', 8080)
+        assert '@[2001:db8::1]:8080' in uri.format()
+
+    def test_the_server_id_is_43_characters(self):
+        assert len(SERVER_ID) == 43
+        assert '=' not in SERVER_ID
+
+    def test_parse_recovers_the_key(self):
+        uri = fteproxy.config.ConnectionString.parse(
+            'fte://%s@203.0.113.5:8080' % SERVER_ID)
+        assert uri.server_id == PUBLIC
+        assert uri.address == ('203.0.113.5', 8080)
+
+    def test_port_defaults_to_8080(self):
+        uri = fteproxy.config.ConnectionString.parse(
+            'fte://%s@203.0.113.5' % SERVER_ID)
+        assert uri.port == 8080
+
+    def test_unknown_query_parameters_are_ignored(self):
+        """So a later version can add one without breaking today's clients."""
+        uri = fteproxy.config.ConnectionString.parse(
+            'fte://%s@host:1?pk2=abc&future=1&mode=format' % SERVER_ID)
+        assert uri.mode == 'format'
+
+    @pytest.mark.parametrize('text', [
+        '',
+        'http://%s@host:8080' % SERVER_ID,
+        'fte://host:8080',
+        'fte://short@host:8080',
+        'fte://%s@host:8080/path' % SERVER_ID,
+        'fte://%s@host:8080#frag' % SERVER_ID,
+        'fte://%s@host:0' % SERVER_ID,
+        'fte://%s@host:99999' % SERVER_ID,
+        'fte://%s@host:8080?mode=nonsense' % SERVER_ID,
+        'fte://%s@host:8080?defs=lastweek' % SERVER_ID,
+        'fte://%s@:8080' % SERVER_ID,
+    ])
+    def test_bad_strings_are_refused(self, text):
+        with pytest.raises(fteproxy.config.ConfigError):
+            fteproxy.config.ConnectionString.parse(text)
+
+    def test_errors_never_quote_the_string(self):
+        """An unparseable connection string is still a secret."""
+        with pytest.raises(fteproxy.config.ConfigError) as excinfo:
+            fteproxy.config.ConnectionString.parse(
+                'fte://%s@host:99999' % SERVER_ID)
+        assert SERVER_ID not in str(excinfo.value)
+
+    def test_str_and_repr_are_redacted(self):
+        uri = fteproxy.config.ConnectionString(PUBLIC, '203.0.113.5', 8080)
+        assert SERVER_ID not in str(uri)
+        assert SERVER_ID not in repr(uri)
+        assert str(uri) == 'fte://…@203.0.113.5:8080'
+        assert uri.redacted() in repr(uri)
+
+
+class TestSpecParsers:
+
+    @pytest.mark.parametrize('text,expected', [
+        (':8080', ('', 8080)),
+        ('1.2.3.4:8080', ('1.2.3.4', 8080)),
+        ('[::]:8080', ('::', 8080)),
+        ('[2001:db8::1]:443', ('2001:db8::1', 443)),
+        ('example.com:80', ('example.com', 80)),
+    ])
+    def test_host_port(self, text, expected):
+        assert fteproxy.config.split_host_port(text) == expected
+
+    @pytest.mark.parametrize('text', [
+        '', 'example.com', '[::1', '[::1]80', 'host:http', 'host:0',
+        'host:65536',
+    ])
+    def test_bad_host_port(self, text):
+        with pytest.raises(ValueError):
+            fteproxy.config.split_host_port(text)
+
+    @pytest.mark.parametrize('text,expected', [
+        ('2222:127.0.0.1:22', (('127.0.0.1', 2222), ('127.0.0.1', 22))),
+        ('0.0.0.0:2222:example.com:22',
+         (('0.0.0.0', 2222), ('example.com', 22))),
+        ('[::1]:2222:[2001:db8::1]:22',
+         (('::1', 2222), ('2001:db8::1', 22))),
+    ])
+    def test_forward_spec(self, text, expected):
+        assert fteproxy.config.split_forward_spec(text) == expected
+
+    @pytest.mark.parametrize('text', [
+        '2222', '2222:host', '2222:host:22:extra', 'a:b:c', '[::1:2222:h:22',
+    ])
+    def test_bad_forward_spec(self, text):
+        with pytest.raises(ValueError):
+            fteproxy.config.split_forward_spec(text)
+
+    @pytest.mark.parametrize('text,expected', [
+        ('1080', ('127.0.0.1', 1080)),
+        ('0.0.0.0:1080', ('0.0.0.0', 1080)),
+        ('[::1]:1080', ('::1', 1080)),
+    ])
+    def test_socks_spec(self, text, expected):
+        assert fteproxy.config.split_socks_spec(text) == expected
+
+    @pytest.mark.parametrize('text', ['', 'http', '1:2:3'])
+    def test_bad_socks_spec(self, text):
+        with pytest.raises(ValueError):
+            fteproxy.config.split_socks_spec(text)
+
+
+class TestStateDirectory:
+
+    def test_resolution_order(self, tmp_path):
+        explicit = str(tmp_path / 'explicit')
+        environ = {'FTEPROXY_STATE_DIR': str(tmp_path / 'env'),
+                   'XDG_STATE_HOME': str(tmp_path / 'xdg')}
+        assert fteproxy.config.state_dir(explicit, environ) == explicit
+        assert fteproxy.config.state_dir(None, environ) == \
+            str(tmp_path / 'env')
+        assert fteproxy.config.state_dir(None, {'XDG_STATE_HOME':
+                                                str(tmp_path / 'xdg')}) == \
+            str(tmp_path / 'xdg' / 'fteproxy')
+        assert fteproxy.config.state_dir(None, {}).endswith(
+            os.path.join('.local', 'state', 'fteproxy'))
+
+    def test_created_with_mode_0700(self, tmp_path):
+        directory = str(tmp_path / 'state')
+        fteproxy.config.ensure_state_dir(directory)
+        assert stat.S_IMODE(os.stat(directory).st_mode) == 0o700
+
+    def test_a_loose_directory_is_tightened(self, tmp_path):
+        """A state directory other local users can read is a directory they
+        can read the private key out of."""
+        directory = tmp_path / 'state'
+        directory.mkdir(mode=0o755)
+        fteproxy.config.ensure_state_dir(str(directory))
+        assert stat.S_IMODE(os.stat(directory).st_mode) == 0o700
+
+    def test_key_and_connection_files_are_0600(self, tmp_path):
+        directory = fteproxy.config.ensure_state_dir(str(tmp_path / 'state'))
+        _private, public, created = fteproxy.config.ensure_server_key(directory)
+        assert created
+        uri = fteproxy.config.ConnectionString(public, 'example.com', 8080)
+        fteproxy.config.write_connection_string(directory, uri)
+        for path in (fteproxy.config.server_key_path(directory),
+                     fteproxy.config.connection_path(directory)):
+            assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
+
+    def test_an_existing_key_is_kept(self, tmp_path):
+        directory = fteproxy.config.ensure_state_dir(str(tmp_path / 'state'))
+        first, public, created = fteproxy.config.ensure_server_key(directory)
+        assert created
+        again, public_again, created_again = \
+            fteproxy.config.ensure_server_key(directory)
+        assert (again, public_again) == (first, public)
+        assert not created_again
+
+    def test_a_world_readable_key_warns(self, tmp_path, caplog):
+        directory = fteproxy.config.ensure_state_dir(str(tmp_path / 'state'))
+        fteproxy.config.ensure_server_key(directory)
+        os.chmod(fteproxy.config.server_key_path(directory), 0o644)
+        with caplog.at_level(logging.WARNING, logger='fteproxy'):
+            fteproxy.config.load_server_key(directory)
+        assert 'readable by other users' in caplog.text
+
+    @pytest.mark.parametrize('contents', ['', 'abcdef', 'z' * 64])
+    def test_a_corrupt_key_file_is_an_error(self, tmp_path, contents):
+        directory = fteproxy.config.ensure_state_dir(str(tmp_path / 'state'))
+        with open(fteproxy.config.server_key_path(directory), 'w') as handle:
+            handle.write(contents)
+        with pytest.raises(fteproxy.config.ConfigError):
+            fteproxy.config.load_server_key(directory)
+
+
+class TestResolveClientUri:
+
+    def _write(self, tmp_path, text):
+        directory = fteproxy.config.ensure_state_dir(str(tmp_path / 'state'))
+        with open(fteproxy.config.connection_path(directory), 'w') as handle:
+            handle.write(text + '\n')
+        return directory
+
+    def test_the_argument_wins(self, tmp_path):
+        directory = self._write(tmp_path, 'fte://%s@from-file:1' % SERVER_ID)
+        uri, source = fteproxy.config.resolve_client_uri(
+            'fte://%s@from-argument:2' % SERVER_ID, directory,
+            {'FTEPROXY_URI': 'fte://%s@from-env:3' % SERVER_ID})
+        assert uri.host == 'from-argument'
+        assert source == 'the command line'
+
+    def test_the_environment_is_next(self, tmp_path):
+        directory = self._write(tmp_path, 'fte://%s@from-file:1' % SERVER_ID)
+        uri, source = fteproxy.config.resolve_client_uri(
+            None, directory, {'FTEPROXY_URI': 'fte://%s@from-env:3' % SERVER_ID})
+        assert uri.host == 'from-env'
+        assert source == 'FTEPROXY_URI'
+
+    def test_the_file_is_last(self, tmp_path):
+        directory = self._write(tmp_path, 'fte://%s@from-file:1' % SERVER_ID)
+        uri, source = fteproxy.config.resolve_client_uri(None, directory, {})
+        assert uri.host == 'from-file'
+        assert source.endswith('connection.txt')
+
+    def test_nothing_anywhere(self, tmp_path):
+        directory = fteproxy.config.ensure_state_dir(str(tmp_path / 'state'))
+        assert fteproxy.config.resolve_client_uri(None, directory, {}) == \
+            (None, None)
+
+    def test_the_placeholder_becomes_loopback(self, tmp_path):
+        """A string still carrying <server-ip> can only have been written by a
+        server on this host, which is what makes `fteproxy server` then
+        `fteproxy client` work with no arguments at all."""
+        directory = self._write(
+            tmp_path, 'fte://%s@%s:9999'
+            % (SERVER_ID, fteproxy.config.HOST_PLACEHOLDER))
+        uri, _source = fteproxy.config.resolve_client_uri(None, directory, {})
+        assert uri.address == ('127.0.0.1', 9999)
+
+
+# --------------------------------------------------------------------------- #
+# The parser
+# --------------------------------------------------------------------------- #
+
 class TestParser:
-    """The parse step alone: no configuration is written."""
 
-    def test_ports_are_integers(self):
-        args = parse(['--mode', 'client', '--client_port', '1234',
-                      '--server_port', '5678', '--proxy_port', '9012'])
-        assert args.client_port == 1234
-        assert args.server_port == 5678
-        assert args.proxy_port == 9012
+    def test_subcommands(self):
+        for name in ('server', 'client', 'keygen', 'formats'):
+            assert parse([name]).command == name
 
-    def test_non_integer_port_is_a_usage_error(self):
+    def test_no_subcommand(self):
+        assert parse([]).command is None
+
+    def test_client_flags(self):
+        args = parse(['client', 'fte://x@h:1', '-D', '1080',
+                      '-L', '2222:127.0.0.1:22', '-L', '3333:h:80',
+                      '--format', 'words', '--mode', 'format', '--no-check'])
+        assert args.uri == 'fte://x@h:1'
+        assert args.socks == ['1080']
+        assert args.forwards == ['2222:127.0.0.1:22', '3333:h:80']
+        assert args.format == 'words'
+        assert args.mode == 'format'
+        assert args.no_check
+
+    def test_server_flags(self):
+        args = parse(['server', '--listen', ':9000', '--allow', 'any',
+                      '--allow', '10.0.0.0/8', '--advertise', 'vpn.example:9000',
+                      '--defs', '20131224'])
+        assert args.listen == ':9000'
+        assert args.allow == ['any', '10.0.0.0/8']
+        assert args.advertise == 'vpn.example:9000'
+        assert args.defs == '20131224'
+
+    def test_mode_choices(self):
         with pytest.raises(SystemExit) as excinfo:
-            parse(['--mode', 'client', '--client_port', 'http'])
+            parse(['client', '--mode', 'nonsense'])
         assert excinfo.value.code == fteproxy.cli.EXIT_USAGE
-
-    def test_mode_has_no_default(self):
-        """A bare run must be a usage error, not a client that was never
-        configured. The old default hid the no-argument crash."""
-        assert parse([]).mode is None
-
-    def test_invalid_mode_is_a_usage_error(self):
-        with pytest.raises(SystemExit) as excinfo:
-            parse(['--mode', 'invalid'])
-        assert excinfo.value.code == fteproxy.cli.EXIT_USAGE
-
-    def test_parsing_does_not_write_conf(self):
-        before = fteproxy.conf.getValue('runtime.client.port')
-        parse(['--mode', 'client', '--client_port', str(before + 1)])
-        assert fteproxy.conf.getValue('runtime.client.port') == before
 
     def test_quiet_and_verbose_are_mutually_exclusive(self):
         with pytest.raises(SystemExit) as excinfo:
-            parse(['--mode', 'client', '-q', '-v'])
-        assert excinfo.value.code == fteproxy.cli.EXIT_USAGE
-
-    def test_key_and_key_file_are_mutually_exclusive(self, tmp_path):
-        key_file = tmp_path / 'k'
-        key_file.write_text('a' * 64)
-        with pytest.raises(SystemExit) as excinfo:
-            parse(['--mode', 'server', '--key', 'a' * 64,
-                   '--key-file', str(key_file)])
-        assert excinfo.value.code == fteproxy.cli.EXIT_USAGE
-
-    def test_formats_subcommand_is_recognised(self):
-        assert parse(['formats']).command == 'formats'
-        assert parse(['--mode', 'client']).command is None
-
-    def test_release_before_the_subcommand_is_kept(self):
-        """The subcommand's own --release defaults to SUPPRESS so it does not
-        clobber a value given ahead of it."""
-        assert parse(['--release', '20131224', 'formats']).release == '20131224'
-        assert parse(['formats', '--release', '20131224']).release == '20131224'
-
-
-class TestApplyArgsToConf:
-    """Every value reaches conf, whether typed or defaulted."""
-
-    def test_defaults_reach_conf(self):
-        args = parse(['--mode', 'client'])
-        # Poison conf after parsing: applying must put the default back. The
-        # old setConfValue action ran only for values the user typed, so a
-        # default never reached conf at all.
-        fteproxy.conf.setValue('runtime.client.port', 1)
-        fteproxy.conf.setValue('runtime.mode', None)
-        fteproxy.cli.apply_args_to_conf(args)
-        assert fteproxy.conf.getValue('runtime.mode') == 'client'
-        assert fteproxy.conf.getValue('runtime.client.port') == args.client_port
-
-    def test_typed_values_reach_conf(self):
-        fteproxy.cli.apply_args_to_conf(parse([
-            '--mode', 'server',
-            '--client_ip', '10.0.0.1', '--client_port', '1111',
-            '--server_ip', '10.0.0.2', '--server_port', '2222',
-            '--proxy_ip', '10.0.0.3', '--proxy_port', '3333',
-            '--upstream-format', 'ssh-request',
-            '--downstream-format', 'ssh-response',
-            '--record-layer-mode', 'format',
-        ]))
-        get = fteproxy.conf.getValue
-        assert get('runtime.mode') == 'server'
-        assert get('runtime.client.ip') == '10.0.0.1'
-        assert get('runtime.client.port') == 1111
-        assert get('runtime.server.ip') == '10.0.0.2'
-        assert get('runtime.server.port') == 2222
-        assert get('runtime.proxy.ip') == '10.0.0.3'
-        assert get('runtime.proxy.port') == 3333
-        assert get('runtime.state.upstream_language') == 'ssh-request'
-        assert get('runtime.state.downstream_language') == 'ssh-response'
-        assert get('runtime.fteproxy.record_layer.mode') == 'format'
-
-    def test_key_reaches_conf_as_bytes(self):
-        fteproxy.cli.apply_args_to_conf(
-            parse(['--mode', 'client', '--key', '0123456789abcdef' * 4]))
-        key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
-        assert key == bytes.fromhex('0123456789abcdef' * 4)
-
-    def test_key_file_reaches_conf(self, tmp_path):
-        key_file = tmp_path / 'fteproxy.key'
-        key_file.write_text('0123456789abcdef' * 4 + '\n')
-        fteproxy.cli.apply_args_to_conf(
-            parse(['--mode', 'client', '--key-file', str(key_file)]))
-        assert fteproxy.conf.getValue('runtime.fteproxy.encrypter.key') == \
-            bytes.fromhex('0123456789abcdef' * 4)
-
-    def test_changing_the_release_drops_the_definitions_cache(self):
-        fteproxy.defs.load_definitions()
-        assert fteproxy.defs._definitions is not None
-        fteproxy.cli.apply_args_to_conf(
-            parse(['--mode', 'client', '--release', '20131224']))
-        assert fteproxy.defs._definitions is None
-        assert fteproxy.conf.getValue('fteproxy.defs.release') == '20131224'
-
-
-class TestKeyValidation:
-    """Key errors are usage errors and never quote the key material."""
-
-    def test_short_key_rejected(self):
-        with pytest.raises(fteproxy.cli.UsageError) as excinfo:
-            fteproxy.cli.parse_hex_key('abcdef')
-        assert 'abcdef' not in str(excinfo.value)
-
-    def test_non_hex_key_rejected(self):
-        with pytest.raises(fteproxy.cli.UsageError):
-            fteproxy.cli.parse_hex_key('z' * 64)
-
-    def test_trailing_newline_accepted(self):
-        assert fteproxy.cli.parse_hex_key('ab' * 32 + '\n') == b'\xab' * 32
-
-    def test_missing_key_file_rejected(self, tmp_path):
-        with pytest.raises(fteproxy.cli.UsageError):
-            fteproxy.cli.read_key_file(str(tmp_path / 'nope.key'))
-
-    def test_bad_key_file_is_exit_2(self, tmp_path):
-        key_file = tmp_path / 'short.key'
-        key_file.write_text('abcdef')
-        with pytest.raises(SystemExit) as excinfo:
-            fteproxy.cli.main(['--mode', 'server', '--key-file', str(key_file)])
+            parse(['server', '-q', '-v'])
         assert excinfo.value.code == fteproxy.cli.EXIT_USAGE
 
 
-class TestStartupChecks:
-    """Formats are validated before anything is printed or bound."""
+class TestRemovedFlags:
+    """Every pre-0.4 flag is recognised only to point at the upgrade notes."""
 
-    def test_unknown_format_raises(self):
-        with pytest.raises(fteproxy.cli.StartupError) as excinfo:
-            fteproxy.cli.check_format('no-such-format')
-        assert 'no-such-format' in str(excinfo.value)
+    @pytest.mark.parametrize('flag', fteproxy.cli.REMOVED_FLAGS)
+    def test_each_removed_flag(self, flag, capsys):
+        assert fteproxy.cli.main([flag, 'whatever']) == fteproxy.cli.EXIT_USAGE
+        err = capsys.readouterr().err
+        assert flag in err
+        assert 'Upgrading to 0.4.0' in err
 
-    def test_known_format_passes(self):
-        fteproxy.cli.check_format('manual-http-request')
+    def test_flag_with_an_equals_sign(self, capsys):
+        assert fteproxy.cli.main(['--key=deadbeef']) == fteproxy.cli.EXIT_USAGE
+        assert '--key' in capsys.readouterr().err
+
+    def test_mode_still_works_under_client(self):
+        """--mode means the record-layer mode now, so it is only a removed
+        flag before a subcommand."""
+        assert fteproxy.cli.removed_flag(['client', '--mode', 'hybrid']) is None
+        assert fteproxy.cli.removed_flag(['--mode', 'client']) == '--mode'
+
+    def test_no_alias_is_offered(self, capsys):
+        """A silent alias would run a different topology than was asked for."""
+        fteproxy.cli.main(['--proxy_ip', '127.0.0.1'])
+        err = capsys.readouterr().err
+        assert 'destination is chosen on the client' in err
 
 
-class TestMainExitStatus:
-    """The statuses the plan fixes: 0 clean, 1 runtime failure, 2 usage."""
+# --------------------------------------------------------------------------- #
+# Commands
+# --------------------------------------------------------------------------- #
 
-    def test_no_arguments_is_usage(self, capsys):
+class TestBareInvocation:
+
+    def test_prints_usage_and_exits_2(self, capsys):
         assert fteproxy.cli.main([]) == fteproxy.cli.EXIT_USAGE
         err = capsys.readouterr().err
         assert 'usage:' in err
-        assert '--mode' in err
-
-    def test_unknown_upstream_format_is_failure(self, capsys):
-        status = fteproxy.cli.main(
-            ['--mode', 'client', '--upstream-format', 'nope'])
-        assert status == fteproxy.cli.EXIT_FAILURE
-        assert 'nope' in capsys.readouterr().err
-
-    def test_unknown_downstream_format_is_failure(self):
-        assert fteproxy.cli.main(
-            ['--mode', 'client', '--downstream-format', 'nope']) == \
-            fteproxy.cli.EXIT_FAILURE
-
-    def test_bind_failure_is_failure(self):
-        """A port already taken exits 1 rather than leaving a dead thread and
-        exiting 0."""
-        import socket
-
-        taken = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        taken.bind(('127.0.0.1', 0))
-        taken.listen(1)
-        port = taken.getsockname()[1]
-        try:
-            status = fteproxy.cli.main([
-                '--mode', 'client',
-                '--client_ip', '127.0.0.1', '--client_port', str(port),
-            ])
-        finally:
-            taken.close()
-        assert status == fteproxy.cli.EXIT_FAILURE
+        for name in ('server', 'client', 'keygen', 'formats'):
+            assert name in err
 
     def test_version_exits_zero(self, capsys):
         with pytest.raises(SystemExit) as excinfo:
@@ -235,7 +376,42 @@ class TestMainExitStatus:
         assert 'NO WARRANTY' in out
 
 
-class TestFormatsSubcommand:
+class TestKeygen:
+
+    def test_creates_a_key_and_prints_the_string(self, tmp_path, capsys):
+        directory = str(tmp_path / 'state')
+        assert fteproxy.cli.main(['keygen', '--state-dir', directory]) == \
+            fteproxy.cli.EXIT_OK
+        out = capsys.readouterr().out.strip()
+        assert out.startswith('fte://')
+        assert fteproxy.config.HOST_PLACEHOLDER in out
+        uri = fteproxy.config.ConnectionString.parse(out)
+        private = fteproxy.config.load_server_key(directory)
+        assert fteproxy.server_id(private) == uri.server_id
+
+    def test_advertise(self, tmp_path, capsys):
+        directory = str(tmp_path / 'state')
+        fteproxy.cli.main(['keygen', '--state-dir', directory,
+                           '--advertise', 'vpn.example.com:9000'])
+        uri = fteproxy.config.ConnectionString.parse(
+            capsys.readouterr().out.strip())
+        assert uri.address == ('vpn.example.com', 9000)
+
+    def test_is_idempotent(self, tmp_path, capsys):
+        directory = str(tmp_path / 'state')
+        fteproxy.cli.main(['keygen', '--state-dir', directory])
+        first = capsys.readouterr().out
+        fteproxy.cli.main(['keygen', '--state-dir', directory])
+        assert capsys.readouterr().out == first
+
+    def test_a_bad_advertise_is_a_usage_error(self, tmp_path):
+        with pytest.raises(SystemExit) as excinfo:
+            fteproxy.cli.main(['keygen', '--state-dir', str(tmp_path),
+                               '--advertise', '[::1'])
+        assert excinfo.value.code == fteproxy.cli.EXIT_USAGE
+
+
+class TestFormats:
 
     def test_lists_base_names_with_capacity(self, capsys):
         assert fteproxy.cli.main(['formats']) == fteproxy.cli.EXIT_OK
@@ -247,21 +423,93 @@ class TestFormatsSubcommand:
         # manual-http-response carries 192 bytes per covertext at length 256.
         assert '192' in out
 
-    def test_marks_the_configured_default(self, capsys):
-        fteproxy.cli.main(['--upstream-format', 'ssh-request', 'formats'])
-        for line in capsys.readouterr().out.splitlines():
-            if '(default)' in line:
-                assert line.split()[0] == 'ssh'
-                break
-        else:
-            pytest.fail('no format marked as the default')
-
     def test_honours_the_release(self, capsys):
-        assert fteproxy.cli.main(['--release', '20131224', 'formats']) == \
+        assert fteproxy.cli.main(['formats', '--defs', '20131224']) == \
             fteproxy.cli.EXIT_OK
         out = capsys.readouterr().out
         assert '20131224' in out
+        assert 'manual-ssh' in out
 
+    def test_an_unknown_release_is_a_failure(self, capsys):
+        assert fteproxy.cli.main(['formats', '--defs', '19700101']) == \
+            fteproxy.cli.EXIT_FAILURE
+
+
+class TestClientStartup:
+
+    def test_an_unknown_format_is_a_failure(self, tmp_path, capsys):
+        assert fteproxy.cli.main([
+            'client', 'fte://%s@127.0.0.1:1' % SERVER_ID,
+            '--format', 'no-such-format', '--no-check',
+            '--state-dir', str(tmp_path)]) == fteproxy.cli.EXIT_FAILURE
+        assert 'no-such-format' in capsys.readouterr().err
+
+    def test_a_bad_forward_spec_is_a_usage_error(self, tmp_path):
+        with pytest.raises(SystemExit) as excinfo:
+            fteproxy.cli.main([
+                'client', 'fte://%s@127.0.0.1:1' % SERVER_ID,
+                '-L', 'nonsense', '--no-check', '--state-dir', str(tmp_path)])
+        assert excinfo.value.code == fteproxy.cli.EXIT_USAGE
+
+    def test_the_startup_check_fails_with_a_reason(self, tmp_path, capsys):
+        import socket
+
+        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        probe.bind(('127.0.0.1', 0))
+        port = probe.getsockname()[1]
+        probe.close()
+
+        status = fteproxy.cli.main([
+            'client', 'fte://%s@127.0.0.1:%d' % (SERVER_ID, port),
+            '--state-dir', str(tmp_path)])
+        assert status == fteproxy.cli.EXIT_FAILURE
+        captured = capsys.readouterr()
+        assert 'checking 127.0.0.1:%d' % port in captured.err
+        assert 'not running fteproxy 0.4' in captured.err
+
+    def test_no_uri_anywhere_is_a_usage_error(self, tmp_path, monkeypatch):
+        monkeypatch.delenv('FTEPROXY_URI', raising=False)
+        with pytest.raises(SystemExit) as excinfo:
+            fteproxy.cli.main(['client', '--no-check',
+                               '--state-dir', str(tmp_path / 'empty')])
+        assert excinfo.value.code == fteproxy.cli.EXIT_USAGE
+
+
+class TestServerStartup:
+
+    def test_a_bad_allow_rule_is_a_usage_error(self, tmp_path):
+        with pytest.raises(SystemExit) as excinfo:
+            fteproxy.cli.main(['server', '--listen', ':0',
+                               '--allow', 'host:not-a-port',
+                               '--state-dir', str(tmp_path)])
+        assert excinfo.value.code == fteproxy.cli.EXIT_USAGE
+
+    def test_a_bad_listen_spec_is_a_usage_error(self, tmp_path):
+        with pytest.raises(SystemExit) as excinfo:
+            fteproxy.cli.main(['server', '--listen', '[::1',
+                               '--state-dir', str(tmp_path)])
+        assert excinfo.value.code == fteproxy.cli.EXIT_USAGE
+
+    def test_a_taken_port_is_a_failure(self, tmp_path, capsys):
+        import socket
+
+        taken = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        taken.bind(('127.0.0.1', 0))
+        taken.listen(1)
+        port = taken.getsockname()[1]
+        try:
+            status = fteproxy.cli.main([
+                'server', '--listen', '127.0.0.1:%d' % port,
+                '--state-dir', str(tmp_path)])
+        finally:
+            taken.close()
+        assert status == fteproxy.cli.EXIT_FAILURE
+        assert 'cannot listen' in capsys.readouterr().err
+
+
+# --------------------------------------------------------------------------- #
+# Logging
+# --------------------------------------------------------------------------- #
 
 class TestLogging:
     """Verbosity flags set the package logger's level; output is on stderr.
@@ -310,10 +558,8 @@ class TestLogRedaction:
         assert '<redacted>' in caplog.text
 
     def test_a_bare_server_id_is_removed(self, caplog):
-        import base64
-
         _private, public = fteproxy.generate_server_key()
-        text = base64.urlsafe_b64encode(public).rstrip(b'=').decode('ascii')
+        text = fteproxy.config.encode_server_id(public)
         with caplog.at_level(logging.INFO, logger='fteproxy'):
             fteproxy.info('server-id ' + text)
         assert text not in caplog.text

@@ -2,26 +2,33 @@
 # -*- coding: utf-8 -*-
 """The fteproxy command line.
 
+Four subcommands::
+
+    fteproxy server  [--listen [HOST]:PORT] [--allow RULE]... [--advertise HOST[:PORT]]
+                     [--state-dir DIR] [--defs RELEASE] [-q | -v]
+    fteproxy client  [URI] [-D [BIND:]PORT] [-L [BIND:]PORT:HOST:PORT]...
+                     [--format NAME] [--mode hybrid|format] [--no-check]
+                     [--state-dir DIR] [-q | -v]
+    fteproxy keygen  [--state-dir DIR] [--advertise HOST[:PORT]]
+    fteproxy formats [--defs RELEASE]
+
 Both ``python -m fteproxy`` and the ``fteproxy`` console script call
 :func:`main`, which returns a process exit status:
 
 ===  ==========================================================
   0  clean shutdown
-  1  runtime failure (bad format name, unusable key, bind refused)
-  2  usage error (argparse rejected the command line, or a required
-     argument is missing)
+  1  runtime failure (bad format name, unusable key, bind refused,
+     a startup check that could not reach the server)
+  2  usage error
 ===  ==========================================================
 
-Parsing is a plain ``argparse`` parse followed by one
-:func:`apply_args_to_conf` step. The previous ``setConfValue`` action wrote
-``fteproxy.conf`` as a side effect of parsing, which meant a value that came
-from a default never reached the configuration at all (argparse does not run
-actions for defaults). That is why a no-argument run used to die with a
-``TypeError`` deep in the relay, and why it still exited 0.
+Command output -- a connection string, the format table -- goes to stdout, so
+it can be piped. Everything else goes to stderr through the ``fteproxy``
+logger, which carries a redaction filter so that no key, server-id or
+connection string can reach a log file.
 """
 
 import argparse
-import glob
 import logging
 import os
 import signal
@@ -30,6 +37,7 @@ import threading
 
 import fteproxy
 import fteproxy.conf
+import fteproxy.config
 import fteproxy.defs
 import fteproxy.relay
 import fteproxy.stream
@@ -40,10 +48,35 @@ EXIT_OK = 0
 EXIT_FAILURE = 1
 EXIT_USAGE = 2
 
+DEFAULT_LISTEN = ':8080'
+DEFAULT_SOCKS = '127.0.0.1:1080'
+DEFAULT_FORMAT = 'manual-http'
+DEFAULT_MODE = 'hybrid'
+
+SUBCOMMANDS = ('server', 'client', 'keygen', 'formats')
+
+#: Flags from the pre-0.4 command line. They are recognised only so that a
+#: script carrying one gets a pointer instead of "unrecognized arguments", and
+#: are never aliased: the destination is chosen on the client now and the
+#: shared key is gone, so a silent alias would run a different topology than
+#: the operator asked for.
+REMOVED_FLAGS = (
+    '--mode', '--stop', '--quiet', '--key', '--key-file', '--release',
+    '--client_ip', '--client_port', '--server_ip', '--server_port',
+    '--proxy_ip', '--proxy_port',
+    '--upstream-format', '--downstream-format', '--record-layer-mode',
+)
+
 _LICENSE_BANNER = """fteproxy %s
 Copyright (C) 2012-2026 Kevin P. Dyer <kpdyer@gmail.com>
 This program comes with ABSOLUTELY NO WARRANTY. This is free software, and
 you are welcome to redistribute it under certain conditions.""" % FTEPROXY_VERSION
+
+_UPGRADE_POINTER = (
+    "fteproxy: %s was removed in 0.4. The destination is chosen on the client "
+    "now and the shared key is replaced by a connection string, so the old "
+    "flags would run a different topology than you asked for. See 'Upgrading "
+    "to 0.4.0' in the README.")
 
 
 class _PrintVersion(argparse.Action):
@@ -66,14 +99,14 @@ class _PrintVersion(argparse.Action):
 class UsageError(Exception):
     """The command line parsed, but one of its values cannot be used.
 
-    Reported like any other argparse error: the message on stderr and exit
-    status 2.
+    Reported like any other argparse error: the message on stderr, exit 2.
     """
 
 
 class StartupError(Exception):
-    """A resource the run needs could not be obtained: an unknown format name,
-    a format the key cannot drive, or a port that will not bind. Exit status 1.
+    """A resource the run needs could not be obtained: an unknown format, a
+    key that cannot be read, a port that will not bind, or a server the
+    startup check could not reach. Exit status 1.
     """
 
 
@@ -84,8 +117,9 @@ class StartupError(Exception):
 def configure_logging(quiet=False, verbose=False):
     """Point the ``fteproxy`` logger at stderr and set its level.
 
-    Default INFO, ``-q`` ERROR, ``-v`` DEBUG. stderr, not stdout, so that a
-    command whose stdout is data (``fteproxy formats``) stays pipeable.
+    Default INFO, ``-q`` ERROR, ``-v`` DEBUG. The package logger already
+    carries :class:`fteproxy.RedactingFilter`, so a key or a connection string
+    that reaches a message is stripped before any handler sees it.
     """
     if quiet:
         level = logging.ERROR
@@ -108,235 +142,207 @@ def configure_logging(quiet=False, verbose=False):
     return level
 
 
-# --------------------------------------------------------------------------- #
-# Keys
-# --------------------------------------------------------------------------- #
-
-def parse_hex_key(hex_key):
-    """Validate a hex-encoded key and return it as bytes.
-
-    The key must be exactly 64 hexadecimal characters (a 32-byte key).
-    Surrounding whitespace is ignored so keys read from a file may end in a
-    trailing newline. Raises :class:`UsageError` on invalid input; the message
-    never contains the key material.
-    """
-    hex_key = hex_key.strip()
-    if len(hex_key) != 64:
-        raise UsageError('invalid key length: %d hex characters, expected 64'
-                         % len(hex_key))
-    try:
-        return bytes.fromhex(hex_key)
-    except ValueError:
-        raise UsageError('invalid key format: must contain only 0-9a-fA-F')
-
-
-def read_key_file(path):
-    """Read a hex-encoded key from a file and return it as bytes.
-
-    Storing the key in a file keeps it out of shell history and process
-    listings (e.g., ``ps``), unlike passing it via ``--key``. Raises
-    :class:`UsageError` if the file cannot be read or holds an invalid key.
-    """
-    try:
-        with open(path) as key_file:
-            contents = key_file.read()
-    except OSError as e:
-        raise UsageError('failed to read key file "%s": %s' % (path, e))
-    return parse_hex_key(contents)
-
-
-def warn_if_default_key():
-    """Warn when the built-in default key is in use.
-
-    libfte 0.4 requires a key, and fteproxy falls back to the constant in
-    ``fteproxy.conf`` when neither ``--key`` nor ``--key-file`` is given. That
-    key is public, so anyone can read and forge the tunnel's traffic.
-    """
-    if fteproxy.conf.getValue('runtime.fteproxy.encrypter.key') == fteproxy.conf.DEFAULT_KEY:
-        fteproxy.warn('using the built-in default key, which is public: pass '
-                      '--key or --key-file with a secret shared by both endpoints')
+def _report(args, message, stream=None):
+    """Progress for a person, on stderr, silenced by ``-q``."""
+    if getattr(args, 'quiet', False):
+        return
+    print(message, file=stream or sys.stderr)
 
 
 # --------------------------------------------------------------------------- #
 # Argument parsing
 # --------------------------------------------------------------------------- #
 
-def build_parser():
-    """Build the argument parser.
+def _verbosity(parser):
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-q', action='store_true', dest='quiet',
+                       help='Log errors only.')
+    group.add_argument('-v', action='store_true', dest='verbose',
+                       help='Log per-connection detail.')
 
-    One flat command (the relay, selected with ``--mode``) plus subcommands.
-    ``formats`` is the first subcommand; the 0.4 command line replaces the flat
-    interface with ``server``/``client``/``keygen`` alongside it.
-    """
+
+def _state_dir_flag(parser):
+    parser.add_argument('--state-dir', metavar='DIR', default=None,
+                        help='Where server.key and connection.txt live '
+                             '(default: $FTEPROXY_STATE_DIR, then '
+                             '$XDG_STATE_HOME/fteproxy, then '
+                             '~/.local/state/fteproxy).')
+
+
+def build_parser():
     parser = argparse.ArgumentParser(
         prog='fteproxy',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        description='A format-transforming-encryption tunnel.')
     parser.add_argument('--version', action=_PrintVersion,
-                        help='Output the version of fteproxy, then quit.')
-    parser.add_argument('--mode', default=None,
-                        metavar='(client|server)',
-                        choices=['client', 'server'],
-                        help='Relay mode: client or server')
-    parser.add_argument('--stop', action='store_true',
-                        help='Shutdown daemon process')
-    parser.add_argument('--upstream-format', dest='upstream_format',
-                        help='Client-to-server language format',
-                        default=fteproxy.conf.getValue('runtime.state.upstream_language'))
-    parser.add_argument('--downstream-format', dest='downstream_format',
-                        help='Server-to-client language format',
-                        default=fteproxy.conf.getValue('runtime.state.downstream_language'))
-    parser.add_argument('--client_ip',
-                        help='Client-side listening IP',
-                        default=fteproxy.conf.getValue('runtime.client.ip'))
-    parser.add_argument('--client_port', type=int,
-                        help='Client-side listening port',
-                        default=fteproxy.conf.getValue('runtime.client.port'))
-    parser.add_argument('--server_ip',
-                        help='Server-side listening IP',
-                        default=fteproxy.conf.getValue('runtime.server.ip'))
-    parser.add_argument('--server_port', type=int,
-                        help='Server-side listening port',
-                        default=fteproxy.conf.getValue('runtime.server.port'))
-    parser.add_argument('--proxy_ip',
-                        help='Forwarding-proxy listening IP',
-                        default=fteproxy.conf.getValue('runtime.proxy.ip'))
-    parser.add_argument('--proxy_port', type=int,
-                        help='Forwarding-proxy listening port',
-                        default=fteproxy.conf.getValue('runtime.proxy.port'))
-    parser.add_argument('--release',
-                        help='Definitions file to use, specified as YYYYMMDD',
-                        default=fteproxy.conf.getValue('fteproxy.defs.release'))
-    parser.add_argument('--record-layer-mode', dest='record_layer_mode',
-                        metavar='(format|hybrid)',
-                        choices=['format', 'hybrid'],
-                        help='Record framing. "hybrid" (default) formats a '
-                             'header per record and sends the body as raw '
+                        help='Print the version and licence, then quit.')
+    subparsers = parser.add_subparsers(dest='command', metavar='COMMAND')
+
+    server = subparsers.add_parser(
+        'server', help='Accept tunnelled connections and dial where they ask.')
+    server.add_argument('--listen', metavar='[HOST]:PORT', default=DEFAULT_LISTEN,
+                        help='Address to listen on. ":PORT" means every '
+                             'interface; IPv6 literals go in brackets.')
+    server.add_argument('--allow', metavar='RULE', action='append', default=[],
+                        help='A destination clients may reach: "any", '
+                             'HOST[:PORT], CIDR[:PORT] or *.example.com[:PORT]. '
+                             'Repeatable. Without any rule the policy is every '
+                             'destination except this host\'s loopback and '
+                             'link-local addresses.')
+    server.add_argument('--advertise', metavar='HOST[:PORT]', default=None,
+                        help='The address to put in the connection string. '
+                             'Without it the string carries a placeholder for '
+                             'you to fill in.')
+    server.add_argument('--defs', metavar='RELEASE',
+                        default=fteproxy.conf.getValue('fteproxy.defs.release'),
+                        help='Definitions release to serve, as YYYYMMDD.')
+    _state_dir_flag(server)
+    _verbosity(server)
+
+    client = subparsers.add_parser(
+        'client', help='Listen locally and tunnel to an fteproxy server.')
+    client.add_argument('uri', nargs='?', metavar='URI', default=None,
+                        help='fte://SERVER-ID@HOST:PORT. Falls back to '
+                             '$FTEPROXY_URI, then connection.txt in the state '
+                             'directory.')
+    client.add_argument('-D', metavar='[BIND:]PORT', action='append',
+                        dest='socks', default=[],
+                        help='SOCKS5 listener. The default when neither -D nor '
+                             '-L is given is ' + DEFAULT_SOCKS + '.')
+    client.add_argument('-L', metavar='[BIND:]PORT:HOST:PORT', action='append',
+                        dest='forwards', default=[],
+                        help='Forward a local port to one destination through '
+                             'the tunnel. Repeatable.')
+    client.add_argument('--format', metavar='NAME', default=None,
+                        help='Base format name; see "fteproxy formats" '
+                             '(default: the URI\'s hint, else %s).'
+                             % DEFAULT_FORMAT)
+    client.add_argument('--mode', choices=['hybrid', 'format'], default=None,
+                        help='Record framing. "hybrid" formats a header per '
+                             'record and sends the body as raw authenticated '
                              'bytes: fast, but only the header blends in with '
                              'the target protocol. "format" transforms every '
-                             'byte into the format for full-stream realism at '
-                             'much lower throughput. Both endpoints must match.',
-                        default=fteproxy.conf.getValue(
-                            'runtime.fteproxy.record_layer.mode'))
+                             'byte for full-stream realism at much lower '
+                             'throughput (default: the URI\'s hint, else %s).'
+                             % DEFAULT_MODE)
+    client.add_argument('--no-check', action='store_true',
+                        help='Skip the startup check, which otherwise opens '
+                             'one short session so a bad connection string '
+                             'fails now instead of on first use.')
+    _state_dir_flag(client)
+    _verbosity(client)
 
-    verbosity = parser.add_mutually_exclusive_group()
-    verbosity.add_argument('-q', '--quiet', action='store_true',
-                           help='Log errors only.')
-    verbosity.add_argument('-v', '--verbose', action='store_true',
-                           help='Log per-connection detail.')
+    keygen = subparsers.add_parser(
+        'keygen', help='Create server.key if absent and print the connection '
+                       'string.')
+    keygen.add_argument('--advertise', metavar='HOST[:PORT]', default=None,
+                        help='The address to put in the connection string.')
+    _state_dir_flag(keygen)
+    _verbosity(keygen)
 
-    key_group = parser.add_mutually_exclusive_group()
-    key_group.add_argument('--key',
-                           help='Shared secret, hex, exactly 64 characters; must '
-                                'match on both endpoints. The built-in default '
-                                'is public and gives no protection: always '
-                                'supply your own (see --key-file).',
-                           default=fteproxy.conf.getValue(
-                               'runtime.fteproxy.encrypter.key').hex())
-    key_group.add_argument('--key-file', dest='key_file',
-                           metavar='PATH', default=None,
-                           help='Path to a file containing the cryptographic key '
-                                '(64 hex characters). Use instead of --key to keep '
-                                'the key out of shell history and process listings.')
-
-    subparsers = parser.add_subparsers(dest='command', metavar='COMMAND')
-    formats_parser = subparsers.add_parser(
-        'formats',
-        help='List the formats in a definitions file, then quit.',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    # SUPPRESS so that "fteproxy --release X formats" keeps the value given
-    # before the subcommand; a subparser default would otherwise overwrite it.
-    formats_parser.add_argument('--release', default=argparse.SUPPRESS,
-                                help='Definitions file to list, as YYYYMMDD')
+    formats = subparsers.add_parser(
+        'formats', help='List the formats in a definitions file.')
+    formats.add_argument('--defs', metavar='RELEASE',
+                         default=fteproxy.conf.getValue('fteproxy.defs.release'),
+                         help='Definitions release to list, as YYYYMMDD.')
+    _verbosity(formats)
 
     return parser
 
 
-def apply_args_to_conf(args):
-    """Copy every parsed argument into ``fteproxy.conf``, defaults included.
+def removed_flag(argv):
+    """The first pre-0.4 flag in ``argv``, or None.
 
-    One step, run after parsing, so the configuration a run sees is exactly
-    what the command line says, whether a value was typed or defaulted.
+    Only the part before a subcommand is scanned, because ``--mode`` means
+    something else under ``client``.
     """
-    conf = fteproxy.conf
-    conf.setValue('runtime.mode', args.mode)
-    conf.setValue('runtime.client.ip', args.client_ip)
-    conf.setValue('runtime.client.port', args.client_port)
-    conf.setValue('runtime.server.ip', args.server_ip)
-    conf.setValue('runtime.server.port', args.server_port)
-    conf.setValue('runtime.proxy.ip', args.proxy_ip)
-    conf.setValue('runtime.proxy.port', args.proxy_port)
-    conf.setValue('runtime.state.upstream_language', args.upstream_format)
-    conf.setValue('runtime.state.downstream_language', args.downstream_format)
-    conf.setValue('runtime.fteproxy.record_layer.mode', args.record_layer_mode)
+    head = argv
+    for index, token in enumerate(argv):
+        if token in SUBCOMMANDS:
+            head = argv[:index]
+            break
+    for token in head:
+        name = token.split('=', 1)[0]
+        if name in REMOVED_FLAGS:
+            return name
+    return None
 
-    if conf.getValue('fteproxy.defs.release') != args.release:
-        conf.setValue('fteproxy.defs.release', args.release)
+
+# --------------------------------------------------------------------------- #
+# Shared startup
+# --------------------------------------------------------------------------- #
+
+def select_defs(release):
+    """Point the definitions loader at ``release`` and load it now.
+
+    Loading validates every format in the file, so a release that cannot carry
+    a handshake fails here rather than as a client that hangs.
+    """
+    if fteproxy.conf.getValue('fteproxy.defs.release') != release:
+        fteproxy.conf.setValue('fteproxy.defs.release', release)
         fteproxy.defs._definitions = None
-
-    if args.key_file is not None:
-        conf.setValue('runtime.fteproxy.encrypter.key', read_key_file(args.key_file))
-    else:
-        conf.setValue('runtime.fteproxy.encrypter.key', parse_hex_key(args.key))
-
-
-# --------------------------------------------------------------------------- #
-# Startup validation
-# --------------------------------------------------------------------------- #
-
-def check_format(format_name):
-    """Build the cipher for ``format_name`` so an unusable format fails now.
-
-    libfte raises ``FormatCapacityError`` when a format is too small to carry
-    the cipher's frame, and the definitions lookup raises for an unknown name.
-    Both used to surface only on the first connection, as a client-side
-    timeout.
-    """
     try:
-        pattern = fteproxy.defs.getRegex(format_name)
-    except fteproxy.defs.InvalidRegexName:
-        raise StartupError('invalid format name: ' + format_name)
+        return fteproxy.defs.load_definitions()
     except (OSError, fteproxy.defs.DefinitionsError) as e:
-        raise StartupError('failed to load the definitions file: ' + str(e))
+        raise StartupError('cannot load definitions release %s: %s'
+                           % (release, e))
 
-    length = fteproxy.defs.getLength(format_name)
-    key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+
+def check_format(base):
+    """Build both directions of ``base`` so an unusable format fails now."""
     try:
-        fteproxy._make_cipher(pattern, length, key)
-    except Exception as e:
-        raise StartupError('format %s is unusable: %s' % (format_name, e))
-
-
-def check_startup(mode):
-    """Validate every format this role will use, before anything is printed,
-    bound, or written to disk."""
-    if mode == 'client':
-        upstream = fteproxy.conf.getValue('runtime.state.upstream_language')
-        downstream = fteproxy.conf.getValue('runtime.state.downstream_language')
-        check_format(upstream)
-        check_format(downstream)
-        # TODO(PR4): the 0.4 handshake carries one base name and the server
-        # derives both directions from it, so the two flags can no longer
-        # express a mixed pair. The new command line has a single --format.
-        if fteproxy.defs.base_name(upstream) != fteproxy.defs.base_name(downstream):
-            fteproxy.warn(
-                'the format pair is chosen by base name now: using %s for '
-                'both directions and ignoring --downstream-format %s'
-                % (fteproxy.defs.base_name(upstream), downstream))
-    else:
+        request, response = fteproxy.defs.getRegex(base + '-request'), \
+            fteproxy.defs.getRegex(base + '-response')
+    except fteproxy.defs.InvalidRegexName:
+        raise StartupError(
+            'unknown format %r; "fteproxy formats" lists the base names' % base)
+    for name, pattern in ((base + '-request', request),
+                          (base + '-response', response)):
         try:
-            definitions = fteproxy.defs.load_definitions()
-        except (OSError, fteproxy.defs.DefinitionsError) as e:
-            raise StartupError('failed to load the definitions file: ' + str(e))
-        # The server accepts any format the client asks for, so all of them
-        # have to work here.
-        for format_name in definitions.keys():
-            check_format(format_name)
-    warn_if_default_key()
+            fteproxy._regex_format(pattern, fteproxy.defs.getLength(name))
+        except Exception as e:
+            raise StartupError('format %s is unusable: %s' % (name, e))
+
+
+def resolve_state_dir(args, create=True):
+    directory = fteproxy.config.state_dir(getattr(args, 'state_dir', None))
+    if create:
+        fteproxy.config.ensure_state_dir(directory)
+    return directory
+
+
+def parse_advertise(text, default_port):
+    try:
+        host, port = fteproxy.config.split_host_port(
+            text, default_port=default_port)
+    except ValueError as e:
+        raise UsageError('--advertise %s' % e)
+    if not host:
+        raise UsageError('--advertise needs a host')
+    return host, port
 
 
 # --------------------------------------------------------------------------- #
 # Subcommands
 # --------------------------------------------------------------------------- #
+
+def do_keygen(args):
+    directory = resolve_state_dir(args)
+    private, public, created = fteproxy.config.ensure_server_key(directory)
+    del private
+
+    host, port = fteproxy.config.HOST_PLACEHOLDER, fteproxy.config.DEFAULT_PORT
+    if args.advertise:
+        host, port = parse_advertise(args.advertise, fteproxy.config.DEFAULT_PORT)
+    uri = fteproxy.config.ConnectionString(public, host, port)
+    path = fteproxy.config.write_connection_string(directory, uri)
+
+    _report(args, '%s %s'
+            % ('wrote' if created else 'kept',
+               fteproxy.config.server_key_path(directory)))
+    _report(args, 'connection string also written to %s' % path)
+    print(uri.format())
+    return EXIT_OK
+
 
 def do_formats(args):
     """Print each base format name with its covertext length and capacity.
@@ -347,18 +353,15 @@ def do_formats(args):
     bounds a record.
     """
     try:
-        definitions = fteproxy.defs.load_definitions()
-    except OSError as e:
-        fteproxy.warn('failed to read the definitions file: ' + str(e))
+        definitions = select_defs(args.defs)
+    except StartupError as e:
+        fteproxy.logger.error(str(e))
         return EXIT_FAILURE
 
-    default_base = _base_name(
-        fteproxy.conf.getValue('runtime.state.upstream_language'))
-    key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
-
+    key = b'\x00' * 32
     bases = {}
     for name in definitions:
-        base = _base_name(name)
+        base = fteproxy.defs.base_name(name)
         direction = name[len(base) + 1:] if name != base else ''
         if direction not in ('request', 'response'):
             continue
@@ -375,18 +378,18 @@ def do_formats(args):
             length = fteproxy.defs.getLength(name)
             try:
                 capacity = fteproxy._make_cipher(
-                    fteproxy.defs.getRegex(name), length, key).max_plaintext_bytes
+                    fteproxy.defs.getRegex(name), length,
+                    key).max_plaintext_bytes
             except Exception:
                 row += [str(length), 'unusable']
                 continue
             row += [str(length), str(capacity)]
-        row.append('(default)' if base == default_base else '')
+        row.append('(default)' if base == DEFAULT_FORMAT else '')
         rows.append(row)
 
     header = ['name', 'req len', 'req cap', 'resp len', 'resp cap', '']
     widths = [max(len(r[i]) for r in [header] + rows) for i in range(len(header))]
-    print('definitions release %s'
-          % fteproxy.conf.getValue('fteproxy.defs.release'))
+    print('definitions release %s' % args.defs)
     print('covertext length and message capacity, in bytes, per direction')
     print()
     for row in [header] + rows:
@@ -396,130 +399,161 @@ def do_formats(args):
     return EXIT_OK
 
 
-def _base_name(format_name):
-    """``manual-http-request`` -> ``manual-http``."""
-    for suffix in ('-request', '-response'):
-        if format_name.endswith(suffix):
-            return format_name[:-len(suffix)]
-    return format_name
+def do_server(args):
+    select_defs(args.defs)
+    directory = resolve_state_dir(args)
+    private, public, created = fteproxy.config.ensure_server_key(directory)
 
-
-# --------------------------------------------------------------------------- #
-# PID files (removed with --stop in the 0.4 command line)
-# --------------------------------------------------------------------------- #
-
-def get_pid_file():
-    return os.path.join(
-        fteproxy.conf.getValue('general.pid_dir'),
-        '.' + str(fteproxy.conf.getValue('runtime.mode'))
-        + '-' + str(os.getpid()) + '.pid')
-
-
-def write_pid_file():
-    pid_file = get_pid_file()
     try:
-        with open(pid_file, 'w') as f:
-            f.write(str(os.getpid()))
-    except OSError:
-        fteproxy.warn('failed to write PID file to disk: ' + pid_file)
-        return None
-    return pid_file
+        host, port = fteproxy.config.split_host_port(args.listen)
+    except ValueError as e:
+        raise UsageError('--listen %s' % e)
 
+    try:
+        rules = fteproxy.stream.AllowRules(args.allow)
+    except fteproxy.stream.InvalidRule as e:
+        raise UsageError(str(e))
 
-def do_stop(mode):
-    """Signal every running fteproxy of ``mode`` recorded in the PID directory."""
-    pattern = os.path.join(fteproxy.conf.getValue('general.pid_dir'),
-                           '.' + mode + '-*.pid')
-    for pid_file in glob.glob(pattern):
-        try:
-            with open(pid_file) as f:
-                pid = int(f.read())
-        except (OSError, ValueError):
-            fteproxy.warn('failed to read PID file: ' + pid_file)
-            continue
-        try:
-            os.kill(pid, signal.SIGINT)
-        except OSError:
-            fteproxy.warn('failed to signal process ' + str(pid))
-        try:
-            os.unlink(pid_file)
-        except OSError:
-            fteproxy.warn('failed to remove PID file: ' + pid_file)
-    return EXIT_OK
+    advertise_host, advertise_port = fteproxy.config.HOST_PLACEHOLDER, port
+    if args.advertise:
+        advertise_host, advertise_port = parse_advertise(args.advertise, port)
+    uri = fteproxy.config.ConnectionString(public, advertise_host,
+                                           advertise_port,
+                                           defs=str(args.defs))
+    connection_file = fteproxy.config.write_connection_string(directory, uri)
 
-
-# --------------------------------------------------------------------------- #
-# The relay
-# --------------------------------------------------------------------------- #
-
-# TODO(PR4): delete with the flat command line.
-def shim_keypair_from_shared_key(key):
-    """Derive a fixed server keypair from the pre-0.4 shared secret.
-
-    The 0.4 protocol authenticates the server with a keypair, and the 0.4
-    command line hands the client that keypair's public half in a connection
-    string. Until PR4 lands the new command line, ``--key``/``--key-file``
-    still name a secret both endpoints hold, so both derive the same keypair
-    from it and the real handshake runs unchanged. Nothing about the protocol
-    is weakened by this; what it lacks is the operational property that the
-    client only ever needs a public key.
-    """
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-
-    private = HKDF(algorithm=hashes.SHA256(), length=32, salt=b'',
-                   info=b'fteproxy/shim/shared-key-server-identity').derive(key)
-    return private, fteproxy.server_id(private)
-
-
-def init_listener(mode):
-    """Build the listener for ``mode`` out of the flat command line.
-
-    TODO(PR4): the flat interface still describes a fixed-destination
-    topology, so the client becomes a single ``-L`` forward to
-    ``--proxy_ip:--proxy_port`` and the server is given exactly that
-    destination as its allow rule. The new command line replaces both with a
-    connection string, ``-D``/``-L`` and ``--allow``.
-    """
-    server_ip = fteproxy.conf.getValue('runtime.server.ip')
-    server_port = fteproxy.conf.getValue('runtime.server.port')
-    proxy_ip = fteproxy.conf.getValue('runtime.proxy.ip')
-    proxy_port = fteproxy.conf.getValue('runtime.proxy.port')
-    private, public = shim_keypair_from_shared_key(
-        fteproxy.conf.getValue('runtime.fteproxy.encrypter.key'))
-
-    if mode == 'client':
-        base = fteproxy.defs.base_name(
-            fteproxy.conf.getValue('runtime.state.upstream_language'))
-        return fteproxy.relay.ForwardListener(
-            fteproxy.conf.getValue('runtime.client.ip'),
-            fteproxy.conf.getValue('runtime.client.port'),
-            (server_ip, server_port), public,
-            destination=(proxy_ip, proxy_port),
-            format=base,
-            mode=fteproxy.conf.getValue('runtime.fteproxy.record_layer.mode'))
-
-    return fteproxy.relay.ServerListener(
-        server_ip, server_port, private,
-        rules=fteproxy.stream.AllowRules(['%s:%d' % (proxy_ip, proxy_port)]))
-
-
-def run_relay(mode):
-    """Bind, then relay until SIGINT or SIGTERM. Returns the exit status.
-
-    The bind happens on this thread so a refused port is a startup failure with
-    a non-zero status, not a listener thread that dies while the process goes
-    on to exit 0.
-    """
-    listener = init_listener(mode)
+    listener = fteproxy.relay.ServerListener(host, port, private, rules=rules)
     try:
         listener.bind()
     except OSError as e:
-        raise StartupError('failed to bind %s: %s'
-                           % (_bind_address(mode), e))
+        raise StartupError('cannot listen on %s: %s' % (args.listen, e))
 
-    pid_file = write_pid_file()
+    bound_host, bound_port = listener.address
+    _report(args, 'listening on %s' % _render_address(bound_host, bound_port))
+    if not args.quiet:
+        print('key: %s%s' % (fteproxy.config.server_key_path(directory),
+                             ' (created)' if created else ''))
+        print('allowing: %s' % rules.describe())
+        print('clients connect with:')
+        print('  fteproxy client %s' % uri.format())
+        print('(also written to %s)' % connection_file)
+        sys.stdout.flush()
+    return serve_forever([listener])
 
+
+def do_client(args):
+    directory = resolve_state_dir(args, create=False)
+    try:
+        uri, source = fteproxy.config.resolve_client_uri(args.uri, directory)
+    except fteproxy.config.ConfigError as e:
+        raise UsageError(str(e))
+    if uri is None:
+        raise UsageError(
+            'no connection string. Pass one as an argument, set %s, or run '
+            'the server once so it writes %s.'
+            % (fteproxy.config.ENV_URI,
+               fteproxy.config.connection_path(directory)))
+    fteproxy.debug('connection string from %s' % source)
+
+    # The definitions release is the server operator's to choose: the client
+    # takes it from the URI's hint, since a mismatch is refused at the far end.
+    defs = uri.defs or fteproxy.conf.getValue('fteproxy.defs.release')
+    select_defs(str(defs))
+
+    # Flags beat the URI's hints, which beat the built-in defaults.
+    base = args.format or uri.format_name or DEFAULT_FORMAT
+    mode = args.mode or uri.mode or DEFAULT_MODE
+    check_format(base)
+
+    try:
+        socks_specs = [fteproxy.config.split_socks_spec(spec)
+                       for spec in args.socks]
+        forwards = [fteproxy.config.split_forward_spec(spec)
+                    for spec in args.forwards]
+    except ValueError as e:
+        raise UsageError(str(e))
+    if not socks_specs and not forwards:
+        socks_specs = [fteproxy.config.split_socks_spec(DEFAULT_SOCKS)]
+
+    common = dict(server_address=uri.address, server_id=uri.server_id,
+                  format=base, mode=mode, defs=str(defs))
+
+    listeners = []
+    for bind, port in socks_specs:
+        listeners.append(fteproxy.relay.SocksListener(bind, port, **common))
+    for (bind, port), destination in forwards:
+        listeners.append(fteproxy.relay.ForwardListener(
+            bind, port, destination=destination, **common))
+
+    if not args.no_check:
+        run_startup_check(args, listeners[0], uri)
+
+    for listener in listeners:
+        try:
+            listener.bind()
+        except OSError as e:
+            for started in listeners:
+                started.stop()
+            raise StartupError('cannot listen on %s: %s'
+                               % (_render_address(*listener.address), e))
+
+    for listener, spec in zip(listeners,
+                              [('SOCKS5', None) for _ in socks_specs]
+                              + [('forward', destination)
+                                 for _, destination in forwards]):
+        kind, destination = spec
+        where = _render_address(*listener.address)
+        if destination is None:
+            _report(args, 'SOCKS5 on %s' % where)
+        else:
+            _report(args, 'forwarding %s to %s through the tunnel'
+                    % (where, _render_address(*destination)))
+    return serve_forever(listeners)
+
+
+def run_startup_check(args, listener, uri):
+    """Open one short session so a bad connection string fails now.
+
+    On the wire it is an ordinary session start, and it costs one round trip.
+    The alternative is a first connection that hangs until a timeout with
+    nothing to say about why.
+    """
+    where = _render_address(uri.host, uri.port)
+    if not args.quiet:
+        sys.stderr.write('checking %s ... ' % where)
+        sys.stderr.flush()
+    try:
+        format_name, mode = listener.check()
+    except Exception as e:
+        if not args.quiet:
+            sys.stderr.write('failed\n')
+        raise StartupError(
+            '%s: %s\n  (wrong connection string, or the server is not running '
+            'fteproxy 0.4)' % (where, e))
+    if not args.quiet:
+        sys.stderr.write('ok (protocol %d, %s, %s)\n'
+                         % (fteproxy.handshake.PROTOCOL_VERSION, format_name,
+                            mode))
+        sys.stderr.flush()
+
+
+def _render_address(host, port):
+    if not host:
+        return '[::]:%d' % port
+    return '[%s]:%d' % (host, port) if ':' in host else '%s:%d' % (host, port)
+
+
+# --------------------------------------------------------------------------- #
+# Running
+# --------------------------------------------------------------------------- #
+
+def serve_forever(listeners):
+    """Run ``listeners`` in the foreground until SIGINT or SIGTERM.
+
+    No PID file and no ``--stop``: the process runs in the foreground and a
+    service manager, a shell job or a container runtime stops it the way it
+    stops anything else.
+    """
     stopping = threading.Event()
 
     def _stop(signum, frame):
@@ -533,65 +567,55 @@ def run_relay(mode):
             # Not the main thread (an embedding program calling main()).
             pass
 
-    listener.daemon = True
-    listener.start()
-    fteproxy.info('%s listening on %s' % (mode, _bind_address(mode)))
+    for listener in listeners:
+        listener.daemon = True
+        listener.start()
     try:
-        while listener.is_alive() and not stopping.is_set():
+        while not stopping.is_set() and any(l.is_alive() for l in listeners):
             stopping.wait(0.5)
     finally:
-        listener.stop()
+        for listener in listeners:
+            listener.stop()
         for signum, handler in previous.items():
             signal.signal(signum, handler)
-        if pid_file and os.path.exists(pid_file):
-            try:
-                os.unlink(pid_file)
-            except OSError:
-                pass
     return EXIT_OK
-
-
-def _bind_address(mode):
-    if mode == 'client':
-        return '%s:%d' % (fteproxy.conf.getValue('runtime.client.ip'),
-                          fteproxy.conf.getValue('runtime.client.port'))
-    return '%s:%d' % (fteproxy.conf.getValue('runtime.server.ip'),
-                      fteproxy.conf.getValue('runtime.server.port'))
 
 
 # --------------------------------------------------------------------------- #
 # Entry point
 # --------------------------------------------------------------------------- #
 
+_COMMANDS = {
+    'server': do_server,
+    'client': do_client,
+    'keygen': do_keygen,
+    'formats': do_formats,
+}
+
+
 def main(argv=None):
     """Parse ``argv``, run the requested command, and return an exit status."""
     argv = sys.argv[1:] if argv is None else list(argv)
+
+    removed = removed_flag(argv)
+    if removed is not None:
+        print(_UPGRADE_POINTER % removed, file=sys.stderr)
+        return EXIT_USAGE
+
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.command is None:
+        parser.print_help(sys.stderr)
+        return EXIT_USAGE
 
     configure_logging(quiet=args.quiet, verbose=args.verbose)
 
     try:
-        apply_args_to_conf(args)
+        return _COMMANDS[args.command](args)
     except UsageError as e:
         parser.error(str(e))  # exits 2
-
-    if args.command == 'formats':
-        return do_formats(args)
-
-    if args.mode is None:
-        parser.print_usage(sys.stderr)
-        print('fteproxy: --mode (client|server) is required, '
-              'or name a subcommand (formats).', file=sys.stderr)
-        return EXIT_USAGE
-
-    if args.stop:
-        return do_stop(args.mode)
-
-    try:
-        check_startup(args.mode)
-        return run_relay(args.mode)
-    except StartupError as e:
+    except (StartupError, fteproxy.config.ConfigError) as e:
         fteproxy.logger.error(str(e))
         return EXIT_FAILURE
     except KeyboardInterrupt:

@@ -44,10 +44,12 @@ import functools
 import json
 import os
 import random
+import shutil
 import socket
 import statistics
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 
@@ -398,31 +400,37 @@ class FteProxyTunnel:
         app -> client(entry_port) ==FTE==> [middle] ==> server -> dest(dest_port)
 
     where [middle] is either the server's own port, or a Shaper in front of it.
+
+    Since 0.4 the client is the end that names the destination, so the client
+    runs one `-L entry_port:127.0.0.1:dest_port` forward and the server is
+    given exactly that destination as its allow rule. The server generates its
+    keypair into a throwaway state directory on first start and writes the
+    connection string there; the client reads it from the same directory.
     """
 
-    def __init__(self, dest_port, upstream_format=None, downstream_format=None,
-                 record_layer_mode=None,
+    def __init__(self, dest_port, format=None, mode=None,
                  shaper_kwargs=None, verbose=False):
         self.dest_port = dest_port
         self.entry_port = free_port()
         self.server_port = free_port()
-        self.upstream_format = upstream_format
-        self.downstream_format = downstream_format
-        self.record_layer_mode = record_layer_mode
+        self.format = format
+        self.mode = mode
         self.verbose = verbose
         self.procs = []
         self.shaper = None
+        self.state_dir = None
         self._shaper_kwargs = shaper_kwargs
 
     def start(self):
         py = sys.executable
         out = None if self.verbose else subprocess.DEVNULL
+        self.state_dir = tempfile.mkdtemp(prefix='fteproxy-benchmark-')
 
-        server_cmd = [py, '-m', 'fteproxy', '--mode', 'server', '--quiet',
-                      '--server_ip', '127.0.0.1', '--server_port', str(self.server_port),
-                      '--proxy_ip', '127.0.0.1', '--proxy_port', str(self.dest_port)]
-        if self.record_layer_mode:
-            server_cmd += ['--record-layer-mode', self.record_layer_mode]
+        server_cmd = [py, '-m', 'fteproxy', 'server', '-q',
+                      '--listen', '127.0.0.1:%d' % self.server_port,
+                      '--advertise', '127.0.0.1:%d' % self.server_port,
+                      '--allow', '127.0.0.1:%d' % self.dest_port,
+                      '--state-dir', self.state_dir]
         self.procs.append(subprocess.Popen(server_cmd, stdout=out, stderr=out))
 
         # Client connects either straight to the server, or via the shaper.
@@ -434,27 +442,49 @@ class FteProxyTunnel:
         else:
             client_target = self.server_port
 
-        # The destination travels in band since 0.4, so the client is the end
-        # that names it.
-        client_cmd = [py, '-m', 'fteproxy', '--mode', 'client', '--quiet',
-                      '--client_ip', '127.0.0.1', '--client_port', str(self.entry_port),
-                      '--server_ip', '127.0.0.1', '--server_port', str(client_target),
-                      '--proxy_ip', '127.0.0.1', '--proxy_port', str(self.dest_port)]
-        if self.upstream_format:
-            client_cmd += ['--upstream-format', self.upstream_format]
-        if self.downstream_format:
-            client_cmd += ['--downstream-format', self.downstream_format]
-        if self.record_layer_mode:
-            client_cmd += ['--record-layer-mode', self.record_layer_mode]
-        self.procs.append(subprocess.Popen(client_cmd, stdout=out, stderr=out))
-
         if not wait_listening(self.server_port):
             raise RuntimeError("fteproxy server did not come up")
+        uri = self._connection_string(client_target)
+
+        client_cmd = [py, '-m', 'fteproxy', 'client', uri, '-q',
+                      '--no-check',
+                      '-L', '127.0.0.1:%d:127.0.0.1:%d' % (self.entry_port,
+                                                           self.dest_port),
+                      '--state-dir', self.state_dir]
+        if self.format:
+            client_cmd += ['--format', self.format]
+        if self.mode:
+            client_cmd += ['--mode', self.mode]
+        self.procs.append(subprocess.Popen(client_cmd, stdout=out, stderr=out))
+
         if not wait_listening(self.entry_port):
             raise RuntimeError("fteproxy client did not come up")
         # small settle so the first real connection isn't racing startup
         time.sleep(0.3)
         return self
+
+    def _connection_string(self, port):
+        """The string the server wrote, pointed at whatever the client dials.
+
+        With a shaper in the middle the client connects to the shaper, not to
+        the server's own port, so the host:port has to be rewritten.
+        """
+        path = os.path.join(self.state_dir, 'connection.txt')
+        deadline = time.time() + 30
+        text = ''
+        while time.time() < deadline:
+            try:
+                with open(path) as handle:
+                    text = handle.read().strip()
+                if text:
+                    break
+            except OSError:
+                pass
+            time.sleep(0.05)
+        if not text:
+            raise RuntimeError("fteproxy server wrote no connection string")
+        head, _, _tail = text.partition('@')
+        return '%s@127.0.0.1:%d' % (head, port)
 
     def stop(self):
         if self.shaper:
@@ -465,6 +495,8 @@ class FteProxyTunnel:
         for p in self.procs:
             with contextlib.suppress(Exception):
                 p.wait(timeout=5)
+        if self.state_dir:
+            shutil.rmtree(self.state_dir, ignore_errors=True)
 
 
 class PlainTunnel:
@@ -741,9 +773,7 @@ def run_matrix(args):
             shaper_kwargs = scen['shaper']
             try:
                 tunnel = TunnelCls(dest.port, shaper_kwargs=shaper_kwargs,
-                                   upstream_format=args.upstream_format,
-                                   downstream_format=args.downstream_format,
-                                   record_layer_mode=args.record_layer_mode,
+                                   format=args.format, mode=args.mode,
                                    verbose=args.verbose)
             except TypeError:
                 tunnel = TunnelCls(dest.port, shaper_kwargs=shaper_kwargs)
@@ -863,11 +893,10 @@ def main():
     ap.add_argument('--setup-count', type=int, default=20)
     ap.add_argument('--resilience', action='store_true',
                     help="run the mid-transfer link-drop resilience probe")
-    ap.add_argument('--upstream-format', default=None,
-                    help="fteproxy --upstream-format (e.g. manual-http-request)")
-    ap.add_argument('--downstream-format', default=None)
-    ap.add_argument('--record-layer-mode', choices=['hybrid', 'format'], default=None,
-                    help="fteproxy --record-layer-mode for both endpoints "
+    ap.add_argument('--format', default=None, dest='format',
+                    help="fteproxy client --format, a base name (e.g. manual-http)")
+    ap.add_argument('--mode', choices=['hybrid', 'format'], default=None,
+                    help="fteproxy client --mode; the server follows "
                          "(default: fteproxy's own default, hybrid)")
     ap.add_argument('--json', default=None, metavar='PATH',
                     help="write raw results as JSON")

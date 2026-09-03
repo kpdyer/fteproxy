@@ -985,9 +985,7 @@ def wrap_socket(sock, server_key=None, server_id=None,
         server_public = _as_key_bytes(server_id, 'server_id')
 
     if format is None:
-        format = fteproxy.conf.getValue('runtime.state.upstream_language')
-        if format.endswith('-request'):
-            format = format[:-len('-request')]
+        format = fteproxy.conf.getValue('fteproxy.default_format')
     if mode is None:
         mode = (fteproxy.handshake.MODE_HYBRID if _hybrid_mode()
                 else fteproxy.handshake.MODE_FORMAT)
