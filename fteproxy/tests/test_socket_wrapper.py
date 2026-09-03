@@ -146,3 +146,99 @@ class TestRecvEOF:
         wrapper = _wrap(fake)
         assert wrapper.recv(65536) == b'hello'
         assert wrapper.recv(65536) == b''
+
+
+class CapturingSocket(FakeSocket):
+    """A FakeSocket that also records everything the wrapper sends."""
+
+    def __init__(self, chunks=()):
+        super().__init__(chunks)
+        self.sent = []
+
+    def send(self, data):
+        self.sent.append(data)
+        return len(data)
+
+    def sendall(self, data):
+        self.sent.append(data)
+
+
+@pytest.fixture(params=['hybrid', 'format'])
+def record_layer_mode(request):
+    key = 'runtime.fteproxy.record_layer.mode'
+    prev = fteproxy.conf.getValue(key)
+    fteproxy.conf.setValue(key, request.param)
+    yield request.param
+    fteproxy.conf.setValue(key, prev)
+
+
+def _client_wire(payload):
+    """What a negotiating client puts on the wire to send ``payload``: the
+    negotiation record, then the first data record, as two byte strings."""
+    up = fteproxy.conf.getValue('runtime.state.upstream_language')
+    down = fteproxy.conf.getValue('runtime.state.downstream_language')
+    sock = CapturingSocket()
+    client = fteproxy.wrap_socket(
+        sock,
+        outgoing_regex=fteproxy.defs.getRegex(up),
+        outgoing_length=fteproxy.defs.getLength(up),
+        incoming_regex=fteproxy.defs.getRegex(down),
+        incoming_length=fteproxy.defs.getLength(down))
+    client.send(payload)
+    negotiation, data = sock.sent
+    return negotiation, data
+
+
+class TestNegotiationRecordReplay:
+    """The negotiation cell is record 0 of the client's stream, so a duplicated
+    negotiation record is rejected like any other replayed record.
+
+    Regression tests. The client used to encode the negotiation cell with a
+    throw-away encoder and the server to decode it with a throw-away decoder,
+    so the cell and the first data record were both sealed at seq 0. A stream
+    ``[nego][nego][data0]`` then delivered the second cell's 64-byte plaintext
+    to the destination as application data before stalling on ``data0``.
+    """
+
+    def test_first_data_record_is_sealed_at_seq_1(self, record_layer_mode):
+        """On the wire, the negotiation record is seq 0 and data starts at 1."""
+        negotiation, data = _client_wire(b'payload')
+        up = fteproxy.conf.getValue('runtime.state.upstream_language')
+        key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+        cipher = fteproxy._make_cipher(
+            fteproxy.defs.getRegex(up), fteproxy.defs.getLength(up), key)
+
+        decoder = fteproxy._record_decoder(cipher, key)
+        decoder.push(negotiation + data)
+        cell = fteproxy.NegotiateCell().fromBytes(decoder.pop(oneCell=True))
+        assert cell.getLanguage() == up[:-len('-request')]
+        assert decoder.pop() == b'payload'
+        assert decoder._seq == 2
+
+        # The data record alone does not unseal at position 0.
+        fresh = fteproxy._record_decoder(cipher, key)
+        fresh.push(data)
+        assert fresh.pop() == b''
+
+    def test_server_continues_stream_after_negotiation(self, record_layer_mode):
+        """The server's data decoder carries on from the negotiation cell."""
+        negotiation, data = _client_wire(b'payload')
+        for chunks in ([negotiation + data], [negotiation, data]):
+            server = fteproxy.wrap_socket(FakeSocket(chunks))
+            assert server.recv(65536) == b'payload'
+            assert server._decoder._seq == 2
+
+    def test_duplicated_negotiation_record_delivers_nothing(self, record_layer_mode):
+        negotiation, data = _client_wire(b'payload')
+        for chunks in ([negotiation + negotiation + data],
+                       [negotiation, negotiation + data]):
+            server = fteproxy.wrap_socket(FakeSocket(chunks))
+            # Negotiation succeeds on the first cell. The duplicate is then a
+            # record out of its stream position, so nothing decodes and the
+            # stream stops: recv() reports EOF once the peer is gone, having
+            # delivered no application data (not the cell's plaintext, and
+            # not data0, which is sealed at seq 1).
+            assert server.recv(65536) == b''
+            assert server._negotiationComplete
+            assert server._decoder._seq == 1
+            assert server._decoder._buffer == negotiation + data

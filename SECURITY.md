@@ -38,7 +38,10 @@ first. This section covers what fteproxy adds on top of it.
   from the shared key. Every record carries its position in its stream (sealed
   inside the covertext and, in `hybrid` mode, bound into the body tag), so a
   record that is reordered, replayed, or dropped within a connection fails
-  authentication and the stream stops.
+  authentication and the stream stops. This includes the negotiation record:
+  it is record 0 of the client-to-server stream and the first data record is
+  1, so a duplicated or replayed negotiation record is rejected the same way
+  and nothing from it reaches the destination.
 
 - **Known limitation: cross-stream replay.** Because the key is static and shared
   by all connections and both directions, a record captured from one stream is

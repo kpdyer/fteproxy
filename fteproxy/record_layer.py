@@ -22,7 +22,9 @@ so it reads as random format text and only unseals at stream position
 
 ``seq`` is the record's position in its stream, counted from 0 by each
 ``Encoder``/``Decoder`` pair, so a record moved, replayed, or dropped within
-a stream is rejected. See SECURITY.md for what is not covered.
+a stream is rejected. The client's negotiation cell is record 0 of its stream
+(its first data record is seq 1), so a duplicated negotiation record is
+rejected like any other. See SECURITY.md for what is not covered.
 """
 
 import os

@@ -232,6 +232,14 @@ class NegotiationManager(object):
         return self._negotiationComplete
 
     def _acceptNegotiation(self, data):
+        """Decode the negotiation cell at the head of ``data``.
+
+        Returns ``[negotiate_cell, decoder]``: the cell's plaintext and the
+        decoder that unsealed it. That decoder has consumed record 0 of the
+        client's stream and holds whatever followed the cell in its buffer, so
+        the caller keeps it as the data decoder; rebuilding one at seq 0 would
+        let a duplicated negotiation record decode again as data.
+        """
 
         languages = fteproxy.defs.load_definitions()
 
@@ -262,7 +270,7 @@ class NegotiationManager(object):
                 negotiate_cell = decoder.pop(oneCell=True)
                 NegotiateCell().fromBytes(negotiate_cell)
 
-                return [negotiate_cell, decoder._buffer]
+                return [negotiate_cell, decoder]
             except Exception as e:
                 fteproxy.info('Failed to decode first message as '+incoming_language+': '+str(e))
 
@@ -287,7 +295,14 @@ class NegotiationManager(object):
 
         return [encoder, decoder]
 
-    def _makeNegotiationCell(self, encoder):
+    def makeClientNegotiationCell(self, encoder):
+        """Encode the negotiation cell as record 0 of ``encoder``'s stream.
+
+        ``encoder`` must be the encoder the socket goes on to send data with,
+        so the first data record is sealed at seq 1. Encoding the cell with a
+        throw-away encoder left both it and the first data record at seq 0,
+        which is what let a duplicated negotiation record decode as data.
+        """
         negotiate_cell = NegotiateCell()
         def_file = fteproxy.conf.getValue('fteproxy.defs.release')
         negotiate_cell.setDefFile(def_file)
@@ -298,30 +313,23 @@ class NegotiationManager(object):
         data = encoder.pop()
         return data
 
-    def makeClientNegotiationCell(self,
-                                  outgoing_regex, outgoing_length,
-                                  incoming_regex, incoming_length):
-        [encoder, decoder] = self._init_encoders(
-            outgoing_regex, outgoing_length, incoming_regex, incoming_length)
-        return self._makeNegotiationCell(encoder)
-
     def doServerSideNegotiation(self, data):
-        [negotiate_cell, remaining_buffer] = self._acceptNegotiation(data)
+        [negotiate_cell, decoder] = self._acceptNegotiation(data)
 
         negotiate = NegotiateCell().fromBytes(negotiate_cell)
 
         outgoing_language = negotiate.getLanguage() + '-response'
-        incoming_language = negotiate.getLanguage() + '-request'
 
         outgoing_regex = fteproxy.defs.getRegex(outgoing_language)
         outgoing_length = fteproxy.defs.getLength(outgoing_language)
-        incoming_regex = fteproxy.defs.getRegex(incoming_language)
-        incoming_length = fteproxy.defs.getLength(incoming_language)
 
-        [encoder, decoder] = self._init_encoders(
-            outgoing_regex, outgoing_length, incoming_regex, incoming_length)
-
-        decoder.push(remaining_buffer)
+        # The decoder that unsealed the negotiation cell is the data decoder:
+        # it is at seq 1 and still holds the bytes that followed the cell. Only
+        # the encoder for the response direction is new. (The cell can only
+        # have unsealed under the request format the client encoded it with,
+        # so that decoder is the one the client's data stream needs.)
+        [encoder, _] = self._init_encoders(
+            outgoing_regex, outgoing_length, None, -1)
 
         return [encoder, decoder]
 
@@ -355,9 +363,9 @@ class FTEHelper(object):
                 self._incoming_length)
             self._encoder = encoder
             self._decoder = decoder
+            # The cell is record 0 of this socket's stream; data starts at 1.
             negotiation_cell = self._negotiation_manager.makeClientNegotiationCell(
-                self._outgoing_regex, self._outgoing_length,
-                self._incoming_regex, self._incoming_length)
+                self._encoder)
             retval = negotiation_cell
             self._negotiationComplete = True
         return retval

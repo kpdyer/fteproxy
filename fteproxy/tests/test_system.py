@@ -126,6 +126,95 @@ def transfer_through_proxy(test_data, attempts=3, client_port=CLIENT_PORT, proxy
     return received_data
 
 
+def client_wire_bytes(payload):
+    """Capture what a negotiating fteproxy client sends for ``payload``.
+
+    Returns ``(negotiation, data)``: the negotiation record and the first data
+    record, built in-process with the default key and record-layer mode, which
+    are what a server process started without ``--key`` or
+    ``--record-layer-mode`` runs with.
+    """
+    import fteproxy
+    import fteproxy.conf
+    import fteproxy.defs
+
+    class Capture:
+        def __init__(self):
+            self.sent = []
+
+        def send(self, data):
+            self.sent.append(data)
+            return len(data)
+
+        def sendall(self, data):
+            self.sent.append(data)
+
+    mode_key = 'runtime.fteproxy.record_layer.mode'
+    prev_mode = fteproxy.conf.getValue(mode_key)
+    fteproxy.conf.setValue(mode_key, 'hybrid')
+    try:
+        fteproxy.defs.load_definitions()
+        up = fteproxy.conf.getValue('runtime.state.upstream_language')
+        down = fteproxy.conf.getValue('runtime.state.downstream_language')
+        sock = Capture()
+        client = fteproxy.wrap_socket(
+            sock,
+            outgoing_regex=fteproxy.defs.getRegex(up),
+            outgoing_length=fteproxy.defs.getLength(up),
+            incoming_regex=fteproxy.defs.getRegex(down),
+            incoming_length=fteproxy.defs.getLength(down))
+        client.send(payload)
+    finally:
+        fteproxy.conf.setValue(mode_key, prev_mode)
+    negotiation, data = sock.sent
+    return negotiation, data
+
+
+def send_raw_to_server(wire, server_port=SERVER_PORT, proxy_port=PROXY_PORT):
+    """Send ``wire`` verbatim to the fteproxy server port, half-close, and
+    return every byte the destination on ``proxy_port`` received before EOF.
+
+    Bypasses the fteproxy client entirely, so the caller controls the exact
+    record sequence the server sees.
+    """
+    received = b''
+    dest_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    dest_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    dest_server.bind((BIND_IP, proxy_port))
+    dest_server.listen(1)
+    dest_server.settimeout(DATA_TIMEOUT)
+
+    raw = None
+    proxy_conn = None
+    try:
+        raw = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        raw.connect((BIND_IP, server_port))
+        raw.settimeout(DATA_TIMEOUT)
+
+        # The server dials the destination as soon as it accepts.
+        proxy_conn, _ = dest_server.accept()
+        proxy_conn.settimeout(DATA_TIMEOUT)
+
+        raw.sendall(wire)
+        # EOF on the covert side: the server relays whatever decoded, then
+        # closes the destination side, which ends the loop below.
+        raw.shutdown(socket.SHUT_WR)
+
+        while True:
+            chunk = proxy_conn.recv(4096)
+            if not chunk:
+                break
+            received += chunk
+        return received
+    finally:
+        for sock in (raw, proxy_conn, dest_server):
+            if sock is not None:
+                try:
+                    sock.close()
+                except OSError:
+                    pass
+
+
 class TestSystemEndToEnd:
     """End-to-end system tests with actual client/server processes."""
 
@@ -220,6 +309,38 @@ class TestSystemEndToEnd:
             received_data = transfer_through_proxy(test_data)
             assert received_data == test_data, f"Connection {i} failed"
             time.sleep(0.5)  # Brief pause between connections
+
+    def test_duplicated_negotiation_record_delivers_nothing(self, fteproxy_server):
+        """A replayed negotiation record must not reach the destination.
+
+        Sends captured client wire bytes straight to the server port. The
+        control stream ``[nego][data0]`` delivers the payload. With the
+        negotiation record duplicated, ``[nego][nego][data0]``, the server
+        accepts the first cell and the duplicate is then out of its stream
+        position, so the destination must see no bytes at all before EOF: not
+        the cell's plaintext (which a server that restarted its sequence
+        counter after negotiation relayed as application data) and not
+        ``data0``.
+        """
+        payload = b'Hello, fteproxy!'
+        negotiation, data = client_wire_bytes(payload)
+
+        # Control first; it also absorbs a still-settling server, as
+        # transfer_through_proxy does.
+        control = b''
+        for attempt in range(3):
+            try:
+                control = send_raw_to_server(negotiation + data)
+            except (socket.timeout, OSError):
+                control = b''
+            if control == payload:
+                break
+            time.sleep(1)
+        assert control == payload, f"control stream failed: {control!r}"
+
+        delivered = send_raw_to_server(negotiation + negotiation + data)
+        assert delivered == b'', \
+            f"duplicated negotiation record leaked {delivered!r} to the destination"
 
 
 class TestCLI:
