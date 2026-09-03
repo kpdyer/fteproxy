@@ -1,0 +1,20 @@
+{
+  "http-request": {
+    "regex": "^(GET|POST|HEAD) /[a-zA-Z0-9/._?=&%-]* HTTP/1\\.1\r\nHost: [a-z0-9.-]+\r\nUser-Agent: Mozilla/5\\.0 \\([a-zA-Z0-9;: .()/_-]+\\)\r\nAccept: [a-zA-Z0-9/*,;= .+-]+\r\nAccept-Language: [a-z,;=0-9. -]+\r\n\r\n$",
+    "length": 512,
+    "port": [80, 8080, 8000],
+    "role": "request",
+    "mode_hint": "hybrid",
+    "default": true,
+    "description": "HTTP/1.1 GET, POST, or HEAD request with common browser headers"
+  },
+  "http-response": {
+    "regex": "^HTTP/1\\.1 (200 OK|302 Found|404 Not Found)\r\nContent-Type: [a-zA-Z0-9/;=. +-]+\r\nContent-Length: [0-9]+\r\nServer: [a-zA-Z0-9/. ()_-]+\r\n\r\n[a-zA-Z0-9/+= \r\n-]*$",
+    "length": 512,
+    "port": [80, 8080, 8000],
+    "role": "response",
+    "mode_hint": "hybrid",
+    "default": true,
+    "description": "HTTP/1.1 200/302/404 response with headers and a body"
+  }
+}
