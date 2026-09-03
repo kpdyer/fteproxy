@@ -14,21 +14,28 @@ look-alike is weaker than the genuine article. FTE's edge is exactly the case
 the real protocol cannot serve: sending arbitrary bytes shaped like a *plaintext*
 application protocol, so a regex or keyword DPI rule matches and passes it.
 
-So every shipped format is a protocol that is normally sent in the clear and is
-line- or text-structured, which is where regex covertext is strongest:
+So every shipped format is a protocol that is normally sent in the clear. Four are
+line- or text-structured, where regex covertext is strongest; DNS over TCP is the
+one binary format, carried because it is the highest-value circumvention channel:
 
 | Format | Ports | Role split | Why |
 |---|---|---|---|
 | http | 80, 8080, 8000 | request / response | the canonical cleartext protocol; the default |
 | ftp | 21 | command / reply | plaintext control channel, simple line grammar |
 | smtp | 25, 587 | command / reply | plaintext commands, numeric replies |
-| imap | 143 | tagged command / untagged reply | plaintext, tag-structured |
-| irc | 6667 | line / line | plaintext, line-delimited, symmetric |
+| sip | 5060 | request / response | VoIP signaling: HTTP-like text, TCP-native, still voluminous in telecom |
+| dns | 53 | query / response | DNS over TCP: the highest-value channel; binary wire format, the one non-text format |
 
-Swap candidates if the maintainer prefers: POP3 (110) for IMAP, SIP (5060),
-NNTP (119), or DNS-over-TCP (53). DNS is the strongest for reachability but its
-wire format is binary and length-prefixed, so it is a different, harder job than
-the five text protocols above; treat it as its own future format, not a drop-in.
+**Revision 2026-09-03.** The first cut shipped imap and irc in the last two slots.
+Both were dropped: imap is mail-family text with tagged commands and status replies,
+so a classifier that models a mail-ish text protocol lumps it with smtp and it adds
+a name rather than diversity; irc traffic has largely moved to TLS on 6697 and its
+volume collapsed. They were replaced by sip (voice, a category nothing else covered)
+and dns over TCP (the highest-value channel, and the one binary format). A broader
+point drove the choice: TLS has absorbed most classic cleartext protocols, so the
+set of still-common, still-cleartext, TCP-native protocols is short, and padding to
+five drags in weak ones. UDP protocols (SNMP, native DNS, NTP) cannot be mimicked
+over a TCP tunnel at all; a UDP datagram mode is under separate feasibility study.
 
 ## What "quality" can and cannot mean here (read before designing a format)
 
@@ -82,7 +89,7 @@ design decision:
   (One line in the JSON; shown wrapped here.)
 - **Mode suitability.** hybrid framing formats only the header and sends the body
   as raw authenticated bytes. That reads as an HTTP message with a body, so
-  `http` sets `mode_hint: hybrid`. A pure line protocol (ftp/smtp/imap/irc) has
+  `http` sets `mode_hint: hybrid`. A pure line protocol (ftp/smtp/sip) or the binary dns format has
   no natural place for a raw high-entropy body, so those set `mode_hint: format`
   (every byte in the protocol; about 1 MB/s, fine for interactive circumvention)
   and the docs say hybrid on them leaks a high-entropy tail. The client's
@@ -113,7 +120,7 @@ old files still load:
                  |
    +------+------+------+------+------+     (five agents, parallel)
    F1     F2     F3     F4     F5
-  http   ftp    smtp   imap   irc
+  http   ftp    smtp   sip    dns
    +------+------+------+------+------+
                  |
         F6 integration  (one agent)
@@ -166,9 +173,9 @@ Acceptance: `uv run python -m fteproxy defs-check --defs shapes-20260110` passes
 
 ### F1–F5 — one cleartext protocol each (parallel)
 
-Same shape for every protocol P in {http, ftp, smtp, imap, irc}:
+Same shape for every protocol P in {http, ftp, smtp, sip, dns}:
 
-- Write `P-request`/`P-response` (or `P-line` for irc) entries in
+- Write `P-request`/`P-response` entries in
   `fteproxy/defs/20260903.json`: regexes that model realistic message structure
   and cover several message types by alternation (methods/verbs, common headers
   or replies), realistic per-field character classes, `length` chosen so capacity
@@ -193,11 +200,23 @@ Per-protocol notes:
   `220/230/331/250/150/226/550 <text>`. `mode_hint: format`.
 - **smtp (F3):** requests `EHLO/MAIL FROM:<...>/RCPT TO:<...>/DATA/QUIT`; replies
   `220/250/354/550 <text>`, multiline `250-` continuations. `mode_hint: format`.
-- **imap (F4):** tagged `a<digits> LOGIN/SELECT/FETCH/STORE/SEARCH/LOGOUT`;
-  untagged `* OK/NO/BAD/<n> EXISTS/...` and tagged completion. `mode_hint: format`.
-- **irc (F5):** one symmetric line format covering
-  `NICK/USER/JOIN/PART/PRIVMSG/NOTICE/PING/PONG` and `:server NNN` numerics.
-  `mode_hint: format`.
+- **sip (F4):** requests `INVITE/REGISTER/ACK/BYE/OPTIONS sip:<user>@<host> SIP/2.0`
+  with `Via`, `From`, `To`, `Call-ID`, `CSeq` and `Content-Length` headers, CRLF CRLF;
+  responses `SIP/2.0 (100 Trying|180 Ringing|200 OK|404 Not Found)` with the same
+  headers. HTTP-like text, so the http realism approach applies (independent header
+  parsing). `mode_hint: format` (SIP bodies are SDP text, not raw). length ~512.
+- **dns (F5):** DNS over TCP (RFC 1035 s4.2.2): a 2-byte big-endian length prefix,
+  then a DNS message. Query: 12-byte header (ID, flags `0x0100` standard query with
+  recursion desired, QDCOUNT=1, other counts 0), one question of length-prefixed
+  `[a-z0-9-]` labels, QTYPE A or AAAA, QCLASS IN. Response: flags `0x8180`, QDCOUNT=1,
+  ANCOUNT>=1, the question echoed, then an A record (name pointer `0xC00C`, type,
+  class, TTL, RDLENGTH=4, four address bytes). This is BINARY: the regex is over raw
+  bytes (byte-range classes), the JSON carries them as `\u00XX` escapes, and the
+  capacity lives in the label bytes. realism/dns.py MUST use an independent DNS
+  parser (validate the header counts, label lengths, the compression pointer and
+  RDLENGTH consistency), not the format regex. A fixed length pads the QNAME into a
+  long name, structurally valid but unusual; note it, and it is the strongest case
+  for F7 variable length. `mode_hint: format`. length chosen so capacity >= 128.
 
 ### F6 — integration (after F1–F5)
 

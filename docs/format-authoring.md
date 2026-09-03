@@ -77,7 +77,7 @@ for. The client's `--mode` still overrides it.
 - **http → `hybrid`.** Hybrid framing formats only a fixed-length header per
   record and sends the body as raw authenticated bytes. That reads as an HTTP
   message with a body, which is exactly what HTTP looks like. Fast.
-- **line protocols (ftp, smtp, imap, irc) → `format`.** A pure line protocol has
+- **line protocols (ftp, smtp, sip) and the binary dns format → `format`.** A pure line protocol has
   no natural place for a raw high-entropy body, so every byte is transformed into
   the target format (about 1 MB/s, fine for interactive circumvention). Document
   that `hybrid` on a line protocol leaks a high-entropy tail.
@@ -129,7 +129,7 @@ with `Content-Type`, `Content-Length`, `Server`, then a body-absorbing field.
 
 ## The fragment-file convention (F1–F5)
 
-Each protocol phase P in {http, ftp, smtp, imap, irc} writes exactly three new
+Each protocol phase P in {http, ftp, smtp, sip, dns} writes exactly three new
 files and touches no shared file:
 
 1. `fteproxy/defs/parts/<P>.json` — the `<P>-request`/`<P>-response` (or

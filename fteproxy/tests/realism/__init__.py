@@ -3,7 +3,7 @@
 """Realism harness: sample real covertexts and judge them like a DPI would.
 
 Each of the five shipped protocols (phases F1-F5) adds a module here named for
-the protocol -- ``http.py``, ``ftp.py``, ``smtp.py``, ``imap.py``, ``irc.py`` --
+the protocol -- ``http.py``, ``ftp.py``, ``smtp.py``, ``sip.py``, ``dns.py`` --
 exposing one function::
 
     check(covertext: bytes) -> None

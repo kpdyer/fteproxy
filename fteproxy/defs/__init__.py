@@ -46,7 +46,7 @@ RESPONSE_SUFFIX = '-response'
 # documented default for a key it does not carry, so old releases load unchanged.
 # ------------------------------------------------------------------------- #
 
-#: ``role`` values. ``line`` is a symmetric protocol (e.g. irc) that does not
+#: ``role`` values. ``line`` is a symmetric protocol (one line grammar in both directions) that does not
 #: split into a request and a response direction.
 ROLE_REQUEST = 'request'
 ROLE_RESPONSE = 'response'
