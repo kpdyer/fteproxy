@@ -4,6 +4,7 @@
 Tests for the FTE record layer encoding/decoding.
 """
 
+import os
 import struct
 
 import pytest
@@ -245,15 +246,16 @@ class TestHybridRecordLayer:
         assert len(calls) == 2
 
     def test_oversized_body_length_is_rejected(self, capsys):
-        """A header announcing a body larger than any record can carry is
-        refused instead of buffering up to 4 GiB waiting for it."""
+        """A header announcing a body larger than any record can carry fails
+        the stream instead of buffering up to 4 GiB waiting for it."""
         encoder, decoder = self._pair()
         header = fteproxy.record_layer._seal(
             encoder._cipher, fteproxy.record_layer._OVERFLOW_LEN.pack(2 ** 32 - 1), 0)
         decoder.push(header + b'x' * 64)
         assert decoder.pop() == b''
         assert 'exceeds the record limit' in capsys.readouterr().out
-        assert len(decoder._buffer) == len(header) + 64
+        assert decoder.failed
+        assert decoder._buffer == b''
 
     def test_reordered_record_is_rejected(self):
         """A record moved out of its stream position fails the body auth."""
@@ -271,6 +273,7 @@ class TestHybridRecordLayer:
         d2 = self._pair()[1]
         d2.push(r1 + r0)
         assert d2.pop() == b''
+        assert d2.failed
 
 
 class TestFormatModeRecordLayer:
@@ -300,7 +303,8 @@ class TestFormatModeRecordLayer:
         replayed = self._pair()[1]
         replayed.push(r0 + r0)
         assert replayed.pop() == b'first'          # the replay is refused
-        assert replayed._buffer == r0
+        assert replayed.failed                      # and ends the stream
+        assert replayed._buffer == b''
 
     def test_multi_record_message_roundtrips(self):
         encoder, decoder = self._pair()
@@ -334,3 +338,102 @@ def test_seal_fills_covertext_with_random_not_padding():
     for path in (fmt_path, hyb_path):
         assert len(path) > 100        # the path fills the covertext capacity
         assert len(set(path)) > 15    # random-looking, not a single-char run
+
+
+def _mode_pair(mode, language='manual-http-request'):
+    """An encoder/decoder pair for ``mode`` ('hybrid' or 'format')."""
+    fteproxy.conf.setValue('runtime.mode', 'client')
+    key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
+    header = fteproxy._make_cipher(
+        fteproxy.defs.getRegex(language), fteproxy.defs.getLength(language), key)
+    body = fteproxy._make_body_cipher(key) if mode == 'hybrid' else None
+    return (fteproxy.record_layer.Encoder(cipher=header, body_cipher=body),
+            fteproxy.record_layer.Decoder(cipher=header, body_cipher=body))
+
+
+def _wire(encoder, payload):
+    encoder.push(payload)
+    return encoder.pop()
+
+
+@pytest.mark.parametrize('mode', ['hybrid', 'format'])
+class TestDecoderFailsClosed:
+    """A record that fails authentication ends the stream and frees its buffer.
+
+    Regression tests for a memory exhaustion: the decoder used to ``break`` on
+    a bad record and keep it (and everything pushed afterwards) buffered for as
+    long as the connection lived, so a peer holding a valid negotiation could
+    grow the server without bound by sending garbage.
+    """
+
+    def test_max_record_bytes(self, mode):
+        _, decoder = _mode_pair(mode)
+        length = fteproxy.defs.getLength('manual-http-request')
+        if mode == 'hybrid':
+            assert decoder.max_record_bytes == length + fteproxy._AEADBody.max_framed_bytes
+        else:
+            assert decoder.max_record_bytes == length
+
+    def test_garbage_fails_the_stream_and_refuses_more(self, mode):
+        _, decoder = _mode_pair(mode)
+        decoder.push(os.urandom(decoder._frame_size))
+        assert decoder.pop() == b''
+        assert decoder.failed
+        assert decoder._buffer == b''
+        with pytest.raises(fteproxy.record_layer.StreamFailedError):
+            decoder.push(b'anything')
+        assert decoder._buffer == b''
+        assert decoder.pop() == b''
+
+    def test_records_before_the_bad_one_are_delivered(self, mode):
+        encoder, decoder = _mode_pair(mode)
+        good = _wire(encoder, b'first')
+        bad = bytearray(_wire(encoder, b'second'))
+        bad[-1] ^= 0x01                      # hybrid: the body tag; format: the covertext
+        decoder.push(good + bytes(bad) + os.urandom(1000))
+        assert decoder.pop() == b'first'
+        assert decoder.failed
+        assert decoder._buffer == b''
+
+    def test_buffer_holds_less_than_one_record_between_pops(self, mode):
+        """Delivering a multi-record stream in arbitrary chunks never leaves
+        more than one incomplete record buffered after a pop."""
+        encoder, decoder = _mode_pair(mode)
+        # Hybrid records carry up to 1 MiB, so cross a few record boundaries;
+        # format records are a couple of hundred bytes, so a smaller stream
+        # already spans hundreds of them.
+        payload = os.urandom(2 * 2 ** 20 + 12345 if mode == 'hybrid' else 40000)
+        wire = _wire(encoder, payload)
+        out = b''
+        chunk = 100000 if mode == 'hybrid' else 1000
+        for i in range(0, len(wire), chunk):
+            decoder.push(wire[i:i + chunk])
+            out += decoder.pop()
+            assert len(decoder._buffer) < decoder.max_record_bytes
+        assert out == payload
+        assert decoder._buffer == b''
+
+    def test_garbage_stream_never_accumulates(self, mode):
+        """Random data is dropped at the first complete frame instead of being
+        kept while more arrives."""
+        _, decoder = _mode_pair(mode)
+        decoder.push(os.urandom(256 * 1024))
+        assert decoder.pop() == b''
+        assert decoder.failed
+        assert decoder._buffer == b''
+        with pytest.raises(fteproxy.record_layer.StreamFailedError):
+            decoder.push(os.urandom(256 * 1024))
+        assert decoder._buffer == b''
+
+
+def test_hybrid_body_tamper_fails_the_stream():
+    """A hybrid body whose ciphertext is altered fails its MAC and ends the
+    stream even though its header authenticated."""
+    encoder, decoder = _mode_pair('hybrid')
+    record = bytearray(_wire(encoder, b'Z' * 5000))
+    record[decoder._frame_size + 100] ^= 0x55
+    decoder.push(bytes(record))
+    assert decoder.pop() == b''
+    assert decoder.failed
+    assert decoder._buffer == b''
+    assert decoder._pending_body_len is None

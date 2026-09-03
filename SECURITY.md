@@ -74,7 +74,23 @@ first. This section covers what fteproxy adds on top of it.
   the first bytes as each known request format until one succeeds (the
   configured `--upstream-format` first). A failed attempt is rejected before
   the tag check when the bytes are not in the format, as in libfte; a full scan
-  over the built-in formats costs a few milliseconds of CPU.
+  over the built-in formats costs a few milliseconds of CPU. A peer that never
+  negotiates cannot make the server hold or scan more than one negotiation
+  record's worth of bytes: the longest request format's `length`, plus the
+  framed 64-byte cell in `hybrid` mode (1124 bytes with the built-in
+  definitions). Once more than that has arrived without a record decoding, the
+  server drops the bytes and closes the connection. (fteproxy 0.4.0 buffered
+  everything such a peer sent and rescanned all of it on every read, so one
+  connection sending 100 MB of garbage grew the process past 5 GB.)
+
+- **Fail-closed streams.** After negotiation, the first record that does not
+  authenticate (wrong key, corruption, replay, reorder, or a peer on the other
+  `--record-layer-mode`) ends the stream: the decoder drops its buffer, refuses
+  further input, and the connection is closed. Nothing after a bad record could
+  ever decode, since the sequence number cannot advance past it. Between reads
+  the decoder holds at most one incomplete record (`length` + 1 MiB + 28 bytes
+  in `hybrid` mode, `length` in `format` mode), so a connection's buffered
+  input is bounded whatever the peer sends.
 
 ## Reporting a Vulnerability
 

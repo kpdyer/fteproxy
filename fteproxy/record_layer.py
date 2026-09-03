@@ -23,6 +23,13 @@ so it reads as random format text and only unseals at stream position
 ``seq`` is the record's position in its stream, counted from 0 by each
 ``Encoder``/``Decoder`` pair, so a record moved, replayed, or dropped within
 a stream is rejected. See SECURITY.md for what is not covered.
+
+A stream fails closed: the first record that does not authenticate (or is
+malformed) marks the :class:`Decoder` as failed, which drops its buffer and
+refuses further input. Nothing later in the stream could ever decode, since
+the sequence number cannot advance past the bad record, so the connection
+should be closed. Between calls to :meth:`Decoder.pop` the decoder therefore
+never holds more than one incomplete record.
 """
 
 import os
@@ -32,6 +39,11 @@ import fte
 from cryptography.exceptions import InvalidTag
 
 import fteproxy.conf
+
+
+class StreamFailedError(Exception):
+    """Data was pushed into a :class:`Decoder` after one of its records
+    failed authentication. The stream cannot resume; close the connection."""
 
 
 # Length prefix inside a sealed (random-padded) covertext plaintext.
@@ -151,18 +163,49 @@ class Decoder:
         # the header covertext plus the ``body_len`` raw bytes the header carries.
         # Either way a trailing partial record stays buffered.
         self._frame_size = cipher.output_format.max_length
+        # The largest record this decoder can be asked to hold: one header
+        # covertext plus, in hybrid mode, the largest framed body a header may
+        # announce. After every ``pop`` the buffer is shorter than this: a
+        # complete record is consumed or fails the stream, so only an incomplete
+        # one stays buffered.
+        self.max_record_bytes = self._frame_size
+        if body_cipher is not None:
+            self.max_record_bytes += body_cipher.max_framed_bytes
         self._buffer = b''
         self._seq = 0
+        self._failed = False
         # Body length from a hybrid header that was decrypted and verified but
         # whose body had not fully arrived. While set, that header is the first
         # ``_frame_size`` bytes of ``_buffer`` (the buffer only grows).
         self._pending_body_len = None
 
+    @property
+    def failed(self):
+        """True once a record failed authentication. The decoder then holds
+        nothing, ``pop`` returns nothing, and ``push`` raises
+        :class:`StreamFailedError`."""
+        return self._failed
+
     def push(self, data):
         """Push data onto the FIFO buffer."""
+        if self._failed:
+            raise StreamFailedError(
+                "record layer stream failed at seq " + str(self._seq))
         if isinstance(data, str):
             data = data.encode('utf-8')
         self._buffer += data
+
+    def _fail(self, reason):
+        """Mark the stream failed and drop everything buffered. Once a record
+        at ``self._seq`` does not authenticate, no later bytes can: the
+        sequence number cannot advance, so keeping them would only let a peer
+        grow the buffer without bound."""
+        fteproxy.info(
+            "fteproxy.record_layer: " + reason + " at seq " + str(self._seq)
+            + "; stream failed")
+        self._failed = True
+        self._buffer = b''
+        self._pending_body_len = None
 
     def _decrypt(self, cipher, covertext):
         """Decrypt one covertext, mapping libfte errors to fteproxy semantics.
@@ -191,15 +234,23 @@ class Decoder:
             return None
 
     def pop(self, oneCell=False):
-        """Pop decrypted messages off the FIFO buffer, one record at a time."""
+        """Pop decrypted messages off the FIFO buffer, one record at a time.
+
+        Every complete record is consumed: decoded, or, if it does not
+        authenticate, the stream fails (see :attr:`failed`) and the buffer is
+        dropped. Messages decoded before the failure are still returned. With
+        ``oneCell`` the drain stops after the first decoded record and the
+        rest stays buffered (the negotiation path, whose input is capped).
+        """
 
         # Consume whole records from a local buffer and join the messages once at
         # the end; ``+= msg`` per record would be quadratic. ``self._buffer`` is
-        # written back once, and the offset never advances past a record that
-        # cannot (yet) be decoded, so the undecodable remainder is preserved.
+        # written back once, and the offset never advances past an incomplete
+        # record, so a partial tail is preserved for the next push.
         buffer = self._buffer
         messages = []
         offset = 0
+        failure = None
 
         while len(buffer) - offset >= self._frame_size:
             if self._body_cipher is not None and self._pending_body_len is not None:
@@ -212,16 +263,14 @@ class Decoder:
                 header = buffer[offset:offset + self._frame_size]
                 head = self._decrypt(self._cipher, header)
                 if head is None:
+                    failure = "header failed authentication"
                     break
                 head = _unseal(head, self._seq)
                 if head is None:
                     # Authenticated but not a sealed record at this stream
                     # position: a peer on a different mode, corruption, or a
-                    # record replayed, reordered, or dropped. Treat it as
-                    # undecodable.
-                    fteproxy.info(
-                        "fteproxy.record_layer: malformed or out-of-order sealed "
-                        "record at seq " + str(self._seq))
+                    # record replayed, reordered, or dropped.
+                    failure = "malformed or out-of-order sealed record"
                     break
 
                 if self._body_cipher is None:
@@ -237,17 +286,14 @@ class Decoder:
                 # header is authenticated, so a successful decrypt means we
                 # wrote it and the length is trustworthy.
                 if len(head) != _OVERFLOW_LEN.size:
-                    fteproxy.info(
-                        "fteproxy.record_layer: unexpected header width "
-                        + str(len(head)))
+                    failure = "unexpected header width " + str(len(head))
                     break
                 body_len = _OVERFLOW_LEN.unpack(head)[0]
                 if body_len > self._body_cipher.max_framed_bytes:
                     # The header authenticates, so only a key holder can send
                     # this, but never buffer up to 4 GiB on its say-so.
-                    fteproxy.info(
-                        "fteproxy.record_layer: body length " + str(body_len)
-                        + " exceeds the record limit")
+                    failure = ("body length " + str(body_len)
+                               + " exceeds the record limit")
                     break
 
             body_start = offset + self._frame_size
@@ -262,10 +308,8 @@ class Decoder:
                 msg = self._body_cipher.decrypt(body, self._seq)
             except InvalidTag:
                 # Wrong key, corruption, or a record out of its stream
-                # position (reorder/drop/replay). Stop draining.
-                fteproxy.info(
-                    "fteproxy.record_layer: body auth failed at seq "
-                    + str(self._seq))
+                # position (reorder/drop/replay).
+                failure = "body failed authentication"
                 break
             self._seq += 1
             messages.append(msg)
@@ -278,5 +322,8 @@ class Decoder:
             if oneCell:
                 break
 
-        self._buffer = buffer[offset:]
+        if failure is not None:
+            self._fail(failure)
+        else:
+            self._buffer = buffer[offset:]
         return b''.join(messages)

@@ -5,8 +5,12 @@ Tests for _FTESocketWrapper.recv() connection-close (EOF) semantics.
 
 These exercise a gap in the existing suite: what recv() does when the peer
 closes the TCP connection while undecodable bytes remain buffered in the
-decoder (e.g. the peer was cut off part-way through a covertext cell).
+decoder (e.g. the peer was cut off part-way through a covertext cell), and
+what it does with a peer that keeps sending bytes that can never decode.
 """
+
+import os
+import socket
 
 import pytest
 
@@ -25,13 +29,13 @@ def _defs():
     fteproxy.defs.load_definitions()
 
 
-def _regex_length():
-    return (fteproxy.defs.getRegex(FORMAT), fteproxy.defs.getLength(FORMAT))
+def _regex_length(language=FORMAT):
+    return (fteproxy.defs.getRegex(language), fteproxy.defs.getLength(language))
 
 
-def _make_cell(payload):
+def _make_cell(payload, language=FORMAT):
     """Encode ``payload`` into one covertext record-layer cell."""
-    pattern, length = _regex_length()
+    pattern, length = _regex_length(language)
     key = fteproxy.conf.getValue('runtime.fteproxy.encrypter.key')
     header = fteproxy._make_cipher(pattern, length, key)
     # Build through _record_encoder so the cell matches the configured mode (the
@@ -39,6 +43,19 @@ def _make_cell(payload):
     encoder = fteproxy._record_encoder(header, key)
     encoder.push(payload)
     return encoder.pop()
+
+
+def _negotiation_record(language=FORMAT):
+    """The record an fteproxy client opens a ``language`` stream with."""
+    previous = fteproxy.conf.getValue('runtime.state.upstream_language')
+    fteproxy.conf.setValue('runtime.state.upstream_language', language)
+    try:
+        response = language[:-len('-request')] + '-response'
+        manager = fteproxy.NegotiationManager(None, None)
+        return manager.makeClientNegotiationCell(
+            *_regex_length(language), *_regex_length(response))
+    finally:
+        fteproxy.conf.setValue('runtime.state.upstream_language', previous)
 
 
 class FakeSocket:
@@ -103,7 +120,6 @@ class TestServerNegotiationEOF:
         assert fake.eof_reads == 1
 
     def test_garbage_then_close_returns_eof(self):
-        import socket
         fake = FakeSocket([b'not a negotiation cell'])
         wrapper = self._server_wrap(fake)
         with pytest.raises(socket.timeout):  # cell incomplete: keep waiting
@@ -146,3 +162,151 @@ class TestRecvEOF:
         wrapper = _wrap(fake)
         assert wrapper.recv(65536) == b'hello'
         assert wrapper.recv(65536) == b''
+
+
+class TestServerNegotiationCap:
+    """A peer that never negotiates cannot make the server hoard its bytes.
+
+    Regression tests for a memory exhaustion: the server used to append every
+    byte an unauthenticated peer sent to its pre-negotiation buffer and rescan
+    the whole buffer against every request format on each read, so one
+    connection sending 100 MB of garbage grew the process past 5 GB. Only the
+    first negotiation-record's worth of bytes can ever decode, so that is all
+    the wrapper keeps or scans, and past it the peer is refused.
+    """
+
+    def _server_wrap(self, fake):
+        return fteproxy.wrap_socket(fake)  # no formats given: server role
+
+    def _cap(self, wrapper):
+        return wrapper._negotiation_manager.getMaxNegotiationBytes()
+
+    def test_cap_is_the_longest_negotiation_record(self):
+        """The bound is exactly the record of the longest built-in request
+        format ('binary-request', 1032 bytes), so nothing valid is refused."""
+        cap = self._cap(self._server_wrap(FakeSocket([])))
+        assert cap == len(_negotiation_record('binary-request'))
+        assert cap >= len(_negotiation_record(FORMAT))
+
+    def test_garbage_past_the_cap_returns_eof_and_stops_reading(self, capsys):
+        small = [os.urandom(200) for _ in range(20)]
+        big = [os.urandom(256 * 1024) for _ in range(4)]
+        fake = FakeSocket(small + big)
+        wrapper = self._server_wrap(fake)
+        cap = self._cap(wrapper)
+
+        waits = 0
+        while True:
+            try:
+                out = wrapper.recv(2 ** 18)
+                break
+            except socket.timeout:              # a record may still be coming
+                waits += 1
+                assert len(wrapper._preNegotiationBuffer_incoming) <= cap
+        assert out == b''
+        assert 'closing connection: negotiation failed' in capsys.readouterr().out
+
+        # It gave up on the first read that took it past one record's worth...
+        consumed = sum(map(len, small + big)) - sum(map(len, fake._chunks))
+        assert cap < consumed <= cap + 200
+        assert waits == consumed // 200 - 1
+        assert wrapper._preNegotiationBuffer_incoming == b''
+        # ...and reads nothing more from the socket afterwards.
+        assert wrapper.recv(2 ** 18) == b''
+        assert len(fake._chunks) == len(small + big) - consumed // 200
+        assert fake.eof_reads == 0
+
+    def test_one_large_garbage_read_returns_eof(self):
+        """The relay reads 256 KiB at a time; a single such read of garbage is
+        refused outright rather than buffered."""
+        fake = FakeSocket([os.urandom(256 * 1024)] * 3)
+        wrapper = self._server_wrap(fake)
+        assert wrapper.recv(2 ** 18) == b''
+        assert wrapper._preNegotiationBuffer_incoming == b''
+        assert len(fake._chunks) == 2
+
+    def test_record_filling_the_cap_still_negotiates(self):
+        """The cap is exact: a negotiation record of the longest format is
+        exactly cap bytes and, arriving a byte short and then complete, is
+        accepted rather than refused."""
+        language = 'binary-request'
+        cell = _negotiation_record(language)
+        data = _make_cell(b'hello', language)
+        fake = FakeSocket([cell[:-1], cell[-1:], data])
+        wrapper = self._server_wrap(fake)
+        assert len(cell) == self._cap(wrapper)
+
+        with pytest.raises(socket.timeout):     # one byte short of a record
+            wrapper.recv(2 ** 18)
+        assert len(wrapper._preNegotiationBuffer_incoming) == len(cell) - 1
+        assert wrapper.recv(2 ** 18) == b'hello'
+        assert wrapper._negotiationComplete
+        assert fake.eof_reads == 0
+
+    def test_bytes_past_the_record_open_the_stream(self):
+        """Only the first cap bytes are scanned; data behind them in the same
+        read (and behind the record inside the scanned prefix) is fed to the
+        negotiated decoder, not lost."""
+        cell = _negotiation_record()
+        payload = os.urandom(3000)
+        data = _make_cell(payload)
+        fake = FakeSocket([cell + data])
+        wrapper = self._server_wrap(fake)
+        assert len(cell) + len(data) > self._cap(wrapper)
+        assert wrapper.recv(2 ** 18) == payload
+        assert wrapper._preNegotiationBuffer_incoming == b''
+
+    def test_garbage_after_negotiation_returns_eof(self):
+        """A replayed negotiation record followed by garbage is cut off at the
+        first frame that fails, instead of accumulating for the connection's
+        lifetime."""
+        fake = FakeSocket([_negotiation_record()] + [os.urandom(256 * 1024)] * 4)
+        wrapper = self._server_wrap(fake)
+        assert wrapper.recv(2 ** 18) == b''
+        assert wrapper._negotiationComplete
+        assert wrapper._decoder.failed
+        assert wrapper._decoder._buffer == b''
+        assert wrapper.recv(2 ** 18) == b''
+        assert len(fake._chunks) == 3               # nothing more was read
+        assert fake.eof_reads == 0
+
+
+class TestRecvAuthFailure:
+    """Once a record fails authentication, recv() reports EOF and the wrapper
+    reads nothing more: the decoder can never resume, so buffering later bytes
+    would only grow without bound."""
+
+    def test_bad_record_after_good_one(self, capsys):
+        good = _make_cell(b'hello')
+        bad = bytearray(_make_cell(b'world'))
+        bad[-1] ^= 0x01
+        fake = FakeSocket([good, bytes(bad), os.urandom(65536), os.urandom(65536)])
+        wrapper = _wrap(fake)
+        assert wrapper.recv(65536) == b'hello'
+        assert wrapper.recv(65536) == b''
+        assert 'a record failed authentication' in capsys.readouterr().out
+        assert wrapper._decoder.failed
+        assert wrapper._decoder._buffer == b''
+        assert wrapper.recv(65536) == b''
+        assert len(fake._chunks) == 2
+        assert fake.eof_reads == 0
+
+    def test_good_and_bad_in_one_read(self):
+        """What decoded before the bad record is delivered, then EOF."""
+        good = _make_cell(b'hello')
+        bad = bytearray(_make_cell(b'world'))
+        bad[-1] ^= 0x01
+        fake = FakeSocket([good + bytes(bad), os.urandom(65536)])
+        wrapper = _wrap(fake)
+        assert wrapper.recv(65536) == b'hello'
+        assert wrapper.recv(65536) == b''
+        assert len(fake._chunks) == 1
+        assert fake.eof_reads == 0
+
+    def test_garbage_stream_is_dropped_at_the_first_read(self):
+        chunks = [os.urandom(256 * 1024) for _ in range(4)]
+        fake = FakeSocket(list(chunks))
+        wrapper = _wrap(fake)
+        assert wrapper.recv(2 ** 18) == b''
+        assert wrapper._decoder._buffer == b''
+        assert len(fake._chunks) == 3

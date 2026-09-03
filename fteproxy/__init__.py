@@ -74,12 +74,14 @@ class _AEADBody:
     _NONCE = 12
     _TAG = 16
     _COUNTER = 16  # AES block: 12-byte nonce || 4-byte block counter
+    # Bytes a framed body (nonce || ciphertext || tag) adds to its plaintext.
+    framing_overhead = _NONCE + _TAG
     # Largest body a single record carries. Bounds memory and amortizes the one
     # formatted header per record over a large payload.
     max_plaintext_bytes = 2 ** 20
-    # Largest framed body (nonce || ciphertext || tag) a header may announce;
-    # the decoder refuses to buffer more than this for one record.
-    max_framed_bytes = max_plaintext_bytes + _NONCE + _TAG
+    # Largest framed body a header may announce; the decoder refuses to buffer
+    # more than this for one record.
+    max_framed_bytes = max_plaintext_bytes + framing_overhead
 
     def __init__(self, key):
         self._enc_key = hashlib.sha256(key + b'fteproxy/record-layer/body/enc/v3').digest()[:16]
@@ -219,6 +221,7 @@ class NegotiationManager(object):
         self._negotiationComplete = False
         self._K1 = K1
         self._K2 = K2
+        self._maxNegotiationBytes = None
 
     def _key(self):
         # libfte 0.4 requires an explicit 32-byte key; the old "key=None means
@@ -230,6 +233,27 @@ class NegotiationManager(object):
 
     def getNegotiationComplete(self):
         return self._negotiationComplete
+
+    def getMaxNegotiationBytes(self):
+        """The most bytes a client's negotiation record can occupy on the wire.
+
+        The record is one sealed covertext of the request format's fixed
+        ``length`` (the 64-byte cell fits in a single covertext of every
+        built-in format), followed in hybrid mode by the framed cell. Whatever
+        the client's format, its record therefore fits in this many bytes, so
+        a server only ever needs to scan, or keep, that much from a peer that
+        has not negotiated: once more has arrived without a record decoding,
+        the peer never will.
+        """
+        if self._maxNegotiationBytes is None:
+            languages = fteproxy.defs.load_definitions()
+            longest = max(fteproxy.defs.getLength(language)
+                          for language in languages
+                          if language.endswith('-request'))
+            if _hybrid_mode():
+                longest += NegotiateCell._CELL_SIZE + _AEADBody.framing_overhead
+            self._maxNegotiationBytes = longest
+        return self._maxNegotiationBytes
 
     def _acceptNegotiation(self, data):
 
@@ -331,17 +355,38 @@ class FTEHelper(object):
     def _processRecv(self, data):
         retval = data
         if self._isServer and not self._negotiationComplete:
+            limit = self._negotiation_manager.getMaxNegotiationBytes()
+            # A valid negotiation record fits in the first ``limit`` bytes, so
+            # only those are ever scanned or kept between reads: the per-read
+            # scan (a decoder per candidate format, each copying its input)
+            # and the buffer stay bounded whatever the peer sends, instead of
+            # growing with every byte an unauthenticated peer pushes.
+            buffered = self._preNegotiationBuffer_incoming + data
+            head, tail = buffered[:limit], buffered[limit:]
             try:
-                self._preNegotiationBuffer_incoming += data
-                [encoder, decoder] = self._negotiation_manager.doServerSideNegotiation(
-                    self._preNegotiationBuffer_incoming)
-                self._encoder = encoder
-                self._decoder = decoder
-                self._preNegotiationBuffer_incoming = b''
-                self._negotiationComplete = True
-                retval = b''
-            except Exception as e:
+                [encoder, decoder] = self._negotiation_manager.doServerSideNegotiation(head)
+            except NegotiationFailedException:
+                if tail:
+                    # More than a whole negotiation record has arrived and none
+                    # of it decoded as one: nothing later can, so drop the lot
+                    # and tell the caller to close.
+                    raise NegotiationFailedException(
+                        str(len(buffered)) + ' bytes arrived and none decoded '
+                        'as a negotiation record')
+                # A record may still be in flight; keep waiting for it.
+                self._preNegotiationBuffer_incoming = head
                 raise ChannelNotReadyException()
+            except Exception as e:
+                # The cell decoded but names a format this server cannot serve
+                # (a mismatched definitions release). Waiting cannot fix that.
+                raise NegotiationFailedException(str(e))
+            self._encoder = encoder
+            self._decoder = decoder
+            # Bytes past the record are the start of the negotiated stream.
+            decoder.push(tail)
+            self._preNegotiationBuffer_incoming = b''
+            self._negotiationComplete = True
+            retval = b''
 
         return retval
 
@@ -384,6 +429,10 @@ class _FTESocketWrapper(FTEHelper, object):
         self._incoming_buffer = b''
         self._preNegotiationBuffer_outgoing = b''
         self._preNegotiationBuffer_incoming = b''
+        # Set once the peer can never deliver another byte (negotiation refused
+        # or a record failed authentication); recv then reports EOF and reads
+        # nothing more from the socket.
+        self._failed = False
 
         if negotiate:
             # Standard relay mode: client sends negotiation cell, server waits for it
@@ -410,6 +459,11 @@ class _FTESocketWrapper(FTEHelper, object):
             return self._socket.getsockopt(level, optname)
         return self._socket.getsockopt(level, optname, buflen)
 
+    def _streamFailed(self):
+        """Whether this connection can never deliver another byte: the peer
+        failed to negotiate, or a record failed authentication after it."""
+        return self._failed or (self._negotiationComplete and self._decoder.failed)
+
     def recv(self, bufsize):
         # <HACK>
         # Required to deal with case when client attempts to recv
@@ -420,6 +474,11 @@ class _FTESocketWrapper(FTEHelper, object):
             numbytes = self._socket.send(to_send)
             assert numbytes == len(to_send)
         # </HACK>
+
+        if self._streamFailed():
+            # Report EOF without reading: whatever the peer sends now can never
+            # decode, and reading it would only buffer it.
+            return b''
 
         try:
             while True:
@@ -452,6 +511,15 @@ class _FTESocketWrapper(FTEHelper, object):
                         break
                     self._incoming_buffer += frag
 
+                if self._decoder.failed:
+                    # Deliver whatever decoded before the bad record; the next
+                    # recv reports EOF and the caller closes the connection.
+                    fteproxy.warn(
+                        'closing connection: a record failed authentication '
+                        '(wrong key, corrupted or replayed stream, or a peer on '
+                        'a different --record-layer-mode)')
+                    break
+
                 if self._incoming_buffer:
                     break
 
@@ -467,6 +535,15 @@ class _FTESocketWrapper(FTEHelper, object):
             self._incoming_buffer = b''
         except ChannelNotReadyException:
             raise socket.timeout
+        except NegotiationFailedException as e:
+            self._failed = True
+            self._preNegotiationBuffer_incoming = b''
+            fteproxy.warn(
+                'closing connection: negotiation failed: ' + str(e) + ' (check '
+                'that both endpoints share the key, --record-layer-mode, and '
+                'the same fteproxy/libfte line; or the peer is not an fteproxy '
+                'client)')
+            return b''
 
         return retval
     
