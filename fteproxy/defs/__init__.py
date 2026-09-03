@@ -38,14 +38,55 @@ _checked_releases = set()
 REQUEST_SUFFIX = '-request'
 RESPONSE_SUFFIX = '-response'
 
+# ------------------------------------------------------------------------- #
+# Schema v2 vocabulary
+#
+# A v1 entry carried only ``regex`` and (optionally) ``length``. Schema v2 adds
+# the OPTIONAL keys below; a v1 entry stays valid and every accessor returns the
+# documented default for a key it does not carry, so old releases load unchanged.
+# ------------------------------------------------------------------------- #
+
+#: ``role`` values. ``line`` is a symmetric protocol (e.g. irc) that does not
+#: split into a request and a response direction.
+ROLE_REQUEST = 'request'
+ROLE_RESPONSE = 'response'
+ROLE_LINE = 'line'
+ROLES = (ROLE_REQUEST, ROLE_RESPONSE, ROLE_LINE)
+
+#: ``mode_hint`` values: the record-layer mode a format is designed for. See
+#: ``docs/format-authoring.md``. The client's ``--mode`` still overrides it.
+MODE_HYBRID = 'hybrid'
+MODE_FORMAT = 'format'
+MODE_HINTS = (MODE_HYBRID, MODE_FORMAT)
+
+
+def _release_path(release):
+    """The path of a definitions release, searched in the package's ``defs``
+    directory first and then in ``examples/defs`` (where the retired shape
+    catalog lives as ``shapes-20260110``), so ``--defs shapes-20260110`` reaches
+    it. Raises :class:`FileNotFoundError` if no candidate exists.
+    """
+    release = str(release)
+    def_dir = fteproxy.conf.getValue('general.defs_dir')
+    base_dir = fteproxy.conf.getValue('general.base_dir')
+    candidates = [
+        os.path.join(def_dir, release + '.json'),
+        os.path.join(base_dir, 'examples', 'defs', release + '.json'),
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    raise FileNotFoundError(
+        'no definitions release %r (looked in %s)'
+        % (release, ' and '.join(os.path.dirname(c) for c in candidates)))
+
 
 def load_definitions():
     global _definitions
 
     if _definitions == None:
         release = fteproxy.conf.getValue('fteproxy.defs.release')
-        def_dir = os.path.join(fteproxy.conf.getValue('general.defs_dir'))
-        def_abspath = os.path.join(def_dir, release + '.json')
+        def_abspath = _release_path(release)
 
         with open(def_abspath) as fh:
             _definitions = json.load(fh)
@@ -123,3 +164,102 @@ def getLength(format_name):
         length = fteproxy.conf.getValue('fteproxy.default_length')
 
     return length
+
+
+# ------------------------------------------------------------------------- #
+# Schema v2 accessors
+#
+# The ``spec_*`` helpers read one key out of a spec dict and apply the default,
+# so a caller holding a spec that is not in the loaded release (a fragment, a
+# synthetic entry under validation) does not have to go through the loader. The
+# ``get_*`` accessors are the same reads keyed by format name against the loaded
+# release.
+# ------------------------------------------------------------------------- #
+
+def _infer_role(format_name):
+    if format_name.endswith(REQUEST_SUFFIX):
+        return ROLE_REQUEST
+    if format_name.endswith(RESPONSE_SUFFIX):
+        return ROLE_RESPONSE
+    return ROLE_LINE
+
+
+def spec_length(spec):
+    """The covertext length of a spec, defaulting to ``fteproxy.default_length``."""
+    return spec.get('length', fteproxy.conf.getValue('fteproxy.default_length'))
+
+
+def spec_min_length(spec):
+    """Reserved for variable-length covertexts (phase F7); default ``None``."""
+    return spec.get('min_length', None)
+
+
+def spec_max_length(spec):
+    """Reserved for variable-length covertexts (phase F7); default ``None``."""
+    return spec.get('max_length', None)
+
+
+def spec_port(spec):
+    """The ports this format defaults on, as a list; default ``[]``."""
+    return list(spec.get('port', []))
+
+
+def spec_role(format_name, spec):
+    """``request``/``response``/``line``; default inferred from the name suffix."""
+    return spec.get('role', _infer_role(format_name))
+
+
+def spec_mode_hint(spec):
+    """The record-layer mode this format is designed for; default ``hybrid``."""
+    return spec.get('mode_hint', MODE_HYBRID)
+
+
+def spec_is_default(spec):
+    """Whether this entry marks its base as the release default; default ``False``."""
+    return bool(spec.get('default', False))
+
+
+def spec_description(spec):
+    """A human-readable description; default the empty string."""
+    return spec.get('description', '')
+
+
+def _spec(format_name):
+    definitions = load_definitions()
+    try:
+        return definitions[format_name]
+    except KeyError:
+        raise InvalidRegexName(format_name)
+
+
+def get_port(format_name):
+    return spec_port(_spec(format_name))
+
+
+def get_role(format_name):
+    return spec_role(format_name, _spec(format_name))
+
+
+def get_mode_hint(format_name):
+    return spec_mode_hint(_spec(format_name))
+
+
+def get_description(format_name):
+    return spec_description(_spec(format_name))
+
+
+def is_default(format_name):
+    return spec_is_default(_spec(format_name))
+
+
+def default_base(definitions=None):
+    """The base name whose entries mark it the release default, else ``None``.
+
+    A base counts as default when either of its direction entries carries
+    ``"default": true``; the first such base in file order wins.
+    """
+    definitions = load_definitions() if definitions is None else definitions
+    for name, spec in definitions.items():
+        if spec_is_default(spec):
+            return base_name(name)
+    return None

@@ -1,0 +1,190 @@
+{
+    "http-simple-request": {
+        "regex": "^GET \\/[a-zA-Z0-9]+ HTTP\\/1\\.1\\r\\n\\r\\n$",
+        "length": 256
+    },
+    "http-simple-response": {
+        "regex": "^HTTP\\/1\\.1 200 OK\\r\\n\\r\\n[a-zA-Z0-9]+$",
+        "length": 256
+    },
+    "ssh-request": {
+        "regex": "^SSH-2\\.0-[a-zA-Z0-9_]+$",
+        "length": 232,
+        "description": "SSH protocol version banner (e.g., SSH-2.0-OpenSSH_8.4)"
+    },
+    "ssh-response": {
+        "regex": "^SSH-2\\.0-[a-zA-Z0-9_]+$",
+        "length": 232,
+        "description": "SSH protocol version banner"
+    },
+    "tls-sni-request": {
+        "regex": "^[a-z0-9]+\\.[a-z0-9]+\\.[a-z]+$",
+        "length": 256,
+        "description": "TLS Server Name Indication style (subdomain.domain.tld)"
+    },
+    "tls-sni-response": {
+        "regex": "^[a-z0-9]+\\.[a-z0-9]+\\.[a-z]+$",
+        "length": 256,
+        "description": "TLS Server Name Indication style"
+    },
+    "smtp-request": {
+        "regex": "^EHLO [a-z0-9]+\\.[a-z]+$",
+        "length": 264,
+        "description": "SMTP EHLO command (e.g., EHLO mail.example.com)"
+    },
+    "smtp-response": {
+        "regex": "^250-[a-z0-9]+\\.[a-z]+ [A-Z]+$",
+        "length": 264,
+        "description": "SMTP 250 response"
+    },
+    "ftp-request": {
+        "regex": "^USER [a-z0-9]+$",
+        "length": 264,
+        "description": "FTP USER command"
+    },
+    "ftp-response": {
+        "regex": "^220 [a-z]+\\.[a-z]+ ready$",
+        "length": 296,
+        "description": "FTP welcome banner (e.g., 220 ftp.example.com ready)"
+    },
+    "lowercase-request": {
+        "regex": "^[a-z]+$",
+        "length": 280
+    },
+    "lowercase-response": {
+        "regex": "^[a-z]+$",
+        "length": 280
+    },
+    "uppercase-request": {
+        "regex": "^[A-Z]+$",
+        "length": 280
+    },
+    "uppercase-response": {
+        "regex": "^[A-Z]+$",
+        "length": 280
+    },
+    "alphanumeric-request": {
+        "regex": "^[a-zA-Z0-9]+$",
+        "length": 256
+    },
+    "alphanumeric-response": {
+        "regex": "^[a-zA-Z0-9]+$",
+        "length": 256
+    },
+    "hex-request": {
+        "regex": "^[0-9a-f]+$",
+        "length": 336
+    },
+    "hex-response": {
+        "regex": "^[0-9a-f]+$",
+        "length": 336
+    },
+    "digits-request": {
+        "regex": "^[0-9]+$",
+        "length": 400
+    },
+    "digits-response": {
+        "regex": "^[0-9]+$",
+        "length": 400
+    },
+    "binary-request": {
+        "regex": "^[01]+$",
+        "length": 1320
+    },
+    "binary-response": {
+        "regex": "^[01]+$",
+        "length": 1320
+    },
+    "base64-request": {
+        "regex": "^[a-zA-Z0-9+/]+$",
+        "length": 256
+    },
+    "base64-response": {
+        "regex": "^[a-zA-Z0-9+/]+$",
+        "length": 256
+    },
+    "words-request": {
+        "regex": "^([a-z]+ )+[a-z]+$",
+        "length": 280
+    },
+    "words-response": {
+        "regex": "^([a-z]+ )+[a-z]+$",
+        "length": 280
+    },
+    "sentences-request": {
+        "regex": "^([A-Z][a-z]+ )+[a-z]+\\.$",
+        "length": 280
+    },
+    "sentences-response": {
+        "regex": "^([A-Z][a-z]+ )+[a-z]+\\.$",
+        "length": 280
+    },
+    "ip-address-request": {
+        "regex": "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$",
+        "length": 392
+    },
+    "ip-address-response": {
+        "regex": "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$",
+        "length": 392
+    },
+    "domain-request": {
+        "regex": "^[a-z0-9]+\\.[a-z]+$",
+        "length": 256
+    },
+    "domain-response": {
+        "regex": "^[a-z0-9]+\\.[a-z]+$",
+        "length": 256
+    },
+    "url-path-request": {
+        "regex": "^\\/[a-z0-9]+(\\/[a-z0-9]+)*$",
+        "length": 256
+    },
+    "url-path-response": {
+        "regex": "^\\/[a-z0-9]+(\\/[a-z0-9]+)*$",
+        "length": 256
+    },
+    "key-value-request": {
+        "regex": "^[a-z]+=[a-zA-Z0-9]+$",
+        "length": 224
+    },
+    "key-value-response": {
+        "regex": "^[a-z]+=[a-zA-Z0-9]+$",
+        "length": 224
+    },
+    "csv-request": {
+        "regex": "^[a-zA-Z0-9]+(,[a-zA-Z0-9]+)+$",
+        "length": 256
+    },
+    "csv-response": {
+        "regex": "^[a-zA-Z0-9]+(,[a-zA-Z0-9]+)+$",
+        "length": 256
+    },
+    "email-simple-request": {
+        "regex": "^[a-z]+@[a-z]+\\.[a-z]+$",
+        "length": 280
+    },
+    "email-simple-response": {
+        "regex": "^[a-z]+@[a-z]+\\.[a-z]+$",
+        "length": 280
+    },
+    "timestamp-request": {
+        "regex": "^[0-9]+:[0-9]+:[0-9]+$",
+        "length": 400
+    },
+    "timestamp-response": {
+        "regex": "^[0-9]+:[0-9]+:[0-9]+$",
+        "length": 400
+    },
+    "manual-http-request": {
+        "regex": "^GET\\ \\/([a-zA-Z0-9./]*) HTTP/1\\.1\\r\\n\\r\\n$"
+    },
+    "manual-http-response": {
+        "regex": "^HTTP/1\\.1\\ 200 OK\\r\\nContent-Type:\\ ([a-zA-Z0-9]+)\\r\\n\\r\\n.*$"
+    },
+    "dummy-request": {
+        "regex": "^.+$"
+    },
+    "dummy-response": {
+        "regex": "^.+$"
+    }
+}

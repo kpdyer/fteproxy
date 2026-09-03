@@ -11,6 +11,7 @@ Four subcommands::
                      [--state-dir DIR] [-q | -v]
     fteproxy keygen  [--state-dir DIR] [--advertise HOST[:PORT]]
     fteproxy formats [--defs RELEASE]
+    fteproxy defs-check [--defs RELEASE]
 
 Both ``python -m fteproxy`` and the ``fteproxy`` console script call
 :func:`main`, which returns a process exit status:
@@ -52,7 +53,7 @@ DEFAULT_SOCKS = '127.0.0.1:1080'
 DEFAULT_FORMAT = 'manual-http'
 DEFAULT_MODE = 'hybrid'
 
-SUBCOMMANDS = ('server', 'client', 'keygen', 'formats')
+SUBCOMMANDS = ('server', 'client', 'keygen', 'formats', 'defs-check')
 
 #: Flags from the pre-1.0 command line. They are recognised only so that a
 #: script carrying one gets a pointer instead of "unrecognized arguments", and
@@ -245,6 +246,18 @@ def build_parser():
                          help='Definitions release to list, as YYYYMMDD.')
     _verbosity(formats)
 
+    defs_check = subparsers.add_parser(
+        'defs-check', help='Validate every format in a definitions release: '
+                           'build the cipher, check the capacity floor, '
+                           'round-trip the record layer, and confirm every '
+                           'format-mode covertext matches its regex.')
+    defs_check.add_argument('--defs', metavar='RELEASE',
+                            default=fteproxy.conf.getValue(
+                                'fteproxy.defs.release'),
+                            help='Definitions release to validate, as YYYYMMDD '
+                                 '(or a name under examples/defs).')
+    _verbosity(defs_check)
+
     return parser
 
 
@@ -344,12 +357,14 @@ def do_keygen(args):
 
 
 def do_formats(args):
-    """Print each base format name with its covertext length and capacity.
+    """Print each base format name with its schema-v2 metadata and capacity.
 
     A base name is what the two directions share: ``manual-http`` covers
-    ``manual-http-request`` and ``manual-http-response``. The capacity is how
-    many bytes of message one covertext of that length carries, which is what
-    bounds a record.
+    ``manual-http-request`` and ``manual-http-response``. Alongside the covertext
+    length and per-direction capacity (how many bytes of message one covertext
+    carries, which is what bounds a record) each row shows the schema-v2
+    ``role``, ``port``, ``mode_hint`` and ``description``, and the release
+    default base is marked.
     """
     try:
         definitions = select_defs(args.defs)
@@ -366,9 +381,32 @@ def do_formats(args):
             continue
         bases.setdefault(base, {})[direction] = name
 
+    default = fteproxy.defs.default_base(definitions) or DEFAULT_FORMAT
+
+    _ROLE_ABBR = {'request': 'req', 'response': 'resp', 'line': 'line'}
+
     rows = []
+    descriptions = {}
+    defaults = {}
     for base in sorted(bases):
         row = [base]
+        # port, mode_hint, role and description are format-level; take them from
+        # the request entry (where a connection's port lives), else the response.
+        primary = bases[base].get('request') or bases[base].get('response')
+        primary_spec = definitions[primary]
+        roles = []
+        for direction in ('request', 'response'):
+            name = bases[base].get(direction)
+            if name is not None:
+                roles.append(_ROLE_ABBR.get(
+                    fteproxy.defs.spec_role(name, definitions[name]),
+                    fteproxy.defs.spec_role(name, definitions[name])))
+        # Preserve order, drop duplicates.
+        role = '/'.join(dict.fromkeys(roles)) or '-'
+        ports = fteproxy.defs.spec_port(primary_spec)
+        port = ','.join(str(p) for p in ports) if ports else '-'
+        mode = fteproxy.defs.spec_mode_hint(primary_spec)
+        row += [role, port, mode]
         for direction in ('request', 'response'):
             name = bases[base].get(direction)
             if name is None:
@@ -383,18 +421,62 @@ def do_formats(args):
                 row += [str(length), 'unusable']
                 continue
             row += [str(length), str(capacity)]
-        row.append('(default)' if base == DEFAULT_FORMAT else '')
         rows.append(row)
+        descriptions[base] = fteproxy.defs.spec_description(primary_spec)
+        defaults[base] = (base == default)
 
-    header = ['name', 'req len', 'req cap', 'resp len', 'resp cap', '']
+    header = ['name', 'role', 'port', 'mode',
+              'req len', 'req cap', 'resp len', 'resp cap']
+    left = {0, 1, 2, 3}  # name/role/port/mode left-justified; numbers right
     widths = [max(len(r[i]) for r in [header] + rows) for i in range(len(header))]
     print('definitions release %s' % args.defs)
-    print('covertext length and message capacity, in bytes, per direction')
+    print('role, port, mode, and covertext length / message capacity (bytes) '
+          'per direction')
     print()
-    for row in [header] + rows:
-        line = '  '.join(cell.ljust(widths[i]) if i == 0 else cell.rjust(widths[i])
-                         for i, cell in enumerate(row))
-        print(line.rstrip())
+
+    def _emit(row, trailer):
+        cells = [cell.ljust(widths[i]) if i in left else cell.rjust(widths[i])
+                 for i, cell in enumerate(row)]
+        print(('  '.join(cells) + trailer).rstrip())
+
+    _emit(header, '')
+    for row in rows:
+        base = row[0]
+        trailer = ''
+        if defaults[base]:
+            trailer += '  (default)'
+        if descriptions[base]:
+            trailer += '  ' + descriptions[base]
+        _emit(row, trailer)
+    return EXIT_OK
+
+
+def do_defs_check(args):
+    """Validate every format in a release and report the outcome.
+
+    Prints ``OK`` with a per-format capacity summary and exits 0 when every
+    format builds, clears the capacity floor, round-trips the record layer, and
+    matches its regex in format mode; prints the failures and exits 1 otherwise.
+    """
+    import fteproxy.defs.validate as validate
+    try:
+        summary = validate.validate_release(args.defs)
+    except FileNotFoundError as e:
+        fteproxy.logger.error('cannot load definitions release %s: %s'
+                              % (args.defs, e))
+        return EXIT_FAILURE
+    except validate.FormatValidationError as e:
+        print('FAIL: definitions release %s' % args.defs)
+        print(str(e))
+        return EXIT_FAILURE
+
+    print('OK: definitions release %s (%d format%s)'
+          % (args.defs, len(summary), '' if len(summary) == 1 else 's'))
+    if summary:
+        name_w = max(len(name) for name, _l, _c, _m in summary)
+        for name, length, capacity, mode_hint in summary:
+            print('  %s  length %5d  capacity %5d  %s'
+                  % (name.ljust(name_w), length, capacity, mode_hint))
     return EXIT_OK
 
 
@@ -597,6 +679,7 @@ _COMMANDS = {
     'client': do_client,
     'keygen': do_keygen,
     'formats': do_formats,
+    'defs-check': do_defs_check,
 }
 
 
