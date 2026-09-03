@@ -11,45 +11,115 @@ import fteproxy.conf
 import fteproxy.network_io
 
 
-class worker(threading.Thread):
+class _link(object):
 
-    """``fteproxy.relay.worker`` is responsible for relaying data between two sockets. Given ``socket1`` and
-    ``socket2``, the worker will forward all data
-    from ``socket1`` to ``socket2``, and ``socket2`` to ``socket1``. This class is a subclass of
-    threading.Thread and does not start relaying until start() is called. The run
-    method terminates when either ``socket1`` or ``socket2`` is detected to be closed.
+    """The state shared by the two ``worker`` threads that relay one
+    connection, one per direction. It counts the directions still open and
+    closes both sockets exactly once, so a half-close in one direction leaves
+    the other relaying and an error in either tears the whole connection down.
     """
 
-    def __init__(self, socket1, socket2):
+    def __init__(self, socket1, socket2, directions=2):
+        self._sockets = (socket1, socket2)
+        self._lock = threading.Lock()
+        self._open_directions = directions
+        self._closed = False
+
+    def direction_done(self):
+        """Record that one direction reached EOF. Returns ``True`` once every
+        direction has, i.e. when the connection can be closed.
+        """
+        with self._lock:
+            self._open_directions -= 1
+            return self._open_directions <= 0
+
+    def close(self):
+        """Close both sockets. Safe to call from both workers."""
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+        for sock in self._sockets:
+            fteproxy.network_io.close_socket(sock)
+
+
+class worker(threading.Thread):
+
+    """``fteproxy.relay.worker`` is responsible for relaying data from
+    ``socket1`` to ``socket2``. A connection is relayed by two workers, one per
+    direction, created together with ``worker.pair`` so they share one
+    ``_link``. This class is a subclass of threading.Thread and does not start
+    relaying until start() is called.
+
+    When ``socket1`` reports EOF the worker forwards the half-close with
+    ``socket2.shutdown(SHUT_WR)`` and terminates, but the sockets stay open
+    while the sibling worker still relays the other direction; TCP half-close
+    (``shutdown(SHUT_WR)``, ``echo x | nc``, HTTP/1.0-style request/response)
+    therefore works through the relay. Both sockets are closed once both
+    directions have seen EOF, or as soon as either worker fails.
+
+    A worker constructed on its own (without ``pair``) owns the connection
+    alone and closes both sockets as soon as ``socket1`` reports EOF.
+    """
+
+    def __init__(self, socket1, socket2, link=None):
         threading.Thread.__init__(self)
         self._socket1 = socket1
         self._socket2 = socket2
+        if link is None:
+            link = _link(socket1, socket2, directions=1)
+        self._link = link
         self._running = False
+
+    @classmethod
+    def pair(cls, socket1, socket2):
+        """Return the two workers that relay one connection in both
+        directions, sharing the state that decides when it is closed.
+        """
+        link = _link(socket1, socket2)
+        return [cls(socket1, socket2, link), cls(socket2, socket1, link)]
 
     def run(self):
         """It's the responsibility of run to forward data from ``socket1`` to
-        ``socket2`` and from ``socket2`` to ``socket1``. The ``run()`` method
-        terminates and closes both sockets if ``fteproxy.network_io.recvall_from_socket``
-        returns a negative result for ``success``.
+        ``socket2``. When ``fteproxy.network_io.recvall_from_socket`` reports
+        that ``socket1`` is no longer alive, ``run()`` half-closes ``socket2``
+        and terminates; the sockets are closed once the sibling worker (if
+        any) has finished too. Any other failure closes both sockets at once.
         """
-        
+
         self._running = True
+        teardown = True
         try:
             throttle = fteproxy.conf.getValue('runtime.fteproxy.relay.throttle')
             while self._running:
                 [success, _data] = fteproxy.network_io.recvall_from_socket(
                     self._socket1)
                 if not success:
+                    # Every byte read before EOF has already been handed to
+                    # socket2, so the FIN lands after the data. The sibling
+                    # keeps relaying socket2 -> socket1 until it sees EOF too.
+                    self._half_close()
+                    teardown = self._link.direction_done()
                     break
                 if _data:
                     fteproxy.network_io.sendall_to_socket(self._socket2, _data)
                 else:
                     time.sleep(throttle)
         except Exception as e:
+            teardown = True
             fteproxy.warn("fteproxy.worker terminated prematurely: " + str(e))
         finally:
-            fteproxy.network_io.close_socket(self._socket1)
-            fteproxy.network_io.close_socket(self._socket2)
+            if teardown:
+                self._link.close()
+
+    def _half_close(self):
+        """Tell ``socket2``'s peer that this direction has no more data."""
+        try:
+            self._socket2.shutdown(socket.SHUT_WR)
+        except OSError:
+            # Already closed or reset; the sibling worker finds that out on
+            # its own the next time it touches the socket.
+            pass
 
     def stop(self):
         """Terminate the thread and stop listening on ``local_ip:local_port``.
@@ -119,8 +189,7 @@ class listener(threading.Thread):
                 new_stream.settimeout(
                     fteproxy.conf.getValue('runtime.fteproxy.relay.socket_timeout'))
 
-                w1 = worker(conn, new_stream)
-                w2 = worker(new_stream, conn)
+                w1, w2 = worker.pair(conn, new_stream)
                 w1.start()
                 w2.start()
             except socket.timeout:

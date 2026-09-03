@@ -146,3 +146,68 @@ class TestRecvEOF:
         wrapper = _wrap(fake)
         assert wrapper.recv(65536) == b'hello'
         assert wrapper.recv(65536) == b''
+
+
+class RecordingSocket(FakeSocket):
+    """A FakeSocket that records what was sent and how it was shut down."""
+
+    def __init__(self, chunks=()):
+        super().__init__(chunks)
+        self.sent = []
+        self.shutdowns = []
+
+    def send(self, data):
+        self.sent.append(bytes(data))
+        return len(data)
+
+    def sendall(self, data):
+        self.sent.append(bytes(data))
+
+    def shutdown(self, flags):
+        self.shutdowns.append(flags)
+
+
+class TestClientShutdownFlushesNegotiation:
+    """``shutdown(SHUT_WR)`` on a client wrapper that has not sent anything yet
+    must put the negotiation cell on the wire before the FIN.
+
+    The relay half-closes the upstream socket when the application half-closes
+    without sending; negotiation is in-band with the first send/recv, so
+    without this the server would see EOF on an un-negotiated stream.
+    """
+
+    def _client_wrap(self, fake):
+        regex, length = _regex_length()
+        return fteproxy.wrap_socket(
+            fake,
+            outgoing_regex=regex, outgoing_length=length,
+            incoming_regex=regex, incoming_length=length)
+
+    def test_shut_wr_sends_negotiation_cell_first(self):
+        import socket
+        fake = RecordingSocket()
+        sock = self._client_wrap(fake)
+        sock.shutdown(socket.SHUT_WR)
+        assert len(fake.sent) == 1, "negotiation cell was not flushed before FIN"
+        assert fake.shutdowns == [socket.SHUT_WR]
+        # Nothing more to negotiate on a later send: the cell goes out once.
+        sock.send(b'late')
+        assert len(fake.sent) == 2
+
+    def test_shut_rd_does_not_negotiate(self):
+        import socket
+        fake = RecordingSocket()
+        sock = self._client_wrap(fake)
+        sock.shutdown(socket.SHUT_RD)
+        assert fake.sent == []
+        assert fake.shutdowns == [socket.SHUT_RD]
+
+    def test_shut_wr_after_send_does_not_renegotiate(self):
+        import socket
+        fake = RecordingSocket()
+        sock = self._client_wrap(fake)
+        sock.send(b'request-body')
+        sent_before = len(fake.sent)
+        sock.shutdown(socket.SHUT_WR)
+        assert len(fake.sent) == sent_before
+        assert fake.shutdowns == [socket.SHUT_WR]

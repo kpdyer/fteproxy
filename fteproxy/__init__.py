@@ -493,6 +493,14 @@ class _FTESocketWrapper(FTEHelper, object):
         return self._socket.settimeout(val)
 
     def shutdown(self, flags):
+        if flags in (socket.SHUT_WR, socket.SHUT_RDWR):
+            # Negotiation is in-band: the client's negotiation cell goes out
+            # with its first send (or recv). Half-closing before either has
+            # happened would FIN an un-negotiated stream, which the server
+            # reports as a dead peer, so flush the cell ahead of the FIN.
+            to_send = self._processSend()
+            if to_send:
+                self._socket.sendall(to_send)
         return self._socket.shutdown(flags)
 
     def close(self):
