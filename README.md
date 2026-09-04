@@ -162,8 +162,11 @@ terminator the format's language cannot produce anywhere else; `dns` is framed
 by the two-byte length prefix RFC 1035 puts in front of every DNS-over-TCP
 message, which is framing rather than part of its regex, so one pattern serves
 every length (and its query names run 72–254 octets rather than always 254).
-The two handshake records and a `hybrid` mode header are always at the top of
-the range.
+The two handshake records are always at the top of the range. A `hybrid` mode
+header is fixed length too, but at the *shortest* length the format can hold one
+in (the `hdr` column below): a header carries only the length of the raw body
+behind it, and a short covertext is several times cheaper to produce than a long
+one.
 
 `http` is the default. A client given no `--format` and no `?format=` hint
 picks the format whose protocol runs on the server's port -- a server on 21
@@ -177,17 +180,20 @@ the capacity of one covertext:
 
 ```console
 $ fteproxy formats
-name  role      port          mode    req len  req cap  resp len  resp cap
-dns   req/resp  53            format   90-272   22-154    90-272    17-148
-ftp   req/resp  21            format   64-256   15-161    64-256    16-163
-http  req/resp  80,8080,8000  hybrid  200-700   63-448   200-700    52-434  (default)
-sip   req/resp  5060          format  300-800   99-472   300-800   101-474
-smtp  req/resp  25,587        format   80-320   20-181    80-320    29-215
+name  role      port          mode      hdr  req len  req cap  resp len  resp cap
+dns   req/resp  53            format     90   90-272   22-154    90-272    17-148
+ftp   req/resp  21            format  91/64   64-256   15-161    64-256    16-163
+http  req/resp  80,8080,8000  hybrid    200  200-700   63-448   200-700    52-434  (default)
+sip   req/resp  5060          format    300  300-800   99-472   300-800   101-474
+smtp  req/resp  25,587        format     80   80-320   20-181    80-320    29-215
 ```
 
 A range in the length column is a format that varies its covertext length; a
 single number is a fixed-length one (the `20260110` shape catalog is all
-fixed-length).
+fixed-length). `hdr` is the covertext length a `hybrid` header goes in --
+request and response after a slash when the two differ, as they do for `ftp`,
+whose reply pattern has just enough room at 64 bytes and whose command pattern
+has not.
 
 The comprehensive catalog of abstract *shapes* that earlier versions defaulted
 to -- 46 entries, 23 base names (`manual-http`, `words`, `base64`, …) -- still
@@ -198,8 +204,10 @@ The client picks the format and the record-layer mode and puts both in the
 handshake; the server follows. Nothing has to be configured to match.
 
 - `--mode hybrid` (default): each record is a fixed-length covertext header
-  followed by raw authenticated ciphertext. Fast — hundreds of MB/s — but only
-  the header blends in with the target protocol.
+  followed by raw authenticated ciphertext. The header goes in the shortest
+  covertext the format has room for one in (the `hdr` column above), since all
+  it carries is the length of the body behind it. Fast — hundreds of MB/s — but
+  only the header blends in with the target protocol.
 - `--mode format`: every byte on the wire is in the format, so the whole
   stream is indistinguishable from the protocol, and each covertext takes a
   length from across the format's range. Much slower (about 1 MB/s), for

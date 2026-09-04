@@ -120,10 +120,13 @@ def record_layer_pair(spec, hybrid=False, key=_KEY):
     connection, minus the handshake: in ``format`` mode a variable-length format
     also gets the ciphers for every length it may emit, and in ``hybrid`` mode
     it does not, because a hybrid record is a fixed-length header plus a raw
-    body. A protocol's test file uses this so it exercises the framing the
-    product actually uses rather than a hand-rolled approximation of it.
+    body -- sealed at :func:`fteproxy.hybrid_header_length`, the shortest length
+    that holds one, not at ``max_length``. A protocol's test file uses this so
+    it exercises the framing the product actually uses rather than a hand-rolled
+    approximation of it.
     """
-    length = fteproxy.defs.spec_length(spec)
+    length = (fteproxy.hybrid_header_length(spec) if hybrid
+              else fteproxy.defs.spec_length(spec))
     variable = (None if hybrid or not fteproxy.defs.spec_is_variable(spec)
                 else fteproxy._variable_lengths_for_spec(spec, key))
     body = fteproxy._make_body_cipher(key) if hybrid else None

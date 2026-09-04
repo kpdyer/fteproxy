@@ -278,8 +278,9 @@ def getLength(format_name):
     """The fixed-frame covertext length of a format.
 
     For a variable-length format this is its ``max_length``: see
-    :func:`spec_length` for why the fixed-frame paths (the handshake, the
-    first-record scan, a hybrid header) all use the longest covertext.
+    :func:`spec_length` for why the handshake and the server's first-record scan
+    use the longest covertext. A hybrid-mode header does not -- it is a
+    fixed-length frame too, but at :func:`fteproxy.hybrid_header_length`.
     """
     definitions = load_definitions()
     try:
@@ -312,11 +313,17 @@ def spec_length(spec):
     """The wire length of the *single* covertext the fixed frames are built at.
 
     For a fixed-length format that is its ``length`` (or the configured
-    default). For a variable-length one it is ``max_length``: the handshake, the
-    server's first-record scan and a hybrid-mode header are all fixed-length
-    frames, and they use the longest covertext the format emits so that one
-    frame size serves every format. Only post-handshake *format*-mode data
-    records vary (see :func:`spec_allowed_lengths`).
+    default). For a variable-length one it is ``max_length``, which is what the
+    two handshake records and the server's first-record scan seal at: the server
+    has to frame a client hello before it can decrypt anything, so the hello's
+    length cannot depend on the format's contents, and the longest covertext is
+    the one choice that always has room.
+
+    A hybrid-mode header is a fixed-length frame too, but *not* this one: it
+    carries four bytes and is sealed at the shortest allowed length that holds
+    them (:func:`fteproxy.hybrid_header_length`). Only post-handshake
+    *format*-mode data records vary per record (see
+    :func:`spec_allowed_lengths`).
 
     Always a length *on the wire*. For a ``length-prefix`` format the cipher
     behind it is built at ``length - LENGTH_PREFIX_BYTES``, since the prefix is

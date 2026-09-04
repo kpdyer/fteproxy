@@ -267,6 +267,18 @@ class ChannelNotReadyException(Exception):
     """The peer has not reached the point where this call can be served."""
 
 
+class HybridUnsupportedError(Exception):
+    """This format cannot run in ``hybrid`` mode.
+
+    Raised when no covertext length the format emits has room for a hybrid
+    header (:data:`fteproxy.record_layer.HYBRID_HEADER_BYTES`). Refusing is the
+    point: falling back to another length would leave the two ends framing the
+    stream differently, which surfaces as a connection that authenticates its
+    handshake and then cannot decode a record. ``--mode format`` runs such a
+    format; no shipped format is one.
+    """
+
+
 class OpenRefused(Exception):
     """The peer would not open the requested stream.
 
@@ -365,6 +377,128 @@ def _cipher_for(format_name, key, cover=False):
                           fteproxy.defs.get_framing(format_name), build=build)
 
 
+# --------------------------------------------------------------------------- #
+# The hybrid header length
+# --------------------------------------------------------------------------- #
+
+#: Key used only to *measure* a cipher's plaintext capacity.
+#: ``max_plaintext_bytes`` is a function of the pattern and the covertext
+#: length and never of the key, so which key this is cannot change an answer --
+#: and the answer must not depend on a session key, since the two ends of a
+#: connection work it out separately and have different keys for each direction.
+_PROBE_KEY = b'\x00' * 32
+
+
+@functools.lru_cache(maxsize=1024)
+def _hybrid_header_length(regex, framing, lengths):
+    """The shortest of ``lengths`` whose cipher holds a hybrid header, or None.
+
+    Split out from :func:`hybrid_header_length` so the answer is cached on
+    hashable arguments -- a definitions entry is a dict, and this is asked once
+    per direction per connection. The cache is keyed on everything the answer
+    depends on (the pattern, the framing and the length set), so pointing the
+    loader at another release cannot return a stale length.
+
+    Measured, not guessed: each candidate length's real cipher is built and
+    asked for its ``max_plaintext_bytes``. Capacity is a step function of the
+    covertext length with no closed form -- a format's rank space depends on how
+    much of the pattern is literal -- so the shortest length that fits is
+    ``smtp``'s 80 in one release and something else in the next.
+
+    A length whose cipher cannot be built at all is simply not a candidate:
+    libfte refuses a format with no room for even an empty message
+    (``FTEError``) and a length its language has no strings at
+    (``ValueError``), and either way there is no header to be sealed there.
+    This searches for the shortest length that *works*; whether an unusable
+    length belongs in the format's set at all is ``fteproxy.defs.validate``'s
+    question, and it reports that in its own words.
+    """
+    for length in lengths:
+        try:
+            capacity = _framed_cipher(regex, length, _PROBE_KEY,
+                                      framing).max_plaintext_bytes
+        except (fte.FTEError, ValueError):
+            continue
+        if capacity >= fteproxy.record_layer.HYBRID_HEADER_BYTES:
+            return length
+    return None
+
+
+def hybrid_header_length(spec):
+    """The wire length a ``hybrid``-mode record's header is sealed at.
+
+    The shortest length in ``fteproxy.defs.spec_allowed_lengths(spec)`` whose
+    cipher has room for :data:`fteproxy.record_layer.HYBRID_HEADER_BYTES` of
+    plaintext, or ``None`` if the format has no such length and therefore cannot
+    run in hybrid mode at all.
+
+    **Why it is not ``max_length``.** A hybrid header carries four bytes: the
+    length of the raw body behind it. Sealing that at the format's longest
+    covertext -- which is what the handshake and the server's first-record scan
+    have to do -- buys nothing and costs a great deal, because ranking a
+    covertext gets superlinearly more expensive as it gets longer: sealing
+    ``http``'s header at 200 bytes rather than 700 is roughly seven to eight
+    times cheaper per record (see PERFORMANCE.md). Every hybrid data record pays
+    that once, so the shipped default was several times slower in bulk and in
+    latency than it needed to be, to carry four bytes.
+
+    **Why nothing negotiates it.** Both ends compute it from the same
+    definitions entry with this one function, exactly as they derive the
+    variable-length length set, so the sender's header cipher and the receiver's
+    are the same cipher and the decoder's frame size follows from it. Nothing
+    about it goes on the wire.
+
+    A fixed-length format has one allowed length, so this returns that length
+    and its hybrid framing is unchanged.
+    """
+    return _hybrid_header_length(
+        spec['regex'], fteproxy.defs.spec_framing(spec),
+        tuple(fteproxy.defs.spec_allowed_lengths(spec)))
+
+
+def _hybrid_header_cipher(format_name, key):
+    """The cipher one direction's hybrid headers are sealed with.
+
+    Raises :class:`HybridUnsupportedError` rather than falling back to
+    ``max_length``: a silent fallback would be a format running in a mode it
+    cannot carry, which shows up as a connection that will not decode.
+    """
+    spec = fteproxy.defs._spec(format_name)
+    length = hybrid_header_length(spec)
+    if length is None:
+        raise HybridUnsupportedError(
+            'format %s has no covertext length that can hold a %d-byte hybrid '
+            'header (it emits %r), so it cannot run in hybrid mode'
+            % (format_name, fteproxy.record_layer.HYBRID_HEADER_BYTES,
+               fteproxy.defs.spec_allowed_lengths(spec)))
+    return _spec_cipher(spec, length, key)
+
+
+def _check_hybrid_supported(base, mode):
+    """Refuse ``hybrid`` unless *both* directions of ``base`` can carry a header.
+
+    A session seals one direction with each entry, so one direction with no room
+    for a header is enough to make the mode unusable for the base.
+
+    Called before either end commits to a session -- the client before it sends
+    its hello, the server before it answers one -- so the failure is a clear
+    error rather than a stream that authenticates and then cannot be framed.
+    Cannot fire for any format in a loaded release: ``check_capacities``
+    already requires :data:`fteproxy.defs.MIN_CAPACITY` bytes at the length the
+    handshake seals at, which is one of the allowed lengths and far more than a
+    header needs.
+    """
+    if mode != fteproxy.handshake.MODE_HYBRID:
+        return
+    for name in _format_pair(base):
+        if hybrid_header_length(fteproxy.defs._spec(name)) is None:
+            raise HybridUnsupportedError(
+                'format %s has no covertext length that can hold a %d-byte '
+                'hybrid header, so %s cannot run in hybrid mode; use '
+                '"--mode format"'
+                % (name, fteproxy.record_layer.HYBRID_HEADER_BYTES, base))
+
+
 def _variable_lengths_for_spec(spec, key):
     """The :class:`~fteproxy.record_layer.VariableLength` a definitions spec
     describes, keyed with ``key``.
@@ -401,6 +535,14 @@ def _session_channel(base, mode, keys, is_client):
     length it may emit; in ``hybrid`` mode it does not, because a hybrid record
     is a fixed-length header plus a raw body and only the header is in the
     format at all.
+
+    A hybrid header is sealed at :func:`hybrid_header_length`, not at the
+    format's ``max_length``: it carries four bytes, so it is put in the shortest
+    covertext that holds them. Both ends run this same function over the same
+    definitions entry -- and, for a given direction, over the *same* entry, since
+    a client's outgoing request format is the server's incoming one -- so the
+    two header ciphers are identical and the decoder's frame size follows from
+    its own without anything being negotiated.
     """
     request, response = _format_pair(base)
     outgoing, incoming = ((request, response) if is_client
@@ -408,12 +550,13 @@ def _session_channel(base, mode, keys, is_client):
     out_header, out_body = keys.outgoing(is_client)
     in_header, in_body = keys.incoming(is_client)
     hybrid = (mode == fteproxy.handshake.MODE_HYBRID)
+    header_cipher = _hybrid_header_cipher if hybrid else _cipher_for
     encoder = fteproxy.record_layer.Encoder(
-        cipher=_cipher_for(outgoing, out_header),
+        cipher=header_cipher(outgoing, out_header),
         body_cipher=_make_body_cipher(out_body) if hybrid else None,
         variable=None if hybrid else _variable_for(outgoing, out_header))
     decoder = fteproxy.record_layer.Decoder(
-        cipher=_cipher_for(incoming, in_header),
+        cipher=header_cipher(incoming, in_header),
         body_cipher=_make_body_cipher(in_body) if hybrid else None,
         variable=None if hybrid else _variable_for(incoming, in_header))
     return encoder, decoder
@@ -558,6 +701,10 @@ class _FTESocketWrapper(object):
 
     def _client_handshake(self):
         request, response = _format_pair(self._format)
+        # Before a byte goes out: a mode this format cannot carry is this end's
+        # own configuration error, and it should read as one rather than as a
+        # server that would not answer.
+        _check_hybrid_supported(self._format, self._mode)
         driver = fteproxy.handshake.ClientHandshake(
             server_public=self._server_public, format=self._format,
             mode=self._mode, defs=self._defs)
@@ -706,6 +853,15 @@ class _FTESocketWrapper(object):
                     fteproxy.defs.getLength(matched)):
             raise HandshakeFailedException('hello format does not match its '
                                            'covertext format')
+
+        # The client names the mode; check this end can carry it *before*
+        # answering, so a hello asking for hybrid on a format that cannot frame
+        # a hybrid header is rejected like any other hello this server will not
+        # serve, rather than after a server hello has already gone out.
+        try:
+            _check_hybrid_supported(base, hello.mode)
+        except HybridUnsupportedError as e:
+            raise HandshakeFailedException(str(e))
 
         response_cipher = _cipher_for(response, self._cover_key, cover=True)
         try:

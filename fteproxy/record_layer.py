@@ -54,8 +54,12 @@ allowed lengths per record and seals at it, and is delimited one of two ways
     bytes.
 
 Either way the fixed-length fingerprint is gone from format-mode data records,
-while hybrid headers and the two handshake records stay fixed-length. See
-``docs/format-authoring.md``.
+while hybrid headers and the two handshake records stay fixed-length. The two
+handshake records are fixed at the format's ``max_length``, because the server
+frames the client hello before it can decrypt anything; a hybrid header is fixed
+at the *shortest* allowed length that holds :data:`HYBRID_HEADER_BYTES`, because
+that is all a header carries and covertext cost grows superlinearly with length.
+See ``docs/format-authoring.md``.
 """
 
 import os
@@ -94,6 +98,18 @@ _SEAL_OVERHEAD = _LEN.size + _SEQ.size
 _TYPE_LEN = 1
 # Hybrid-mode header payload: the length of the raw body that follows it.
 _OVERFLOW_LEN = struct.Struct('>I')
+
+#: Plaintext capacity a ``hybrid``-mode header cipher must have.
+#:
+#: A hybrid header carries one thing: the :data:`_OVERFLOW_LEN` count of the raw
+#: body behind it. :func:`_seal` wraps that in the length and sequence fields,
+#: so the whole sealed plaintext is exactly these 16 bytes and a covertext that
+#: holds 16 bytes of plaintext holds a header. That is *all* it has to hold --
+#: no payload rides in a hybrid header -- which is why a hybrid header does not
+#: have to be sealed at the format's longest covertext the way the handshake's
+#: two records are. :func:`fteproxy.hybrid_header_length` turns this number into
+#: the length one format's headers go out at.
+HYBRID_HEADER_BYTES = _OVERFLOW_LEN.size + _SEAL_OVERHEAD
 
 #: The framing header of a ``length-prefix`` format: a big-endian count of the
 #: message bytes that follow it (RFC 1035 4.2.2). Not part of any format's

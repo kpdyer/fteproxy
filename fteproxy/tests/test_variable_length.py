@@ -39,9 +39,16 @@ What these tests pin down:
 * **terminator uniqueness**, the property terminator framing rests on, including
   that the pre-F7 ``http-response`` regex (which absorbed a body and so could
   carry a CRLF CRLF inside a covertext) is rejected by the check;
-* what did **not** change: the two handshake records and a ``hybrid`` header are
-  still one fixed ``max_length`` covertext, the four text formats' fragments are
-  byte for byte what F7 shipped, and the shape catalog is still fixed length.
+* what did **not** change: the two handshake records are still one fixed
+  ``max_length`` covertext, the four text formats' fragments are byte for byte
+  what F7 shipped, and the shape catalog is still fixed length.
+
+A ``hybrid`` header is still a *fixed*-length covertext, but no longer at
+``max_length``. F7 pinned it there beside the hello; since a header carries only
+the 4-byte length of the body behind it, and ranking a covertext gets
+superlinearly more expensive with length, it now goes in the shortest allowed
+length that has room for one (``fteproxy.hybrid_header_length``) --
+:class:`TestHybridHeaderLength` is where that rule is pinned down.
 """
 
 import collections
@@ -49,6 +56,7 @@ import os
 import re
 import socket
 import threading
+import time
 
 import pytest
 
@@ -171,8 +179,9 @@ class TestAllowedLengths:
 
     @pytest.mark.parametrize('name', sorted(VARIABLE))
     def test_get_length_is_the_top_of_the_range(self, name):
-        """What the fixed-frame paths use: the handshake, the server's
-        first-record scan, and a hybrid header."""
+        """What the handshake and the server's first-record scan use. (A hybrid
+        header is a fixed frame too, but at its own, shorter, length: see
+        :class:`TestHybridHeaderLength`.)"""
         assert fteproxy.defs.getLength(name) == _spec(name)['max_length']
 
     def test_a_partial_declaration_is_refused_at_load(self):
@@ -760,31 +769,39 @@ class _Reader(threading.Thread):
             self.data += chunk
 
 
+def _handshaken(base, mode):
+    """A real client/server pair over a socketpair, handshake completed.
+
+    Module level so the tests further down that need a live session -- the
+    hybrid header ones -- use the same wiring rather than a second copy of it.
+    """
+    client_sock, server_sock = socket.socketpair()
+    client = fteproxy.wrap_socket(client_sock, server_id=SERVER_PUBLIC,
+                                  format=base, mode=mode)
+    client._socket = _Recorder(client_sock)
+    server = fteproxy.wrap_socket(server_sock, server_key=SERVER_PRIVATE)
+    errors = []
+
+    def accept():
+        try:
+            server.handshake()
+        except Exception as e:                          # pragma: no cover
+            errors.append(e)
+
+    thread = threading.Thread(target=accept)
+    thread.start()
+    try:
+        client.handshake()
+    finally:
+        thread.join(10)
+    assert not errors, errors
+    return client, server
+
+
 class TestFixedFramingSurvives:
 
     def _handshaken(self, base, mode):
-        """A real client/server pair over a socketpair, handshake completed."""
-        client_sock, server_sock = socket.socketpair()
-        client = fteproxy.wrap_socket(client_sock, server_id=SERVER_PUBLIC,
-                                      format=base, mode=mode)
-        client._socket = _Recorder(client_sock)
-        server = fteproxy.wrap_socket(server_sock, server_key=SERVER_PRIVATE)
-        errors = []
-
-        def accept():
-            try:
-                server.handshake()
-            except Exception as e:                      # pragma: no cover
-                errors.append(e)
-
-        thread = threading.Thread(target=accept)
-        thread.start()
-        try:
-            client.handshake()
-        finally:
-            thread.join(10)
-        assert not errors, errors
-        return client, server
+        return _handshaken(base, mode)
 
     @pytest.mark.parametrize('mode', ['format', 'hybrid'])
     def test_the_client_hello_is_one_max_length_covertext(self, mode):
@@ -828,7 +845,17 @@ class TestFixedFramingSurvives:
             client.close()
             server.close()
 
-    def test_a_hybrid_header_is_still_fixed_at_max_length(self):
+    def test_a_hybrid_header_is_fixed_at_the_shortest_length_that_holds_one(self):
+        """Still one fixed-length covertext per record, and still real HTTP --
+        but at 200 bytes, not at the 700 the handshake uses.
+
+        Until this change a hybrid header was sealed at ``max_length`` beside
+        the hello, which spent a full 700-byte ranking on every record to carry
+        four bytes. The expectation this test used to state (header
+        length == ``getLength``) is the thing that changed; everything around it
+        -- one covertext, matching the regex, followed by a raw body -- is as it
+        was.
+        """
         client, server = self._handshaken('http', 'hybrid')
         try:
             assert client._encoder._variable is None
@@ -839,11 +866,18 @@ class TestFixedFramingSurvives:
             reader.join(20)
             assert reader.data == b'z' * 4000
             header = client._socket.sent[1]
-            length = fteproxy.defs.getLength('http-request')
+            length = fteproxy.hybrid_header_length(_spec('http-request'))
+            assert length == 200
+            assert length < fteproxy.defs.getLength('http-request') == 700
             pattern = re.compile(
                 _spec('http-request')['regex'].encode('latin-1'), re.DOTALL)
             assert pattern.fullmatch(header[:length])
             assert len(header) > length          # header plus a raw body
+            # The frame size both ends read is that same length, and it is what
+            # the decoder derives from its own header cipher rather than being
+            # told.
+            assert client._encoder._cipher.output_format.max_length == length
+            assert server._decoder._frame_size == length
         finally:
             client.close()
             server.close()
@@ -903,3 +937,300 @@ class TestFixedFramingSurvives:
             rl.Encoder(cipher=cipher, body_cipher=body, variable=variable)
         with pytest.raises(ValueError):
             rl.Decoder(cipher=cipher, body_cipher=body, variable=variable)
+
+
+# --------------------------------------------------------------------------- #
+# The hybrid header length
+# --------------------------------------------------------------------------- #
+
+#: What :func:`fteproxy.hybrid_header_length` works out for each shipped entry.
+#:
+#: Written down as well as derived (:meth:`TestHybridHeaderLength.
+#: test_the_length_is_the_shortest_that_holds_a_header` re-derives it from the
+#: ciphers) because these numbers are what goes on the wire: a release that
+#: moved one of them would change the covertext length of every hybrid record,
+#: which is a fingerprint change and should not pass silently.
+#:
+#: They are not symmetric, and there is no reason they should be: each direction
+#: is computed from its own entry, and a request pattern and a response pattern
+#: have different amounts of literal text, hence different rank space at the
+#: same covertext length. ``ftp`` is the case in point -- its response pattern
+#: has just enough room at 64 bytes and its request pattern has not.
+HYBRID_HEADER = {
+    'http-request': 200, 'http-response': 200,
+    'ftp-request': 91, 'ftp-response': 64,
+    'smtp-request': 80, 'smtp-response': 80,
+    'sip-request': 300, 'sip-response': 300,
+    'dns-request': 90, 'dns-response': 90,
+}
+
+#: The five shipped base names.
+BASES = ('http', 'ftp', 'smtp', 'sip', 'dns')
+
+
+def _session_keys():
+    """Distinct per-direction keys, as a handshake would produce."""
+    return fteproxy.handshake.SessionKeys(
+        auth=bytes([1]) * 32, c2s_header=bytes([2]) * 32,
+        c2s_body=bytes([3]) * 32, s2c_header=bytes([4]) * 32,
+        s2c_body=bytes([5]) * 32)
+
+
+def _channels(base, mode=fteproxy.handshake.MODE_HYBRID):
+    """Both ends of a session, built the way a completed handshake builds them."""
+    keys = _session_keys()
+    return (fteproxy._session_channel(base, mode, keys, is_client=True),
+            fteproxy._session_channel(base, mode, keys, is_client=False))
+
+
+class TestHybridHeaderLength:
+    """A hybrid header goes in the shortest covertext that holds one.
+
+    A hybrid record is a sealed header carrying the 4-byte length of the raw
+    body behind it, and nothing else. Until this change the header was sealed at
+    the format's ``max_length``, alongside the client hello -- which the
+    handshake genuinely needs, because the server has to frame the hello before
+    it can decrypt anything. A data header does not: both ends already share the
+    keys and the definitions, so the length can be anything they both compute
+    the same way.
+
+    Sealing it at ``max_length`` was expensive, because ranking a covertext gets
+    superlinearly more costly as it gets longer -- an ``http`` covertext at 700
+    bytes costs seven to eight times what one at 200 does. Every hybrid record
+    paid that, for four bytes of payload.
+    """
+
+    # -- the rule ---------------------------------------------------------- #
+
+    @pytest.mark.parametrize('name', sorted(HYBRID_HEADER))
+    def test_the_computed_length_per_shipped_format(self, name):
+        assert fteproxy.hybrid_header_length(_spec(name)) == HYBRID_HEADER[name]
+
+    @pytest.mark.parametrize('name', sorted(HYBRID_HEADER))
+    def test_the_length_is_the_shortest_that_holds_a_header(self, name):
+        """Re-derive the rule from the ciphers themselves.
+
+        The chosen length has room for a sealed header, and every shorter length
+        the format emits does not -- which is what makes it *the* shortest, not
+        merely a workable one.
+        """
+        spec = _spec(name)
+        chosen = fteproxy.hybrid_header_length(spec)
+        for length in fteproxy.defs.spec_allowed_lengths(spec):
+            capacity = fteproxy._spec_cipher(spec, length, _KEY) \
+                .max_plaintext_bytes
+            fits = capacity >= rl.HYBRID_HEADER_BYTES
+            if length < chosen:
+                assert not fits, (name, length, capacity)
+            elif length == chosen:
+                assert fits, (name, length, capacity)
+
+    def test_a_header_holds_exactly_what_it_carries(self):
+        """The 16 bytes are the 4-byte body length inside the 12-byte seal --
+        the whole sealed plaintext, since no payload rides in a header."""
+        assert rl.HYBRID_HEADER_BYTES == 16
+        assert rl.HYBRID_HEADER_BYTES == rl._OVERFLOW_LEN.size + rl._SEAL_OVERHEAD
+
+    @pytest.mark.parametrize('name', sorted(HYBRID_HEADER))
+    def test_the_length_is_one_the_format_emits(self, name):
+        """Not a length invented for headers: it comes out of the same set a
+        format-mode record picks from, so a hybrid header is indistinguishable
+        from a format-mode record of that length."""
+        assert fteproxy.hybrid_header_length(_spec(name)) in \
+            fteproxy.defs.spec_allowed_lengths(_spec(name))
+
+    def test_a_fixed_length_format_is_unchanged(self):
+        """The shape catalog has one allowed length, so that is where its
+        headers went before and where they go now."""
+        fteproxy.conf.setValue('fteproxy.defs.release', '20260110')
+        fteproxy.defs._definitions = None
+        definitions = fteproxy.defs.load_definitions()
+        for name, spec in definitions.items():
+            assert fteproxy.hybrid_header_length(spec) == \
+                fteproxy.defs.spec_length(spec), name
+
+    def test_a_format_with_no_room_cannot_run_hybrid(self):
+        """No shipped format is one -- the capacity floor is 128 bytes and a
+        header needs 16 -- so the refusal is exercised on a synthetic entry.
+        It has to be a refusal and not a fallback: quietly sealing at some other
+        length would leave the two ends framing the stream differently."""
+        tiny = {'regex': r'^[a-z][a-z][a-z][a-z]\r\n$', 'length': 6}
+        assert fteproxy.hybrid_header_length(tiny) is None
+        with pytest.raises(validate.FormatValidationError) as excinfo:
+            validate.validate_format('tiny-request', tiny, samples=1)
+        assert 'tiny-request' in str(excinfo.value)
+
+    # -- both ends agree, without negotiating ------------------------------ #
+
+    @pytest.mark.parametrize('base', BASES)
+    def test_both_ends_build_the_same_header_cipher(self, base):
+        """Nothing about the header length goes on the wire. Each end runs the
+        same function over the same definitions entry -- and for a given
+        direction it is the *same* entry, since a client's outgoing request
+        format is the server's incoming one."""
+        (client_enc, client_dec), (server_enc, server_dec) = _channels(base)
+        for encoder, decoder, name in (
+                (client_enc, server_dec, base + '-request'),
+                (server_enc, client_dec, base + '-response')):
+            expected = HYBRID_HEADER[name]
+            assert encoder._cipher.output_format.max_length == expected
+            assert decoder._frame_size == expected
+            # The decoder's frame size follows from its own header cipher; it is
+            # never told what to expect.
+            assert decoder._cipher.output_format.max_length == decoder._frame_size
+
+    @pytest.mark.parametrize('base', BASES)
+    def test_a_hybrid_session_round_trips_both_ways(self, base):
+        """Both ends built by ``_session_channel``, as a completed handshake
+        builds them, carrying traffic in both directions."""
+        (client_enc, client_dec), (server_enc, server_dec) = _channels(base)
+        assert client_enc._body_cipher is not None
+        assert client_enc._variable is None      # hybrid frames a fixed header
+        for i in range(8):
+            up = os.urandom(1 + i * 997)
+            client_enc.push(up)
+            server_dec.push(client_enc.pop())
+            assert server_dec.pop() == up
+
+            down = os.urandom(1 + i * 631)
+            server_enc.push(down)
+            client_dec.push(server_enc.pop())
+            assert client_dec.pop() == down
+        assert not server_dec.failed and not client_dec.failed
+
+    @pytest.mark.parametrize('base', BASES)
+    def test_the_header_on_the_wire_is_that_length(self, base):
+        """The first ``hdr`` bytes of a record are one covertext of the format,
+        and the body follows immediately behind it."""
+        (client_enc, _client_dec), (_server_enc, _server_dec) = _channels(base)
+        spec = _spec(base + '-request')
+        length = HYBRID_HEADER[base + '-request']
+        pattern = re.compile(spec['regex'].encode('latin-1'), re.DOTALL)
+        client_enc.push(b'q' * 64)
+        wire = client_enc.pop()
+        header = wire[:length]
+        assert len(wire) > length
+        if fteproxy.defs.spec_framing(spec) == \
+                fteproxy.defs.FRAMING_LENGTH_PREFIX:
+            # The prefix is framing, not language: it announces the message the
+            # regex describes.
+            prefix = rl.PREFIX_LEN
+            assert int.from_bytes(header[:prefix], 'big') == length - prefix
+            assert pattern.fullmatch(header[prefix:])
+        else:
+            assert pattern.fullmatch(header)
+
+    # -- the handshake is untouched ---------------------------------------- #
+
+    def test_the_hello_is_still_max_length_while_the_header_is_not(self):
+        """The two halves of the old rule come apart: the hello stays at 700
+        because the server frames it before it can decrypt anything, and the
+        data header drops to 200 because both ends already agree on it."""
+        client, server = _handshaken('http', 'hybrid')
+        try:
+            reader = _Reader(server, 1000)
+            reader.start()
+            client.send(b'y' * 1000)
+            reader.join(20)
+            assert reader.data == b'y' * 1000
+
+            hello = client._socket.sent[0]
+            assert len(hello) == 700 == fteproxy.defs.getLength('http-request')
+            header = client._socket.sent[1][:200]
+            assert len(header) == 200
+            pattern = re.compile(
+                _spec('http-request')['regex'].encode('latin-1'), re.DOTALL)
+            assert pattern.fullmatch(hello)      # both are still real HTTP
+            assert pattern.fullmatch(header)
+        finally:
+            client.close()
+            server.close()
+
+    @pytest.mark.parametrize('base', ['http', 'smtp'])
+    def test_the_real_client_server_path_carries_hybrid(self, base):
+        """The whole product: two sockets, a real handshake, and bulk traffic in
+        hybrid mode -- for ``http`` and for one line protocol."""
+        client, server = _handshaken(base, 'hybrid')
+        try:
+            assert client.negotiated_mode == 'hybrid'
+            assert server.negotiated_mode == 'hybrid'
+            expected = os.urandom(20000)
+            reader = _Reader(server, len(expected))
+            reader.start()
+            client.send(expected)
+            reader.join(30)
+            assert reader.data == expected
+            # Every data record's header is one covertext of the computed
+            # length, on both ends of the connection.
+            length = HYBRID_HEADER[base + '-request']
+            assert client._encoder._cipher.output_format.max_length == length
+            assert server._decoder._frame_size == length
+            assert length < fteproxy.defs.getLength(base + '-request')
+        finally:
+            client.close()
+            server.close()
+
+    # -- the point of the exercise ----------------------------------------- #
+
+    def test_a_short_header_costs_far_less_per_record(self):
+        """The measurement the change exists for.
+
+        One 64-byte payload per record through a real hybrid encoder, with the
+        header cipher at the computed length and then at ``max_length``. Loose
+        on purpose -- it is a ratio on a machine running a test suite, not a
+        benchmark -- but the gap it is guarding is about 7x, so 3x has room, and
+        the absolute bound is the same claim stated a second way.
+        """
+        spec = _spec('http-request')
+        payload = b'p' * 64
+        records = 40
+
+        def cost(length):
+            encoder = rl.Encoder(
+                cipher=fteproxy._spec_cipher(spec, length, _KEY),
+                body_cipher=fteproxy._make_body_cipher(_KEY))
+            encoder.push(payload)               # warm the DFA cache
+            encoder.pop()
+            start = time.perf_counter()
+            for _ in range(records):
+                encoder.push(payload)
+                encoder.pop()
+            return (time.perf_counter() - start) / records
+
+        short = cost(fteproxy.hybrid_header_length(spec))
+        long = cost(fteproxy.defs.spec_length(spec))
+        assert short * 3 < long, (short, long)
+        assert short < 0.4e-3, short
+
+    def test_hybrid_is_refused_at_session_setup(self, monkeypatch):
+        """A format that cannot hold a header is refused where a session is
+        built, not left to fail as a stream that will not decode.
+
+        The refusal has to happen for a *base*, both directions, since a session
+        seals one direction with each entry. Exercised on a synthetic release,
+        because no shipped format is small enough to reach it.
+        """
+        tiny = {'regex': r'^[a-z][a-z][a-z][a-z]\r\n$', 'length': 6}
+        monkeypatch.setattr(fteproxy.defs, '_definitions',
+                            {'tiny-request': tiny, 'tiny-response': tiny})
+
+        with pytest.raises(fteproxy.HybridUnsupportedError) as excinfo:
+            fteproxy._check_hybrid_supported(
+                'tiny', fteproxy.handshake.MODE_HYBRID)
+        assert 'tiny-request' in str(excinfo.value)
+        assert 'format' in str(excinfo.value)   # names the mode that would work
+        with pytest.raises(fteproxy.HybridUnsupportedError):
+            fteproxy._hybrid_header_cipher('tiny-request', _KEY)
+        with pytest.raises(fteproxy.HybridUnsupportedError):
+            fteproxy._session_channel('tiny', fteproxy.handshake.MODE_HYBRID,
+                                      _session_keys(), is_client=True)
+
+        # ``format`` mode is unaffected: the check is about hybrid headers.
+        fteproxy._check_hybrid_supported('tiny', fteproxy.handshake.MODE_FORMAT)
+
+    @pytest.mark.parametrize('base', BASES)
+    def test_no_shipped_format_is_refused(self, base):
+        """The counterpart: the capacity floor makes the refusal unreachable for
+        every format in the release."""
+        fteproxy._check_hybrid_supported(base, fteproxy.handshake.MODE_HYBRID)
+        fteproxy._check_hybrid_supported(base, fteproxy.handshake.MODE_FORMAT)

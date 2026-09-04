@@ -375,6 +375,35 @@ def _span(low, high):
     return str(low) if low == high else '%d-%d' % (low, high)
 
 
+def _hybrid_header_cell(directions, definitions):
+    """The ``hdr`` cell of a ``formats`` row: where a hybrid header goes.
+
+    ``200`` when both directions of the base put their headers in the same
+    covertext length, ``91/64`` (request/response) when the two differ -- which
+    they may, since each direction's length is computed from its own entry and a
+    request and a response pattern have different rank spaces at the same
+    length. ``-`` if either direction has no length that holds a header, since
+    then the base cannot run in hybrid mode.
+    """
+    cells = []
+    for direction in ('request', 'response'):
+        name = directions.get(direction)
+        if name is None:
+            continue
+        try:
+            length = fteproxy.hybrid_header_length(definitions[name])
+        except Exception:
+            length = None
+        if length is None:
+            return '-'
+        cells.append(str(length))
+    if not cells:
+        return '-'
+    if len(set(cells)) == 1:
+        return cells[0]
+    return '/'.join(cells)
+
+
 def do_formats(args):
     """Print each base format name with its schema-v2 metadata and capacity.
 
@@ -387,7 +416,12 @@ def do_formats(args):
 
     A variable-length format shows both as a range -- ``200-700`` -- because in
     ``format`` mode it picks a length per record from across that range. The top
-    of the range is the length a handshake record and a ``hybrid`` header use.
+    of the range is the length the two handshake records seal at.
+
+    The ``hdr`` column is where a ``hybrid``-mode header goes instead: the
+    shortest length that holds one (:func:`fteproxy.hybrid_header_length`), for
+    the request direction and, when it differs, the response direction after a
+    slash. ``-`` means the format cannot run in hybrid mode at all.
     """
     try:
         definitions = select_defs(args.defs)
@@ -429,7 +463,7 @@ def do_formats(args):
         ports = fteproxy.defs.spec_port(primary_spec)
         port = ','.join(str(p) for p in ports) if ports else '-'
         mode = fteproxy.defs.spec_mode_hint(primary_spec)
-        row += [role, port, mode]
+        row += [role, port, mode, _hybrid_header_cell(bases[base], definitions)]
         for direction in ('request', 'response'):
             name = bases[base].get(direction)
             if name is None:
@@ -451,7 +485,7 @@ def do_formats(args):
         descriptions[base] = fteproxy.defs.spec_description(primary_spec)
         defaults[base] = (base == default)
 
-    header = ['name', 'role', 'port', 'mode',
+    header = ['name', 'role', 'port', 'mode', 'hdr',
               'req len', 'req cap', 'resp len', 'resp cap']
     left = {0, 1, 2, 3}  # name/role/port/mode left-justified; numbers right
     widths = [max(len(r[i]) for r in [header] + rows) for i in range(len(header))]
@@ -460,6 +494,8 @@ def do_formats(args):
           'per direction')
     print('a length range means the format varies its covertext length per '
           'record in format mode')
+    print('hdr is the covertext length a hybrid-mode header goes in '
+          '(request/response when they differ)')
     print()
 
     def _emit(row, trailer):
@@ -511,18 +547,28 @@ def do_defs_check(args):
             definitions = json.load(handle)
         name_w = max(len(name) for name, _l, _c, _m in summary)
         spans = {}
+        headers = {}
         for name, length, _capacity, _mode in summary:
-            lengths = fteproxy.defs.spec_allowed_lengths(
-                definitions.get(name, {'length': length}))
+            spec = definitions.get(name, {'length': length})
+            lengths = fteproxy.defs.spec_allowed_lengths(spec)
             spans[name] = _span(lengths[0], lengths[-1])
+            # Validation has already refused anything with no such length, so
+            # this is a number for every format that got here.
+            try:
+                headers[name] = str(fteproxy.hybrid_header_length(spec))
+            except Exception:
+                headers[name] = '-'
         span_w = max(len(span) for span in spans.values())
+        header_w = max(len(value) for value in headers.values())
         for name, _length, capacity, mode_hint in summary:
-            print('  %s  length %s  capacity %5d  %s'
+            print('  %s  length %s  capacity %5d  hybrid header %s  %s'
                   % (name.ljust(name_w), spans[name].rjust(span_w),
-                     capacity, mode_hint))
+                     capacity, headers[name].rjust(header_w), mode_hint))
         if any('-' in span for span in spans.values()):
             print('a length range varies per record in format mode; the '
                   'capacity shown is the one at the top of the range')
+        print('the two handshake records seal at the top of the range; a '
+              'hybrid-mode header seals at the shortest length that holds one')
     return EXIT_OK
 
 

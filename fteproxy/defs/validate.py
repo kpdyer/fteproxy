@@ -10,10 +10,16 @@ carry traffic is caught before it ships:
 * build the libfte cipher at every length the format may emit and require
   ``max_plaintext_bytes >=`` the capacity floor
   (:data:`fteproxy.defs.MIN_CAPACITY`) at the length the handshake seals at;
+* require at least one allowed length to have room for a hybrid header
+  (:data:`fteproxy.record_layer.HYBRID_HEADER_BYTES`), since a format with none
+  cannot run in ``hybrid`` mode and a session asking for it is refused rather
+  than framed some other way. ``defs-check`` reports the length that is used;
 * round-trip a batch of random payloads through
   :class:`fteproxy.record_layer.Encoder`/:class:`~fteproxy.record_layer.Decoder`
   in the format's ``mode_hint`` -- and in *both* modes when the hint is
-  ``hybrid``, since the client's ``--mode`` may override it either way;
+  ``hybrid``, since the client's ``--mode`` may override it either way. The
+  hybrid pass frames at the header length a live session uses, not at
+  ``max_length``;
 * assert every sealed **format-mode** covertext fully matches the regex, so the
   bytes on the wire really are drawn from the format's language -- for a
   ``length-prefix`` format, after taking the framing prefix off, since the
@@ -522,18 +528,39 @@ def validate_format(name, spec, samples=_SAMPLES):
         if not prefixed:
             check_terminator_uniqueness(name, regex, terminator)
 
+    # A format has to have somewhere to put a hybrid header, or it cannot run in
+    # hybrid mode at all -- and a session that asked for hybrid would be refused
+    # outright (:class:`fteproxy.HybridUnsupportedError`) rather than quietly
+    # framed some other way. Checked after the per-length build above, so a
+    # format with an unusable length is reported as that rather than as this.
+    # The capacity floor already guarantees a header fits for anything that gets
+    # this far -- the length it is measured at is one of the allowed lengths and
+    # MIN_CAPACITY dwarfs a header -- so this states the requirement rather than
+    # leaving it standing on a coincidence between two unrelated constants.
+    header_length = fteproxy.hybrid_header_length(spec)
+    if header_length is None:
+        raise FormatValidationError(
+            '%s: none of the covertext lengths %r has room for a %d-byte hybrid '
+            'header, so this format cannot run in hybrid mode'
+            % (name, fteproxy.defs.spec_allowed_lengths(spec),
+               rl.HYBRID_HEADER_BYTES))
+
     pattern = _compiled_regex(regex)
     for mode in _modes_for(mode_hint):
         hybrid = (mode == fteproxy.defs.MODE_HYBRID)
         # A variable-length format varies only in format mode: a hybrid record
-        # is a fixed-length header plus a raw body.
+        # is a fixed-length header plus a raw body. That header goes at
+        # ``header_length``, the shortest length that holds one, which is what a
+        # live session uses -- so the round trip exercises the frame size the
+        # product actually writes rather than one only this check ever sees.
         variable_lengths = None if hybrid else lengths
+        frame_length = header_length if hybrid else length
         encoder = rl.Encoder(
-            cipher=fteproxy._spec_cipher(spec, length, _KEY),
+            cipher=fteproxy._spec_cipher(spec, frame_length, _KEY),
             body_cipher=fteproxy._make_body_cipher(_KEY) if hybrid else None,
             variable=variable_lengths)
         decoder = rl.Decoder(
-            cipher=fteproxy._spec_cipher(spec, length, _KEY),
+            cipher=fteproxy._spec_cipher(spec, frame_length, _KEY),
             body_cipher=fteproxy._make_body_cipher(_KEY) if hybrid else None,
             variable=variable_lengths)
         for i in range(samples):

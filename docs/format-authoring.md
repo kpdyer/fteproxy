@@ -100,8 +100,29 @@ Then, in `format` mode, each record picks one of
 `fteproxy.defs.spec_allowed_lengths(spec)` — eight lengths spread evenly across
 the range, including both ends — and is sealed with a fixed-length cipher at
 that length. Both ends derive the set from the same definitions entry, so
-nothing about it is negotiated. `hybrid` mode, the two handshake records and the
-server's first-record scan all stay at `max_length`.
+nothing about it is negotiated. The two handshake records and the server's
+first-record scan stay at `max_length`: the server has to frame a client hello
+before it can decrypt anything, so the hello's length cannot depend on its
+contents, and the longest covertext is the one choice that always has room.
+
+A `hybrid`-mode header is a fixed-length frame too, but it goes at
+**`fteproxy.hybrid_header_length(spec)` — the shortest allowed length whose
+cipher has room for a header**, not at `max_length`. A header carries four
+bytes, the length of the raw body behind it, and nothing else
+(`record_layer.HYBRID_HEADER_BYTES`, 16 bytes of plaintext once the seal's
+length and sequence fields are counted). Ranking a covertext gets superlinearly
+more expensive as it gets longer — sealing `http`'s header at 200 bytes instead
+of 700 is roughly seven to eight times cheaper per record — and every hybrid
+record pays it once, so sealing a four-byte header at the format's longest
+length made the shipped default several times slower in bulk and in latency than
+it needed to be, for nothing. The length is computed
+from the definitions entry by that one function, so both ends reach the same
+answer and the decoder's frame size follows from its own header cipher; nothing
+about it is negotiated either. For a fixed-length format there is one allowed
+length, so this *is* `max_length` and nothing changes. A format with no allowed
+length that can hold a header cannot run in hybrid mode at all: `defs-check`
+refuses it, and a session that asks for hybrid is refused with
+`fteproxy.HybridUnsupportedError` rather than quietly framed some other way.
 
 Those lengths are always lengths **on the wire**. For the two framings below
 that is the same as the cipher's covertext length; for `length-prefix` framing

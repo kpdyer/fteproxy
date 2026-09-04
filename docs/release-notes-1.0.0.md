@@ -139,9 +139,14 @@ protocols) rather than by a fixed slice. `dns` is framed by the two-byte
 big-endian length prefix RFC 1035 puts in front of every DNS-over-TCP message:
 that prefix is framing rather than part of the format's regex, so one pattern
 serves all eight of its lengths, and a `dns` query name now runs 72–254 octets
-instead of padding to 254 every time. Two things stay fixed length: a `hybrid`
-mode header, and the two handshake records, which are always at the top of the
-format's range. `http-response` lost its body field to
+instead of padding to 254 every time. Two things stay fixed length. The two
+handshake records are always at the top of the format's range, because the
+server has to frame a client hello before it can decrypt anything. A `hybrid`
+mode header is fixed too, but at the *shortest* length the format can hold one
+in — 200 bytes for `http` rather than 700, 80 for `smtp`, 90 for `dns` — since
+all it carries is the four-byte length of the raw body behind it. `fteproxy
+formats` shows the length per format in its `hdr` column. `http-response` lost
+its body field to
 make this safe -- a field that could contain CRLF CRLF would break terminator
 framing -- and is now a header-block-only 200/302/304/404 response with
 `Content-Length: 0`.
@@ -156,9 +161,12 @@ bytes); its `manual-http-*` formats are unchanged at length 256, carrying 150
 
 ## Performance
 
-Bulk throughput is unchanged: the record layer's framing, sealing and chunking
-are as they were, and the hybrid body still runs at 670–970 MB/s in the
-microbenchmark. Connection setup costs about 1.6 ms more than the same build
+The record layer's framing, sealing and chunking are as they were, and the
+hybrid body is untouched. What did change is the formatted half of a hybrid
+record: putting the header in the shortest covertext that holds one instead of
+in the format's longest cuts the per-record header cost by about 7–8x for
+`http` in the microbenchmark, which is most of the cost of a hybrid record at
+ordinary write sizes. Connection setup costs about 1.6 ms more than the same build
 without the handshake (0.7 → 2.3 ms p50 on loopback) — two X25519 key
 generations, four exchanges, and the two extra round trips that buy server
 authentication and an in-band destination. See

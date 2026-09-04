@@ -157,8 +157,14 @@ first. This section covers what fteproxy adds on top of it.
     distribution: eight discrete values, sized by what the record layer is
     carrying, are not the continuous, content-driven lengths of real HTTP or
     SIP, and an adversary who models message lengths finely can still tell the
-    difference. Two things stay fixed: a `hybrid` header, and the two handshake
-    records, which are always at the format's longest length.
+    difference. Two things stay fixed. The two handshake records are always at
+    the format's longest length, because the server has to frame a client hello
+    before it can decrypt anything. A `hybrid` header is fixed too, but at the
+    *shortest* length the format has that can hold one (`http`: 200, not 700) --
+    it carries four bytes, so nothing is gained by putting it in a long
+    covertext and a great deal of ranking time is lost. Either way a hybrid
+    stream still shows one repeated header length; that is the mode's
+    fingerprint, and it is the next bullet's subject.
   - **One message type dominates.** Unranking a full-capacity plaintext lands
     in the same branch of the alternation nearly every time, so in practice
     every `http` request samples as `GET`, every `sip` request as `ACK`, every
@@ -192,8 +198,9 @@ first. This section covers what fteproxy adds on top of it.
   place a high-entropy tail belongs, so those ship as `mode_hint: format`
   (every byte in the protocol, at about 1 MB/s) and running them under
   `--mode hybrid` leaks an obvious high-entropy tail after each line -- and,
-  because a `hybrid` header is fixed length, gives back the length fingerprint
-  the format-mode records no longer have. `dns` in `hybrid` mode is worse than
+  because a `hybrid` header is one fixed length (the shortest the format can
+  hold one in), gives back the length fingerprint the format-mode records no
+  longer have. `dns` in `hybrid` mode is worse than
   the others: a DNS message is self-delimiting, so a raw body after the
   covertext is a tail the length prefix does not account for -- visible to
   anything that reads DNS-over-TCP framing at all.
