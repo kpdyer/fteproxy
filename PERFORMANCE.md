@@ -240,9 +240,8 @@ app → [client relay] ──FTE──→ [server relay] → dest
   steady-state setup.
 - Interactive traffic: one 64 B message costs one 700-byte header plus a 93-byte
   body — 793 B on the wire, **12.4x expansion**, and 1.25 ms of CPU per
-  direction. In `format` mode the same message is one covertext: 200 B and
-  0.165 ms if the encoder picks the shortest `http` length, 80 B and 0.069 ms on
-  `smtp`.
+  direction. In `format` mode the same message is one covertext: 271 B and 0.26 ms on `http` (the shortest length that holds 64 bytes; a
+  200-byte covertext carries only 50), 183 B and about 0.13 ms on `smtp`.
 - Sealing's random pad (`os.urandom`), per-record `Cipher` construction, buffer
   concatenation and the body/remainder slices are each under 1% of a record.
 - In `format` mode every covertext is one DFA rank/unrank, so the payload per
