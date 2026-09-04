@@ -1,0 +1,153 @@
+=== end to end (benchmark.py, 3 runs) ===
+http/hybrid fteproxy rtt p50 ms                p50 0.50  (0.49-0.51) 
+http/hybrid fteproxy rtt p90 ms                p50 0.59  (0.56-0.67) 
+http/hybrid fteproxy setup p50 ms              p50 5.72  (5.71-5.78) 
+http/hybrid fteproxy setup min ms              p50 4.99  (4.95-5.11) 
+http/hybrid fteproxy throughput 65536 Mbit/s   p50 101.11  (99.56-101.45) 
+http/hybrid fteproxy throughput 1048576 Mbit/s p50 1161.86  (1158.86-1163.73) 
+http/hybrid fteproxy throughput 8388608 Mbit/s p50 3510.62  (3424.85-3532.52) 
+http/hybrid plain-tcp rtt p50 ms               p50 0.13  (0.12-0.16) 
+http/hybrid plain-tcp rtt p90 ms               p50 0.23  (0.19-0.25) 
+http/hybrid plain-tcp throughput 65536 Mbit/s  p50 452.20  (424.65-482.23) 
+http/hybrid plain-tcp throughput 1048576 Mbit/s p50 2838.30  (2146.66-3247.10) 
+http/hybrid plain-tcp throughput 8388608 Mbit/s p50 5802.96  (5329.98-6088.21) 
+smtp/format fteproxy rtt p50 ms                p50 0.49  (0.48-0.50) 
+smtp/format fteproxy rtt p90 ms                p50 0.65  (0.62-0.65) 
+smtp/format fteproxy setup p50 ms              p50 3.77  (3.56-4.26) 
+smtp/format fteproxy setup min ms              p50 2.92  (2.72-3.25) 
+smtp/format fteproxy throughput 65536 Mbit/s   p50 2.98  (2.86-3.00) 
+smtp/format fteproxy throughput 1048576 Mbit/s p50 4.28  (4.28-4.35) 
+smtp/format fteproxy throughput 8388608 Mbit/s p50 4.98  (4.95-5.08) 
+dns/format fteproxy rtt p50 ms                 p50 0.66  (0.66-0.70) 
+dns/format fteproxy rtt p90 ms                 p50 0.87  (0.85-0.94) 
+dns/format fteproxy setup p50 ms               p50 4.16  (3.98-4.43) 
+dns/format fteproxy setup min ms               p50 3.25  (3.20-3.38) 
+dns/format fteproxy throughput 65536 Mbit/s    p50 1.82  (1.80-2.00) 
+dns/format fteproxy throughput 1048576 Mbit/s  p50 2.73  (2.71-2.74) 
+dns/format fteproxy throughput 8388608 Mbit/s  p50 3.24  (3.22-3.26) 
+
+=== record layer: hybrid round trips ===
+http hybrid 64 B  ms/record                    p50 0.173  (0.172-0.173) 
+http hybrid 64 B  MB/s                         p50 0.4  (0.4-0.4) 
+                                               wire 293  expansion 4.58x
+http hybrid 4096 B  ms/record                  p50 0.179  (0.178-0.180) 
+http hybrid 4096 B  MB/s                       p50 22.8  (22.8-23.0) 
+                                               wire 4325  expansion 1.06x
+http hybrid 262144 B  ms/record                p50 0.428  (0.427-0.429) 
+http hybrid 262144 B  MB/s                     p50 612.2  (610.5-613.5) 
+                                               wire 262373  expansion 1.00x
+http hybrid 1048576 B  ms/record               p50 1.156  (1.127-1.172) 
+http hybrid 1048576 B  MB/s                    p50 906.9  (894.7-930.7) 
+                                               wire 1048805  expansion 1.00x
+smtp hybrid 64 B  ms/record                    p50 0.076  (0.075-0.077) 
+smtp hybrid 64 B  MB/s                         p50 0.8  (0.8-0.9) 
+                                               wire 173  expansion 2.70x
+smtp hybrid 4096 B  ms/record                  p50 0.081  (0.081-0.081) 
+smtp hybrid 4096 B  MB/s                       p50 50.5  (50.4-50.6) 
+                                               wire 4205  expansion 1.03x
+smtp hybrid 262144 B  ms/record                p50 0.329  (0.328-0.330) 
+smtp hybrid 262144 B  MB/s                     p50 796.7  (793.9-800.2) 
+                                               wire 262253  expansion 1.00x
+smtp hybrid 1048576 B  ms/record               p50 1.053  (1.009-1.055) 
+smtp hybrid 1048576 B  MB/s                    p50 995.9  (993.7-1039.5) 
+                                               wire 1048685  expansion 1.00x
+
+=== record layer: header/body split ===
+http header_len=200 capacity=63 body=262144
+  seal ms                                      p50 0.083  (0.080-0.084) 
+  open ms                                      p50 0.079  (0.077-0.080) 
+  body enc ms                                  p50 0.129  (0.129-0.131) 
+  body dec ms                                  p50 0.121  (0.120-0.121) 
+http header_len=200 capacity=63 body=1048576
+  seal ms                                      p50 0.084  (0.081-0.087) 
+  open ms                                      p50 0.078  (0.074-0.079) 
+  body enc ms                                  p50 0.495  (0.482-0.502) 
+  body dec ms                                  p50 0.464  (0.449-0.469) 
+smtp header_len=80 capacity=20 body=262144
+  seal ms                                      p50 0.032  (0.031-0.032) 
+  open ms                                      p50 0.032  (0.031-0.032) 
+  body enc ms                                  p50 0.129  (0.128-0.129) 
+  body dec ms                                  p50 0.121  (0.118-0.121) 
+smtp header_len=80 capacity=20 body=1048576
+  seal ms                                      p50 0.032  (0.031-0.033) 
+  open ms                                      p50 0.032  (0.031-0.033) 
+  body enc ms                                  p50 0.489  (0.488-0.500) 
+  body dec ms                                  p50 0.450  (0.449-0.469) 
+
+=== record layer: format mode per covertext length ===
+http-request
+  len  200 payload   50 wire  200 exp  4.00x  ms 0.158 (0.157-0.161) MB/s 0.32  enc-only 0.079
+  len  271 payload  105 wire  271 exp  2.58x  ms 0.255 (0.253-0.257) MB/s 0.41  enc-only 0.130
+  len  343 payload  160 wire  343 exp  2.14x  ms 0.378 (0.372-0.381) MB/s 0.42  enc-only 0.195
+  len  414 payload  215 wire  414 exp  1.93x  ms 0.508 (0.506-0.513) MB/s 0.42  enc-only 0.267
+  len  486 payload  270 wire  486 exp  1.80x  ms 0.663 (0.662-0.664) MB/s 0.41  enc-only 0.351
+  len  557 payload  325 wire  557 exp  1.71x  ms 0.843 (0.831-0.843) MB/s 0.39  enc-only 0.450
+  len  629 payload  380 wire  629 exp  1.66x  ms 1.028 (1.026-1.030) MB/s 0.37  enc-only 0.551
+  len  700 payload  435 wire  700 exp  1.61x  ms 1.249 (1.249-1.262) MB/s 0.35  enc-only 0.672
+dns-request
+  len   90 payload    9 wire   90 exp 10.00x  ms 0.076 (0.076-0.076) MB/s 0.12  enc-only 0.038
+  len  116 payload   28 wire  116 exp  4.14x  ms 0.101 (0.101-0.101) MB/s 0.28  enc-only 0.051
+  len  142 payload   47 wire  142 exp  3.02x  ms 0.127 (0.127-0.128) MB/s 0.37  enc-only 0.064
+  len  168 payload   66 wire  168 exp  2.55x  ms 0.158 (0.157-0.158) MB/s 0.42  enc-only 0.080
+  len  194 payload   84 wire  194 exp  2.31x  ms 0.186 (0.186-0.188) MB/s 0.45  enc-only 0.094
+  len  220 payload  103 wire  220 exp  2.14x  ms 0.217 (0.216-0.220) MB/s 0.47  enc-only 0.110
+  len  246 payload  122 wire  246 exp  2.02x  ms 0.252 (0.250-0.253) MB/s 0.48  enc-only 0.128
+  len  272 payload  141 wire  272 exp  1.93x  ms 0.290 (0.287-0.291) MB/s 0.49  enc-only 0.149
+
+=== record layer: 64 B round trip, format mode ===
+http format 64 B ms/record                     p50 0.396  (0.395-0.416) 
+                                               wire 271 expansion 4.23x
+smtp format 64 B ms/record                     p50 0.181  (0.181-0.184) 
+                                               wire 217 expansion 3.39x
+dns format 64 B ms/record                      p50 0.196  (0.196-0.197) 
+                                               wire 168 expansion 2.62x
+
+=== DFA compile ===
+http-request
+  len  200 compile 2.38 (2.37-2.48) ms  cached lookup 0.00075 ms  keyed cipher 0.0185 ms
+  len  271 compile 3.21 (3.16-3.24) ms  cached lookup 0.00046 ms  keyed cipher 0.0097 ms
+  len  343 compile 4.00 (4.00-4.01) ms  cached lookup 0.00029 ms  keyed cipher 0.0074 ms
+  len  414 compile 5.02 (4.91-5.04) ms  cached lookup 0.00042 ms  keyed cipher 0.0109 ms
+  len  486 compile 6.10 (6.07-6.11) ms  cached lookup 0.00071 ms  keyed cipher 0.0128 ms
+  len  557 compile 7.18 (7.10-7.21) ms  cached lookup 0.00042 ms  keyed cipher 0.0118 ms
+  len  629 compile 8.36 (8.35-8.39) ms  cached lookup 0.00063 ms  keyed cipher 0.0155 ms
+  len  700 compile 9.86 (9.81-10.11) ms  cached lookup 0.00100 ms  keyed cipher 0.0165 ms
+  all eight ms                                 p50 46.15  (46.13-46.19) 
+dns-request
+  len   90 compile 2.85 (2.78-2.88) ms  cached lookup 0.00046 ms  keyed cipher 0.0130 ms
+  len  116 compile 3.10 (3.09-3.16) ms  cached lookup 0.00038 ms  keyed cipher 0.0086 ms
+  len  142 compile 3.32 (3.31-3.37) ms  cached lookup 0.00025 ms  keyed cipher 0.0070 ms
+  len  168 compile 3.61 (3.53-3.62) ms  cached lookup 0.00017 ms  keyed cipher 0.0067 ms
+  len  194 compile 3.87 (3.86-3.97) ms  cached lookup 0.00017 ms  keyed cipher 0.0059 ms
+  len  220 compile 4.24 (4.18-4.33) ms  cached lookup 0.00025 ms  keyed cipher 0.0064 ms
+  len  246 compile 4.60 (4.60-4.67) ms  cached lookup 0.00025 ms  keyed cipher 0.0063 ms
+  len  272 compile 5.03 (5.01-5.09) ms  cached lookup 0.00029 ms  keyed cipher 0.0075 ms
+  all eight ms                                 p50 30.67  (30.65-30.73) 
+
+=== channel setup (cold vs warm cache) ===
+http/hybrid cold ms                            p50 5.66  (5.60-5.79) 
+http/hybrid warm ms                            p50 0.0110  (0.0109-0.0111) 
+http/format cold ms                            p50 117.06  (115.95-117.55) 
+http/format warm ms                            p50 0.0810  (0.0802-0.0825) 
+dns/format cold ms                             p50 71.99  (71.77-72.26) 
+dns/format warm ms                             p50 0.0706  (0.0667-0.0746) 
+smtp/format cold ms                            p50 14.88  (14.67-15.11) 
+smtp/format warm ms                            p50 0.0662  (0.0643-0.0672) 
+
+=== client startup pre-warm (cli.check_format) ===
+http ms                                        p50 117.47  (116.81-117.98) 
+ftp ms                                         p50 8.27  (8.20-8.33) 
+smtp ms                                        p50 14.65  (14.44-14.66) 
+sip ms                                         p50 221.14  (220.02-223.95) 
+dns ms                                         p50 73.59  (72.62-74.25) 
+all ms                                         p50 484.35  (479.32-486.79) 
+
+=== first tunnelled connection vs steady state (end to end) ===
+http/hybrid (default) first ms                 p50 34.74  (27.87-42.84) 
+http/hybrid (default) steady p50 ms            p50 5.83  (5.77-6.19) 
+smtp/format first ms                           p50 32.07  (30.73-48.60) 
+smtp/format steady p50 ms                      p50 3.13  (2.72-3.19) 
+dns/format first ms                            p50 82.10  (81.24-98.42) 
+dns/format steady p50 ms                       p50 3.41  (3.13-3.76) 
+sip/format first ms                            p50 225.43  (224.02-227.30) 
+sip/format steady p50 ms                       p50 7.58  (7.16-7.73) 

@@ -1,0 +1,58 @@
+[
+  {
+    "scenario": "lan",
+    "tunnel": "fteproxy",
+    "metric": "setup",
+    "ok": true,
+    "samples": 20,
+    "min_ms": 3.201749990694225,
+    "p50_ms": 4.156562557909638,
+    "max_ms": 15.764166018925607,
+    "mean_ms": 5.190504202619195
+  },
+  {
+    "scenario": "lan",
+    "tunnel": "fteproxy",
+    "metric": "latency",
+    "ok": true,
+    "samples": 50,
+    "min_ms": 0.5220420425757766,
+    "p50_ms": 0.6970830145291984,
+    "p90_ms": 0.8721250342205167,
+    "max_ms": 0.9727079886943102,
+    "mean_ms": 0.7140540634281933
+  },
+  {
+    "scenario": "lan",
+    "tunnel": "fteproxy",
+    "metric": "throughput",
+    "size": 65536,
+    "direction": "echo",
+    "ok": true,
+    "bytes": 65536,
+    "seconds": 0.2917460410390049,
+    "mbit_s": 1.79706980129991
+  },
+  {
+    "scenario": "lan",
+    "tunnel": "fteproxy",
+    "metric": "throughput",
+    "size": 1048576,
+    "direction": "echo",
+    "ok": true,
+    "bytes": 1048576,
+    "seconds": 3.078193207969889,
+    "mbit_s": 2.725172668915218
+  },
+  {
+    "scenario": "lan",
+    "tunnel": "fteproxy",
+    "metric": "throughput",
+    "size": 8388608,
+    "direction": "echo",
+    "ok": true,
+    "bytes": 8388608,
+    "seconds": 20.728057333035395,
+    "mbit_s": 3.2375857959947396
+  }
+]

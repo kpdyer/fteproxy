@@ -1,0 +1,103 @@
+[
+  {
+    "scenario": "lan",
+    "tunnel": "fteproxy",
+    "metric": "setup",
+    "ok": true,
+    "samples": 20,
+    "min_ms": 5.112334038130939,
+    "p50_ms": 5.714041530154645,
+    "max_ms": 19.130124943330884,
+    "mean_ms": 6.999310344690457
+  },
+  {
+    "scenario": "lan",
+    "tunnel": "fteproxy",
+    "metric": "latency",
+    "ok": true,
+    "samples": 50,
+    "min_ms": 0.45533303637057543,
+    "p50_ms": 0.501562433782965,
+    "p90_ms": 0.5893749184906483,
+    "max_ms": 0.677166972309351,
+    "mean_ms": 0.5132458242587745
+  },
+  {
+    "scenario": "lan",
+    "tunnel": "fteproxy",
+    "metric": "throughput",
+    "size": 65536,
+    "direction": "echo",
+    "ok": true,
+    "bytes": 65536,
+    "seconds": 0.005167833063751459,
+    "mbit_s": 101.45219350785419
+  },
+  {
+    "scenario": "lan",
+    "tunnel": "fteproxy",
+    "metric": "throughput",
+    "size": 1048576,
+    "direction": "echo",
+    "ok": true,
+    "bytes": 1048576,
+    "seconds": 0.0072083750274032354,
+    "mbit_s": 1163.730794819916
+  },
+  {
+    "scenario": "lan",
+    "tunnel": "fteproxy",
+    "metric": "throughput",
+    "size": 8388608,
+    "direction": "echo",
+    "ok": true,
+    "bytes": 8388608,
+    "seconds": 0.019594666897319257,
+    "mbit_s": 3424.853525281471
+  },
+  {
+    "scenario": "lan",
+    "tunnel": "plain-tcp",
+    "metric": "latency",
+    "ok": true,
+    "samples": 50,
+    "min_ms": 0.12625008821487427,
+    "p50_ms": 0.16181246610358357,
+    "p90_ms": 0.25333405937999487,
+    "max_ms": 1.203250023536384,
+    "mean_ms": 0.19735839450731874
+  },
+  {
+    "scenario": "lan",
+    "tunnel": "plain-tcp",
+    "metric": "throughput",
+    "size": 65536,
+    "direction": "echo",
+    "ok": true,
+    "bytes": 65536,
+    "seconds": 0.0011594159295782447,
+    "mbit_s": 452.2001006064474
+  },
+  {
+    "scenario": "lan",
+    "tunnel": "plain-tcp",
+    "metric": "throughput",
+    "size": 1048576,
+    "direction": "echo",
+    "ok": true,
+    "bytes": 1048576,
+    "seconds": 0.0029555000364780426,
+    "mbit_s": 2838.304143618413
+  },
+  {
+    "scenario": "lan",
+    "tunnel": "plain-tcp",
+    "metric": "throughput",
+    "size": 8388608,
+    "direction": "echo",
+    "ok": true,
+    "bytes": 8388608,
+    "seconds": 0.012590833939611912,
+    "mbit_s": 5329.977690267949
+  }
+]
