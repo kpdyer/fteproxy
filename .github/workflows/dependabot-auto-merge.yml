@@ -4,50 +4,46 @@ on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 concurrency:
   group: dependabot-auto-merge-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  approve-and-enable-auto-merge:
+  enable-auto-merge:
     if: >-
       github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.user.id == 49699333 &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == github.event.repository.default_branch &&
       !github.event.pull_request.draft
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    # This job only reads verified metadata and enables auto-merge; it never
+    # checks out or executes the pull request source.
     steps:
-      - name: Fetch Dependabot metadata
+      - name: Fetch verified Dependabot metadata
         id: metadata
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Only patch and minor bumps are approved and merged unattended. A major
-      # bump can change a package's or an action's behaviour, a bump of the
-      # fte line is a wire-format change (see dependabot.yml), and
-      # pypa/gh-action-pypi-publish receives the PyPI trusted-publishing OIDC
-      # token and is never exercised by CI, so those need a human review.
-      - name: Approve pull request
+      # Required CI and security checks gate the merge. Major updates and
+      # release-only actions need a maintainer to inspect and merge the PR.
+      - name: Enable squash auto-merge for routine updates
         if: >-
           (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
           steps.metadata.outputs.update-type == 'version-update:semver-minor') &&
-          !contains(steps.metadata.outputs.dependency-names, 'fte') &&
-          !contains(steps.metadata.outputs.dependency-names, 'pypa/gh-action-pypi-publish')
-        run: gh pr review --approve "$PR_URL"
+          !contains(steps.metadata.outputs.dependency-names, 'pypa/gh-action-pypi-publish') &&
+          !contains(steps.metadata.outputs.dependency-names, 'actions/upload-artifact') &&
+          !contains(steps.metadata.outputs.dependency-names, 'actions/download-artifact') &&
+          !contains(steps.metadata.outputs.dependency-names, 'fte')
+        run: gh pr merge --auto --squash --match-head-commit "$PR_HEAD_SHA" "$PR_URL"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-
-      - name: Enable auto-merge
-        if: >-
-          (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-minor') &&
-          !contains(steps.metadata.outputs.dependency-names, 'fte') &&
-          !contains(steps.metadata.outputs.dependency-names, 'pypa/gh-action-pypi-publish')
-        run: gh pr merge --auto --squash "$PR_URL"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
