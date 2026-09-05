@@ -30,10 +30,8 @@ def _restore_release():
     it never asked for.
     """
     previous = fteproxy.conf.getValue('fteproxy.defs.release')
-    saved = fteproxy.defs._definitions
     yield
     fteproxy.conf.setValue('fteproxy.defs.release', previous)
-    fteproxy.defs._definitions = saved
 
 
 def _cipher(pattern, length):
@@ -48,7 +46,6 @@ class TestBuiltinFormats:
     def setup(self):
         """Set up the test environment."""
         fteproxy.conf.setValue('fteproxy.defs.release', '20260110')
-        fteproxy.defs._definitions = None  # Reset cache
 
     @pytest.mark.parametrize("format_name,pattern_check", [
         ("lowercase-request", lambda s: s.islower() and s.isalpha()),
@@ -342,7 +339,6 @@ class TestProtocolFormats:
     def setup(self):
         """Set up the test environment."""
         fteproxy.conf.setValue('fteproxy.defs.release', '20260110')
-        fteproxy.defs._definitions = None  # Reset cache
 
     @pytest.mark.parametrize("protocol,expected_prefix", [
         ("ssh", "SSH-2.0-"),
@@ -374,7 +370,6 @@ class TestFormatPairs:
     def setup(self):
         """Set up the test environment."""
         fteproxy.conf.setValue('fteproxy.defs.release', '20260110')
-        fteproxy.defs._definitions = None  # Reset cache
 
     @pytest.mark.parametrize("format_base", [
         "lowercase",
@@ -423,7 +418,6 @@ class TestLegacyFormats:
     def test_legacy_20131224_formats(self):
         """Test that legacy 20131224 formats still work."""
         fteproxy.conf.setValue('fteproxy.defs.release', '20131224')
-        fteproxy.defs._definitions = None  # Reset cache
         
         # Test dummy format
         regex = fteproxy.defs.getRegex('dummy-request')
@@ -518,7 +512,6 @@ class TestAllDefinedFormats:
     def test_all_formats_in_20260110(self):
         """Test that all formats in 20260110.json work correctly."""
         fteproxy.conf.setValue('fteproxy.defs.release', '20260110')
-        fteproxy.defs._definitions = None  # Reset cache
         definitions = fteproxy.defs.load_definitions()
         
         failed = []
@@ -549,13 +542,10 @@ class TestDefinitionsCapacity:
         previous = fteproxy.conf.getValue('fteproxy.defs.release')
         try:
             fteproxy.conf.setValue('fteproxy.defs.release', release)
-            fteproxy.defs._definitions = None
-            fteproxy.defs._checked_releases.discard(release)
             definitions = fteproxy.defs.load_definitions()
             fteproxy.defs.check_capacities(definitions)
         finally:
             fteproxy.conf.setValue('fteproxy.defs.release', previous)
-            fteproxy.defs._definitions = None
 
     def test_a_too_small_format_is_refused(self):
         """A format that cannot hold a client hello would fail as a client

@@ -25,10 +25,14 @@ first. This section covers what fteproxy adds on top of it.
 
 - **The server keypair.** A server holds a long-term X25519 keypair in
   `server.key` (mode 0600, in a state directory with mode 0700), generated on
-  first start. The public half is the *server-id* in the connection string.
-  There is no shared secret and no default key: a client holds nothing that
-  would let it impersonate the server, and there is no public constant to
-  forget to replace.
+  first start. An existing state directory with group or other permissions is
+  refused, not silently changed; the operator must deliberately run
+  `chmod 700`. Key and connection-file writes are atomic and do not follow a
+  symlink at the target. Managed reads reject symlinks, hard links, non-regular
+  files, and files owned by another user. The public half is the *server-id* in
+  the connection string. There is no shared secret and no default key: a client
+  holds nothing that would let it impersonate the server, and there is no
+  public constant to forget to replace.
 
 - **What the connection string authorises.** The connection string is
   `fte://<server-id>@<host>:<port>`. Both handshake records are sealed under
@@ -40,7 +44,17 @@ first. This section covers what fteproxy adds on top of it.
   impersonate the server (the server hello's MAC needs the private key) nor
   read another client's session (the session keys come from two ephemeral
   keys), and a holder who is not on the path cannot learn another client's
-  traffic at all.
+  traffic at all. Because the URI is a capability, prefer the mode-0600
+  `connection.txt`, `client --connection-file`, or `client --connection-stdin`
+  over a positional URI, which operating-system process listings, shell
+  history and diagnostic tools may expose. A normal server start stores the
+  URI without printing it; `server --print-connection` and `keygen` print it
+  only as an explicit operator action. When `--advertise` is absent, an endpoint
+  already stored for the same identity is preserved; new files contain a valid
+  local address. Explicit capability files with loose permissions or unexpected
+  ownership produce a warning and should be protected and rotated if exposed.
+  A legacy `<server-ip>` is accepted as loopback only from the implicitly
+  discovered same-host `connection.txt`, never from an explicit input source.
 
 - **The handshake.** Protocol version 1 is the Noise `NK` message pattern
   (`e, es` then `e, ee`), hand-assembled from `cryptography`'s X25519, HKDF and
@@ -105,38 +119,64 @@ first. This section covers what fteproxy adds on top of it.
   nothing to say. This is obfs4's behaviour and is what stops an active prober
   learning anything from a bad guess.
 
-- **Which destinations a server will dial.** By default every destination
-  *except* the server host's own loopback and link-local addresses, checked
-  both on what the client asked for and on every address the name resolved to,
-  so `localhost` or a rebinding name does not walk around it. `--allow`
-  replaces that with a list: only what the rules name is reachable, and
-  `--allow any` restores everything including loopback. Without this a
-  connection string would be a route into every service bound to the server's
-  own loopback.
+- **Resource-exhaustion bounds.** Server handshake/OPEN setup work is limited
+  to 64 concurrent connections and 8 per source address by default; excess
+  unauthenticated connections are closed without creating another setup
+  thread. Established relays are separately limited to 128 globally and 64 per
+  source. A client with a valid connection string that reaches this limit gets
+  an explicit general-failure OPEN result. Client-side SOCKS/forward setup is
+  limited to 32 globally and 16 per source across all local listeners. The
+  corresponding `--max-pending`, `--max-pending-per-source`, `--max-active` and
+  `--max-active-per-source` options can raise or lower these hard concurrency
+  bounds; they are not connection-rate limits or idle-session eviction.
+
+- **Which destinations a server will dial.** With no rules, only globally
+  routable unicast addresses are reachable. Private, shared, loopback,
+  link-local, unspecified, reserved, documentation and multicast ranges are
+  refused. The check applies both to what the client requested and to every
+  address a name resolved to, so `localhost` or a rebinding name does not walk
+  around it. One or more `--allow` rules replace the default with a whitelist.
+  A hostname pattern or `--allow any` authorises the requested name but still
+  requires a globally routable result; only an explicit IP address or CIDR
+  rule opts a non-global result in. Without this, a connection-string holder
+  could inherit a route into infrastructure reachable from the server.
+
+- **Which local clients can enter the tunnel.** SOCKS and fixed-forward
+  listeners have no client authentication. They therefore accept only literal
+  loopback binds by default. `--expose-listeners` is required for any
+  non-loopback `-D`/`--socks-listen` or `-L`/`--forward` bind; using it grants
+  every host that can reach that port access to the tunnel, so pair it with a
+  narrow bind address and host firewall policy.
 
 - **What an observer sees.** In `hybrid` mode (the default) only each record's
-  fixed-length covertext header is in the target format; the rest of the
-  record is high-entropy ciphertext, and its length (the plaintext length plus
-  29 bytes) is visible. In `format` mode every byte on the wire is in the
-  target format, and each record's covertext takes one of the lengths its
-  format may emit (see the next point). A sealed covertext always uses the
-  format's whole rank space at whatever length it was sealed at, so a short
-  message neither shortens the covertext nor leaves a run of the format's
-  lowest character. The two handshake records are one request-format covertext
-  and one response-format covertext, both at the format's longest length: a
-  connection therefore opens with two records of a size fixed by the format,
-  whatever the data records after them do.
+  fixed-length covertext header is format-transformed; its authenticated body
+  remains high-entropy ciphertext. The encrypted body is the application
+  payload plus a one-byte record type, 12-byte nonce and 16-byte tag, so its
+  visible length is payload length plus 29. A carrier may add visible framing
+  around that body. HTTP adds a hexadecimal chunk-size line and CRLF/terminal
+  chunk bytes: `len(format(B, "x")) + 9` bytes for a non-empty encrypted body
+  of `B` bytes. In `format` mode every covertext byte on the wire is in the target
+  format, and each record takes one of the lengths its format may emit (see the
+  next point). A sealed covertext always uses the format's whole rank space at
+  whatever length it was sealed at, so a short message neither shortens the
+  covertext nor leaves a run of the format's lowest character. The two
+  handshake records are one request-format covertext and one response-format
+  covertext, both at the format's longest length. For HTTP they use the base
+  zero-body grammar (the response declares `Content-Length: 0`); only
+  post-handshake hybrid records use the separate chunked grammar.
 
 - **How realistic a covertext actually is.** The five shipped formats
-  (`http`, `ftp`, `smtp`, `sip`, `dns`) model real message *structure*: every
-  sealed covertext parses as a valid message of its protocol -- correct verb or
-  status line, mandatory headers, terminators -- and, because the record layer
-  pads each plaintext to the format's full capacity with random bytes before
-  encrypting, every variable field is filled with high-entropy characters from
-  its own class rather than a low-entropy run. That is enough to pass a regex
-  or keyword DPI rule, which is the threat model FTE is for. It is **not**
-  enough to pass a classifier that looks at content or behaviour, for two
-  reasons inherent to uniform rank sampling:
+  (`http`, `ftp`, `smtp`, `sip`, `dns`) model real message *structure*. In
+  `format` mode each complete covertext parses as a message of its protocol.
+  HTTP hybrid records also parse individually: their separate header grammar
+  emits `POST` requests or body-permitted responses with
+  `Transfer-Encoding: chunked`, followed by one ciphertext chunk and the
+  terminal zero chunk. Because the record layer pads each plaintext to the
+  format's full capacity with random bytes before encrypting, every variable
+  field is filled with high-entropy characters from its own class rather than
+  a low-entropy run. That is enough to pass a regex or keyword DPI rule, which
+  is the threat model FTE is for. It is **not** enough to pass a classifier
+  that looks at content or behaviour, for several reasons:
 
   - **Field values are random.** A covertext's URL path, hostname, mail
     address, SIP tag or DNS label is a random string from the field's
@@ -166,24 +206,31 @@ first. This section covers what fteproxy adds on top of it.
     stream still shows one repeated header length; that is the mode's
     fingerprint, and it is the next bullet's subject.
   - **One message type dominates.** Unranking a full-capacity plaintext lands
-    in the same branch of the alternation nearly every time, so in practice
-    every `http` request samples as `GET`, every `sip` request as `ACK`, every
-    `ftp` request as `CWD`, every `smtp` request as `VRFY`, and every `ftp`
-    reply as `150`. Variable length does not fix this: which branch dominates
-    depends on the covertext length, so a stream now shows a *few* message
-    types instead of exactly one, and each length still shows one of them
-    almost exclusively. A stream that is all `ACK` with no `INVITE`, or all
-    `CWD` with no login, is not a conversation any real client would have.
+    in the same branch of the alternation nearly every time. In `format` mode
+    an `http` request usually samples as `GET`; in default hybrid mode the
+    separate grammar deliberately makes every data request a `POST`. The same
+    bias makes nearly every `sip` request an `ACK`, every `ftp` request a `CWD`,
+    every `smtp` request a `VRFY`, and every `ftp` reply a `150`. Variable
+    length does not fix this: which branch dominates depends on the covertext
+    length, so a stream now shows a *few* message types instead of exactly one,
+    and each length still shows one of them almost exclusively. A stream that
+    is all `ACK` with no `INVITE`, or all `CWD` with no login, is not a
+    conversation any real client would have.
   - **Replies do not answer their requests.** Every covertext is an
-    independent unranking of an independently randomised ciphertext, so
-    nothing in the record layer can make a reply depend on the request it
-    follows. For `dns` that is a concrete and cheap tell: a response's
-    16-bit ID and its question section never match the query's, a
-    stateless two-field check that resolvers, connection-tracking DNS
-    helpers and DNS-aware middleboxes already run. Over TCP it is largely
-    moot; over UDP port 53 it would be the first thing flagged. Making a
-    reply echo its request would be a protocol change, not a format
-    change (see `docs/udp-feasibility.md`).
+    independent unranking of independently randomised ciphertext, and the two
+    directions emit records according to arbitrary tunneled traffic. For HTTP,
+    request and response counts and timing therefore need not balance: a
+    server-first application message can produce an unsolicited response, and
+    segmentation can leave several requests with fewer or more responses.
+    Their status, path and fields are unrelated too. A stateful HTTP parser can
+    detect that even though every individual message is framed correctly. For
+    `dns` the mismatch is a concrete and cheap tell: a response's 16-bit ID and
+    question section never match the query's, a stateless two-field check that
+    resolvers, connection-tracking DNS helpers and DNS-aware middleboxes
+    already run. Over TCP it is largely moot; over UDP port 53 it would be the
+    first thing flagged. Making a reply echo its request -- or making HTTP
+    transactions balance -- would be a protocol change, not a format change
+    (see `docs/udp-feasibility.md`).
 
   Nothing in the protocol depends on this: confidentiality and integrity come
   from the handshake and the record layer, not from how convincing a covertext
@@ -191,11 +238,14 @@ first. This section covers what fteproxy adds on top of it.
   adversary better than a signature matcher.
 
 - **Mode choice leaks differently per format.** `hybrid` formats only each
-  record's fixed-length header and sends the body as raw authenticated
-  ciphertext, so the bytes past the header are high-entropy. For `http` that
-  reads as a message with a body, which is what HTTP looks like. For a line
-  protocol (`ftp`, `smtp`, `sip`) or for the binary `dns` format there is no
-  place a high-entropy tail belongs, so those ship as `mode_hint: format`
+  record's fixed-length header; the authenticated ciphertext body remains
+  high-entropy. HTTP gives that body valid transfer framing: a separate
+  `POST`/body-permitted-response header advertises
+  `Transfer-Encoding: chunked`, then one ciphertext chunk is followed by the
+  terminal zero chunk. The handshake and `format` mode keep using the base
+  zero-body regex. For a line protocol (`ftp`, `smtp`, `sip`) or for the binary
+  `dns` format there is no natural body carrier, so those ship as
+  `mode_hint: format`
   (every byte in the protocol, at about 1 MB/s) and running them under
   `--mode hybrid` leaks an obvious high-entropy tail after each line -- and,
   because a `hybrid` header is one fixed length (the shortest the format can
@@ -204,6 +254,14 @@ first. This section covers what fteproxy adds on top of it.
   the others: a DNS message is self-delimiting, so a raw body after the
   covertext is a tail the length prefix does not account for -- visible to
   anything that reads DNS-over-TCP framing at all.
+
+- **HTTP-aware intermediaries are not supported.** The HTTP carrier is for a
+  byte-preserving direct TCP connection to the fteproxy server; it is not an
+  HTTP proxy protocol. A compliant intermediary may reserialize headers,
+  remove transfer coding, or split/coalesce chunks. Any such byte change makes
+  the FTE header or body authentication fail, and the tunnel closes. The
+  chunked layout lets passive parsers see complete messages; it does not make
+  the tunnel safely transcodable by an HTTP proxy.
 
 - **A `dns` query name is long, though no longer always the same length.** The
   DNS header is 12 fixed bytes and the question trailer is 4 more, so a
@@ -221,8 +279,10 @@ first. This section covers what fteproxy adds on top of it.
 - **Nothing secret is logged.** The package logger carries a redaction filter,
   installed at import, that strips a connection string's server-id, a hex key
   and a bare base64url public key out of any message before a handler sees it.
-  Command output — the connection string a server prints, the format table —
-  goes to stdout; logs go to stderr.
+  Parser errors redact URI-shaped values too. A normal server start writes the
+  mode-0600 `connection.txt` without echoing the URI; the explicit
+  `--print-connection` option and `keygen` send it to stdout. Other command
+  output, such as the format table, also goes to stdout; logs go to stderr.
 
 - **Patterns and lengths are trusted input.** The server compiles only the
   formats in its own definitions file; a client's hello can name one of them

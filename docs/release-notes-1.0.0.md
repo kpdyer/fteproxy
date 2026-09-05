@@ -2,17 +2,18 @@
 
 1.0.0 replaces the protocol, the command line and the topology together,
 because none of the three worked without the other two. The short version: a
-server needs no arguments, a client needs one, and there is no shared secret.
+server needs no arguments, a client needs a connection source, and there is no
+shared secret.
 
 ```console
-$ fteproxy server
+$ fteproxy server --advertise vpn.example.com:8080
 listening on [::]:8080
 key: ~/.local/state/fteproxy/server.key (created)
-clients connect with:
-  fteproxy client fte://Qm3s…ZzE@<server-ip>:8080?defs=20260903
+allowing: globally routable unicast destinations
+connection string written to ~/.local/state/fteproxy/connection.txt
 
-$ fteproxy client fte://Qm3s…ZzE@203.0.113.5:8080
-checking 203.0.113.5:8080 ... ok (protocol 1, http, hybrid)
+$ fteproxy client --connection-file ./connection.txt
+checking vpn.example.com:8080 ... ok (protocol 1, http, hybrid)
 SOCKS5 on 127.0.0.1:1080
 ```
 
@@ -46,10 +47,14 @@ exits on SIGINT or SIGTERM.
 
 - **A server keypair and a connection string.** The server generates an
   X25519 keypair on first start into `~/.local/state/fteproxy/server.key`
-  (mode 0600, in a directory with mode 0700) and prints
-  `fte://<server-id>@<host>:<port>`, also writing it to `connection.txt`
-  alongside. `--advertise` fills in the address; `fteproxy keygen` does the
-  same without starting a server, for provisioning. A client holds only the
+  (mode 0600, in a directory with mode 0700), then writes the mode-0600
+  `connection.txt` alongside. A normal server start does not print this
+  capability; `--print-connection` is the explicit stdout opt-in.
+  `--advertise` supplies the remote address. Without it, an existing endpoint
+  for the same identity is preserved; new invitations use a valid local address
+  rather than an editable `<server-ip>` placeholder.
+  `fteproxy keygen` does the same without starting a server and prints the URI
+  because producing it is that command's purpose. A client holds only the
   public half.
 - **Protocol version 1: a real handshake.** The Noise `NK` pattern
   (`e, es` then `e, ee`) over X25519, HKDF-SHA256 and HMAC-SHA256, giving
@@ -62,17 +67,30 @@ exits on SIGINT or SIGTERM.
   discard, then close a random 1 to 5 seconds after the handshake timeout,
   timed from the accept so that when the check failed does not show. A replay
   filter keyed on the client's ephemeral key covers the ±1 hour epoch window.
-- **SOCKS5 and ssh-style forwards.** `-D [BIND:]PORT` is a SOCKS5 CONNECT
-  listener (the default is `127.0.0.1:1080`); `-L [BIND:]PORT:HOST:PORT` is a
-  fixed forward. Both are repeatable and can be mixed. Names are resolved at
-  the far end, so client DNS does not leak around the tunnel.
-- **`--allow` rules on the server.** By default every destination except the
-  server's own loopback and link-local addresses, checked on the request *and*
-  on what the name resolved to. `--allow 127.0.0.1:8081` publishes one local
-  service; `--allow any` restores everything.
-- **A startup check.** The client opens one short session before binding
-  anything and prints `checking HOST:PORT ... ok (protocol 1, format, mode)`,
-  or a reason and exit 1. `--no-check` skips it.
+- **Capability-safe client input.** `--connection-file FILE` and
+  `--connection-stdin` keep the connection URI out of process argv. The
+  positional URI and `$FTEPROXY_URI` remain compatible fallbacks, but files,
+  stdin and the implicit state `connection.txt` are preferred. Explicit
+  sources are mutually exclusive, and parser errors redact URI-shaped input.
+  A legacy `<server-ip>` maps to loopback only when read implicitly from the
+  same host's state file; explicit inputs must contain a real address.
+- **SOCKS5 and ssh-style forwards.** `-D`/`--socks-listen [BIND:]PORT` is a
+  SOCKS5 CONNECT listener (the default is `127.0.0.1:1080`);
+  `-L`/`--forward [BIND:]PORT:HOST:PORT` is a fixed forward. Both are
+  repeatable and can be mixed. Names are resolved at the far end, so client
+  DNS does not leak around the tunnel. Because the listeners have no client
+  authentication, a non-loopback bind is rejected unless
+  `--expose-listeners` explicitly opts in.
+- **`--allow` rules on the server.** With no rules, only globally routable
+  unicast addresses are reachable, checked on the request *and* on every
+  resolved address. One or more rules form a whitelist. A hostname rule and
+  `--allow any` still require a global result; only an explicit IP/CIDR rule
+  opts a private or other non-global address in. For example,
+  `--allow 127.0.0.1:8081` publishes exactly one local service.
+- **A startup check.** After validating and binding its local listeners, the
+  client opens one short session and prints
+  `checking HOST:PORT ... ok (protocol 1, format, mode)`, or a reason and exit
+  1. `--no-check` skips it.
 - **Format and mode are negotiated.** One `--format` base name on the client
   replaces the two format flags, and `--mode` replaces `--record-layer-mode` on
   one side only. A mismatch between endpoints is no longer possible.
@@ -86,29 +104,40 @@ exits on SIGINT or SIGTERM.
   bind all report themselves instead of exiting 0.
 - **Logging.** stderr through the `logging` module, `-q` for errors only and
   `-v` for per-connection detail, with a redaction filter that keeps a key, a
-  server-id or a connection string out of any log line. Command output — the
-  connection string, the format table — goes to stdout so it can be piped.
+  server-id or a connection string out of any log line. The connection URI
+  reaches stdout only for `keygen` or explicit `server --print-connection`;
+  ordinary output such as the format table remains pipeable.
+- **A strict five-command CLI.** `server`, `client`, `keygen`, `formats`, and
+  `defs-check` reject abbreviated long options and unsafe definitions
+  identifiers. Address, rule and definitions validation happens before a key
+  or state file is created or a peer is contacted. An existing state directory
+  with permissions broader than 0700 is refused rather than silently changed;
+  fix an intended directory explicitly with `chmod 700`. Managed key and
+  invitation reads reject symlinks, hard links, non-regular files, and foreign
+  ownership.
 
 ## Upgrade steps
 
 1. Upgrade both endpoints to 1.0.0 at the same time. There is no window in
    which a 0.3 client and a 1.0 server interoperate.
-2. Start the server once and keep the connection string it prints:
+2. Start the server once and keep the connection file it creates:
 
    ```bash
-   fteproxy server --advertise your.host:8080 --allow any
+   fteproxy server --advertise your.host:8080
    ```
 
-   Choose the `--allow` rules deliberately; the default blocks the server's own
-   loopback, which is usually what you want but is not what 0.3 did.
-3. Give the connection string to each client, and translate the old
-   fixed-destination setup into a `-L` forward:
+   Choose any `--allow` rules deliberately. The new default reaches only
+   globally routable unicast destinations, which is narrower than 0.3. An
+   explicit IP/CIDR rule is required for a private service.
+3. Securely copy the mode-0600 `connection.txt` to each client, and translate
+   the old fixed-destination setup into a `-L` forward:
 
    ```bash
    # 0.3
    fteproxy --mode client --client_port 8079 --server_ip S --server_port 8080
    # 1.0, with the server's --proxy_ip:--proxy_port as the -L destination
-   fteproxy client fte://…@S:8080 -L 8079:127.0.0.1:22
+   fteproxy client --connection-file ./connection.txt \
+     --forward 8079:127.0.0.1:22
    ```
 
    Or drop the forward and let applications use SOCKS5 on `127.0.0.1:1080`.
@@ -144,12 +173,24 @@ handshake records are always at the top of the format's range, because the
 server has to frame a client hello before it can decrypt anything. A `hybrid`
 mode header is fixed too, but at the *shortest* length the format can hold one
 in — 200 bytes for `http` rather than 700, 80 for `smtp`, 90 for `dns` — since
-all it carries is the four-byte length of the raw body behind it. `fteproxy
-formats` shows the length per format in its `hdr` column. `http-response` lost
-its body field to
-make this safe -- a field that could contain CRLF CRLF would break terminator
-framing -- and is now a header-block-only 200/302/304/404 response with
-`Content-Length: 0`.
+its sealed payload carries only the four-byte length of the authenticated body
+behind it, excluding carrier framing. `fteproxy formats` shows the length per
+format in its `hdr` column.
+
+HTTP now has two header grammars. Handshake records and `format` mode keep the
+base zero-body grammar: the response is a header-block-only 200/302/304/404
+message with `Content-Length: 0`. (`http-response` lost its old body field
+because a field admitting CRLF CRLF would break terminator framing.)
+Post-handshake `hybrid` records use a separate grammar: requests are `POST`,
+requests and responses advertise `Transfer-Encoding: chunked`, and responses
+exclude body-forbidden `304`. The record layer sends the authenticated
+ciphertext as exactly one chunk followed by the terminal zero chunk. A
+non-empty encrypted body of `B` bytes therefore has
+`len(format(B, "x")) + 9` bytes of visible HTTP chunk framing. This corrects
+the earlier invalid layout, which
+appended ciphertext after a request with no body framing and after a response
+that declared `Content-Length: 0`; it is consequently a wire change from
+pre-release 1.0 builds as well as from 0.3.x.
 
 The catalog of abstract shapes that earlier builds defaulted to (46 entries,
 `manual-http`, `words`, `base64`, …) is still shipped as release `20260110` and
@@ -161,15 +202,15 @@ bytes); its `manual-http-*` formats are unchanged at length 256, carrying 150
 
 ## Performance
 
-The record layer's framing, sealing and chunking are as they were, and the
-hybrid body is untouched. What did change is the formatted half of a hybrid
-record: putting the header in the shortest covertext that holds one instead of
-in the format's longest cuts the per-record header cost by about 7–8x for
-`http` in the microbenchmark, which is most of the cost of a hybrid record at
-ordinary write sizes. Connection setup costs about 1.6 ms more than the same build
-without the handshake (0.7 → 2.3 ms p50 on loopback) — two X25519 key
-generations, four exchanges, and the two extra round trips that buy server
-authentication and an in-band destination. See
+The encrypted hybrid body and its chunking into fteproxy records are unchanged.
+HTTP's carrier framing is not: each body now pays the small chunk-size and
+terminal-chunk overhead above. Putting the formatted header in the shortest
+covertext that holds one instead of in the format's longest cuts the per-record
+header cost by about 7–8x for `http` in the microbenchmark, which is most of the
+cost of a hybrid record at ordinary write sizes. Connection setup costs about
+1.6 ms more than the same build without the handshake (0.7 → 2.3 ms p50 on
+loopback) — two X25519 key generations, four exchanges, and the two extra round
+trips that buy server authentication and an in-band destination. See
 [PERFORMANCE.md](../PERFORMANCE.md).
 
 ## Security
@@ -181,6 +222,14 @@ is hand-assembled from `cryptography` primitives rather than a Noise library,
 and its wire format and key schedule are pinned by checked-in test vectors in
 `fteproxy/tests/vectors/handshake_v1.json`.
 
+HTTP chunk framing makes each record parse as one complete message, not a real
+HTTP transaction layer. fteproxy requires a byte-preserving direct TCP path;
+an HTTP intermediary that rewrites headers or dechunks/rechunks a body breaks
+authentication. Requests and responses are generated independently from the
+two directions of tunneled traffic, so their counts, timing and fields need not
+correspond. Stateful HTTP classification remains outside the threat model.
+
 ## Requirements
 
-`fte>=0.4.0,<0.5.0`, `cryptography>=42.0`, Python 3.10 or newer.
+`fte>=0.4.0,<0.5.0`, `regex2dfa>=0.2.0,<0.3.0`, `cryptography>=42.0`,
+Python 3.10 or newer.

@@ -25,6 +25,8 @@ without negotiating it. See ``docs/format-authoring.md``.
 
 import os
 import json
+import re
+import threading
 
 import fteproxy.conf
 
@@ -44,8 +46,11 @@ class DefinitionsError(Exception):
 #: client that hangs.
 MIN_CAPACITY = 128
 
-_definitions = None
-_checked_releases = set()
+# Definitions are cached by release rather than as one process-wide value. A
+# caller may therefore use two releases concurrently, and changing the
+# configured default never needs a private cache reset.
+_definition_cache = {}
+_definition_lock = threading.RLock()
 
 REQUEST_SUFFIX = '-request'
 RESPONSE_SUFFIX = '-response'
@@ -70,6 +75,26 @@ ROLES = (ROLE_REQUEST, ROLE_RESPONSE, ROLE_LINE)
 MODE_HYBRID = 'hybrid'
 MODE_FORMAT = 'format'
 MODE_HINTS = (MODE_HYBRID, MODE_FORMAT)
+
+#: How the authenticated ciphertext after a hybrid covertext header is framed.
+#:
+#: ``raw`` preserves the original FTE hybrid layout: the encrypted body follows
+#: the header directly.  ``http-chunked`` makes that same encrypted body one
+#: complete HTTP/1.1 chunked message body.  It is paired with ``hybrid_regex``
+#: in a definition so the post-handshake header advertises
+#: ``Transfer-Encoding: chunked`` while the handshake can keep using the base
+#: regex as a complete, zero-body HTTP message.
+HYBRID_FRAMING_RAW = 'raw'
+HYBRID_FRAMING_HTTP_CHUNKED = 'http-chunked'
+HYBRID_FRAMINGS = (HYBRID_FRAMING_RAW, HYBRID_FRAMING_HTTP_CHUNKED)
+
+# A release is a catalog identifier, never a path. Date releases and named
+# historical/example catalogs such as ``shapes-20260110`` both fit this form.
+MAX_RELEASE_ID_LENGTH = 64
+_RELEASE_ID = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$')
+
+# Historical name retained without carrying a byte-identical second catalog.
+_RELEASE_ALIASES = {'shapes-20260110': '20260110'}
 
 #: How many covertext lengths a variable-length format may emit.
 #:
@@ -114,42 +139,84 @@ FRAMINGS = (FRAMING_FIXED, FRAMING_TERMINATOR, FRAMING_LENGTH_PREFIX)
 LENGTH_PREFIX_BYTES = 2
 
 
-def _release_path(release):
-    """The path of a definitions release, searched in the package's ``defs``
-    directory first and then in ``examples/defs`` (where the retired shape
-    catalog lives as ``shapes-20260110``), so ``--defs shapes-20260110`` reaches
-    it. Raises :class:`FileNotFoundError` if no candidate exists.
+def validate_release_id(release):
+    """Return a safe definitions-catalog identifier, or raise.
+
+    Keeping this check next to the path construction protects non-CLI callers
+    too; parser validation alone would still leave ``load_definitions`` open
+    to path traversal.
     """
     release = str(release)
+    if _RELEASE_ID.fullmatch(release) is None:
+        raise DefinitionsError(
+            'definitions release must be 1-%d letters, digits, "_" or "-", '
+            'starting with a letter or digit' % MAX_RELEASE_ID_LENGTH)
+    return release
+
+
+def _canonical_release(release):
+    """Validate a release identifier and resolve its compatibility alias."""
+    release = validate_release_id(release)
+    return _RELEASE_ALIASES.get(release, release)
+
+
+def _release_path(release):
+    """Return the packaged path for a definitions release or legacy alias."""
+    release = _canonical_release(release)
     def_dir = fteproxy.conf.getValue('general.defs_dir')
-    base_dir = fteproxy.conf.getValue('general.base_dir')
-    candidates = [
-        os.path.join(def_dir, release + '.json'),
-        os.path.join(base_dir, 'examples', 'defs', release + '.json'),
-    ]
-    for path in candidates:
-        if os.path.exists(path):
-            return path
+    path = os.path.join(def_dir, release + '.json')
+    if os.path.exists(path):
+        return path
     raise FileNotFoundError(
-        'no definitions release %r (looked in %s)'
-        % (release, ' and '.join(os.path.dirname(c) for c in candidates)))
+        'no definitions release %r in %s' % (release, def_dir))
 
 
-def load_definitions():
-    global _definitions
+def load_definitions(release=None):
+    """Load and validate one definitions release.
 
-    if _definitions == None:
+    ``release`` defaults to ``fteproxy.defs.release`` for compatibility with
+    the original API.  The cache is keyed by the normalized release name, so
+    selecting another release cannot return the catalog that happened to load
+    first.  Callers that represent a connection should pass the release
+    explicitly and retain the returned mapping for the life of that
+    connection.
+    """
+    if release is None:
         release = fteproxy.conf.getValue('fteproxy.defs.release')
-        def_abspath = _release_path(release)
+    release = _canonical_release(release)
 
-        with open(def_abspath) as fh:
-            _definitions = json.load(fh)
+    with _definition_lock:
+        definitions = _definition_cache.get(release)
+        if definitions is None:
+            with open(_release_path(release)) as fh:
+                definitions = json.load(fh)
+            check_capacities(definitions)
+            _definition_cache[release] = definitions
+        return definitions
 
-        if release not in _checked_releases:
-            check_capacities(_definitions)
-            _checked_releases.add(release)
 
-    return _definitions
+def clear_cache(release=None):
+    """Discard cached definitions, normally only for tests or live tooling.
+
+    Switching releases does not require this: :func:`load_definitions` keeps a
+    distinct entry for every release.  With no argument all entries are
+    removed; otherwise only the named release is removed.
+    """
+    with _definition_lock:
+        if release is None:
+            _definition_cache.clear()
+        else:
+            release = _canonical_release(release)
+            _definition_cache.pop(release, None)
+
+
+def _catalog(definitions=None):
+    """Return a definitions mapping from a mapping, release, or the default."""
+    if definitions is None:
+        return load_definitions()
+    if isinstance(definitions, (str, int)):
+        return load_definitions(definitions)
+    return definitions
 
 
 def check_capacities(definitions, minimum=MIN_CAPACITY):
@@ -207,13 +274,33 @@ def _check_variable_keys(name, spec):
 
     Framing is otherwise orthogonal to the length declaration: a *fixed*-length
     format may carry ``length-prefix`` framing, since the prefix is framing
-    whether or not the length behind it varies. It is only a terminator that
-    makes no sense without a range, because a fixed-length format is already
-    framed by its length.
+    whether or not the length behind it varies. Terminator framing requires
+    both a terminator and a range, while fixed framing forbids either; accepting
+    those contradictory combinations makes the accessors disagree about
+    whether a format is variable.
     """
     low, high = spec_min_length(spec), spec_max_length(spec)
     terminator = spec_terminator(spec)
     framing = spec.get('framing', None)
+    hybrid_framing = spec_hybrid_framing(spec)
+    if hybrid_framing not in HYBRID_FRAMINGS:
+        raise DefinitionsError(
+            'format %s declares hybrid_framing %r, which is not one of %r'
+            % (name, hybrid_framing, HYBRID_FRAMINGS))
+    hybrid_regex = spec.get('hybrid_regex', None)
+    if hybrid_regex is not None and not isinstance(hybrid_regex, str):
+        raise DefinitionsError('format %s declares a non-string hybrid_regex'
+                               % name)
+    if hybrid_framing == HYBRID_FRAMING_HTTP_CHUNKED:
+        if hybrid_regex is None:
+            raise DefinitionsError(
+                'format %s uses http-chunked hybrid framing without a '
+                'hybrid_regex' % name)
+        if 'Transfer-Encoding: chunked\r\n' not in hybrid_regex:
+            raise DefinitionsError(
+                'format %s uses http-chunked hybrid framing but its '
+                'hybrid_regex does not advertise Transfer-Encoding: chunked'
+                % name)
     if framing is not None and framing not in FRAMINGS:
         raise DefinitionsError(
             'format %s declares framing %r, which is not one of %r'
@@ -222,6 +309,20 @@ def _check_variable_keys(name, spec):
         raise DefinitionsError(
             'format %s declares both a terminator and length-prefix framing; a '
             'covertext is delimited one way or the other' % name)
+    if framing == FRAMING_TERMINATOR and terminator is None:
+        raise DefinitionsError(
+            'format %s declares terminator framing without a terminator' % name)
+    if framing == FRAMING_FIXED and terminator is not None:
+        raise DefinitionsError(
+            'format %s declares fixed framing with a terminator' % name)
+    if framing == FRAMING_FIXED and (low is not None or high is not None):
+        raise DefinitionsError(
+            'format %s declares fixed framing with a variable length range'
+            % name)
+    if framing == FRAMING_TERMINATOR and low is None and high is None:
+        raise DefinitionsError(
+            'format %s declares terminator framing for a fixed-length format'
+            % name)
     if low is None and high is None and terminator is None:
         return                      # fixed length, however it is framed
     delimiter = (framing if framing == FRAMING_LENGTH_PREFIX else terminator)
@@ -248,7 +349,7 @@ def _check_variable_keys(name, spec):
 
 def base_names(definitions=None):
     """The set of base names that have both a request and a response format."""
-    definitions = load_definitions() if definitions is None else definitions
+    definitions = _catalog(definitions)
     requests = {name[:-len(REQUEST_SUFFIX)] for name in definitions
                 if name.endswith(REQUEST_SUFFIX)}
     responses = {name[:-len(RESPONSE_SUFFIX)] for name in definitions
@@ -264,8 +365,8 @@ def base_name(format_name):
     return format_name
 
 
-def getRegex(format_name):
-    definitions = load_definitions()
+def getRegex(format_name, definitions=None):
+    definitions = _catalog(definitions)
     try:
         regex = definitions[format_name]['regex']
     except KeyError:
@@ -274,7 +375,7 @@ def getRegex(format_name):
     return regex
 
 
-def getLength(format_name):
+def getLength(format_name, definitions=None):
     """The fixed-frame covertext length of a format.
 
     For a variable-length format this is its ``max_length``: see
@@ -282,7 +383,7 @@ def getLength(format_name):
     use the longest covertext. A hybrid-mode header does not -- it is a
     fixed-length frame too, but at :func:`fteproxy.hybrid_header_length`.
     """
-    definitions = load_definitions()
+    definitions = _catalog(definitions)
     try:
         spec = definitions[format_name]
     except KeyError:
@@ -434,6 +535,21 @@ def spec_mode_hint(spec):
     return spec.get('mode_hint', MODE_HYBRID)
 
 
+def spec_hybrid_regex(spec):
+    """The covertext regex for post-handshake hybrid headers.
+
+    Most formats use their ordinary ``regex``.  HTTP needs a distinct header
+    grammar: handshakes are complete zero-body messages, while data records
+    advertise the chunked body that follows their covertext header.
+    """
+    return spec.get('hybrid_regex', spec['regex'])
+
+
+def spec_hybrid_framing(spec):
+    """How a hybrid ciphertext body is framed after its covertext header."""
+    return spec.get('hybrid_framing', HYBRID_FRAMING_RAW)
+
+
 def spec_is_default(spec):
     """Whether this entry marks its base as the release default; default ``False``."""
     return bool(spec.get('default', False))
@@ -444,8 +560,8 @@ def spec_description(spec):
     return spec.get('description', '')
 
 
-def _spec(format_name):
-    definitions = load_definitions()
+def _spec(format_name, definitions=None):
+    definitions = _catalog(definitions)
     try:
         return definitions[format_name]
     except KeyError:
@@ -498,7 +614,7 @@ def default_base(definitions=None):
     A base counts as default when either of its direction entries carries
     ``"default": true``; the first such base in file order wins.
     """
-    definitions = load_definitions() if definitions is None else definitions
+    definitions = _catalog(definitions)
     for name, spec in definitions.items():
         if spec_is_default(spec):
             return base_name(name)

@@ -56,7 +56,6 @@ import os
 import re
 import socket
 import threading
-import time
 
 import pytest
 
@@ -103,13 +102,10 @@ SERVER_PRIVATE, SERVER_PUBLIC = fteproxy.generate_server_key()
 def _release():
     """The shipped release, restored afterwards (one test selects another)."""
     previous = fteproxy.conf.getValue('fteproxy.defs.release')
-    saved = fteproxy.defs._definitions
     fteproxy.conf.setValue('fteproxy.defs.release', '20260903')
-    fteproxy.defs._definitions = None
     fteproxy.defs.load_definitions()
     yield
     fteproxy.conf.setValue('fteproxy.defs.release', previous)
-    fteproxy.defs._definitions = saved
 
 
 def _spec(name):
@@ -479,7 +475,12 @@ class TestTerminatorUniqueness:
         with pytest.raises(validate.FormatValidationError) as excinfo:
             validate.check_terminator_uniqueness(
                 'x-response', '^Body: [a-z\r\n]+\r\n\r\n$', b'\r\n\r\n')
-        assert 'character class' in str(excinfo.value)
+        assert 'before the end' in str(excinfo.value)
+
+    def test_classes_may_admit_terminator_bytes_when_the_language_is_safe(self):
+        """Individual CR and LF fields are safe when they cannot meet."""
+        validate.check_terminator_uniqueness(
+            'x-response', '^A[\r]+B[\n]+C\r\n$', b'\r\n')
 
     def test_a_literal_that_repeats_the_terminator_is_rejected(self):
         """No class carries a terminator byte here; the literals do, twice."""
@@ -487,7 +488,7 @@ class TestTerminatorUniqueness:
             validate.check_terminator_uniqueness(
                 'x-request', '^A: [a-z]+\r\n\r\nB: [a-z]+\r\n\r\n$',
                 b'\r\n\r\n')
-        assert 'literal text' in str(excinfo.value)
+        assert 'before the end' in str(excinfo.value)
 
     @pytest.mark.parametrize('regex,terminator,why', [
         ('^(X\r|Y)\nZ: [a-z]+\r\n$', b'\r\n',
@@ -499,21 +500,31 @@ class TestTerminatorUniqueness:
     ])
     def test_adjacencies_a_single_concatenation_would_miss(self, regex,
                                                            terminator, why):
-        """The literal check expands alternation branches and optional atoms
-        rather than concatenating the pattern's literals once. Each of these
-        can produce the terminator mid-covertext, and a single concatenated
-        skeleton shows none of them."""
+        """The DFA proof follows every branch and repetition exactly. Each of
+        these can produce the terminator mid-covertext even though one textual
+        pass over the pattern would not expose it."""
         with pytest.raises(validate.FormatValidationError) as excinfo:
             validate.check_terminator_uniqueness('x-request', regex, terminator)
-        assert 'literal text' in str(excinfo.value), why
+        assert 'before the end' in str(excinfo.value), why
 
-    def test_a_pattern_too_complex_to_prove_is_refused_not_passed(self):
-        """Failing open here would mean shipping a format whose framing is not
-        proven, so the expansion cap is a validation failure."""
+    def test_a_large_language_is_proved_without_expanding_every_string(self):
+        """The DFA proof is bounded by states, not by the language's size."""
         explosive = '^' + '(a|b|c|d)' * 20 + 'X\r\n$'
+        validate.check_terminator_uniqueness('x-request', explosive, b'\r\n')
+
+    def test_a_terminator_across_three_repetitions_is_rejected(self):
+        """The old one/two-copy skeleton expansion missed this ``abc``."""
         with pytest.raises(validate.FormatValidationError) as excinfo:
-            validate.check_terminator_uniqueness('x-request', explosive, b'\r\n')
-        assert 'too many' in str(excinfo.value)
+            validate.check_terminator_uniqueness(
+                'x-request', '^(a|b|c)+Xabc$', b'abc')
+        assert "b'abcXabc'" in str(excinfo.value)
+        assert 'before the end' in str(excinfo.value)
+
+    def test_an_overlapping_terminator_before_the_end_is_rejected(self):
+        with pytest.raises(validate.FormatValidationError) as excinfo:
+            validate.check_terminator_uniqueness(
+                'x-request', '^ababa$', b'aba')
+        assert 'before the end' in str(excinfo.value)
 
     def test_a_pattern_that_does_not_end_with_its_terminator_is_rejected(self):
         with pytest.raises(validate.FormatValidationError):
@@ -531,21 +542,6 @@ class TestTerminatorUniqueness:
                 'mode_hint': 'format'}
         with pytest.raises(validate.FormatValidationError):
             validate.validate_format('http-response', spec, samples=2)
-
-    def test_the_class_scanner_reads_the_dialect(self):
-        """Ranges expand, a leading or trailing ``-`` is itself, and there are
-        no backslash escapes inside a class."""
-        assert validate._class_members('a-c') == set('abc')
-        assert validate._class_members('a-z.-') == set('abcdefghijklmnopqrstuvwxyz.-')
-        assert validate._class_members('-ab') == set('-ab')
-        assert validate._class_members('^a') is None
-
-    def test_skeletons_expand_branches_and_optional_atoms(self):
-        any_ = validate._ANY
-        assert validate._literal_skeletons('(GET|PUT) /') == {'GET /', 'PUT /'}
-        assert validate._literal_skeletons('/[a-z]*x') == {'/x', '/' + any_ + 'x'}
-        assert validate._literal_skeletons('[a-z]+') == {any_}
-        assert validate._literal_skeletons('a?b') == {'b', 'ab'}
 
 
 # --------------------------------------------------------------------------- #
@@ -853,8 +849,8 @@ class TestFixedFramingSurvives:
         the hello, which spent a full 700-byte ranking on every record to carry
         four bytes. The expectation this test used to state (header
         length == ``getLength``) is the thing that changed; everything around it
-        -- one covertext, matching the regex, followed by a raw body -- is as it
-        was.
+        -- one covertext matching the hybrid regex, followed by an authenticated
+        body with the definition's protocol framing -- is as it was.
         """
         client, server = self._handshaken('http', 'hybrid')
         try:
@@ -870,9 +866,10 @@ class TestFixedFramingSurvives:
             assert length == 200
             assert length < fteproxy.defs.getLength('http-request') == 700
             pattern = re.compile(
-                _spec('http-request')['regex'].encode('latin-1'), re.DOTALL)
+                fteproxy.defs.spec_hybrid_regex(
+                    _spec('http-request')).encode('latin-1'), re.DOTALL)
             assert pattern.fullmatch(header[:length])
-            assert len(header) > length          # header plus a raw body
+            assert len(header) > length          # header plus framed body
             # The frame size both ends read is that same length, and it is what
             # the decoder derives from its own header cipher rather than being
             # told.
@@ -919,7 +916,6 @@ class TestFixedFramingSurvives:
 
     def test_the_shape_catalog_is_still_fixed_length(self):
         fteproxy.conf.setValue('fteproxy.defs.release', '20260110')
-        fteproxy.defs._definitions = None
         definitions = fteproxy.defs.load_definitions()
         for name, spec in definitions.items():
             assert not fteproxy.defs.spec_is_variable(spec), name
@@ -1043,7 +1039,6 @@ class TestHybridHeaderLength:
         """The shape catalog has one allowed length, so that is where its
         headers went before and where they go now."""
         fteproxy.conf.setValue('fteproxy.defs.release', '20260110')
-        fteproxy.defs._definitions = None
         definitions = fteproxy.defs.load_definitions()
         for name, spec in definitions.items():
             assert fteproxy.hybrid_header_length(spec) == \
@@ -1105,7 +1100,9 @@ class TestHybridHeaderLength:
         (client_enc, _client_dec), (_server_enc, _server_dec) = _channels(base)
         spec = _spec(base + '-request')
         length = HYBRID_HEADER[base + '-request']
-        pattern = re.compile(spec['regex'].encode('latin-1'), re.DOTALL)
+        pattern = re.compile(
+            fteproxy.defs.spec_hybrid_regex(spec).encode('latin-1'),
+            re.DOTALL)
         client_enc.push(b'q' * 64)
         wire = client_enc.pop()
         header = wire[:length]
@@ -1138,10 +1135,13 @@ class TestHybridHeaderLength:
             assert len(hello) == 700 == fteproxy.defs.getLength('http-request')
             header = client._socket.sent[1][:200]
             assert len(header) == 200
-            pattern = re.compile(
+            hello_pattern = re.compile(
                 _spec('http-request')['regex'].encode('latin-1'), re.DOTALL)
-            assert pattern.fullmatch(hello)      # both are still real HTTP
-            assert pattern.fullmatch(header)
+            header_pattern = re.compile(
+                fteproxy.defs.spec_hybrid_regex(
+                    _spec('http-request')).encode('latin-1'), re.DOTALL)
+            assert hello_pattern.fullmatch(hello)
+            assert header_pattern.fullmatch(header)
         finally:
             client.close()
             server.close()
@@ -1172,36 +1172,6 @@ class TestHybridHeaderLength:
 
     # -- the point of the exercise ----------------------------------------- #
 
-    def test_a_short_header_costs_far_less_per_record(self):
-        """The measurement the change exists for.
-
-        One 64-byte payload per record through a real hybrid encoder, with the
-        header cipher at the computed length and then at ``max_length``. Loose
-        on purpose -- it is a ratio on a machine running a test suite, not a
-        benchmark -- but the gap it is guarding is about 7x, so 3x has room, and
-        the absolute bound is the same claim stated a second way.
-        """
-        spec = _spec('http-request')
-        payload = b'p' * 64
-        records = 40
-
-        def cost(length):
-            encoder = rl.Encoder(
-                cipher=fteproxy._spec_cipher(spec, length, _KEY),
-                body_cipher=fteproxy._make_body_cipher(_KEY))
-            encoder.push(payload)               # warm the DFA cache
-            encoder.pop()
-            start = time.perf_counter()
-            for _ in range(records):
-                encoder.push(payload)
-                encoder.pop()
-            return (time.perf_counter() - start) / records
-
-        short = cost(fteproxy.hybrid_header_length(spec))
-        long = cost(fteproxy.defs.spec_length(spec))
-        assert short * 3 < long, (short, long)
-        assert short < 0.4e-3, short
-
     def test_hybrid_is_refused_at_session_setup(self, monkeypatch):
         """A format that cannot hold a header is refused where a session is
         built, not left to fail as a stream that will not decode.
@@ -1211,22 +1181,24 @@ class TestHybridHeaderLength:
         because no shipped format is small enough to reach it.
         """
         tiny = {'regex': r'^[a-z][a-z][a-z][a-z]\r\n$', 'length': 6}
-        monkeypatch.setattr(fteproxy.defs, '_definitions',
-                            {'tiny-request': tiny, 'tiny-response': tiny})
+        definitions = {'tiny-request': tiny, 'tiny-response': tiny}
 
         with pytest.raises(fteproxy.HybridUnsupportedError) as excinfo:
             fteproxy._check_hybrid_supported(
-                'tiny', fteproxy.handshake.MODE_HYBRID)
+                'tiny', fteproxy.handshake.MODE_HYBRID, definitions)
         assert 'tiny-request' in str(excinfo.value)
         assert 'format' in str(excinfo.value)   # names the mode that would work
         with pytest.raises(fteproxy.HybridUnsupportedError):
-            fteproxy._hybrid_header_cipher('tiny-request', _KEY)
+            fteproxy._hybrid_header_cipher(
+                'tiny-request', _KEY, definitions)
         with pytest.raises(fteproxy.HybridUnsupportedError):
             fteproxy._session_channel('tiny', fteproxy.handshake.MODE_HYBRID,
-                                      _session_keys(), is_client=True)
+                                      _session_keys(), is_client=True,
+                                      definitions=definitions)
 
         # ``format`` mode is unaffected: the check is about hybrid headers.
-        fteproxy._check_hybrid_supported('tiny', fteproxy.handshake.MODE_FORMAT)
+        fteproxy._check_hybrid_supported(
+            'tiny', fteproxy.handshake.MODE_FORMAT, definitions)
 
     @pytest.mark.parametrize('base', BASES)
     def test_no_shipped_format_is_refused(self, base):

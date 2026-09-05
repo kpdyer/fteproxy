@@ -65,6 +65,45 @@ conf['runtime.fteproxy.relay.socket_timeout'] = 30
 conf['runtime.fteproxy.relay.accept_timeout'] = 0.1
 
 
+"""Maximum concurrent server-side connection setups.
+
+A setup owns a thread while it waits for the handshake, the client's OPEN,
+and the destination dial.  Keeping this finite prevents unauthenticated peers
+from turning the handshake timeout and rejection delay into an unbounded
+number of threads and sockets.
+"""
+conf['runtime.fteproxy.relay.max_pending'] = 64
+
+
+"""Maximum concurrent server-side setups from one source address.
+
+The global limit remains the hard bound; this smaller fair-share limit keeps a
+single address from occupying every setup slot.  Operators serving many users
+behind one NAT can raise it, up to the global limit.
+"""
+conf['runtime.fteproxy.relay.max_pending_per_source'] = 8
+
+
+"""Maximum established server-side sessions, globally and per source.
+
+Setup admission protects the handshake path; these limits bound the sockets,
+worker threads and destination connections retained after setup succeeds.
+"""
+conf['runtime.fteproxy.relay.max_active'] = 128
+conf['runtime.fteproxy.relay.max_active_per_source'] = 64
+
+
+"""Maximum concurrent client-listener setups, globally and per source.
+
+SOCKS and fixed-forward listeners do work before a relay connection exists:
+they may be waiting for a local SOCKS request or dialling the remote server.
+Both limits remain necessary when ``--expose-listeners`` deliberately makes a
+listener reachable from other machines.
+"""
+conf['runtime.fteproxy.relay.client_max_pending'] = 32
+conf['runtime.fteproxy.relay.client_max_pending_per_source'] = 16
+
+
 """The default penalty after polling for network data, and not recieving anything.
 
 Load-bearing, despite looking like a busy-wait tax: it is a GIL yield that
@@ -79,11 +118,12 @@ conf['runtime.fteproxy.handshake.timeout'] = 5
 
 """Record-layer framing mode.
 
-'hybrid' (the default) formats a fixed-length header per record and carries the
-body as raw authenticated bytes: the DFA rank/unrank runs once per record, not
+'hybrid' (the default) formats a fixed-length header per record and carries an
+authenticated ciphertext body: the DFA rank/unrank runs once per record, not
 once per ~150 bytes, so bulk transfer runs close to raw-AEAD speed. Only each
-record's header blends in with the target protocol; the body past it is
-high-entropy ciphertext. This is the behavior fteproxy shipped on libfte 0.3.
+record's header blends in with the target protocol; the body past it remains
+high-entropy ciphertext. A carrier may add native framing around that body;
+HTTP uses one complete chunked body per record.
 
 'format' transforms every covertext byte into the target format, so the whole
 stream is indistinguishable from the protocol: stronger against entropy or

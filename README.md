@@ -25,9 +25,10 @@ fteproxy is powered by Format-Transforming Encryption [1] and was presented at C
 ## Requirements
 
 - Python 3.10 or higher
-- [libfte](https://github.com/kpdyer/libfte) 0.4.x (`fte>=0.4.0,<0.5.0`) and
-  `cryptography>=42.0`, both installed automatically by `pip`. `cryptography`
-  is a compiled package; wheels exist on PyPI for every supported platform.
+- [libfte](https://github.com/kpdyer/libfte) 0.4.x (`fte>=0.4.0,<0.5.0`),
+  `regex2dfa>=0.2.0,<0.3.0`, and `cryptography>=42.0`, all installed
+  automatically by `pip`. `cryptography` is a compiled package; wheels exist
+  on PyPI for every supported platform.
 
 ## Installation
 
@@ -53,43 +54,47 @@ declared in `pyproject.toml` -- there is no `requirements.txt`.
 
 ### Start the server
 
-Once per host. The first start generates the server's keypair and prints the
-connection string clients need:
+Once per host. The first start generates the server's keypair and a client
+connection file:
 
 ```console
-$ fteproxy server
+$ fteproxy server --advertise vpn.example.com:8080
 listening on [::]:8080
 key: ~/.local/state/fteproxy/server.key (created)
-allowing: every destination except the loopback and link-local addresses of this host
-clients connect with:
-  fteproxy client fte://Qm3s…ZzE@<server-ip>:8080?defs=20260903
-(also written to ~/.local/state/fteproxy/connection.txt)
+allowing: globally routable unicast destinations
+connection string written to ~/.local/state/fteproxy/connection.txt
 ```
 
-Substitute the address your clients will dial for `<server-ip>`, or pass
-`--advertise your.host:8080` and the string comes out ready to hand over.
+`connection.txt` is created with mode 0600. It is a capability, so a normal
+server start does not print it or put it in logs. Use `--advertise` for the
+address remote clients will dial. Without it, an existing endpoint for the same
+server identity is preserved; a new connection file contains a valid local
+address for same-host use, never an editable `<server-ip>` placeholder. A
+wildcard listener uses loopback in a new file. If you deliberately need the URI
+on stdout, add `--print-connection`.
 
 ### Start the client
 
-On the client machine, with the string the server printed:
+Copy `connection.txt` to the client through a secure channel, then point the
+client at the file:
 
 ```console
-$ fteproxy client fte://Qm3s…ZzE@203.0.113.5:8080
-checking 203.0.113.5:8080 ... ok (protocol 1, http, hybrid)
+$ fteproxy client --connection-file ./connection.txt
+checking vpn.example.com:8080 ... ok (protocol 1, http, hybrid)
 SOCKS5 on 127.0.0.1:1080
 
 $ curl --socks5-hostname 127.0.0.1:1080 https://example.com/
 ```
 
-The client resolves nothing itself: names go through the tunnel and the server
-resolves them, so your DNS does not leak around the proxy.
+Names requested through SOCKS or a forward go through the tunnel and are
+resolved by the server, so destination DNS does not leak around the proxy.
 
-The client checks the server before it binds anything, so a wrong connection
-string fails in a round trip with a reason rather than as a timeout on the
-first real connection:
+The client validates and binds its local listeners before contacting the
+server, then checks the server so a wrong connection string fails with a
+reason rather than as a timeout on the first real connection:
 
 ```console
-$ fteproxy client fte://…@203.0.113.5:8080
+$ fteproxy client --connection-file ./bad-connection.txt
 checking 203.0.113.5:8080 ... failed: no valid handshake reply within 5s
   (wrong connection string, or the server is not running fteproxy 1.0)
 $ echo $?
@@ -97,6 +102,17 @@ $ echo $?
 ```
 
 Pass `--no-check` to skip it.
+
+`--connection-stdin` is convenient for a secret store or a protected pipe:
+
+```bash
+fteproxy client --connection-stdin < ./connection.txt
+```
+
+The positional URI and `$FTEPROXY_URI` remain compatible, but a URI on the
+command line can be exposed by process listings, shell history and diagnostic
+tools. Prefer `--connection-file`, `--connection-stdin`, or the implicit state
+file. Explicit connection sources are mutually exclusive.
 
 On one host you can leave the argument out entirely — the client reads
 `connection.txt` from the state directory:
@@ -108,36 +124,53 @@ fteproxy client
 
 ### A port forward instead of SOCKS
 
-`-L` takes ssh's spelling, and is how you reproduce the fixed-destination
-topology fteproxy had before 1.0:
+`-L`/`--forward` takes ssh's spelling, and is how you reproduce the
+fixed-destination topology fteproxy had before 1.0:
 
 ```bash
-fteproxy client fte://…@203.0.113.5:8080 -L 2222:127.0.0.1:22
+fteproxy client --connection-file ./connection.txt \
+  --forward 2222:127.0.0.1:22
 ssh -p 2222 user@localhost
 ```
 
-`-L` and `-D` are repeatable and can be mixed; without either, the client
-opens SOCKS5 on `127.0.0.1:1080`.
+`-L`/`--forward` and `-D`/`--socks-listen` are repeatable and can be mixed;
+without either, the client opens SOCKS5 on `127.0.0.1:1080`.
+
+Local listeners must use a literal loopback address by default. A wildcard or
+other non-loopback bind is rejected unless `--expose-listeners` is present:
+
+```bash
+fteproxy client --connection-file ./connection.txt \
+  --socks-listen 0.0.0.0:1080 --expose-listeners
+```
+
+There is no SOCKS authentication: anyone who can reach an exposed listener can
+use the tunnel. Protect it with a host firewall and use the narrowest bind
+address possible.
 
 ### What the server will dial
 
-By default a server will reach any destination *except* its own loopback and
-link-local addresses, checked both on what the client asked for and on what
-the name resolved to. That keeps a connection string from being a route into
-the server's own admin interfaces.
+With no rules, a server dials only globally routable unicast addresses. It
+rejects private, shared, loopback, link-local, unspecified, reserved,
+documentation and multicast ranges. The policy is checked both on what the
+client asked for and on every address a name resolved to, which also blocks
+DNS rebinding into internal services.
 
 `--allow` replaces that policy with a list:
 
 ```bash
 fteproxy server --allow 127.0.0.1:8081          # only this local service
 fteproxy server --allow '*.example.com:443'     # only this domain, only TLS
-fteproxy server --allow 10.0.0.0/8              # only this network
-fteproxy server --allow any                     # everything, loopback included
+fteproxy server --allow 10.0.0.0/8              # only this private network
+fteproxy server --allow any                     # any name/public destination
 ```
 
-Rules are repeatable. A rule naming an address is matched against addresses
-and CIDRs; a rule naming a name is matched against names. IPv6 literals go in
-brackets when a port follows.
+Rules are repeatable and together form a whitelist. A hostname rule (including
+`any`) authorises the requested name, but its resolved address must still be
+globally routable. Only an explicit IP address or CIDR rule opts a non-global
+address in. A rule naming an address is matched against addresses and CIDRs;
+a rule naming a name is matched against names. IPv6 literals go in brackets
+when a port follows.
 
 ### Formats and record-layer modes
 
@@ -149,7 +182,7 @@ real thing:
 
 | Format | Ports | Direction split | Mode | Covertext length | What a covertext looks like |
 |---|---|---|---|---|---|
-| `http` | 80, 8080, 8000 | request / response | hybrid | 200–700 | `GET /… HTTP/1.1` with browser headers **(default)** |
+| `http` | 80, 8080, 8000 | request / response | hybrid | 200–700 | zero-body HTTP for handshakes/format mode; POST + chunked body in hybrid mode **(default)** |
 | `ftp` | 21 | command / reply | format | 64–256 | `USER …`, `220 … ready` control lines |
 | `smtp` | 25, 587 | command / reply | format | 80–320 | `EHLO …`, `250-…` command and reply lines |
 | `sip` | 5060 | request / response | format | 300–800 | `INVITE sip:…@… SIP/2.0` with Via/From/To/Call-ID/CSeq |
@@ -164,9 +197,9 @@ message, which is framing rather than part of its regex, so one pattern serves
 every length (and its query names run 72–254 octets rather than always 254).
 The two handshake records are always at the top of the range. A `hybrid` mode
 header is fixed length too, but at the *shortest* length the format can hold one
-in (the `hdr` column below): a header carries only the length of the raw body
-behind it, and a short covertext is several times cheaper to produce than a long
-one.
+in (the `hdr` column below): its sealed payload carries only the length of the
+authenticated body behind it, excluding any carrier framing, and a short
+covertext is several times cheaper to produce than a long one.
 
 `http` is the default. A client given no `--format` and no `?format=` hint
 picks the format whose protocol runs on the server's port -- a server on 21
@@ -204,54 +237,97 @@ The client picks the format and the record-layer mode and puts both in the
 handshake; the server follows. Nothing has to be configured to match.
 
 - `--mode hybrid` (default): each record is a fixed-length covertext header
-  followed by raw authenticated ciphertext. The header goes in the shortest
-  covertext the format has room for one in (the `hdr` column above), since all
-  it carries is the length of the body behind it. Fast — hundreds of MB/s — but
-  only the header blends in with the target protocol.
-- `--mode format`: every byte on the wire is in the format, so the whole
-  stream is indistinguishable from the protocol, and each covertext takes a
-  length from across the format's range. Much slower (about 1 MB/s), for
-  deployments facing entropy or statistical detectors.
+  plus authenticated ciphertext. The header goes in the shortest covertext the
+  format has room for one in (the `hdr` column above), since its sealed payload
+  carries only the body length. The body is raw for the legacy carriers; a
+  definition may instead add protocol framing, as `http` does. Fast — hundreds
+  of MB/s — but the ciphertext itself remains high entropy.
+- `--mode format`: every covertext byte on the wire matches the format regex,
+  and each covertext takes a length from across the format's range. Much slower
+  (about 1 MB/s), for deployments facing simple entropy or statistical
+  detectors. Regex membership does not make the resulting conversation
+  indistinguishable from a real implementation; see [SECURITY.md](SECURITY.md).
 
 Each format records the mode it is designed for (the `mode` column above), and
-that is what the client uses unless `--mode` says otherwise. `http` is hybrid:
-an HTTP message with a body is exactly what HTTP looks like, so the raw body
-past the formatted header costs nothing. The line protocols and `dns` have no
-natural place for a high-entropy body, so they ship as `format` -- every byte
-in the protocol, at about 1 MB/s, which is fine for interactive use.
+that is what the client uses unless `--mode` says otherwise. `http` is hybrid,
+but uses two header grammars. Handshake records and `format`-mode records use
+the base regex and are complete zero-body messages; responses explicitly send
+`Content-Length: 0`. Post-handshake hybrid data uses a separate regex: requests
+are `POST` and both directions advertise `Transfer-Encoding: chunked` (hybrid
+responses omit body-forbidden `304`). Each record then carries exactly one
+chunk of authenticated ciphertext followed by the terminal zero chunk. For a
+non-empty body of `B` bytes, the carrier adds `len(format(B, "x")) + 9` visible
+framing bytes around it. The line protocols and `dns` have no natural place for a
+high-entropy body, so they ship as `format` -- every covertext byte in the
+protocol, at about 1 MB/s, which is fine for interactive use.
+
+This makes each HTTP record syntactically complete, but it is still a direct,
+byte-preserving TCP carrier, not an HTTP proxy protocol. An intermediary that
+rewrites headers or dechunks/rechunks a message changes authenticated wire
+bytes and the tunnel fails closed. Requests and responses are also generated
+independently from the two directions of the relayed byte stream: their counts,
+timing and fields need not form real HTTP transactions. A stateful HTTP
+classifier can use that even though a parser accepts each individual message.
 
 ### Command line
 
+There are five subcommands: `server`, `client`, `keygen`, `formats`, and
+`defs-check`.
+
 ```
 fteproxy server  [--listen [HOST]:PORT] [--allow RULE]... [--advertise HOST[:PORT]]
-                 [--state-dir DIR] [--defs RELEASE] [-q | -v]
-fteproxy client  [URI] [-D [BIND:]PORT] [-L [BIND:]PORT:HOST:PORT]...
+                 [--print-connection] [--state-dir DIR] [--defs RELEASE]
+                 [--max-pending N] [--max-pending-per-source N]
+                 [--max-active N] [--max-active-per-source N] [-q | -v]
+fteproxy client  [URI | --connection-file FILE | --connection-stdin]
+                 [-D|--socks-listen [BIND:]PORT]
+                 [-L|--forward [BIND:]PORT:HOST:PORT]... [--expose-listeners]
                  [--format NAME] [--mode hybrid|format] [--no-check]
+                 [--max-pending N] [--max-pending-per-source N]
                  [--state-dir DIR] [-q | -v]
-fteproxy keygen  [--state-dir DIR] [--advertise HOST[:PORT]]
+fteproxy keygen  [--state-dir DIR] [--advertise HOST[:PORT]] [--defs RELEASE]
 fteproxy formats [--defs RELEASE]
+fteproxy defs-check [--defs RELEASE]
 fteproxy --version
 ```
 
 | Option | Command | Description | Default |
 |--------|---------|-------------|---------|
 | `--listen` | server | Address to listen on; `:PORT` means every interface, IPv6 in brackets | `:8080` |
-| `--allow` | server | A destination clients may reach; repeatable | loopback and link-local blocked, everything else allowed |
-| `--advertise` | server, keygen | The address to put in the connection string | a `<server-ip>` placeholder |
-| `--defs` | server, formats | Definitions release, as YYYYMMDD | 20260903 |
-| `URI` | client | `fte://SERVER-ID@HOST:PORT`; falls back to `$FTEPROXY_URI`, then `connection.txt` | |
-| `-D` | client | SOCKS5 listener, `[BIND:]PORT` | `127.0.0.1:1080` when no `-D`/`-L` |
-| `-L` | client | Forward `[BIND:]PORT` to one `HOST:PORT` through the tunnel; repeatable | |
+| `--allow` | server | Destination whitelist rule; repeatable. Only explicit IP/CIDR rules may opt non-global addresses in | globally routable unicast only |
+| `--advertise` | server, keygen | Address remote clients should dial | preserve this identity's endpoint; otherwise use a valid local address |
+| `--print-connection` | server | Deliberately print the capability URI to stdout | URI is written only to `connection.txt` |
+| `--defs` | server, keygen, formats, defs-check | Definitions release; server/keygen require YYYYMMDD | 20260903 |
+| `URI` | client | Compatibility positional form of `fte://SERVER-ID@HOST:PORT` | not preferred because argv can be observed |
+| `--connection-file` | client | Read the URI from a file | with no explicit source: `$FTEPROXY_URI`, then state `connection.txt` |
+| `--connection-stdin` | client | Read the URI from standard input | |
+| `-D`, `--socks-listen` | client | SOCKS5 listener, `[BIND:]PORT`; repeatable | `127.0.0.1:1080` when no `-D`/`-L` |
+| `-L`, `--forward` | client | Forward `[BIND:]PORT` to one `HOST:PORT` through the tunnel; repeatable | |
+| `--expose-listeners` | client | Permit non-loopback `-D` and `-L` binds; listeners have no client authentication | rejected without this flag |
 | `--format` | client | Base format name (see `fteproxy formats`) | the URI's hint, else the format for the server's port, else `http` |
 | `--mode` | client | `hybrid` or `format` | the URI's hint, else `hybrid` |
 | `--no-check` | client | Skip the startup check | check runs |
-| `--state-dir` | all | Where `server.key` and `connection.txt` live | `$FTEPROXY_STATE_DIR`, `$XDG_STATE_HOME/fteproxy`, `~/.local/state/fteproxy` |
+| `--max-pending` | server, client | Bound concurrent handshake/OPEN setup work | server 64; client 32 |
+| `--max-pending-per-source` | server, client | Bound concurrent setup work per source IP | server 8; client 16 |
+| `--max-active` | server | Bound established relay sessions | 128 |
+| `--max-active-per-source` | server | Bound established relay sessions per source IP | 64 |
+| `--state-dir` | server, client, keygen | Where `server.key` and `connection.txt` live | `$FTEPROXY_STATE_DIR`, `$XDG_STATE_HOME/fteproxy`, `~/.local/state/fteproxy` |
 | `-q` / `-v` | all | Errors only / per-connection detail | INFO |
 | `--version` | | Version and licence, then quit | |
 
 Exit status is 0 on a clean shutdown, 1 on a runtime failure, 2 on a usage
 error. The process runs in the foreground and stops on SIGINT or SIGTERM;
 there is no daemon mode and no PID file.
+
+Long options are not abbreviated. The CLI validates addresses, rules and
+definition identifiers before it creates keys, changes state or contacts a
+peer. A newly created state directory is mode 0700; an existing directory with
+group or other permissions is refused, not silently changed. Fix an intended
+directory yourself with `chmod 700 DIR`. The key and connection file are mode
+0600 and are replaced atomically without following a symlink at the target.
+Managed reads also reject symlinks, hard links, non-regular files, and files
+owned by another user. An explicitly selected connection file remains usable
+but warns when its ownership or permissions do not keep the capability private.
 
 ### Keys and the connection string
 
@@ -266,6 +342,17 @@ run:
 ```bash
 fteproxy keygen --advertise vpn.example.com:8080
 ```
+
+Unlike a normal server start, `keygen` prints the connection URI because
+producing it is the command's explicit purpose; it also stores it in
+`connection.txt`. Without `--advertise`, it preserves a matching existing
+endpoint or uses `127.0.0.1:8080` for a new identity.
+
+For a narrow compatibility case, an old `<server-ip>` invitation is translated
+to loopback only when the client finds it implicitly in this host's state
+`connection.txt`. The placeholder is rejected from a positional argument, the
+environment, stdin, or an explicitly named file; replace it with the server's
+real reachable address.
 
 Treat the connection string like a Tor bridge line: whoever holds it can
 connect, and its secrecy is what stops an active prober from confirming that
@@ -324,15 +411,16 @@ build, gets no reply at all. The full notes are in
   ```bash
   # 1.0
   fteproxy server --listen :8080 --allow 127.0.0.1:22
-  fteproxy client fte://…@S:8080 -L 8079:127.0.0.1:22
+  fteproxy client --connection-file connection.txt \
+    --forward 8079:127.0.0.1:22
   ```
 
   and the same server now also serves `-D` SOCKS5 clients, without being
   reconfigured.
 - **The shared key is gone.** So are `--key` and `--key-file`. The server has a
-  keypair instead, generated on first start; hand clients the connection string
-  it prints. Nothing needs a pre-shared secret, and there is no public default
-  key to forget to replace.
+  keypair instead, generated on first start; securely transfer the mode-0600
+  `connection.txt` file to clients. Nothing needs a pre-shared secret, and
+  there is no public default key to forget to replace.
 - **Formats and modes are negotiated, not configured.** One `--format` base
   name on the client replaces `--upstream-format`/`--downstream-format`, and
   `--mode` replaces `--record-layer-mode` on one side only. A mismatch is no
@@ -350,7 +438,8 @@ build, gets no reply at all. The full notes are in
 - **API.** `wrap_socket`'s `outgoing_regex`/`incoming_regex`/`K1`/`K2`/
   `negotiate` parameters are replaced by `server_key=` or `server_id=` plus
   `format=`/`mode=`. See [Python API](#python-api).
-- **Requires** `fte>=0.4.0,<0.5.0` and `cryptography>=42.0`.
+- **Requires** `fte>=0.4.0,<0.5.0`, `regex2dfa>=0.2.0,<0.3.0`, and
+  `cryptography>=42.0`.
 
 See [SECURITY.md](SECURITY.md) for the security model, including what the
 handshake and the record layer do and do not authenticate.

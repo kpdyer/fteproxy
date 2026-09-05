@@ -89,9 +89,10 @@ design decision:
   \r\n$
   ```
   (One line in the JSON; shown wrapped here.)
-- **Mode suitability.** hybrid framing formats only the header and sends the body
-  as raw authenticated bytes. That reads as an HTTP message with a body, so
-  `http` sets `mode_hint: hybrid`. A pure line protocol (ftp/smtp/sip) or the binary dns format has
+- **Mode suitability.** Hybrid framing formats only the header and carries an
+  authenticated ciphertext body. HTTP wraps that body in one complete chunked
+  message, so `http` sets `mode_hint: hybrid`. A pure line protocol
+  (ftp/smtp/sip) or the binary dns format has
   no natural place for a raw high-entropy body, so those set `mode_hint: format`
   (every byte in the protocol; about 1 MB/s, fine for interactive circumvention)
   and the docs say hybrid on them leaks a high-entropy tail. The client's
@@ -162,8 +163,8 @@ commit per phase with the trailer `Co-Authored-By: Claude Opus 4.8
   than a documented fraction of the covertext — catches a badly shaped regex
   whose only variable field is one long low-entropy run).
 - New empty dated release file `fteproxy/defs/20260903.json` for F1–F5 to fill,
-  and a copy of today's shape-format catalog preserved at
-  `examples/defs/shapes-20260110.json` so `--defs` still reaches it.
+  with `shapes-20260110` retained as an alias of the packaged `20260110`
+  catalog so `--defs` still reaches it without a duplicate file.
 - Extend `fteproxy formats` output with port, role, mode and description columns.
 - `docs/format-authoring.md`: the dialect cheat-sheet, the seal-padding rule, the
   capacity floor, and the realism-harness contract, so F1–F5 need no re-derivation.
@@ -245,7 +246,7 @@ exercise it select it by name. Suite: 604 passing (was 566).
   schema `port` lists (fall back to http). The server's `?format=` hint still
   wins; a `--format` that disagrees with the port still warns (plan-1.0 behavior).
 - `fteproxy formats` shows the new catalog; retire the shape formats from the
-  shipped release (kept in `examples/defs/`).
+  default while keeping their packaged `20260110` compatibility release.
 - Docs: README usage and options for the five formats and the port table;
   SECURITY.md gains the realism-limits paragraph from the section above and the
   per-mode leak note; PERFORMANCE.md notes format-mode throughput for the line
@@ -328,8 +329,8 @@ rather than one.
   Recommended as written; DNS deferred as a separate binary-format effort.
 - **D-F2** Ship line protocols as `mode_hint: format` (realistic, ~1 MB/s) rather
   than hybrid (fast, high-entropy tail). Recommended: yes; http stays hybrid.
-- **D-F3** New dated release `20260903` as default, shape formats retired to
-  `examples/defs/`. Recommended: yes.
+- **D-F3** New dated release `20260903` as default, with shape formats retained
+  as the packaged `20260110` compatibility release. Recommended: yes.
 - **D-F4** Do F7 (variable length) in this cycle or defer. Recommended: land
   F0–F6 first; F7 as a fast follow, since it is the only record-layer change.
   *Settled: F7 landed 2026-09-03 for the four text formats, and F7b the same

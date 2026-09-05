@@ -34,10 +34,8 @@ _OLD_ENTRY = {'regex': r'^[a-z]+$', 'length': 256}
 def _release_20260110():
     previous = fteproxy.conf.getValue('fteproxy.defs.release')
     fteproxy.conf.setValue('fteproxy.defs.release', '20260110')
-    fteproxy.defs._definitions = None
     yield
     fteproxy.conf.setValue('fteproxy.defs.release', previous)
-    fteproxy.defs._definitions = None
 
 
 class TestSchemaLoads:
@@ -46,6 +44,24 @@ class TestSchemaLoads:
         definitions = fteproxy.defs.load_definitions()
         assert 'manual-http-request' in definitions
         assert 'manual-http' in fteproxy.defs.base_names(definitions)
+
+    def test_releases_are_cached_independently(self):
+        shapes = fteproxy.defs.load_definitions('20260110')
+        protocols = fteproxy.defs.load_definitions('20260903')
+
+        assert shapes is fteproxy.defs.load_definitions(20260110)
+        assert shapes is fteproxy.defs.load_definitions('shapes-20260110')
+        assert protocols is fteproxy.defs.load_definitions(20260903)
+        assert shapes is not protocols
+        assert 'manual-http-request' in shapes
+        assert 'manual-http-request' not in protocols
+
+        # Changing the configured default selects its keyed entry without
+        # resetting private module state.
+        fteproxy.conf.setValue('fteproxy.defs.release', '20260903')
+        assert fteproxy.defs.load_definitions() is protocols
+        fteproxy.conf.setValue('fteproxy.defs.release', '20260110')
+        assert fteproxy.defs.load_definitions() is shapes
 
     def test_a_synthetic_all_keys_entry_loads_and_validates(self):
         # An all-keys v2 entry passes the load-time capacity/compile check.
@@ -202,6 +218,19 @@ class TestFraming:
             fteproxy.defs.check_capacities({'broken-request': {
                 'regex': self._MESSAGE, 'min_length': 64, 'max_length': 256,
                 'framing': 'fixed'}})
+
+    @pytest.mark.parametrize('spec', [
+        # An explicit terminator framing without the terminator bytes used to
+        # fall through the fixed-length early return.
+        {'regex': r'^[a-z]+$', 'length': 256, 'framing': 'terminator'},
+        # A terminator made the range look complete even though an explicit
+        # fixed framing made spec_is_variable() disagree with the length set.
+        {'regex': r'^[a-z]+X$', 'min_length': 64, 'max_length': 256,
+         'terminator': 'X', 'framing': 'fixed'},
+    ])
+    def test_contradictory_length_and_framing_are_refused(self, spec):
+        with pytest.raises(fteproxy.defs.DefinitionsError):
+            fteproxy.defs.check_capacities({'broken-request': spec})
 
     def test_a_minimum_inside_the_prefix_is_refused(self):
         """A wire length at or below the prefix leaves no message behind it."""

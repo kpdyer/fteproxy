@@ -32,6 +32,9 @@ classifiers = [
 ]
 dependencies = [
     "fte>=0.4.0,<0.5.0",
+    # defs-check traverses regex2dfa's DFA directly to prove that a framing
+    # terminator cannot occur inside any accepted covertext.
+    "regex2dfa>=0.2.0,<0.3.0",
     # The hybrid record body (AES-CTR + HMAC-SHA256). libfte 0.4 needs >=42
     # transitively, so that is the effective floor.
     "cryptography>=42.0",
@@ -61,8 +64,7 @@ version = {attr = "fteproxy.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["fteproxy*"]
-# The test suite ships in the sdist (MANIFEST.in) but not in the wheel: it
-# needs the examples/ tree, which is not packaged.
+# Tests depend on repository-only examples and are not part of distributions.
 exclude = ["fteproxy.tests*"]
 
 [tool.setuptools.exclude-package-data]

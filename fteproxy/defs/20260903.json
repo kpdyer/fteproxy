@@ -1,6 +1,8 @@
 {
     "http-request": {
         "regex": "^(GET|POST|HEAD) /[a-zA-Z0-9/._?=&%-]* HTTP/1\\.1\r\nHost: [a-z0-9.-]+\r\nUser-Agent: Mozilla/5\\.0 \\([a-zA-Z0-9;: .()/_-]+\\)\r\nAccept: [a-zA-Z0-9/*,;= .+-]+\r\nAccept-Language: [a-z,;=0-9. -]+\r\n\r\n$",
+        "hybrid_regex": "^POST /[a-zA-Z0-9/._?=&%-]* HTTP/1\\.1\r\nHost: [a-z0-9.-]+\r\nUser-Agent: Mozilla/5\\.0 \\([a-zA-Z0-9;: .()/_-]+\\)\r\nAccept: [a-zA-Z0-9/*,;= .+-]+\r\nAccept-Language: [a-z,;=0-9. -]+\r\nTransfer-Encoding: chunked\r\n\r\n$",
+        "hybrid_framing": "http-chunked",
         "min_length": 200,
         "max_length": 700,
         "terminator": "\r\n\r\n",
@@ -12,10 +14,12 @@
         "role": "request",
         "mode_hint": "hybrid",
         "default": true,
-        "description": "HTTP/1.1 GET, POST, or HEAD request with common browser headers; 200-700 bytes per message in format mode"
+        "description": "HTTP/1.1 GET, POST, or HEAD request with common browser headers; hybrid records use POST plus a complete chunked body; 200-700 bytes per covertext header"
     },
     "http-response": {
         "regex": "^HTTP/1\\.1 (200 OK|302 Found|304 Not Modified|404 Not Found)\r\nServer: [a-zA-Z0-9/. ()_-]+\r\nContent-Type: [a-zA-Z0-9/;=. +-]+\r\nContent-Length: 0\r\nETag: \"[a-zA-Z0-9]+\"\r\nSet-Cookie: [a-zA-Z0-9]+=[a-zA-Z0-9%_-]+; Path=/\r\n\r\n$",
+        "hybrid_regex": "^HTTP/1\\.1 (200 OK|302 Found|404 Not Found)\r\nServer: [a-zA-Z0-9/. ()_-]+\r\nContent-Type: [a-zA-Z0-9/;=. +-]+\r\nTransfer-Encoding: chunked\r\nETag: \"[a-zA-Z0-9]+\"\r\nSet-Cookie: [a-zA-Z0-9]+=[a-zA-Z0-9%_-]+; Path=/\r\n\r\n$",
+        "hybrid_framing": "http-chunked",
         "min_length": 200,
         "max_length": 700,
         "terminator": "\r\n\r\n",
@@ -27,7 +31,7 @@
         "role": "response",
         "mode_hint": "hybrid",
         "default": true,
-        "description": "HTTP/1.1 200/302/304/404 response, header block only (Content-Length: 0), so the CRLF CRLF that ends it cannot occur inside it; 200-700 bytes per message in format mode"
+        "description": "HTTP/1.1 200/302/304/404 zero-body response in format mode; hybrid records use 200/302/404 plus a complete chunked body; 200-700 bytes per covertext header"
     },
     "ftp-request": {
         "regex": "^((USER|PASS|CWD|RETR|STOR|LIST) [a-zA-Z0-9._@/-]+|TYPE [AI]|PASV|QUIT)\r\n$",

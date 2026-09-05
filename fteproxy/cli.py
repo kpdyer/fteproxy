@@ -2,14 +2,19 @@
 # -*- coding: utf-8 -*-
 """The fteproxy command line.
 
-Four subcommands::
+Five subcommands::
 
     fteproxy server  [--listen [HOST]:PORT] [--allow RULE]... [--advertise HOST[:PORT]]
-                     [--state-dir DIR] [--defs RELEASE] [-q | -v]
-    fteproxy client  [URI] [-D [BIND:]PORT] [-L [BIND:]PORT:HOST:PORT]...
+                     [--state-dir DIR] [--defs RELEASE] [--print-connection]
+                     [--max-pending N] [--max-pending-per-source N]
+                     [--max-active N] [--max-active-per-source N]
+                     [-q | -v]
+    fteproxy client  [URI | --connection-file FILE | --connection-stdin]
+                     [-D [BIND:]PORT] [-L [BIND:]PORT:HOST:PORT]...
                      [--format NAME] [--mode hybrid|format] [--no-check]
-                     [--state-dir DIR] [-q | -v]
-    fteproxy keygen  [--state-dir DIR] [--advertise HOST[:PORT]]
+                     [--expose-listeners] [--max-pending N]
+                     [--max-pending-per-source N] [--state-dir DIR] [-q | -v]
+    fteproxy keygen  [--state-dir DIR] [--advertise HOST[:PORT]] [--defs RELEASE]
     fteproxy formats [--defs RELEASE]
     fteproxy defs-check [--defs RELEASE]
 
@@ -30,7 +35,10 @@ connection string can reach a log file.
 """
 
 import argparse
+import ipaddress
 import logging
+import os
+import re
 import signal
 import sys
 import threading
@@ -110,6 +118,31 @@ class StartupError(Exception):
     """
 
 
+# Once an argv value looks like a populated connection URI, discard the rest
+# of the argparse diagnostic too. An argv element may legally contain a space
+# or newline; redacting only up to that character would expose its suffix.
+# Requiring one non-space character after ``//`` preserves instructional errors
+# such as "must start with fte://".
+_URI_ARGUMENT = re.compile(r'fte://(?=\S)\S+.*', re.IGNORECASE | re.DOTALL)
+
+
+class _ArgumentParser(argparse.ArgumentParser):
+    """An exact, capability-safe argument parser.
+
+    Long-option abbreviations make scripts ambiguous as the CLI grows. More
+    importantly, argparse normally repeats an unrecognised positional value in
+    its error, which can copy a connection capability from argv into logs.
+    """
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('allow_abbrev', False)
+        super().__init__(*args, **kwargs)
+
+    def error(self, message):
+        message = _URI_ARGUMENT.sub('<redacted connection string>', message)
+        super().error(message)
+
+
 # --------------------------------------------------------------------------- #
 # Logging
 # --------------------------------------------------------------------------- #
@@ -169,8 +202,34 @@ def _state_dir_flag(parser):
                              '~/.local/state/fteproxy).')
 
 
+def _positive_integer(value):
+    """An argparse type for resource limits, which may never be disabled."""
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        raise argparse.ArgumentTypeError('must be a positive integer')
+    if parsed < 1:
+        raise argparse.ArgumentTypeError('must be a positive integer')
+    return parsed
+
+
+def _dated_release(value):
+    """A definitions release that is safe to put in the wire handshake."""
+    if re.fullmatch(r'[0-9]{8}', value) is None:
+        raise argparse.ArgumentTypeError('must be an 8-digit YYYYMMDD release')
+    return value
+
+
+def _catalog_release(value):
+    """A bounded definitions-catalog identifier, never a path."""
+    try:
+        return fteproxy.defs.validate_release_id(value)
+    except fteproxy.defs.DefinitionsError as e:
+        raise argparse.ArgumentTypeError(str(e))
+
+
 def build_parser():
-    parser = argparse.ArgumentParser(
+    parser = _ArgumentParser(
         prog='fteproxy',
         description='A format-transforming-encryption tunnel.')
     parser.add_argument('--version', action=_PrintVersion,
@@ -179,36 +238,90 @@ def build_parser():
 
     server = subparsers.add_parser(
         'server', help='Accept tunnelled connections and dial where they ask.')
+    server.set_defaults(_parser=server)
     server.add_argument('--listen', metavar='[HOST]:PORT', default=DEFAULT_LISTEN,
                         help='Address to listen on. ":PORT" means every '
                              'interface; IPv6 literals go in brackets.')
     server.add_argument('--allow', metavar='RULE', action='append', default=[],
                         help='A destination clients may reach: "any", '
                              'HOST[:PORT], CIDR[:PORT] or *.example.com[:PORT]. '
-                             'Repeatable. Without any rule the policy is every '
-                             'destination except this host\'s loopback and '
-                             'link-local addresses.')
+                             'Repeatable; supplied rules replace the default. '
+                             'Only globally routable unicast destinations are '
+                             'allowed by default; only an explicit IP/CIDR '
+                             'rule opts a non-global address in.')
     server.add_argument('--advertise', metavar='HOST[:PORT]', default=None,
-                        help='The address to put in the connection string. '
-                             'Without it the string carries a placeholder for '
-                             'you to fill in.')
-    server.add_argument('--defs', metavar='RELEASE',
+                        help='Reachable address to put in connection.txt. '
+                             'Without it, keep this identity\'s existing '
+                             'endpoint; otherwise use the concrete listen host '
+                             'or loopback for a wildcard listener.')
+    server.add_argument('--defs', metavar='RELEASE', type=_dated_release,
                         default=fteproxy.conf.getValue('fteproxy.defs.release'),
                         help='Definitions release to serve, as YYYYMMDD.')
+    server.add_argument(
+        '--print-connection', action='store_true',
+        help='Print the connection capability to stdout after storing it. '
+             'By default only its file path is reported.')
+    server.add_argument(
+        '--max-pending', metavar='N', type=_positive_integer,
+        default=fteproxy.conf.getValue('runtime.fteproxy.relay.max_pending'),
+        help='Maximum concurrent handshake/OPEN setups (default: %(default)s).')
+    server.add_argument(
+        '--max-pending-per-source', metavar='N', type=_positive_integer,
+        default=fteproxy.conf.getValue(
+            'runtime.fteproxy.relay.max_pending_per_source'),
+        help='Maximum concurrent setups per source IP (default: %(default)s).')
+    server.add_argument(
+        '--max-active', metavar='N', type=_positive_integer,
+        default=fteproxy.conf.getValue('runtime.fteproxy.relay.max_active'),
+        help='Maximum established sessions (default: %(default)s).')
+    server.add_argument(
+        '--max-active-per-source', metavar='N', type=_positive_integer,
+        default=fteproxy.conf.getValue(
+            'runtime.fteproxy.relay.max_active_per_source'),
+        help='Maximum established sessions per source IP '
+             '(default: %(default)s).')
     _state_dir_flag(server)
     _verbosity(server)
 
     client = subparsers.add_parser(
         'client', help='Listen locally and tunnel to an fteproxy server.')
+    client.set_defaults(_parser=client)
     client.add_argument('uri', nargs='?', metavar='URI', default=None,
                         help='fte://SERVER-ID@HOST:PORT. Falls back to '
                              '$FTEPROXY_URI, then connection.txt in the state '
                              'directory.')
-    client.add_argument('-D', metavar='[BIND:]PORT', action='append',
+    source = client.add_mutually_exclusive_group()
+    source.add_argument(
+        '--connection-file', metavar='FILE', default=None,
+        help='Read the connection string from FILE instead of exposing it in '
+             'process arguments.')
+    source.add_argument(
+        '--connection-stdin', action='store_true',
+        help='Read the connection string from standard input instead of '
+             'exposing it in process arguments.')
+    client.add_argument('-D', '--socks-listen', metavar='[BIND:]PORT',
+                        action='append',
                         dest='socks', default=[],
                         help='SOCKS5 listener. The default when neither -D nor '
                              '-L is given is ' + DEFAULT_SOCKS + '.')
-    client.add_argument('-L', metavar='[BIND:]PORT:HOST:PORT', action='append',
+    client.add_argument(
+        '--expose-listeners', action='store_true',
+        help='Allow SOCKS5 and forwarding listeners outside loopback. Anyone '
+             'who can reach them can use the tunnel.')
+    client.add_argument(
+        '--max-pending', metavar='N', type=_positive_integer,
+        default=fteproxy.conf.getValue(
+            'runtime.fteproxy.relay.client_max_pending'),
+        help='Maximum concurrent local connection setups '
+             '(default: %(default)s).')
+    client.add_argument(
+        '--max-pending-per-source', metavar='N', type=_positive_integer,
+        default=fteproxy.conf.getValue(
+            'runtime.fteproxy.relay.client_max_pending_per_source'),
+        help='Maximum concurrent local setups per source IP '
+             '(default: %(default)s).')
+    client.add_argument('-L', '--forward',
+                        metavar='[BIND:]PORT:HOST:PORT', action='append',
                         dest='forwards', default=[],
                         help='Forward a local port to one destination through '
                              'the tunnel. Repeatable.')
@@ -219,9 +332,10 @@ def build_parser():
                              'else %s).' % DEFAULT_FORMAT)
     client.add_argument('--mode', choices=['hybrid', 'format'], default=None,
                         help='Record framing. "hybrid" formats a header per '
-                             'record and sends the body as raw authenticated '
-                             'bytes: fast, but only the header blends in with '
-                             'the target protocol. "format" transforms every '
+                             'record and carries an authenticated ciphertext '
+                             'body: fast, but the ciphertext stays visibly '
+                             'high-entropy (HTTP adds valid chunk framing). '
+                             '"format" transforms every '
                              'byte for full-stream realism at much lower '
                              'throughput (default: the URI\'s hint, else %s).'
                              % DEFAULT_MODE)
@@ -235,14 +349,22 @@ def build_parser():
     keygen = subparsers.add_parser(
         'keygen', help='Create server.key if absent and print the connection '
                        'string.')
+    keygen.set_defaults(_parser=keygen)
     keygen.add_argument('--advertise', metavar='HOST[:PORT]', default=None,
-                        help='The address to put in the connection string.')
+                        help='The address to put in the connection string. '
+                             'Without it, keep this identity\'s existing '
+                             'endpoint or default to 127.0.0.1:8080.')
+    keygen.add_argument('--defs', metavar='RELEASE', type=_dated_release,
+                        default=fteproxy.conf.getValue('fteproxy.defs.release'),
+                        help='Definitions release to put in the connection '
+                             'string, as YYYYMMDD.')
     _state_dir_flag(keygen)
     _verbosity(keygen)
 
     formats = subparsers.add_parser(
         'formats', help='List the formats in a definitions file.')
-    formats.add_argument('--defs', metavar='RELEASE',
+    formats.set_defaults(_parser=formats)
+    formats.add_argument('--defs', metavar='RELEASE', type=_catalog_release,
                          default=fteproxy.conf.getValue('fteproxy.defs.release'),
                          help='Definitions release to list, as YYYYMMDD.')
     _verbosity(formats)
@@ -252,11 +374,12 @@ def build_parser():
                            'build the cipher, check the capacity floor, '
                            'round-trip the record layer, and confirm every '
                            'format-mode covertext matches its regex.')
-    defs_check.add_argument('--defs', metavar='RELEASE',
+    defs_check.set_defaults(_parser=defs_check)
+    defs_check.add_argument('--defs', metavar='RELEASE', type=_catalog_release,
                             default=fteproxy.conf.getValue(
                                 'fteproxy.defs.release'),
-                            help='Definitions release to validate, as YYYYMMDD '
-                                 '(or a name under examples/defs).')
+                            help='Definitions release or legacy alias to '
+                                 'validate.')
     _verbosity(defs_check)
 
     return parser
@@ -285,16 +408,15 @@ def removed_flag(argv):
 # --------------------------------------------------------------------------- #
 
 def select_defs(release):
-    """Point the definitions loader at ``release`` and load it now.
+    """Select ``release`` as the process default and load it now.
 
     Loading validates every format in the file, so a release that cannot carry
-    a handshake fails here rather than as a client that hangs.
+    a handshake fails here rather than as a client that hangs. Definitions are
+    cached by release, so changing this default needs no private cache reset.
     """
-    if fteproxy.conf.getValue('fteproxy.defs.release') != release:
-        fteproxy.conf.setValue('fteproxy.defs.release', release)
-        fteproxy.defs._definitions = None
+    fteproxy.conf.setValue('fteproxy.defs.release', release)
     try:
-        return fteproxy.defs.load_definitions()
+        return fteproxy.defs.load_definitions(release)
     except (OSError, fteproxy.defs.DefinitionsError) as e:
         raise StartupError('cannot load definitions release %s: %s'
                            % (release, e))
@@ -344,7 +466,82 @@ def parse_advertise(text, default_port):
         raise UsageError('--advertise %s' % e)
     if not host:
         raise UsageError('--advertise needs a host')
+
+    # The host is interpolated into a URI authority. Reject every character
+    # that could move text into userinfo, a path, a query or a fragment, plus
+    # the legacy sentinel which is never a usable remote address.
+    if (host == fteproxy.config.HOST_PLACEHOLDER
+            or any(char in '@/\\?#<>' or char.isspace()
+                   or ord(char) < 0x20 or 0x7f <= ord(char) <= 0x9f
+                   for char in host)):
+        raise UsageError('--advertise needs a literal IP address or safe host '
+                         'name, not URI delimiters or <server-ip>')
+    if text.startswith('['):
+        try:
+            ipaddress.IPv6Address(host)
+        except ValueError:
+            raise UsageError('--advertise brackets are only for an IPv6 '
+                             'literal')
+
+    # Prove that rendering and parsing the invitation preserves the exact
+    # address. This catches authority edge cases without duplicating the URI
+    # parser's rules here.
+    try:
+        candidate = fteproxy.config.ConnectionString(
+            b'\x00' * fteproxy.handshake.KEY_BYTES, host, port)
+        round_trip = fteproxy.config.ConnectionString.parse(candidate.format())
+    except fteproxy.config.ConfigError:
+        raise UsageError('--advertise is not safe in a connection string')
+    if round_trip.address != (host, port):
+        raise UsageError('--advertise does not round-trip as the same address')
     return host, port
+
+
+def default_advertise_host(listen_host):
+    """A valid same-host address for a listener with no ``--advertise``."""
+    if not listen_host:
+        return '127.0.0.1'
+    try:
+        address = ipaddress.ip_address(listen_host)
+    except ValueError:
+        return listen_host
+    if address.is_unspecified:
+        return '::1' if address.version == 6 else '127.0.0.1'
+    return listen_host
+
+
+def _is_wildcard_listener(host):
+    """Whether ``host`` accepts interfaces but names no remote endpoint."""
+    if not host:
+        return True
+    try:
+        return ipaddress.ip_address(host).is_unspecified
+    except ValueError:
+        return False
+
+
+def _previous_advertise(directory, public):
+    """Return the prior endpoint for this identity, if one is usable.
+
+    A listener cannot reveal the public DNS name or NAT mapping that clients
+    use.  The existing connection file records an endpoint the operator already
+    chose. Reusing only that endpoint, and only while its server-id still
+    matches, keeps a routine restart or keygen invocation from replacing a
+    working remote invitation with a valid-looking local one.
+    """
+    try:
+        text = fteproxy.config.read_connection_string(directory)
+        if not text:
+            return None
+        previous = fteproxy.config.ConnectionString.parse(text)
+    except fteproxy.config.ConfigError as e:
+        fteproxy.warn('cannot reuse the endpoint in %s: %s'
+                      % (fteproxy.config.connection_path(directory), e))
+        return None
+    if (previous.server_id != public
+            or previous.host == fteproxy.config.HOST_PLACEHOLDER):
+        return None
+    return previous.address
 
 
 # --------------------------------------------------------------------------- #
@@ -352,20 +549,32 @@ def parse_advertise(text, default_port):
 # --------------------------------------------------------------------------- #
 
 def do_keygen(args):
+    host, port = '127.0.0.1', fteproxy.config.DEFAULT_PORT
+    if args.advertise:
+        host, port = parse_advertise(args.advertise, port)
+    select_defs(args.defs)
+
     directory = resolve_state_dir(args)
     private, public, created = fteproxy.config.ensure_server_key(directory)
     del private
 
-    host, port = fteproxy.config.HOST_PLACEHOLDER, fteproxy.config.DEFAULT_PORT
-    if args.advertise:
-        host, port = parse_advertise(args.advertise, fteproxy.config.DEFAULT_PORT)
-    uri = fteproxy.config.ConnectionString(public, host, port)
+    reused_advertise = False
+    if not args.advertise:
+        previous = _previous_advertise(directory, public)
+        if previous is not None:
+            host, port = previous
+            reused_advertise = True
+
+    uri = fteproxy.config.ConnectionString(public, host, port,
+                                           defs=str(args.defs))
     path = fteproxy.config.write_connection_string(directory, uri)
 
     _report(args, '%s %s'
             % ('wrote' if created else 'kept',
                fteproxy.config.server_key_path(directory)))
     _report(args, 'connection string also written to %s' % path)
+    if reused_advertise:
+        _report(args, 'kept the previously advertised remote endpoint')
     print(uri.format())
     return EXIT_OK
 
@@ -573,10 +782,7 @@ def do_defs_check(args):
 
 
 def do_server(args):
-    select_defs(args.defs)
-    directory = resolve_state_dir(args)
-    private, public, created = fteproxy.config.ensure_server_key(directory)
-
+    # Parse every operator-controlled value before creating or modifying state.
     try:
         host, port = fteproxy.config.split_host_port(args.listen)
     except ValueError as e:
@@ -587,31 +793,84 @@ def do_server(args):
     except fteproxy.stream.InvalidRule as e:
         raise UsageError(str(e))
 
-    advertise_host, advertise_port = fteproxy.config.HOST_PLACEHOLDER, port
     if args.advertise:
         advertise_host, advertise_port = parse_advertise(args.advertise, port)
-    uri = fteproxy.config.ConnectionString(public, advertise_host,
-                                           advertise_port,
-                                           defs=str(args.defs))
-    connection_file = fteproxy.config.write_connection_string(directory, uri)
+    else:
+        local_host = default_advertise_host(host)
+        advertise_host, advertise_port = parse_advertise(
+            _render_address(local_host, port), port)
 
-    listener = fteproxy.relay.ServerListener(host, port, private, rules=rules)
+    select_defs(args.defs)
+    directory = resolve_state_dir(args, create=False)
+    fteproxy.config.validate_state_dir(directory, missing_ok=True)
+    private = fteproxy.config.load_server_key(directory)
+    if private is None:
+        private, public = fteproxy.generate_server_key()
+        created = True
+    else:
+        public = fteproxy.server_id(private)
+        created = False
+
+    listener = fteproxy.relay.ServerListener(
+        host, port, private, rules=rules, max_pending=args.max_pending,
+        max_pending_per_source=args.max_pending_per_source,
+        max_active=args.max_active,
+        max_active_per_source=args.max_active_per_source)
     try:
         listener.bind()
     except OSError as e:
+        listener.stop()
         raise StartupError('cannot listen on %s: %s' % (args.listen, e))
+    except BaseException:
+        listener.stop()
+        raise
 
-    bound_host, bound_port = listener.address
-    _report(args, 'listening on %s' % _render_address(bound_host, bound_port))
-    if not args.quiet:
-        print('key: %s%s' % (fteproxy.config.server_key_path(directory),
-                             ' (created)' if created else ''))
-        print('allowing: %s' % rules.describe())
-        print('clients connect with:')
-        print('  fteproxy client %s' % uri.format())
-        print('(also written to %s)' % connection_file)
-        sys.stdout.flush()
-    return serve_forever([listener])
+    # Keep the socket claimed while persisting its identity and invitation. A
+    # first-run bind failure therefore leaves no identity behind, and a failed
+    # restart cannot overwrite a previously working invitation.
+    try:
+        fteproxy.config.ensure_state_dir(directory)
+        winning_private, public, created = \
+            fteproxy.config.claim_server_key(directory, private)
+        if winning_private != private:
+            raise StartupError(
+                'server identity was initialized concurrently; retry so the '
+                'listener uses the stored identity')
+        reused_advertise = False
+        if not args.advertise:
+            previous = _previous_advertise(directory, public)
+            if previous is not None:
+                advertise_host, advertise_port = previous
+                reused_advertise = True
+        uri = fteproxy.config.ConnectionString(
+            public, advertise_host, advertise_port, defs=str(args.defs))
+        connection_file = fteproxy.config.write_connection_string(directory,
+                                                                    uri)
+    except BaseException:
+        listener.stop()
+        raise
+
+    try:
+        bound_host, bound_port = listener.address
+        _report(args, 'listening on %s'
+                % _render_address(bound_host, bound_port))
+        _report(args, 'key: %s%s'
+                % (fteproxy.config.server_key_path(directory),
+                   ' (created)' if created else ''))
+        _report(args, 'allowing: %s' % rules.describe())
+        _report(args, 'connection string written to %s' % connection_file)
+        if reused_advertise:
+            _report(args, 'kept the previously advertised remote endpoint')
+        elif not args.advertise and _is_wildcard_listener(host):
+            fteproxy.warn(
+                'connection.txt is local-only; use --advertise HOST[:PORT] '
+                'before sharing it with another machine')
+        if args.print_connection:
+            print(uri.format())
+            sys.stdout.flush()
+        return serve_forever([listener])
+    finally:
+        _stop_listeners([listener])
 
 
 def mode_hint_for(base):
@@ -628,16 +887,69 @@ def mode_hint_for(base):
         return None
 
 
-def do_client(args):
-    directory = resolve_state_dir(args, create=False)
+def _is_loopback_bind(host):
+    """Whether a local listener host is a literal loopback address."""
     try:
-        uri, source = fteproxy.config.resolve_client_uri(args.uri, directory)
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    if address.version == 6 and address.ipv4_mapped is not None:
+        address = address.ipv4_mapped
+    return address.is_loopback
+
+
+def do_client(args):
+    # Local listener syntax and exposure policy are independent of the secret
+    # connection source, so reject them before reading a file or stdin.
+    try:
+        socks_specs = [fteproxy.config.split_socks_spec(spec)
+                       for spec in args.socks]
+        forwards = [fteproxy.config.split_forward_spec(spec)
+                    for spec in args.forwards]
+    except ValueError as e:
+        raise UsageError(str(e))
+    if not socks_specs and not forwards:
+        socks_specs = [fteproxy.config.split_socks_spec(DEFAULT_SOCKS)]
+
+    exposed = ([('SOCKS5', bind, port) for bind, port in socks_specs
+                if not _is_loopback_bind(bind)]
+               + [('forward', bind, port) for (bind, port), _ in forwards
+                  if not _is_loopback_bind(bind)])
+    if exposed and not args.expose_listeners:
+        kind, bind, port = exposed[0]
+        raise UsageError(
+            '%s listener %s is outside loopback; use --expose-listeners to '
+            'make it reachable from other machines'
+            % (kind, _render_address(bind, port)))
+    for kind, bind, port in exposed:
+        fteproxy.warn(
+            '%s listener on %s is exposed; anyone who can reach it can use '
+            'the tunnel' % (kind, _render_address(bind, port)))
+
+    explicit_sources = sum((args.uri is not None,
+                            args.connection_file is not None,
+                            bool(args.connection_stdin)))
+    if explicit_sources > 1:
+        raise UsageError('choose only one of URI, --connection-file, or '
+                         '--connection-stdin')
+
+    directory = resolve_state_dir(args, create=False)
+    if not explicit_sources and not os.environ.get(fteproxy.config.ENV_URI):
+        # An implicit capability is trusted because it lives in private state.
+        # Refuse a directory that would let another local user read or replace
+        # it; an explicit file remains usable independently of this directory.
+        fteproxy.config.validate_state_dir(directory, missing_ok=True)
+    try:
+        uri, source = fteproxy.config.resolve_client_uri(
+            args.uri, directory, connection_file=args.connection_file,
+            input_stream=sys.stdin if args.connection_stdin else None)
     except fteproxy.config.ConfigError as e:
         raise UsageError(str(e))
     if uri is None:
         raise UsageError(
-            'no connection string. Pass one as an argument, set %s, or run '
-            'the server once so it writes %s.'
+            'no connection string. Pass one with --connection-file, '
+            '--connection-stdin or URI; set %s; or run the server once so it '
+            'writes %s.'
             % (fteproxy.config.ENV_URI,
                fteproxy.config.connection_path(directory)))
     fteproxy.debug('connection string from %s' % source)
@@ -662,18 +974,16 @@ def do_client(args):
         fteproxy.warn('format %s does not match port %d, where %s is what an '
                       'observer expects' % (args.format, uri.port, from_port))
 
-    try:
-        socks_specs = [fteproxy.config.split_socks_spec(spec)
-                       for spec in args.socks]
-        forwards = [fteproxy.config.split_forward_spec(spec)
-                    for spec in args.forwards]
-    except ValueError as e:
-        raise UsageError(str(e))
-    if not socks_specs and not forwards:
-        socks_specs = [fteproxy.config.split_socks_spec(DEFAULT_SOCKS)]
-
+    # One allocator is shared by every -D/-L listener in this client process;
+    # otherwise each additional listening port would multiply the advertised
+    # global setup bound.
+    setup_admission = fteproxy.relay._SetupAdmission(
+        args.max_pending, args.max_pending_per_source)
     common = dict(server_address=uri.address, server_id=uri.server_id,
-                  format=base, mode=mode, defs=str(defs))
+                  format=base, mode=mode, defs=str(defs),
+                  max_pending=args.max_pending,
+                  max_pending_per_source=args.max_pending_per_source,
+                  setup_admission=setup_admission)
 
     listeners = []
     for bind, port in socks_specs:
@@ -682,30 +992,39 @@ def do_client(args):
         listeners.append(fteproxy.relay.ForwardListener(
             bind, port, destination=destination, **common))
 
-    if not args.no_check and not run_startup_check(args, listeners[0], uri):
-        return EXIT_FAILURE
-
+    bound = []
     for listener in listeners:
         try:
             listener.bind()
-        except OSError as e:
-            for started in listeners:
+        except BaseException as e:
+            for started in bound:
                 started.stop()
-            raise StartupError('cannot listen on %s: %s'
-                               % (_render_address(*listener.address), e))
+            if isinstance(e, OSError):
+                raise StartupError('cannot listen on %s: %s'
+                                   % (_render_address(*listener.address), e))
+            raise
+        bound.append(listener)
 
-    for listener, spec in zip(listeners,
-                              [('SOCKS5', None) for _ in socks_specs]
-                              + [('forward', destination)
-                                 for _, destination in forwards]):
-        kind, destination = spec
-        where = _render_address(*listener.address)
-        if destination is None:
-            _report(args, 'SOCKS5 on %s' % where)
-        else:
-            _report(args, 'forwarding %s to %s through the tunnel'
-                    % (where, _render_address(*destination)))
-    return serve_forever(listeners)
+    try:
+        if not args.no_check:
+            checked = run_startup_check(args, listeners[0], uri)
+            if not checked:
+                return EXIT_FAILURE
+
+        for listener, spec in zip(
+                listeners,
+                [('SOCKS5', None) for _ in socks_specs]
+                + [('forward', destination) for _, destination in forwards]):
+            kind, destination = spec
+            where = _render_address(*listener.address)
+            if destination is None:
+                _report(args, 'SOCKS5 on %s' % where)
+            else:
+                _report(args, 'forwarding %s to %s through the tunnel'
+                        % (where, _render_address(*destination)))
+        return serve_forever(listeners)
+    finally:
+        _stop_listeners(bound)
 
 
 def run_startup_check(args, listener, uri):
@@ -752,6 +1071,15 @@ def _render_address(host, port):
 # Running
 # --------------------------------------------------------------------------- #
 
+def _stop_listeners(listeners):
+    """Best-effort cleanup that never masks the error which triggered it."""
+    for listener in listeners:
+        try:
+            listener.stop()
+        except Exception:
+            pass
+
+
 def serve_forever(listeners):
     """Run ``listeners`` in the foreground until SIGINT or SIGTERM.
 
@@ -765,25 +1093,55 @@ def serve_forever(listeners):
         stopping.set()
 
     previous = {}
-    for signum in (signal.SIGINT, signal.SIGTERM):
-        try:
-            previous[signum] = signal.signal(signum, _stop)
-        except ValueError:
-            # Not the main thread (an embedding program calling main()).
-            pass
-
-    for listener in listeners:
-        listener.daemon = True
-        listener.start()
+    started = []
+    status = EXIT_OK
     try:
-        while not stopping.is_set() and any(l.is_alive() for l in listeners):
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            try:
+                previous[signum] = signal.signal(signum, _stop)
+            except ValueError:
+                # Not the main thread (an embedding program calling main()).
+                pass
+
+        # Listener sockets are already bound. Keep startup inside the cleanup
+        # region so a later listener whose thread cannot start does not strand
+        # the earlier sockets or our temporary signal handlers.
+        try:
+            for listener in listeners:
+                listener.daemon = True
+                listener.start()
+                started.append(listener)
+        except Exception as e:
+            fteproxy.logger.error('could not start listener: %s' % e)
+            status = EXIT_FAILURE
+
+        while status == EXIT_OK and started and not stopping.is_set():
+            failures = [
+                (listener, getattr(listener, 'terminal_error', None))
+                for listener in started
+                if getattr(listener, 'terminal_error', None) is not None
+            ]
+            if failures:
+                for _listener, error in failures:
+                    fteproxy.logger.error('listener failed: %s' % error)
+                status = EXIT_FAILURE
+                break
+
+            # A listener which simply falls out of run() is also a failed
+            # service, even if an unexpected exception kept it from recording
+            # a more useful terminal_error.
+            if any(not listener.is_alive() for listener in started):
+                fteproxy.logger.error('listener stopped unexpectedly')
+                status = EXIT_FAILURE
+                break
             stopping.wait(0.5)
     finally:
-        for listener in listeners:
-            listener.stop()
-        for signum, handler in previous.items():
-            signal.signal(signum, handler)
-    return EXIT_OK
+        try:
+            _stop_listeners(listeners)
+        finally:
+            for signum, handler in previous.items():
+                signal.signal(signum, handler)
+    return status
 
 
 # --------------------------------------------------------------------------- #
@@ -820,7 +1178,7 @@ def main(argv=None):
     try:
         return _COMMANDS[args.command](args)
     except UsageError as e:
-        parser.error(str(e))  # exits 2
+        args._parser.error(str(e))  # exits 2 with the selected command's usage
     except (StartupError, fteproxy.config.ConfigError) as e:
         fteproxy.logger.error(str(e))
         return EXIT_FAILURE

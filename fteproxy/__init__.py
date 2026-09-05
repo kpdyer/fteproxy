@@ -4,7 +4,6 @@
 __version__ = "1.0.0"
 
 import os
-import sys
 import hmac
 import collections
 import functools
@@ -18,6 +17,7 @@ import time
 import fteproxy.conf
 import fteproxy.defs
 import fteproxy.handshake
+import fteproxy.key_codec
 import fteproxy.record_layer
 import fteproxy.stream
 
@@ -85,8 +85,9 @@ def _hybrid_mode():
     """Whether this end's *default* record-layer mode is 'hybrid'.
 
     'hybrid' (the default) formats only a fixed-length header per record and
-    carries the body as raw authenticated bytes: much faster for bulk transfer,
-    but everything past the header looks like random data. 'format' (opt-in)
+    carries an authenticated ciphertext body: much faster for bulk transfer,
+    but the body remains visibly high entropy. A carrier may wrap that body in
+    protocol-native framing (HTTP uses chunked encoding). 'format' (opt-in)
     transforms every covertext byte into the target format for full-stream
     realism. See ``runtime.fteproxy.record_layer.mode`` in ``fteproxy.conf``.
 
@@ -179,7 +180,10 @@ class RedactingFilter(logging.Filter):
 
     _PATTERNS = (
         # A connection string: keep the shape, drop the server-id.
-        (re.compile(r'fte://[A-Za-z0-9_\-]+@'), 'fte://…@'),
+        # Redact the whole authority token even when it is malformed. Strict
+        # parsing rejects junk, but a parse error or debug message must not
+        # become a way to log the secret-bearing input.
+        (re.compile(r'fte://[^@\s]+@'), 'fte://…@'),
         # 16 bytes or more of hex: a key, a MAC, or a transcript hash.
         (re.compile(r'(?<![0-9A-Fa-f])[0-9A-Fa-f]{32,}(?![0-9A-Fa-f])'),
          '<redacted>'),
@@ -211,19 +215,6 @@ Logging goes to stderr, never stdout, so a command whose output is data (for
 example ``fteproxy formats``) stays pipeable.
 """
 logger.addFilter(RedactingFilter())
-
-
-def fatal_error(msg):
-    """Log ``msg`` at ERROR and terminate with exit status 1.
-
-    Reserved for conditions from which no connection can recover, such as a
-    format provider that breaks libfte's ranking contract. Callers that can
-    report a failure to their own caller should raise instead: this raises
-    ``SystemExit``, which only unwinds the calling thread when it is not the
-    main one.
-    """
-    logger.error(msg)
-    sys.exit(1)
 
 
 def warn(msg):
@@ -316,12 +307,12 @@ _last_matched_format = None
 _replay_filter = fteproxy.handshake.ReplayFilter()
 
 
-def _format_pair(base):
+def _format_pair(base, definitions=None):
     """``('base-request', 'base-response')``, validated against the
     definitions."""
     request, response = base + '-request', base + '-response'
-    fteproxy.defs.getRegex(request)
-    fteproxy.defs.getRegex(response)
+    fteproxy.defs.getRegex(request, definitions)
+    fteproxy.defs.getRegex(response, definitions)
     return request, response
 
 
@@ -370,11 +361,10 @@ def _spec_cipher(spec, length, key, build=None):
                           fteproxy.defs.spec_framing(spec), build=build)
 
 
-def _cipher_for(format_name, key, cover=False):
+def _cipher_for(format_name, key, cover=False, definitions=None):
+    spec = fteproxy.defs._spec(format_name, definitions)
     build = _cover_cipher if cover else _make_cipher
-    return _framed_cipher(fteproxy.defs.getRegex(format_name),
-                          fteproxy.defs.getLength(format_name), key,
-                          fteproxy.defs.get_framing(format_name), build=build)
+    return _spec_cipher(spec, fteproxy.defs.spec_length(spec), key, build=build)
 
 
 # --------------------------------------------------------------------------- #
@@ -433,7 +423,7 @@ def hybrid_header_length(spec):
     run in hybrid mode at all.
 
     **Why it is not ``max_length``.** A hybrid header carries four bytes: the
-    length of the raw body behind it. Sealing that at the format's longest
+    length of the authenticated body behind it. Sealing that at the format's longest
     covertext -- which is what the handshake and the server's first-record scan
     have to do -- buys nothing and costs a great deal, because ranking a
     covertext gets superlinearly more expensive as it gets longer: sealing
@@ -452,18 +442,19 @@ def hybrid_header_length(spec):
     and its hybrid framing is unchanged.
     """
     return _hybrid_header_length(
-        spec['regex'], fteproxy.defs.spec_framing(spec),
+        fteproxy.defs.spec_hybrid_regex(spec),
+        fteproxy.defs.spec_framing(spec),
         tuple(fteproxy.defs.spec_allowed_lengths(spec)))
 
 
-def _hybrid_header_cipher(format_name, key):
+def _hybrid_header_cipher(format_name, key, definitions=None):
     """The cipher one direction's hybrid headers are sealed with.
 
     Raises :class:`HybridUnsupportedError` rather than falling back to
     ``max_length``: a silent fallback would be a format running in a mode it
     cannot carry, which shows up as a connection that will not decode.
     """
-    spec = fteproxy.defs._spec(format_name)
+    spec = fteproxy.defs._spec(format_name, definitions)
     length = hybrid_header_length(spec)
     if length is None:
         raise HybridUnsupportedError(
@@ -471,10 +462,11 @@ def _hybrid_header_cipher(format_name, key):
             'header (it emits %r), so it cannot run in hybrid mode'
             % (format_name, fteproxy.record_layer.HYBRID_HEADER_BYTES,
                fteproxy.defs.spec_allowed_lengths(spec)))
-    return _spec_cipher(spec, length, key)
+    return _framed_cipher(fteproxy.defs.spec_hybrid_regex(spec), length, key,
+                          fteproxy.defs.spec_framing(spec))
 
 
-def _check_hybrid_supported(base, mode):
+def _check_hybrid_supported(base, mode, definitions=None):
     """Refuse ``hybrid`` unless *both* directions of ``base`` can carry a header.
 
     A session seals one direction with each entry, so one direction with no room
@@ -490,8 +482,8 @@ def _check_hybrid_supported(base, mode):
     """
     if mode != fteproxy.handshake.MODE_HYBRID:
         return
-    for name in _format_pair(base):
-        if hybrid_header_length(fteproxy.defs._spec(name)) is None:
+    for name in _format_pair(base, definitions):
+        if hybrid_header_length(fteproxy.defs._spec(name, definitions)) is None:
             raise HybridUnsupportedError(
                 'format %s has no covertext length that can hold a %d-byte '
                 'hybrid header, so %s cannot run in hybrid mode; use '
@@ -515,17 +507,17 @@ def _variable_lengths_for_spec(spec, key):
         framing=fteproxy.defs.spec_framing(spec))
 
 
-def _variable_for(format_name, key):
+def _variable_for(format_name, key, definitions=None):
     """The :class:`~fteproxy.record_layer.VariableLength` for a loaded format
     name, or ``None`` if that format is fixed length (which leaves its framing
     exactly as it was)."""
-    spec = fteproxy.defs._spec(format_name)
+    spec = fteproxy.defs._spec(format_name, definitions)
     if not fteproxy.defs.spec_is_variable(spec):
         return None
     return _variable_lengths_for_spec(spec, key)
 
 
-def _session_channel(base, mode, keys, is_client):
+def _session_channel(base, mode, keys, is_client, definitions=None):
     """Build the ``(Encoder, Decoder)`` pair for one end of a session.
 
     Each direction gets its own header key and body key, so the two directions
@@ -533,8 +525,8 @@ def _session_channel(base, mode, keys, is_client):
 
     In ``format`` mode a variable-length format also gets the ciphers for every
     length it may emit; in ``hybrid`` mode it does not, because a hybrid record
-    is a fixed-length header plus a raw body and only the header is in the
-    format at all.
+    is a fixed-length header plus an authenticated body. Only the header is
+    format-transformed; a definition may add protocol framing around the body.
 
     A hybrid header is sealed at :func:`hybrid_header_length`, not at the
     format's ``max_length``: it carries four bytes, so it is put in the shortest
@@ -544,27 +536,39 @@ def _session_channel(base, mode, keys, is_client):
     two header ciphers are identical and the decoder's frame size follows from
     its own without anything being negotiated.
     """
-    request, response = _format_pair(base)
+    request, response = _format_pair(base, definitions)
     outgoing, incoming = ((request, response) if is_client
                           else (response, request))
     out_header, out_body = keys.outgoing(is_client)
     in_header, in_body = keys.incoming(is_client)
     hybrid = (mode == fteproxy.handshake.MODE_HYBRID)
-    header_cipher = _hybrid_header_cipher if hybrid else _cipher_for
+    def header_cipher(name, key):
+        if hybrid:
+            return _hybrid_header_cipher(name, key, definitions)
+        return _cipher_for(name, key, definitions=definitions)
+
     encoder = fteproxy.record_layer.Encoder(
         cipher=header_cipher(outgoing, out_header),
         body_cipher=_make_body_cipher(out_body) if hybrid else None,
-        variable=None if hybrid else _variable_for(outgoing, out_header))
+        variable=None if hybrid else _variable_for(
+            outgoing, out_header, definitions),
+        hybrid_framing=(fteproxy.defs.spec_hybrid_framing(
+            fteproxy.defs._spec(outgoing, definitions)) if hybrid
+            else fteproxy.defs.HYBRID_FRAMING_RAW))
     decoder = fteproxy.record_layer.Decoder(
         cipher=header_cipher(incoming, in_header),
         body_cipher=_make_body_cipher(in_body) if hybrid else None,
-        variable=None if hybrid else _variable_for(incoming, in_header))
+        variable=None if hybrid else _variable_for(
+            incoming, in_header, definitions),
+        hybrid_framing=(fteproxy.defs.spec_hybrid_framing(
+            fteproxy.defs._spec(incoming, definitions)) if hybrid
+            else fteproxy.defs.HYBRID_FRAMING_RAW))
     return encoder, decoder
 
 
-def _request_scan_order():
+def _request_scan_order(definitions=None):
     """Candidate request formats, most-recently-matched first."""
-    definitions = fteproxy.defs.load_definitions()
+    definitions = fteproxy.defs._catalog(definitions)
     names = [name for name in definitions if name.endswith('-request')]
     preferred = _last_matched_format
     if preferred in names:
@@ -628,7 +632,11 @@ class _FTESocketWrapper(object):
         self._server_public = server_public
         self._format = format
         self._mode = mode
-        self._defs = defs
+        self._defs = int(defs)
+        # A connection keeps one release-scoped catalog.  Every format and
+        # cipher lookup below uses this mapping instead of whichever release a
+        # different caller most recently selected in process-global config.
+        self._definitions = fteproxy.defs.load_definitions(self._defs)
         self._cover_key = fteproxy.handshake.cover_key(server_public)
 
         self._handshake_lock = threading.RLock()
@@ -700,16 +708,21 @@ class _FTESocketWrapper(object):
                 self._decode(leftover)
 
     def _client_handshake(self):
-        request, response = _format_pair(self._format)
+        request, response = _format_pair(self._format, self._definitions)
         # Before a byte goes out: a mode this format cannot carry is this end's
         # own configuration error, and it should read as one rather than as a
         # server that would not answer.
-        _check_hybrid_supported(self._format, self._mode)
+        _check_hybrid_supported(
+            self._format, self._mode, self._definitions)
         driver = fteproxy.handshake.ClientHandshake(
             server_public=self._server_public, format=self._format,
             mode=self._mode, defs=self._defs)
-        request_cipher = _cipher_for(request, self._cover_key, cover=True)
-        response_cipher = _cipher_for(response, self._cover_key, cover=True)
+        request_cipher = _cipher_for(
+            request, self._cover_key, cover=True,
+            definitions=self._definitions)
+        response_cipher = _cipher_for(
+            response, self._cover_key, cover=True,
+            definitions=self._definitions)
 
         sealed = fteproxy.record_layer._seal(request_cipher,
                                              driver.hello_bytes, 0)
@@ -741,7 +754,8 @@ class _FTESocketWrapper(object):
         self._negotiated_format = self._format
         self._negotiated_mode = self._mode
         self._encoder, self._decoder = _session_channel(
-            self._format, self._mode, keys, is_client=True)
+            self._format, self._mode, keys, is_client=True,
+            definitions=self._definitions)
         self._handshake_done = True
         fteproxy.debug('handshake complete: protocol 1, %s, %s'
                        % (self._format, self._mode))
@@ -807,13 +821,15 @@ class _FTESocketWrapper(object):
         :class:`HandshakeFailedException` once it cannot be one.
         """
         buffered = self._pre_handshake_incoming
-        for name in _request_scan_order():
+        for name in _request_scan_order(self._definitions):
             if name in self._failed_formats:
                 continue
-            length = fteproxy.defs.getLength(name)
+            length = fteproxy.defs.getLength(name, self._definitions)
             if len(buffered) < length:
                 continue
-            cipher = _cipher_for(name, self._cover_key, cover=True)
+            cipher = _cipher_for(
+                name, self._cover_key, cover=True,
+                definitions=self._definitions)
             try:
                 plaintext = cipher.decrypt(buffered[:length])
             except fte.FTEError:
@@ -836,7 +852,8 @@ class _FTESocketWrapper(object):
         try:
             hello, reply_bytes, keys = fteproxy.handshake.accept_client_hello(
                 hello_bytes, self._server_key, self._server_public,
-                defs=self._defs, formats=fteproxy.defs.base_names(),
+                defs=self._defs,
+                formats=fteproxy.defs.base_names(self._definitions),
                 replay=_replay_filter)
         except fteproxy.handshake.HandshakeError as e:
             raise HandshakeFailedException(str(e))
@@ -847,10 +864,11 @@ class _FTESocketWrapper(object):
         # then either one unseals the other's covertext. Comparing the names
         # would refuse a client that did nothing wrong.
         base = hello.format
-        request, response = _format_pair(base)
-        if (fteproxy.defs.getRegex(request), fteproxy.defs.getLength(request)) \
-                != (fteproxy.defs.getRegex(matched),
-                    fteproxy.defs.getLength(matched)):
+        request, response = _format_pair(base, self._definitions)
+        if (fteproxy.defs.getRegex(request, self._definitions),
+                fteproxy.defs.getLength(request, self._definitions)) \
+                != (fteproxy.defs.getRegex(matched, self._definitions),
+                    fteproxy.defs.getLength(matched, self._definitions)):
             raise HandshakeFailedException('hello format does not match its '
                                            'covertext format')
 
@@ -859,11 +877,13 @@ class _FTESocketWrapper(object):
         # a hybrid header is rejected like any other hello this server will not
         # serve, rather than after a server hello has already gone out.
         try:
-            _check_hybrid_supported(base, hello.mode)
+            _check_hybrid_supported(base, hello.mode, self._definitions)
         except HybridUnsupportedError as e:
             raise HandshakeFailedException(str(e))
 
-        response_cipher = _cipher_for(response, self._cover_key, cover=True)
+        response_cipher = _cipher_for(
+            response, self._cover_key, cover=True,
+            definitions=self._definitions)
         try:
             self._socket.sendall(
                 fteproxy.record_layer._seal(response_cipher, reply_bytes, 0))
@@ -873,7 +893,8 @@ class _FTESocketWrapper(object):
         self._negotiated_format = base
         self._negotiated_mode = hello.mode
         self._encoder, self._decoder = _session_channel(
-            base, hello.mode, keys, is_client=False)
+            base, hello.mode, keys, is_client=False,
+            definitions=self._definitions)
         self._handshake_done = True
         _last_matched_format = matched
         self._pre_handshake_incoming = b''
@@ -1162,6 +1183,16 @@ class _FTESocketWrapper(object):
         return ((self._peer_closed or self._broken)
                 and not self._incoming_buffer)
 
+    def pending_read(self):
+        """Whether :meth:`recv` can return without reading the raw socket.
+
+        A control-record waiter can decode application DATA from the same raw
+        read as its answer and leave that DATA in ``_incoming_buffer``. Code
+        polling the wrapper must consult this logical readiness rather than
+        relying exclusively on the underlying descriptor.
+        """
+        return bool(self._incoming_buffer) or self.pending_eof()
+
     def reject_and_close(self):
         """Finish a connection whose handshake failed, then close it.
 
@@ -1347,14 +1378,14 @@ def _as_key_bytes(value, what):
                              % (what, fteproxy.handshake.KEY_BYTES))
         return bytes(value)
     if isinstance(value, str):
-        import base64
-        padded = value + '=' * (-len(value) % 4)
         try:
-            raw = base64.urlsafe_b64decode(padded)
-        except (ValueError, TypeError):
-            raise ValueError('%s is not valid base64url' % what)
-        if len(raw) != fteproxy.handshake.KEY_BYTES:
-            raise ValueError('%s must decode to %d bytes'
-                             % (what, fteproxy.handshake.KEY_BYTES))
-        return raw
+            return fteproxy.key_codec.decode_server_id(value)
+        except ValueError as exc:
+            raise ValueError('%s is not valid canonical base64url: %s'
+                             % (what, exc)) from exc
     raise TypeError('%s must be bytes or a base64url string' % what)
+
+
+# Keep the package root as the documented public facade. Imported last because
+# ``fteproxy.config`` uses package logging helpers while it is being defined.
+from fteproxy.config import ConnectionString  # noqa: E402,F401

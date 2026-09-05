@@ -36,12 +36,9 @@ SHAPE_FORMAT = 'manual-http-request'
 def _shape_catalog():
     """Point the loader at the shape catalog for this module, then restore."""
     previous = fteproxy.conf.getValue('fteproxy.defs.release')
-    saved = fteproxy.defs._definitions
     fteproxy.conf.setValue('fteproxy.defs.release', SHAPE_CATALOG)
-    fteproxy.defs._definitions = None
     yield
     fteproxy.conf.setValue('fteproxy.defs.release', previous)
-    fteproxy.defs._definitions = saved
 
 
 @pytest.fixture
@@ -157,18 +154,16 @@ class TestDecoderExceptionHandling:
     def test_unrecoverable_error_not_swallowed_in_onecell_mode(self):
         """A fatal decryption error must not be silently swallowed.
 
-        ``fatal_error()`` raises ``SystemExit``; a ``break`` in a ``finally``
-        block swallows it and lets pop() return normally, silently discarding a
-        fatal condition. With ``oneCell=True`` (the negotiation path) the error
-        must still propagate. ``fte.FormatContractError`` (a broken format
-        provider) is the condition that keeps libfte 0.3's
-        ``UnrecoverableDecryptionError`` semantics under 0.4.
+        A ``break`` in a ``finally`` block must not swallow the provider's
+        ``FormatContractError`` and silently discard a fatal condition. With
+        ``oneCell=True`` (the negotiation path) the error still propagates to
+        the embedding application rather than terminating its process.
         """
         decoder = fteproxy.record_layer.Decoder(
             cipher=_RaisingCipher(fte.FormatContractError("boom")))
         decoder.push(b'some-ciphertext-bytes')
 
-        with pytest.raises(SystemExit):
+        with pytest.raises(fte.FormatContractError, match='boom'):
             decoder.pop(limit=1)
 
     def test_limit_returns_exactly_one_record(self):

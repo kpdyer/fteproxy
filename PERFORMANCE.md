@@ -9,10 +9,27 @@ unless marked *estimated*.
 |---|---|
 | commit | `34b6def` (fteproxy 1.0.0) |
 | definitions | release `20260903` — `http`, `ftp`, `smtp`, `sip`, `dns` |
-| default configuration | format `http`, mode `hybrid` (header sealed at 200 B, raw body) |
+| measured default configuration | format `http`, mode `hybrid` (200 B base-regex header + raw body; superseded) |
 | machine | Apple M3 Pro, 12 cores, 36 GB, macOS 26.6.2 (arm64) |
 | interpreter | CPython 3.12.14, `fte` 0.4.0, `cryptography` 50.0.1 (OpenSSL backend) |
 | date | 2026-09-03, loopback only |
+
+The measurements at commit `34b6def` predate the HTTP carrier-framing
+correction. Current HTTP hybrid records use a separate
+`Transfer-Encoding: chunked` header and wrap the same encrypted body in one
+chunk plus the terminal zero chunk. The body wrapper adds no additional DFA or
+cryptographic pass and only `len(format(B, "x")) + 9` wire bytes for a
+non-empty body of `B` bytes (14 bytes at the relay's 256 KiB payload size). The header does use
+a different DFA, however, so the timing tables below are a pre-correction
+reference, not a measurement of the final path; claims about the added framing
+bytes are derived. Re-run the benchmark before quoting final header latency or
+sub-percent wire rates.
+
+All measurements use a direct, byte-preserving TCP path. Passing this carrier
+through an HTTP intermediary is unsupported: header rewriting or
+dechunking/rechunking breaks the tunnel. The benchmark also does not measure
+HTTP semantic realism. Request and response records are generated independently
+and need not form balanced or correlated transactions.
 
 Reproduce:
 
@@ -43,34 +60,38 @@ timer instead.
    has been true since 0.3 and is unchanged: the network is the bottleneck and
    FTE is invisible. Everything below is about LAN/datacenter-speed links and
    interactive latency.
-2. **On the shipped default a record costs one 200-byte covertext: 0.162 ms
-   for the header pair.** A 64 B round trip costs 0.50 ms end to end; bulk runs
-   at 612 MB/s through the record layer at the relay's 256 KiB record size, and
-   the relay gets 3.5 Gbit/s of 8 MiB echo out of it against 5.8 Gbit/s for
-   plain TCP — 5.0 Gbit/s once the one connection setup each transfer pays is
-   netted out (*derived*).
+2. **In the pre-correction measurement, the default's 200-byte covertext cost
+   0.162 ms for the header pair.** A 64 B round trip cost 0.50 ms end to end;
+   bulk ran at 612 MB/s through the record layer at the relay's 256 KiB payload
+   size, and the relay got 3.5 Gbit/s of 8 MiB echo against 5.8 Gbit/s for plain
+   TCP — 5.0 Gbit/s once the one connection setup each transfer paid was
+   netted out (*derived*). The final chunked header DFA needs remeasurement.
 3. **The single biggest change since the last revision is where a hybrid
    header is sealed.** It used to go out at the format's `max_length` (700 B on
    `http`); it now goes out at the shortest length whose cipher holds the
    16-byte header — 200 B on `http`. Covertext cost grows faster than linearly
-   with length, so that is 7.4x off the per-record cost (1.20 ms → 0.162 ms),
-   5.0x off interactive latency and 3.1x on 8 MiB bulk. See *Historical* for
-   the side-by-side.
-4. **The body is now the larger half of a bulk record**: 58% of a 256 KiB
-   record against the header's 38%. For two years the header was the thing to
-   attack; it no longer is.
+   with length; on the measured pre-correction regex that took 7.4x off the
+   per-record cost (1.20 ms → 0.162 ms), 5.0x off interactive latency and 3.1x
+   on 8 MiB bulk. The final hybrid regex keeps the 200-byte choice but needs a
+   new timing. See *Historical* for the measured side-by-side.
+4. **The body was the larger half of a bulk record in that measurement**: 58%
+   of the compute time for a 256 KiB payload against the header's 38%. The
+   corrected path needs remeasurement before assigning final percentages.
 5. **`format` mode (every byte in the target format) is interactive-only:**
    comparable RTT to the default (0.49 ms on `smtp`, 0.66 ms on `dns`, against
    0.50 ms on `http`/hybrid) and 2.7–5.0 Mbit/s of bulk. That cost is inherent to
    the mode: the DFA runs on every covertext, which carries 7–168 bytes on
    `smtp` and 9–141 on `dns`.
 6. **Four of the five shipped formats run in `format` mode by design, so point
-   5 is their normal operating point.** `http` is `mode_hint: hybrid` (an HTTP
-   message with a raw body is what HTTP looks like); the line protocols `ftp`,
-   `smtp`, `sip` and the binary `dns` are `mode_hint: format`, because a line
-   protocol has no place to put a high-entropy tail. Expect **0.4–0.6 MB/s**
-   and sub-millisecond added latency on those four — fine for a shell, a chat,
-   or SOCKS-proxied browsing of text, and not a bulk-transfer channel.
+   5 is their normal operating point.** `http` is `mode_hint: hybrid`: its
+   handshake and format-mode grammar describes a complete zero-body message,
+   while its hybrid grammar advertises a body on `POST` requests and
+   body-permitted responses with `Transfer-Encoding: chunked`. The line
+   protocols `ftp`, `smtp`, `sip` and the binary `dns` are `mode_hint: format`,
+   because a line or self-delimiting protocol has no place to put a
+   high-entropy tail. Expect **0.4–0.6 MB/s** and sub-millisecond added latency
+   on those four — fine for a shell, a chat, or SOCKS-proxied browsing of text,
+   and not a bulk-transfer channel.
 7. **A DFA is compiled per (pattern, length) and then cached for the life of
    the process.** Loading the definitions compiles every format's `max_length`
    at startup (165 ms, both ends); the *other* lengths are compiled on demand,
@@ -108,13 +129,13 @@ two directions and the two processes overlap.
 On the shaped links (`broadband` 25 Mbit and slower) fteproxy matches plain TCP
 within measurement noise, as it did on 0.3; those rows are omitted.
 
-### Record layer alone (no sockets), `hybrid` mode
+### Record layer alone (no sockets), pre-correction `hybrid` mode
 
 Median encrypt+decrypt round trip through `fteproxy.record_layer`, one record
 per row, p50 (range) over three runs. The header is one sealed covertext at
 `fteproxy.hybrid_header_length` — 200 bytes on `http`, 80 on `smtp`.
 
-Shipped `http` (200-byte header):
+The pre-correction `http` carrier (200-byte base-regex header, raw body):
 
 | message | ms/record | MB/s | wire bytes | expansion |
 |---|---:|---:|---:|---:|
@@ -133,11 +154,13 @@ direction is shorter still, at 64):
 | 256 KiB | 0.329 (0.328–0.330) | 797 (794–800) | 262253 | 1.0004x |
 | 1 MiB | 1.053 (1.009–1.055) | 996 (994–1040) | 1048685 | 1.0001x |
 
-Split of one `http` record: the 200-byte header costs **0.162 ms** (0.083 to
-seal, 0.079 to open) and does not depend on the payload; the AE body costs
-0.250 ms per 256 KiB and 0.959 ms per MiB round trip (~1.05 GB/s). So the
-header is 38% of a relay-sized record and 14% of a maximal one, and the two
-formats' 256 KiB rows differ by exactly their header pair (0.162 vs 0.064 ms).
+In that measurement, the 200-byte `http` header cost **0.162 ms** (0.083 to
+seal, 0.079 to open) and did not depend on the payload; the AE body cost 0.250
+ms per 256 KiB and 0.959 ms per MiB round trip (~1.05 GB/s). The header was 38%
+of a relay-sized record and 14% of a maximal one, and the two formats' 256 KiB
+rows differed by exactly their header pair (0.162 vs 0.064 ms). Current HTTP
+uses a different hybrid-header regex and adds chunk framing, so those timing
+shares are reference values only.
 
 ### Record layer alone, `format` mode, per covertext length
 
@@ -145,8 +168,8 @@ Every record is one covertext; the encoder picks the length per record
 (`VariableLength.choose_length`), so a stream's cost is a mix of these rows —
 biased long when a lot is queued, short when the payload fits in one record.
 
-`http-request` (the format-mode shape; its 200-byte row is also what a hybrid
-header costs to seal and open):
+`http-request` (the base format-mode shape; the current hybrid header uses its
+separate `hybrid_regex`, so this table does not measure that header):
 
 | covertext length | 200 | 271 | 343 | 414 | 486 | 557 | 629 | 700 |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -240,7 +263,7 @@ AE primitives, the relay's thread and destination dial.
 
 ---
 
-## Where the time goes (default: `http`, `hybrid`)
+## Where the time goes (current layout; pre-correction timings)
 
 ```
 app → [client relay] ──FTE──→ [server relay] → dest
@@ -250,17 +273,26 @@ app → [client relay] ──FTE──→ [server relay] → dest
           per record:                per record:
           1 sealed 200 B header      1 header rank+verify   0.162 ms the pair
             (DFA unrank, AE)         + body HMAC + AES-CTR  0.959 ms/MiB the pair
+          + HTTP chunk-size line
           + body AES-CTR + HMAC
+          + terminal zero chunk
 ```
 
-- A record is one 200-byte formatted header plus a raw body. The relay hands at
-  most `2**18` bytes to `send()` per read (`network_io.recvall_from_socket`), so
-  records are ≤ 256 KiB and each pays one 0.162 ms header — **38% of a
-  relay-sized record**, or 0.65 ms per MiB of goodput. The 1 MiB body cap is
-  never reached in the relay.
-- **The body is the bigger half now.** 0.250 ms of a 256 KiB record's 0.428 ms
-  is AES-CTR + HMAC-SHA256 over the body, at ~1.05 GB/s round trip. Header 38%,
-  body 58%, framing and buffer handling the remaining 4%.
+- A record is one 200-byte formatted header, one HTTP chunk containing the
+  authenticated body, and the terminal zero chunk. The relay hands at most
+  `2**18` bytes of application data to `send()` per read
+  (`network_io.recvall_from_socket`). At that maximum the encrypted body is
+  256 KiB + 29 bytes, its five-hex-digit chunk framing adds 14 bytes, and the
+  complete wire record is 256 KiB + 243 bytes. In the pre-correction
+  measurement, one 0.162 ms header was **38% of the compute time for a
+  relay-sized record**, or 0.65 ms per MiB of goodput. The final header timing
+  has not been measured. The 1 MiB application-payload cap is never reached in
+  the relay.
+- **The body was the bigger half in that measurement.** AES-CTR + HMAC-SHA256
+  took 0.250 ms of a 256 KiB record's 0.428 ms, at ~1.05 GB/s round trip:
+  header 38%, body 58%, framing and buffer handling the remaining 4%. Writing
+  and checking HTTP's 14 deterministic bytes is expected to fit inside that
+  rounding, but the different hybrid-header DFA also needs remeasurement.
 - **A hybrid header carries four bytes and is sealed in the shortest covertext
   that holds them.** `hybrid_header_length` measures each allowed length's real
   capacity and takes the first that fits `HYBRID_HEADER_BYTES` = 16: 200 on
@@ -269,28 +301,32 @@ app → [client relay] ──FTE──→ [server relay] → dest
   definitions entry.
 - **Seal padding is cheap at this length.** `_seal` pads the plaintext to the
   cipher's full capacity so a short message cannot rank low and unrank into a
-  degenerate covertext. At length 200 that capacity is 63 bytes: encrypting the
-  bare 16 costs 0.050 ms and the padded 63 costs 0.077 ms, so realism costs 1.5x
-  here. At 700 the same rule cost 6x (0.108 ms against 0.646), because the
-  capacity there is 448 bytes.
+  degenerate covertext. The measured base regex held 63 bytes at length 200:
+  encrypting the bare 16 cost 0.050 ms and the padded 63 cost 0.077 ms, so
+  realism cost 1.5x there. The current hybrid request/response regexes hold 40
+  and 45 bytes at length 200; their padding cost has not been remeasured. At
+  700 the old base regex held 448 bytes and the same rule cost 6x (0.108 ms
+  against 0.646).
 - **A new length costs one DFA compile, once per process** (2.4–9.9 ms on
   `http`, 2.9–5.0 ms on `dns`), and nothing thereafter: the tables are cached on
   `(pattern, length)` and shared read-only by every connection and thread. The
   set of lengths is small (eight) precisely because of this; a continuous range
   would be one compile per byte.
-- Interactive traffic: one 64 B message costs one 200-byte header plus a 93-byte
-  body — 293 B on the wire, **4.58x expansion**, and 0.173 ms of CPU per
+- Interactive traffic: one 64 B message now costs one 200-byte header, a
+  93-byte authenticated body and 11 bytes of chunk framing — 304 B on the wire,
+  **4.75x expansion**. Its pre-correction CPU measurement was 0.173 ms per
   direction. In `format` mode the same message is one covertext at the shortest
   length whose capacity holds it (`choose_length` never picks a shorter one):
   271 B and 0.254 ms on `http` (a 200-byte covertext carries only 50 payload
   bytes), 183 B and 0.143 ms on `smtp`, 168 B and 0.155 ms on `dns`.
-- Connection setup on the default is 5.7 ms, and it is records rather than
-  crypto: the two hellos are sealed at the format's `max_length` (700 B on
-  `http`, 1.25 ms each round trip) because the server has to scan for them, and
-  the OPEN, OPEN_RESULT and first data record are hybrid records at 0.17 ms —
-  about 3.0 ms of the 5.7 — against 0.31 ms for both X25519 key generations and
-  the exchange; the rest is the two TCP dials and the setup thread. The same
-  handshake on `smtp` costs 3.8 ms, on `dns` 4.2 ms.
+- Connection setup measured 5.7 ms before the carrier correction, and records
+  rather than crypto dominated it: the two hellos were sealed at the format's
+  `max_length` (700 B on `http`, 1.25 ms each round trip) because the server has
+  to scan for them, and the OPEN, OPEN_RESULT and first data record were hybrid
+  records at 0.17 ms — about 3.0 ms of the 5.7 — against 0.31 ms for both X25519
+  key generations and the exchange; the rest was the two TCP dials and setup
+  thread. The handshake still uses the same zero-body base regex, but the three
+  post-handshake records now use the unmeasured chunked header DFA.
 - Sealing's random pad (`os.urandom`), per-record `Cipher` construction, buffer
   concatenation and the body/remainder slices are each under 1% of a record.
 - In `format` mode every covertext is one DFA rank/unrank, so the payload per
@@ -343,28 +379,32 @@ app → [client relay] ──FTE──→ [server relay] → dest
    handshake now finishes on a setup thread before either worker starts — so
    what is left is the GIL convoy, and the shape to try is one `selectors` loop
    per connection handling both directions. Not re-measured in this run; still
-   not a drive-by. With the header down to 0.162 ms this is now the largest
-   remaining relay-side cost.
+   not a drive-by. With the header at 0.162 ms in the pre-correction
+   measurement, this became the largest measured relay-side cost; remeasure the
+   final header before ranking it precisely.
 2. **A faster body cipher** (medium effort, wire change). The body is 58% of a
-   256 KiB record now that the header is 200 bytes, so it has overtaken the
-   header as the thing to attack. AES-GCM through the same OpenSSL backend
-   would replace CTR + a separate HMAC pass over the same bytes (*estimated*);
-   today's construction runs 1.05 GB/s round trip.
+   256 KiB record in the pre-correction timing now that the header is 200 bytes,
+   so it had overtaken the header as the thing to attack. AES-GCM through the
+   same OpenSSL backend would replace CTR + a separate HMAC pass over the same
+   bytes (*estimated*); that construction measured 1.05 GB/s round trip.
 3. **Pre-warm the server's remaining DFAs at startup** (small effort, no wire
    change). The definitions load already compiles every format's `max_length`
-   (165 ms); what a server still compiles on its first connection is the hybrid
-   header length and, in `format` mode, all sixteen — 34.7 ms on the default,
-   82 ms on `dns`/`format`, 225 ms on `sip`/`format`, against 3–6 ms warm. The
-   server cannot know which format a client will pick, so the honest version is
-   to compile the whole catalog: 484 ms of startup on top of the 236 ms it takes
-   today.
+   (165 ms in the measured build); what a server still compiled on its first
+   connection was the hybrid header length and, in `format` mode, all sixteen
+   — 34.7 ms on the default, 82 ms on `dns`/`format`, 225 ms on `sip`/`format`,
+   against 3–6 ms warm. The final HTTP hybrid DFA changes the first number and
+   needs remeasurement. The server cannot know which format a client will pick,
+   so the honest version remains compiling the whole catalog at startup.
 4. **Carry a small message inline in the sealed header** (medium effort). At
-   length 200 the header has 50 bytes of payload capacity that it pads with
-   random bytes anyway, so a message of ≤ 50 bytes could ride for free: a 50-byte
-   message is 279 B on the wire today and would be 200 B, at no extra CPU. Note that the shorter header has *reduced*
-   this lever's reach — sealing a 64-byte message inline now means picking a
-   271-byte covertext, which costs 0.254 ms against today's 0.173 ms, so beyond
-   50 bytes it trades CPU for expansion rather than winning outright.
+   length 200 the current hybrid request grammar has 40 bytes of cipher
+   plaintext capacity. After the seal's 12 bytes, the four-byte body length and
+   a one-byte record type, at most 23 application bytes could ride inline in
+   both directions (the response grammar has slightly more room). A 23-byte
+   message currently occupies 263 wire bytes -- a 200-byte header plus a
+   52-byte encrypted body and 11 bytes of chunk framing -- so inline carriage
+   could reduce it to 200. That is a protocol change and its CPU cost has not
+   been measured; the old 50-byte estimate applied to the base regex, not the
+   final hybrid grammar.
 5. **`format` mode throughput is inherent** to transforming every byte; the only
    lever is a faster ranker (a C extension releasing the GIL).
 
@@ -390,14 +430,17 @@ release their worker — the first at EOF, the second at the handshake deadline.
 
 - **Slow, high-latency or low-bandwidth links.** fteproxy matches raw TCP there.
 - **Random padding.** `os.urandom` for the seal pad is 0.9 µs of an 83 µs header.
-  What costs is encrypting the pad, not generating it — and at a 63-byte
-  capacity that is 0.027 ms, down from 0.54 ms at the old 448-byte one.
+  What costs is encrypting the pad, not generating it. On the measured base
+  regex's 63-byte capacity that was 0.027 ms, down from 0.54 ms at its old
+  448-byte capacity. The current 200-byte hybrid grammars hold 40/45 bytes and
+  have not been timed.
 - **The 1 MiB body cap.** Never reached; records are bounded by the relay's read
   size.
 - **Cell/buffer size tuning.** As on 0.3, `network_io`'s `2**18` read size is
   the right balance; larger buffers trade small-transfer latency for little bulk
-  gain. With a 0.162 ms header a smaller one is no longer the catastrophe it
-  was at 700 bytes, but it still buys nothing.
+  gain. With a 0.162 ms header in the pre-correction measurement a smaller one
+  was no longer the catastrophe it was at 700 bytes, but it still bought
+  nothing. Re-evaluate only if the final header timing changes materially.
 - **Variable length.** The eight-length machinery costs one DFA per length once
   per process and leaves the byte rate flat within ~1.3x. It is the *value* of
   the length a record seals at, not the spread, that costs — which is exactly
@@ -483,10 +526,10 @@ definitions release made `http` variable length 200–700.
 | record layer, 1 MiB | – | 75–89 MB/s | 920–960 MB/s | 1.0–1.8 MB/s |
 | per-record fixed cost | – | ~0.9 ms | ~0.17 ms | – |
 
-The 5–7x bulk win and 3x latency win the 1.0 record layer took from 0.3.1 are
-real and still in the code. What the middle revision lost to a 700-byte header,
-`34b6def` has taken back: the per-record fixed cost is 0.162 ms today against
-that catalog's ~0.17 ms, and the record layer's 256 KiB and 1 MiB rows (612 and
-907 MB/s) are within ~10% of it. The remaining end-to-end gap to those two
-columns is not the header — they were measured on CPython 3.14.7 against a
-different definitions release, so the rows are not directly comparable.
+The architecture behind the 5–7x bulk and 3x latency win over 0.3.1 remains:
+the header is still 200 rather than 700 bytes and the body cipher is unchanged.
+At `34b6def`, before HTTP chunk framing, the per-record fixed cost was 0.162 ms
+against that catalog's ~0.17 ms, and the record layer's 256 KiB and 1 MiB rows
+(612 and 907 MB/s) were within ~10% of it. The final HTTP hybrid regex has not
+been measured, and the older columns used CPython 3.14.7 and a different
+definitions release, so the rows are not directly comparable.

@@ -18,12 +18,16 @@ so it reads as random format text and only unseals at stream position
     ``nonce(12) || AES-128-CTR ciphertext || HMAC-SHA256 tag(16)`` from
     :class:`fteproxy._AEADBody`, with ``seq`` bound into the tag. Only the
     header blends in with the format; the body is high-entropy ciphertext.
+    A definition may give that body protocol-native framing.  HTTP uses one
+    complete chunked body per record, so its formatted header and ciphertext
+    are a syntactically complete HTTP/1.1 message instead of unframed bytes
+    after a header that declared no body.
 
 The message itself begins with a one-byte record type (:data:`DATA` and the
 other constants below), so one connection carries application bytes, stream
 control and future padding without a second framing layer. In ``format`` mode
 that byte is the first byte inside the sealed covertext; in ``hybrid`` mode it
-is the first byte of the raw body. Either way the sealed ``len`` and ``seq``
+is the first byte encrypted into the body. Either way the sealed ``len`` and ``seq``
 fields are unchanged, so chunking, buffering and the body-length bound are the
 same as they were before types existed.
 
@@ -35,7 +39,8 @@ a record cannot be replayed into another stream or the other direction either.
 See SECURITY.md for what is not covered.
 
 **Framing.** A fixed-length format frames on its length: one record is one
-``length``-byte slice (plus, in hybrid mode, the raw body its header announces).
+``length``-byte slice (plus, in hybrid mode, the authenticated body its header
+announces and any protocol framing around that body).
 A *variable-length* format (:class:`VariableLength`) picks one of the format's
 allowed lengths per record and seals at it, and is delimited one of two ways
 (``fteproxy.defs.spec_framing``):
@@ -96,7 +101,8 @@ _SEQ = struct.Struct('>Q')
 _SEAL_OVERHEAD = _LEN.size + _SEQ.size
 # The record type byte that leads every message.
 _TYPE_LEN = 1
-# Hybrid-mode header payload: the length of the raw body that follows it.
+# Hybrid-mode header payload: the length of the authenticated body that follows
+# it, excluding any protocol framing around that body.
 _OVERFLOW_LEN = struct.Struct('>I')
 
 #: Plaintext capacity a ``hybrid``-mode header cipher must have.
@@ -119,6 +125,32 @@ _PREFIX = struct.Struct('>H')
 #: the struct's own width is checked against it at import.
 PREFIX_LEN = fteproxy.defs.LENGTH_PREFIX_BYTES
 assert _PREFIX.size == PREFIX_LEN
+
+
+def _hybrid_body_parts(framing, body_len):
+    """Return the bytes immediately before and after one hybrid body.
+
+    ``body_len`` is authenticated inside the FTE header.  Raw framing adds
+    nothing.  HTTP framing writes the ciphertext as exactly one chunk followed
+    by the terminal zero chunk (RFC 9112 section 7).  Keeping this function
+    deterministic lets the decoder derive and validate every framing byte from
+    the authenticated length instead of trusting a second wire length.
+    """
+    if framing == fteproxy.defs.HYBRID_FRAMING_RAW:
+        return b'', b''
+    if framing == fteproxy.defs.HYBRID_FRAMING_HTTP_CHUNKED:
+        if body_len < 0:
+            raise ValueError('a hybrid body length cannot be negative')
+        if body_len == 0:
+            return b'0\r\n\r\n', b''
+        return ('%x\r\n' % body_len).encode('ascii'), b'\r\n0\r\n\r\n'
+    raise ValueError('unknown hybrid body framing: %r' % framing)
+
+
+def _hybrid_wire_body_len(framing, body_len):
+    """Bytes occupied by a hybrid body including its protocol framing."""
+    prefix, suffix = _hybrid_body_parts(framing, body_len)
+    return len(prefix) + body_len + len(suffix)
 
 
 class UnknownRecordType(Exception):
@@ -342,10 +374,18 @@ class Encoder:
         cipher,
         body_cipher=None,
         variable=None,
+        hybrid_framing=fteproxy.defs.HYBRID_FRAMING_RAW,
     ):
         self._cipher = cipher
         self._body_cipher = body_cipher
         self._variable = variable
+        self._hybrid_framing = hybrid_framing
+        if hybrid_framing not in fteproxy.defs.HYBRID_FRAMINGS:
+            raise ValueError('unknown hybrid body framing: %r'
+                             % hybrid_framing)
+        if body_cipher is None and \
+                hybrid_framing != fteproxy.defs.HYBRID_FRAMING_RAW:
+            raise ValueError('hybrid body framing needs a body cipher')
         if body_cipher is not None and variable is not None:
             raise ValueError('hybrid mode frames a fixed-length header; it '
                              'cannot also carry variable-length covertexts')
@@ -362,11 +402,11 @@ class Encoder:
                 else cipher.max_plaintext_bytes - _SEAL_OVERHEAD - _TYPE_LEN)
         else:
             # 'hybrid' mode: a sealed FTE header (carrying the body length)
-            # followed by the raw authenticated body. Chunk by the body's capacity, far
-            # larger than a covertext's, so bulk data pays the DFA cost once per
-            # record instead of once per ~150 bytes. The type byte rides on top
-            # of the body rather than coming out of the payload, so the chunk
-            # boundaries are exactly where they were before types existed.
+            # followed by the authenticated body and any carrier-native framing.
+            # Chunk by the body's capacity, far larger than a covertext's, so bulk
+            # data pays the DFA cost once per record instead of once per ~150
+            # bytes. The type byte rides on top of the body rather than coming out
+            # of the payload, so the chunk boundaries are unchanged.
             self._capacity = body_cipher.max_plaintext_bytes
         if self._capacity < 1:
             raise ValueError('format is too small to carry a record')
@@ -396,9 +436,11 @@ class Encoder:
             record = _seal(cipher, message, self._seq)
         else:
             body = self._body_cipher.encrypt(message, self._seq)
+            body_prefix, body_suffix = _hybrid_body_parts(
+                self._hybrid_framing, len(body))
             record = (_seal(self._cipher, _OVERFLOW_LEN.pack(len(body)),
                             self._seq)
-                      + body)
+                      + body_prefix + body + body_suffix)
         self._seq += 1
         return record
 
@@ -460,10 +502,18 @@ class Decoder:
         cipher,
         body_cipher=None,
         variable=None,
+        hybrid_framing=fteproxy.defs.HYBRID_FRAMING_RAW,
     ):
         self._cipher = cipher
         self._body_cipher = body_cipher
         self._variable = variable
+        self._hybrid_framing = hybrid_framing
+        if hybrid_framing not in fteproxy.defs.HYBRID_FRAMINGS:
+            raise ValueError('unknown hybrid body framing: %r'
+                             % hybrid_framing)
+        if body_cipher is None and \
+                hybrid_framing != fteproxy.defs.HYBRID_FRAMING_RAW:
+            raise ValueError('hybrid body framing needs a body cipher')
         if body_cipher is not None and variable is not None:
             raise ValueError('hybrid mode frames a fixed-length header; it '
                              'cannot also carry variable-length covertexts')
@@ -471,8 +521,9 @@ class Decoder:
         # ``max_length`` bytes, and ``decrypt`` consumes exactly one such value
         # (no remainder). The record layer frames the byte stream itself: in
         # 'format' mode a record is that one covertext; in 'hybrid' mode it is
-        # the header covertext plus the ``body_len`` raw bytes the header carries.
-        # Either way a trailing partial record stays buffered.
+        # the header covertext plus the ``body_len`` authenticated bytes and any
+        # carrier framing around them. Either way a trailing partial record stays
+        # buffered.
         self._frame_size = cipher.output_format.max_length
         # The largest record this decoder is ever asked to hold: one header
         # covertext plus, in hybrid mode, the largest framed body a header may
@@ -484,7 +535,9 @@ class Decoder:
             self.max_record_bytes = variable.max_length
         else:
             self.max_record_bytes = self._frame_size + (
-                body_cipher.max_framed_bytes if body_cipher is not None else 0)
+                _hybrid_wire_body_len(hybrid_framing,
+                                      body_cipher.max_framed_bytes)
+                if body_cipher is not None else 0)
         self._buffer = b''
         self._seq = 0
         # Set once a record fails to authenticate: nothing later can decode,
@@ -523,15 +576,16 @@ class Decoder:
         """
         try:
             return cipher.decrypt(covertext)
-        except fte.FormatContractError as e:
+        except fte.FormatContractError:
             # The format provider broke the RankedFormat contract: a bug in the
             # format, not bad input, so no frame can be trusted. Keep libfte
-            # 0.3's UnrecoverableDecryptionError semantics and stop the process.
+            # 0.3's UnrecoverableDecryptionError semantics by propagating it to
+            # the embedding application. Library code must never terminate its
+            # process; the CLI may translate the exception at its boundary.
             # (In 0.4, decrypt never raises MessageTooLargeError; that is an
             # encrypt-side limit. A corrupt or oversized covertext is the
             # InvalidCovertextError below.)
-            fteproxy.fatal_error("fteproxy.record_layer.FormatContractError: "+str(e))
-            # exit
+            raise
         except fte.InvalidCovertextError as e:
             # A corrupt, wrong-format, or failed-MAC frame. The server's
             # first-record scan relies on this to fall through to the next
@@ -608,9 +662,9 @@ class Decoder:
                     records.append(self._split_type(head))
                     continue
 
-                # 'hybrid' mode: the header carries the raw body's length. The
-                # header is authenticated, so a successful decrypt means we
-                # wrote it and the length is trustworthy.
+                # 'hybrid' mode: the header carries the authenticated body's
+                # length, excluding protocol framing. A successful header
+                # decrypt means we wrote it and the length is trustworthy.
                 if len(head) != _OVERFLOW_LEN.size:
                     fteproxy.debug(
                         "fteproxy.record_layer: unexpected header width "
@@ -627,14 +681,39 @@ class Decoder:
                     self._failed = True
                     break
 
-            body_start = offset + self._frame_size
-            if len(buffer) - body_start < body_len:
+            header_end = offset + self._frame_size
+            body_prefix, body_suffix = _hybrid_body_parts(
+                self._hybrid_framing, body_len)
+
+            # The header's authenticated body length uniquely determines the
+            # HTTP chunk-size line.  Reject a mismatching line as soon as the
+            # bytes that arrived disagree, rather than accepting two competing
+            # lengths or searching forward for a plausible boundary.
+            prefix_available = min(len(body_prefix), len(buffer) - header_end)
+            if buffer[header_end:header_end + prefix_available] != \
+                    body_prefix[:prefix_available]:
+                fteproxy.debug(
+                    "fteproxy.record_layer: invalid hybrid body prefix at seq "
+                    + str(self._seq))
+                self._failed = True
+                break
+
+            body_start = header_end + len(body_prefix)
+            body_end = body_start + body_len
+            record_end = body_end + len(body_suffix)
+            if len(buffer) < record_end:
                 # Body not fully arrived; wait for more data. The write-back
                 # below leaves this header at the front of the buffer.
                 self._pending_body_len = body_len
                 break
+            if buffer[body_end:record_end] != body_suffix:
+                fteproxy.debug(
+                    "fteproxy.record_layer: invalid hybrid body suffix at seq "
+                    + str(self._seq))
+                self._failed = True
+                break
             self._pending_body_len = None
-            body = buffer[body_start:body_start + body_len]
+            body = buffer[body_start:body_end]
             try:
                 message = self._body_cipher.decrypt(body, self._seq)
             except InvalidTag:
@@ -646,7 +725,7 @@ class Decoder:
                 self._failed = True
                 break
             self._seq += 1
-            offset = body_start + body_len
+            offset = record_end
             records.append(self._split_type(message))
 
         self._buffer = b'' if self._failed else buffer[offset:]

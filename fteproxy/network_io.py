@@ -5,14 +5,6 @@ import select
 import socket
 
 
-def sendall_to_socket(sock, data):
-    """Given a socket ``sock`` and ``msg`` does a best effort to send
-    ``msg`` on ``sock`` as quickly as possible.
-    """
-
-    return sock.sendall(data)
-
-
 def recvall_from_socket(sock,
                         bufsize=2 ** 18,
                         select_timeout=0.1):
@@ -24,52 +16,44 @@ def recvall_from_socket(sock,
     ``is_alive`` is ``true``.
     """
 
-    retval = b''
-    is_alive = False
+    try:
+        # A protocol wrapper can hold decoded DATA or logical EOF that the
+        # operating system knows nothing about. In particular, OPEN_RESULT
+        # and the first DATA record may arrive in one wire read: the control
+        # waiter consumes OPEN_RESULT and leaves DATA buffered while the raw
+        # descriptor becomes idle. Ask the wrapper before selecting.
+        pending_read = getattr(sock, 'pending_read', None)
+        if pending_read is not None and pending_read():
+            data = sock.recv(bufsize)
+            return [bool(data), data]
 
-    # An fteproxy socket can hold an end-of-stream the operating system knows
-    # nothing about: the peer's CLOSE record arrives in the same read as its
-    # last bytes, so nothing will ever make the descriptor readable again and
-    # select would wait for a wakeup that is not coming.
-    pending_eof = getattr(sock, 'pending_eof', None)
-    if pending_eof is not None and pending_eof():
+        # Compatibility for socket-like objects implementing the older,
+        # narrower hook.
+        pending_eof = getattr(sock, 'pending_eof', None)
+        if pending_eof is not None and pending_eof():
+            return [False, b'']
+
+        readable, _, _ = select.select([sock], [], [sock], select_timeout)
+        if not readable:
+            return [True, b'']
+        data = sock.recv(bufsize)
+        return [bool(data), data]
+    except socket.timeout:
+        return [True, b'']
+    except OSError:
         return [False, b'']
 
+
+def close_socket(sock):
+    """Wake blocked I/O, close ``sock``, and tolerate repeated cleanup."""
     try:
-        ready = select.select([sock], [], [sock], select_timeout)
-        if ready[0]:
-            _data = sock.recv(bufsize)
-            if _data:
-                retval += _data
-                is_alive = True
-            else:
-                is_alive = False
-        else:
-            # select.timeout
-            is_alive = True
-    except socket.timeout:
-        is_alive = True
-    except socket.error:
-        is_alive = (len(retval) > 0)
-    except select.error:
-        is_alive = (len(retval) > 0)
-    finally:
-        if retval: is_alive = True
-
-    return [is_alive, retval]
-
-
-def close_socket(sock, lock=None):
-    """Given socket ``sock`` closes the socket for reading and writing.
-    If the optional ``lock`` parameter is provided, protects all accesses
-    to ``sock`` with ``lock``.
-    """
-
+        # On several platforms close() from another thread does not wake a
+        # blocking recv promptly. shutdown() makes listener.stop() observable
+        # to setup workers and to the peer before ownership is released.
+        sock.shutdown(socket.SHUT_RDWR)
+    except (AttributeError, OSError):
+        pass
     try:
-        if lock is not None:
-            with lock:
-                sock.close()
-        else:
-            sock.close()
-    except:
+        sock.close()
+    except (AttributeError, OSError):
         pass

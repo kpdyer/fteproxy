@@ -1,55 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Tests for Python 3 compatibility.
-"""
+"""Core handshake, socket, and cipher integration tests."""
 
-import sys
-import io
 import socket
-import contextlib
 import threading
 import time
 
 import pytest
 
 import fteproxy
-from fteproxy.tests import conftest
 import fteproxy.conf
-import fteproxy.defs
 import fteproxy.network_io
 
 
-class TestPython3Compatibility:
-    """Test Python 3 specific functionality."""
-
-    def test_python_version(self):
-        """Ensure we're running Python 3.10+"""
-        assert sys.version_info >= (3, 10)
-
-    def test_bytes_key_config(self):
-        """Test that the encryption key is properly stored as bytes."""
-        key = conftest.TEST_KEY
-        assert isinstance(key, bytes)
-        assert len(key) == 32
-
-    def test_bytes_hex_conversion(self):
-        """Test bytes to hex and back conversion (Python 3 style)."""
-        original = b'\xff' * 16 + b'\x00' * 16
-        hex_str = original.hex()
-        assert isinstance(hex_str, str)
-        assert len(hex_str) == 64
-        
-        restored = bytes.fromhex(hex_str)
-        assert original == restored
-
-    def test_string_rjust(self):
-        """Test that string rjust works correctly."""
-        test_str = "test"
-        padded = test_str.rjust(10, '0')
-        assert len(padded) == 10
-        assert padded == "000000test"
-
+class TestHandshakeEncoding:
     def test_client_hello_bytes_handling(self):
         """The client hello encodes to bytes and decodes back unchanged."""
         import fteproxy.handshake as hs
@@ -65,38 +29,6 @@ class TestPython3Compatibility:
         assert back.mode == 'hybrid'
         assert back.client_public == bytes(range(32))
         assert back.epoch == 490000
-
-    def test_unicode_handling(self):
-        """Test that unicode strings work correctly."""
-        test_str = "Hello, 世界! 🌍"
-        encoded = test_str.encode('utf-8')
-        assert isinstance(encoded, bytes)
-        
-        decoded = encoded.decode('utf-8')
-        assert test_str == decoded
-
-    def test_dict_keys_iteration(self):
-        """Test that dict.keys() returns a view that can be iterated."""
-        definitions = fteproxy.defs.load_definitions()
-        keys = definitions.keys()
-        
-        # In Python 3, .keys() returns a view, not a list
-        key_list = list(keys)
-        assert len(key_list) > 0
-        
-        # Should be able to iterate multiple times
-        for key in definitions.keys():
-            assert isinstance(key, str)
-            break
-
-    def test_print_function(self):
-        """Test that print is a function (not a statement)."""
-        f = io.StringIO()
-        with contextlib.redirect_stdout(f):
-            print("test output")
-        
-        output = f.getvalue()
-        assert output.strip() == "test output"
 
 
 class TestNetworkIOBytes:

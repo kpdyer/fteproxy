@@ -625,7 +625,7 @@ def workload_latency(entry_port, count=50, msg_size=64, warmup=5):
     }
 
 
-def workload_setup(entry_port, dest_port, count=20):
+def workload_setup(entry_port, count=20):
     """Measure per-connection setup cost: time from opening a new tunnel
     connection until the first echoed byte comes back. This captures the FTE
     in-band negotiation the server performs on every new connection."""
@@ -771,12 +771,9 @@ def run_matrix(args):
             dest = LoopServer(free_port(), mode=dest_mode)
             dest.start()
             shaper_kwargs = scen['shaper']
-            try:
-                tunnel = TunnelCls(dest.port, shaper_kwargs=shaper_kwargs,
-                                   format=args.format, mode=args.mode,
-                                   verbose=args.verbose)
-            except TypeError:
-                tunnel = TunnelCls(dest.port, shaper_kwargs=shaper_kwargs)
+            tunnel = TunnelCls(dest.port, shaper_kwargs=shaper_kwargs,
+                               format=args.format, mode=args.mode,
+                               verbose=args.verbose)
             try:
                 tunnel.start()
             except Exception as e:
@@ -787,7 +784,8 @@ def run_matrix(args):
             try:
                 # ----- setup / negotiation cost -----
                 if args.setup and tun_label == 'fteproxy':
-                    su = workload_setup(tunnel.entry_port, dest.port, count=args.setup_count)
+                    su = workload_setup(tunnel.entry_port,
+                                        count=args.setup_count)
                     if su['ok']:
                         print(f"  [{tun_label}] connection setup  : "
                               f"p50 {su['p50_ms']:.1f} ms  mean {su['mean_ms']:.1f} ms  "

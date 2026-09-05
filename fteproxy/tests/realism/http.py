@@ -64,10 +64,17 @@ class _FakeSocket:
     """A read-only socket whose ``makefile`` hands back the covertext bytes."""
 
     def __init__(self, data):
-        self._data = data
+        self.file = _NonClosingBytesIO(data)
 
     def makefile(self, *args, **kwargs):
-        return io.BytesIO(self._data)
+        return self.file
+
+
+class _NonClosingBytesIO(io.BytesIO):
+    """Keep the parser cursor observable after ``HTTPResponse.read()``."""
+
+    def close(self):
+        pass
 
 
 def _check_request(covertext):
@@ -134,3 +141,85 @@ def check(covertext):
         _check_response(covertext)
     else:
         _check_request(covertext)
+
+
+def _chunked_request_body(wire_body):
+    """Decode the RFC 9112 chunk syntax emitted after a request header.
+
+    The standard library parses request lines and fields but deliberately does
+    not implement a server-side chunk decoder.  This small independent parser
+    accepts general chunk sizes and trailers, then requires the message to end
+    at the terminal chunk so bytes from the next request cannot be hidden in
+    this one.
+    """
+    body = bytearray()
+    offset = 0
+    while True:
+        line_end = wire_body.find(b'\r\n', offset)
+        if line_end < 0:
+            raise ValueError('http request: incomplete chunk-size line')
+        size_field = wire_body[offset:line_end].split(b';', 1)[0]
+        try:
+            size = int(size_field, 16)
+        except ValueError:
+            raise ValueError('http request: invalid chunk size %r' % size_field)
+        if not size_field or size < 0:
+            raise ValueError('http request: invalid chunk size %r' % size_field)
+        offset = line_end + 2
+        if size == 0:
+            # fteproxy emits no trailers.  A blank line completes the trailer
+            # section and must also complete this one HTTP message.
+            if wire_body[offset:] != b'\r\n':
+                raise ValueError('http request: invalid terminal chunk')
+            return bytes(body)
+        end = offset + size
+        if wire_body[end:end + 2] != b'\r\n':
+            raise ValueError('http request: truncated chunk data')
+        body.extend(wire_body[offset:end])
+        offset = end + 2
+
+
+def parse_hybrid_message(message):
+    """Parse one complete chunk-framed hybrid HTTP message and return its body.
+
+    Requests use the standard library request/header parsers plus the strict
+    chunk decoder above.  Responses are parsed and de-chunked entirely by
+    :class:`http.client.HTTPResponse`.  This judges the complete wire message,
+    not merely the regex-generated header block.
+    """
+    if not isinstance(message, (bytes, bytearray)):
+        raise TypeError('message must be bytes, got %r' % type(message))
+    message = bytes(message)
+    head, separator, wire_body = message.partition(b'\r\n\r\n')
+    if not separator:
+        raise ValueError('http hybrid message: no header terminator')
+    header = head + separator
+
+    if message.startswith(b'HTTP/'):
+        sock = _FakeSocket(message)
+        response = http.client.HTTPResponse(sock)
+        try:
+            response.begin()
+            if response.getheader('Transfer-Encoding', '').lower() != 'chunked':
+                raise ValueError('http response: not chunked')
+            if response.getheader('Content-Length') is not None:
+                raise ValueError('http response: both chunked and Content-Length')
+            body = response.read()
+        except Exception as error:
+            raise ValueError('http response: invalid chunked message: %s' % error)
+        if sock.file.tell() != len(message):
+            raise ValueError('http response: bytes remain after terminal chunk')
+        return body
+
+    _check_request(header)
+    request_line, _separator, fields = header.partition(b'\r\n')
+    parser = _RequestLineParser(request_line + b'\r\n')
+    if parser.command != 'POST':
+        raise ValueError('http request: hybrid body uses %r, not POST'
+                         % parser.command)
+    headers = email.parser.BytesParser().parsebytes(fields)
+    if headers.get('Transfer-Encoding', '').lower() != 'chunked':
+        raise ValueError('http request: not chunked')
+    if headers.get('Content-Length') is not None:
+        raise ValueError('http request: both chunked and Content-Length')
+    return _chunked_request_body(wire_body)

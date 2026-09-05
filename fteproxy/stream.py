@@ -69,6 +69,42 @@ class InvalidRule(Exception):
 # Address encoding
 # --------------------------------------------------------------------------- #
 
+def _validate_domain_bytes(name):
+    """Reject resolver-ambiguous or non-DNS bytes in a SOCKS domain name."""
+    if not 0 < len(name) <= 0xFF:
+        raise InvalidAddress('host name must be 1 to 255 bytes')
+    if any(byte <= 0x20 or 0x7f <= byte <= 0x9f for byte in name):
+        raise InvalidAddress('host name contains whitespace or control bytes')
+
+    body = name[:-1] if name.endswith(b'.') else name
+    labels = body.split(b'.')
+    if not body or any(not label or len(label) > 63 for label in labels):
+        raise InvalidAddress('host name has an empty or overlong DNS label')
+    for label in labels:
+        if any(not (ord('a') <= byte <= ord('z')
+                   or ord('A') <= byte <= ord('Z')
+                   or ord('0') <= byte <= ord('9')
+                   or byte in (ord('-'), ord('_')))
+               for byte in label):
+            raise InvalidAddress('host name contains non-DNS characters')
+
+
+def _encode_domain_name(host):
+    """Return one validated IDNA domain without ever quoting it in errors."""
+    if not isinstance(host, str):
+        raise InvalidAddress('host name must be text')
+    if any(char.isspace() or ord(char) < 0x20
+           or 0x7f <= ord(char) <= 0x9f for char in host):
+        raise InvalidAddress('host name contains whitespace or control '
+                             'characters')
+    try:
+        name = host.encode('idna') if not host.isascii() else host.encode('ascii')
+    except UnicodeError:
+        raise InvalidAddress('host name is not valid IDNA')
+    _validate_domain_bytes(name)
+    return name
+
+
 def encode_address(host, port):
     """Encode ``(host, port)`` as ``atyp || addr || port``.
 
@@ -81,9 +117,7 @@ def encode_address(host, port):
     try:
         address = ipaddress.ip_address(host)
     except ValueError:
-        name = host.encode('idna') if not host.isascii() else host.encode('ascii')
-        if not 0 < len(name) <= 0xFF:
-            raise InvalidAddress('host name must be 1 to 255 bytes')
+        name = _encode_domain_name(host)
         return (bytes((ATYP_DOMAIN, len(name))) + name
                 + port.to_bytes(2, 'big'))
     atyp = ATYP_IPV4 if address.version == 4 else ATYP_IPV6
@@ -131,10 +165,14 @@ def read_address(data, offset=0):
     offset += 2
 
     if atyp == ATYP_DOMAIN:
+        _validate_domain_bytes(raw)
         try:
             host = raw.decode('idna')
         except UnicodeError:
             raise InvalidAddress('domain name is not valid IDNA')
+        # Validate the decoded form too, guarding against any codec mapping
+        # that introduces a resolver-significant character.
+        _encode_domain_name(host)
     else:
         host = str(ipaddress.ip_address(raw))
     return host, port, offset
@@ -166,11 +204,10 @@ def decode_open_result(payload):
 def is_restricted(address):
     """Whether ``address`` is one the default policy refuses.
 
-    Loopback, link-local (including IPv4's 169.254/16 and its
-    RFC 3927 DHCP-failure meaning) and the unspecified address all name
-    something on or adjacent to the server host rather than a destination the
-    client meant to reach. Handing those to every holder of a connection
-    string is how a tunnel becomes a route into an admin interface.
+    Only globally routable unicast addresses are safe by default. Private,
+    shared, loopback, link-local, unspecified, reserved, documentation and
+    multicast ranges can all name infrastructure that a holder of a connection
+    string should not inherit access to.
 
     ``address`` is an ``ipaddress`` object or a string; an IPv4-mapped IPv6
     address is unmapped first, since ``::ffff:127.0.0.1`` reaches the same
@@ -180,7 +217,17 @@ def is_restricted(address):
         address = ipaddress.ip_address(address)
     if address.version == 6 and address.ipv4_mapped is not None:
         address = address.ipv4_mapped
-    return (address.is_loopback or address.is_link_local
+    # ``ipaddress`` classification tables evolve between Python releases, and
+    # ``is_global`` alone has historically included multicast, reserved IPv6
+    # blocks and deprecated site-local space. Spell out every unsafe property
+    # as well as retaining the conservative global-unicast requirement.
+    return (not address.is_global
+            or address.is_reserved
+            or getattr(address, 'is_site_local', False)
+            or address.is_private
+            or address.is_loopback
+            or address.is_link_local
+            or address.is_multicast
             or address.is_unspecified)
 
 
@@ -271,19 +318,28 @@ class _Rule:
         return (self.pattern is not None
                 and fnmatch.fnmatchcase(host.lower(), self.pattern))
 
+    def can_match_resolved_address(self, port):
+        """Whether resolution could make this rule match ``port``.
+
+        Name rules only match the name the client requested. Network rules
+        cannot be decided until that name has been resolved.
+        """
+        return (self.network is not None
+                and (self.port is None or self.port == port))
+
 
 class AllowRules:
     """The destinations a server is willing to dial.
 
-    With no rules the policy is Decision D3: every destination except the
-    server's own loopback and link-local addresses, checked both on what the
-    client asked for and on what the name resolved to, so a name pointing at
-    127.0.0.1 does not walk around it.
+    With no rules, only globally routable unicast destinations are reachable.
+    The policy is checked both on what the client asked for and on what a name
+    resolved to, so a public-looking name cannot walk around it.
 
-    With one or more rules the rules are the policy: only what they name is
-    reachable, and the loopback restriction no longer applies to what a rule
-    explicitly permits -- ``--allow 127.0.0.1:8081`` is how a local service is
-    published. ``--allow any`` restores "everything", loopback included.
+    With one or more rules, only what they name is reachable. An explicit IP
+    address or CIDR is the sole way to opt a non-global destination back in --
+    ``--allow 127.0.0.1:8081`` publishes one local service. A hostname pattern
+    and ``any`` still require its resolved address to be globally routable,
+    unless a separate IP/CIDR rule also permits that address.
     """
 
     def __init__(self, rules=()):
@@ -299,9 +355,15 @@ class AllowRules:
 
     def describe(self):
         if not self._rules:
-            return ('every destination except the loopback and link-local '
-                    'addresses of this host')
-        return ', '.join(rule.text for rule in self._rules)
+            return 'globally routable unicast destinations'
+        description = ', '.join(rule.text for rule in self._rules)
+        if any(rule.any or rule.pattern is not None for rule in self._rules):
+            description += (' (names may resolve only to globally routable '
+                            'addresses unless an IP/CIDR rule opts one in)')
+        return description
+
+    def _matches(self, host, port):
+        return any(rule.matches(host, port) for rule in self._rules)
 
     def check(self, host, port):
         """The status for a request naming ``host:port``, before resolution.
@@ -310,10 +372,7 @@ class AllowRules:
         OPEN_RESULT to send back.
         """
         if self._rules:
-            for rule in self._rules:
-                if rule.matches(host, port):
-                    return SUCCEEDED
-            return NOT_ALLOWED
+            return SUCCEEDED if self._matches(host, port) else NOT_ALLOWED
         try:
             address = ipaddress.ip_address(host)
         except ValueError:
@@ -321,19 +380,39 @@ class AllowRules:
             return SUCCEEDED
         return NOT_ALLOWED if is_restricted(address) else SUCCEEDED
 
+    def _could_allow_after_resolution(self, host, port):
+        """Whether a rejected name could be permitted by an address rule.
+
+        This does not itself permit the destination. It only prevents the
+        pre-resolution check from rejecting a name before its address rules
+        can be evaluated by :meth:`check_resolved`.
+        """
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            return any(rule.can_match_resolved_address(port)
+                       for rule in self._rules)
+        return False
+
     def check_resolved(self, host, port, address):
         """The status for one address ``host`` resolved to.
 
-        A rule that named the destination explicitly has already vouched for
-        it, so an operator who published ``127.0.0.1:8081`` gets it. Otherwise
-        the default policy applies here too, which is what stops
-        ``localhost``, a rebinding name, or an AAAA record of ``::1`` from
-        reaching a service the policy meant to keep private.
+        Only an address/CIDR rule can vouch for a non-global result. A hostname
+        or ``any`` rule authorizes the requested name, not wherever DNS happens
+        to point it today. This keeps ``--allow *.example.com`` from becoming
+        an internal-network route after a DNS change or rebinding response.
         """
         if self._rules:
+            # Check address rules first: they are an operator's explicit opt-in
+            # to this exact address or network, including private ranges.
             for rule in self._rules:
-                if rule.matches(host, port) or rule.matches(str(address), port):
+                if (rule.network is not None
+                        and rule.matches(str(address), port)):
                     return SUCCEEDED
+            # Name/any rules still need to match the request, and their DNS
+            # result receives the safe default classification.
+            if self._matches(host, port):
+                return NOT_ALLOWED if is_restricted(address) else SUCCEEDED
             return NOT_ALLOWED
         return NOT_ALLOWED if is_restricted(address) else SUCCEEDED
 
@@ -369,8 +448,24 @@ def connect(host, port, rules, timeout):
     candidate address is checked against the policy, so a name that resolves
     to a restricted address is refused rather than dialled.
     """
+    # This function is also part of the Python API, so do not rely only on the
+    # wire decoder having validated a domain.  In particular, libc resolvers
+    # treat a NUL as the end of a name while an allow-rule matcher sees the
+    # suffix after it.  Refuse every resolver-ambiguous name before either the
+    # policy check or getaddrinfo sees it.
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        try:
+            _encode_domain_name(host)
+        except InvalidAddress:
+            return NOT_ALLOWED, None
+    except TypeError:
+        return NOT_ALLOWED, None
+
     status = rules.check(host, port)
-    if status != SUCCEEDED:
+    if (status != SUCCEEDED
+            and not rules._could_allow_after_resolution(host, port)):
         return status, None
 
     try:

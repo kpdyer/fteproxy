@@ -47,13 +47,10 @@ SERVER_PRIVATE, SERVER_PUBLIC = fteproxy.generate_server_key()
 def _defs():
     """Select the shape catalog for this module, and put it back afterwards."""
     previous = fteproxy.conf.getValue('fteproxy.defs.release')
-    saved = fteproxy.defs._definitions
     fteproxy.conf.setValue('fteproxy.defs.release', SHAPE_CATALOG)
-    fteproxy.defs._definitions = None
     fteproxy.defs.load_definitions()
     yield
     fteproxy.conf.setValue('fteproxy.defs.release', previous)
-    fteproxy.defs._definitions = saved
 
 
 def _session_keys():
@@ -225,6 +222,50 @@ class CountingCipher:
     def decrypt(self, data):
         self._counts[self._name] += 1
         return self._inner.decrypt(data)
+
+
+class TestDefinitionsReleaseIsolation:
+
+    def test_explicit_release_drives_the_whole_session(self, monkeypatch):
+        """The advertised release and every cipher lookup use one catalog.
+
+        ``manual-http`` exists only in 20260110, while the process default in
+        this test is 20260903. Before the catalog was captured by the wrapper,
+        the hello advertised 20260110 but session setup looked in 20260903 and
+        failed before either side could complete the handshake.
+        """
+        monkeypatch.setitem(fteproxy.conf.conf, 'fteproxy.defs.release',
+                            '20260903')
+        left, right = socket.socketpair()
+        server = fteproxy.wrap_socket(
+            left, server_key=SERVER_PRIVATE, defs=SHAPE_CATALOG)
+        client = fteproxy.wrap_socket(
+            right, server_id=SERVER_PUBLIC, format=FORMAT, mode=MODE,
+            defs=SHAPE_CATALOG)
+        failures = []
+
+        def run_server():
+            try:
+                server.handshake()
+            except Exception as error:
+                failures.append(error)
+
+        thread = threading.Thread(target=run_server)
+        thread.start()
+        try:
+            client.handshake()
+            thread.join(timeout=5)
+            assert not thread.is_alive()
+            assert failures == []
+            assert client.negotiated_format == FORMAT
+            assert server.negotiated_format == FORMAT
+
+            client.sendall(b'catalog-isolated')
+            assert server.recv(16) == b'catalog-isolated'
+        finally:
+            client.close()
+            server.close()
+            thread.join(timeout=5)
 
 
 class TestServerHandshakeEOF:
@@ -507,12 +548,12 @@ class TestFormatAgreement:
         response = fteproxy.defs.getRegex('manual-http-response')
         definitions['twin-request'] = {'regex': pattern}
         definitions['twin-response'] = {'regex': response}
-        monkeypatch.setattr(fteproxy.defs, '_definitions', definitions)
         monkeypatch.setattr(fteproxy, '_last_matched_format',
                             'manual-http-request')
 
         fake = FakeSocket([self._sealed('manual-http', 'twin')])
         server = fteproxy.wrap_socket(fake, server_key=SERVER_PRIVATE)
+        server._definitions = definitions
         server.handshake()
         assert server.negotiated_format == 'twin'
         assert fake.sent, 'the server answered'
@@ -695,8 +736,9 @@ class TestFirstRecordScanIsBounded:
         counts = collections.Counter()
         real = fteproxy._cipher_for
 
-        def counting(format_name, key, cover=False):
-            return CountingCipher(real(format_name, key, cover=cover),
+        def counting(format_name, key, cover=False, definitions=None):
+            return CountingCipher(real(
+                format_name, key, cover=cover, definitions=definitions),
                                   format_name, counts)
 
         monkeypatch.setattr(fteproxy, '_cipher_for', counting)
@@ -843,7 +885,10 @@ class TestControlRecordSizeIsBounded:
         import fteproxy.stream
 
         keys, peer = self._peer()
-        payload = fteproxy.stream.encode_open('a' * 255, 443)
+        # Longest DNS presentation name without a trailing root dot: four
+        # legal labels and three separators, 253 bytes total.
+        host = '.'.join(('a' * 63, 'b' * 63, 'c' * 63, 'd' * 61))
+        payload = fteproxy.stream.encode_open(host, 443)
         assert len(payload) <= fteproxy._FTESocketWrapper._MAX_CONTROL_BYTES
         wire = peer._encoder.encode(fteproxy.record_layer.OPEN, payload)
         fake = FakeSocket([wire], spin_cap=10)

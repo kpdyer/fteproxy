@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """The connection string and the state directory.
 
-A 1.0 client needs one argument, and this is what it holds::
+A 1.0 client needs one connection capability, supplied preferably through a
+file or stdin (with a positional argument retained for compatibility)::
 
     fte://<server-id>@<host>:<port>[?format=<base>&mode=<hybrid|format>&defs=<YYYYMMDD>]
 
@@ -21,14 +22,15 @@ hands out. Resolution order: ``--state-dir``, ``FTEPROXY_STATE_DIR``,
 ``$XDG_STATE_HOME/fteproxy``, ``~/.local/state/fteproxy``.
 """
 
-import base64
-import os
-import stat
 import ipaddress
+import os
+import re
+import stat
 import urllib.parse
 
 import fteproxy
 import fteproxy.handshake
+import fteproxy.key_codec
 
 
 SCHEME = 'fte'
@@ -37,10 +39,9 @@ DEFAULT_PORT = 8080
 SERVER_KEY_FILE = 'server.key'
 CONNECTION_FILE = 'connection.txt'
 
-#: What a connection string carries in place of a host the server cannot know.
-#: A server does not learn its own public address by starting up, so it writes
-#: this and the operator substitutes the address clients should dial, or passes
-#: ``--advertise``.
+#: Legacy placeholder accepted only in an implicit same-host connection file.
+#: New server and keygen output always contains a valid address; keep this
+#: sentinel solely so state written by an earlier 1.0 build still works locally.
 HOST_PLACEHOLDER = '<server-ip>'
 
 #: Directory mode 0700 and file mode 0600: the private key and the connection
@@ -51,6 +52,13 @@ FILE_MODE = 0o600
 
 ENV_STATE_DIR = 'FTEPROXY_STATE_DIR'
 ENV_URI = 'FTEPROXY_URI'
+
+# A connection string is a single small capability, not an input document.
+# Bounding file/stdin reads avoids turning a convenience option into an
+# accidental unbounded allocation or pipe sink.
+MAX_CONNECTION_STRING_BYTES = 4096
+
+_DATED_RELEASE = re.compile(r'^[0-9]{8}$')
 
 
 class ConfigError(Exception):
@@ -63,20 +71,18 @@ class ConfigError(Exception):
 
 def encode_server_id(public_bytes):
     """32 bytes -> the 43-character base64url server-id."""
-    return base64.urlsafe_b64encode(public_bytes).rstrip(b'=').decode('ascii')
+    try:
+        return fteproxy.key_codec.encode_server_id(public_bytes)
+    except (TypeError, ValueError) as exc:
+        raise ConfigError(str(exc)) from exc
 
 
 def decode_server_id(text):
     """The 43-character base64url server-id -> 32 bytes."""
-    padded = text + '=' * (-len(text) % 4)
     try:
-        raw = base64.urlsafe_b64decode(padded.encode('ascii'))
-    except (ValueError, UnicodeEncodeError):
-        raise ConfigError('server-id is not valid base64url')
-    if len(raw) != fteproxy.handshake.KEY_BYTES:
-        raise ConfigError('server-id must decode to %d bytes, got %d'
-                          % (fteproxy.handshake.KEY_BYTES, len(raw)))
-    return raw
+        return fteproxy.key_codec.decode_server_id(text)
+    except (TypeError, ValueError) as exc:
+        raise ConfigError(str(exc)) from exc
 
 
 # --------------------------------------------------------------------------- #
@@ -98,9 +104,20 @@ class ConnectionString:
         if len(server_id) != fteproxy.handshake.KEY_BYTES:
             raise ConfigError('server-id must be %d bytes'
                               % fteproxy.handshake.KEY_BYTES)
-        if not host:
+        if not isinstance(host, str) or not host:
             raise ConfigError('a connection string needs a host')
-        if not 0 < port <= 0xFFFF:
+        # Construction is public API, not just an internal sequel to parse().
+        # Keep str()/repr() single-line and keep authority delimiters from
+        # turning a host into userinfo, path, query or fragment.  The sentinel
+        # remains constructible solely for reading legacy same-host state.
+        if (host != HOST_PLACEHOLDER
+                and any(char in '@/\\?#<>[]' or char.isspace()
+                        or ord(char) < 0x20 or 0x7f <= ord(char) <= 0x9f
+                        for char in host)):
+            raise ConfigError('connection string host contains unsafe '
+                              'characters')
+        if (not isinstance(port, int) or isinstance(port, bool)
+                or not 0 < port <= 0xFFFF):
             raise ConfigError('connection string port is out of range')
         if mode is not None and mode not in fteproxy.handshake.MODES:
             raise ConfigError('mode must be one of %s'
@@ -124,6 +141,13 @@ class ConnectionString:
         text = text.strip()
         if not text:
             raise ConfigError('empty connection string')
+        if len(text.encode('utf-8', errors='replace')) \
+                > MAX_CONNECTION_STRING_BYTES:
+            raise ConfigError('connection string is too long')
+        if any(ord(char) < 0x20 or 0x7f <= ord(char) <= 0x9f
+               or char.isspace() for char in text):
+            raise ConfigError('connection string must be one line without '
+                              'whitespace or control characters')
         try:
             parsed = urllib.parse.urlsplit(text)
         except ValueError:
@@ -131,7 +155,7 @@ class ConnectionString:
             # authority. That is a malformed connection string like any other,
             # not a bug, so it gets a usage error rather than a traceback --
             # and, like every other message here, without the string in it.
-            raise ConfigError('connection string is not a valid URI')
+            raise ConfigError('connection string is not a valid URI') from None
         if parsed.scheme != SCHEME:
             raise ConfigError('connection string must start with %s://'
                               % SCHEME)
@@ -151,7 +175,8 @@ class ConnectionString:
             # split_host_port's own messages quote what they were given,
             # which is fine for a --listen flag and not for a connection
             # string: the host and port are part of the secret.
-            raise ConfigError('connection string has an invalid host or port')
+            raise ConfigError(
+                'connection string has an invalid host or port') from None
         if not host:
             raise ConfigError('a connection string needs a host')
 
@@ -161,7 +186,7 @@ class ConnectionString:
             raise ConfigError('mode hint must be one of %s'
                               % ', '.join(fteproxy.handshake.MODES))
         defs = hints.get('defs', [None])[0]
-        if defs is not None and not defs.isdigit():
+        if defs is not None and _DATED_RELEASE.fullmatch(defs) is None:
             raise ConfigError('defs hint must be a YYYYMMDD release')
         return cls(server_id=server_id, host=host, port=port,
                    format_name=hints.get('format', [None])[0], mode=mode,
@@ -308,8 +333,12 @@ def split_forward_spec(text):
         bind, local_port, host, port = parts
     else:
         raise ValueError('expected [BIND:]PORT:HOST:PORT, got %r' % text)
-    return ((_strip_brackets(bind), _parse_port(local_port, text)),
-            (_strip_brackets(host), _parse_port(port, text)))
+    bind = _strip_brackets(bind)
+    host = _strip_brackets(host)
+    if not host:
+        raise ValueError('destination host is empty in %r' % text)
+    return ((bind, _parse_port(local_port, text)),
+            (host, _parse_port(port, text)))
 
 
 def split_socks_spec(text):
@@ -355,8 +384,13 @@ def _strip_brackets(text):
 def state_dir(explicit=None, environ=None):
     """Where the server keeps its key, by the order in the plan's 1.3."""
     environ = os.environ if environ is None else environ
-    if explicit:
-        return os.path.abspath(os.path.expanduser(explicit))
+    if explicit is not None:
+        if not isinstance(explicit, str) or not explicit:
+            raise ConfigError('an explicit state directory must not be empty')
+        expanded = os.path.expanduser(explicit)
+        if expanded.startswith('~'):
+            raise ConfigError('state directory refers to an unknown user')
+        return os.path.abspath(expanded)
     from_env = environ.get(ENV_STATE_DIR)
     if from_env:
         return os.path.abspath(os.path.expanduser(from_env))
@@ -367,20 +401,58 @@ def state_dir(explicit=None, environ=None):
     return os.path.expanduser(os.path.join('~', '.local', 'state', 'fteproxy'))
 
 
-def ensure_state_dir(path):
-    """Create the state directory at mode 0700, tightening it if it is looser.
+def validate_state_dir(path, missing_ok=False):
+    """Validate an existing state directory without changing it.
 
-    A directory another local user can read is a directory they can read the
-    private key out of, so a pre-existing loose one is corrected rather than
-    accepted.
+    Refusing a loose or symlinked directory is deliberate. A privileged typo
+    such as ``--state-dir /var/lib`` must not chmod an unrelated tree, and a
+    state-directory symlink makes the destination of private writes less
+    obvious than this security boundary should be.
     """
     try:
-        os.makedirs(path, mode=DIR_MODE, exist_ok=True)
-        current = stat.S_IMODE(os.stat(path).st_mode)
-        if current & 0o077:
-            os.chmod(path, DIR_MODE)
+        info = os.lstat(path)
+    except FileNotFoundError:
+        if missing_ok:
+            return False
+        raise ConfigError('state directory %s does not exist' % path)
     except OSError as e:
         raise ConfigError('cannot use state directory %s: %s' % (path, e))
+
+    if stat.S_ISLNK(info.st_mode):
+        raise ConfigError('state directory %s must not be a symlink' % path)
+    if not stat.S_ISDIR(info.st_mode):
+        raise ConfigError('state directory %s is not a directory' % path)
+
+    getuid = getattr(os, 'geteuid', None)
+    if getuid is not None and info.st_uid != getuid():
+        raise ConfigError('state directory %s is owned by uid %d, not uid %d'
+                          % (path, info.st_uid, getuid()))
+
+    current = stat.S_IMODE(info.st_mode)
+    if current & 0o077:
+        raise ConfigError(
+            'state directory %s has mode %o; run chmod 700 %s explicitly '
+            'before using it' % (path, current, path))
+    return True
+
+
+def ensure_state_dir(path):
+    """Create a missing state directory at mode 0700, or validate one.
+
+    An existing directory is never chmodded implicitly; see
+    :func:`validate_state_dir`.
+    """
+    if validate_state_dir(path, missing_ok=True):
+        return path
+    try:
+        os.makedirs(path, mode=DIR_MODE, exist_ok=False)
+    except FileExistsError:
+        # A concurrent creator won the race. Validate exactly what appeared.
+        validate_state_dir(path)
+        return path
+    except OSError as e:
+        raise ConfigError('cannot create state directory %s: %s' % (path, e))
+    validate_state_dir(path)
     return path
 
 
@@ -416,10 +488,45 @@ def _write_private(path, text):
     try:
         with handle:
             handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
         os.replace(temporary, path)
     except BaseException:
         _remove_quietly(temporary)
         raise
+
+
+def _write_private_if_absent(path, text):
+    """Atomically publish ``text`` at ``path`` only if it is absent.
+
+    The complete mode-0600 temporary file is hard-linked into place, an atomic
+    no-overwrite operation. Unlike opening the canonical path with ``O_EXCL``,
+    a concurrent reader can therefore never observe a half-written key.
+    Returns ``True`` for the winner and ``False`` when another process won.
+    """
+    directory = os.path.dirname(path) or os.curdir
+    flags = (os.O_WRONLY | os.O_CREAT | os.O_EXCL
+             | getattr(os, 'O_NOFOLLOW', 0))
+    temporary = os.path.join(
+        directory, '.%s.%s.tmp' % (os.path.basename(path),
+                                   os.urandom(8).hex()))
+    try:
+        descriptor = os.open(temporary, flags, FILE_MODE)
+        try:
+            with os.fdopen(descriptor, 'w') as handle:
+                handle.write(text)
+                handle.flush()
+                os.fsync(handle.fileno())
+        except BaseException:
+            _remove_quietly(temporary)
+            raise
+        try:
+            os.link(temporary, path, follow_symlinks=False)
+        except FileExistsError:
+            return False
+        return True
+    finally:
+        _remove_quietly(temporary)
 
 
 def _remove_quietly(path):
@@ -438,6 +545,91 @@ def connection_path(directory):
     return os.path.join(directory, CONNECTION_FILE)
 
 
+def _read_managed_text(path, maximum, missing_ok=False):
+    """Read a bounded, trusted-state file without following a leaf symlink.
+
+    ``server.key`` and the implicit ``connection.txt`` inherit trust from the
+    private state directory.  That trust must not silently cross a symlink or a
+    hard link into a file with a different owner.  ``O_NOFOLLOW`` closes the
+    check/open race on platforms that provide it; the lstat/fstat comparison is
+    retained both as a portable fallback and as a useful consistency check.
+    Returns ``(text, stat_result)`` or ``(None, None)`` when ``missing_ok``.
+    """
+    nofollow = getattr(os, 'O_NOFOLLOW', 0)
+    # O_NONBLOCK makes opening a FIFO/device safe even if the leaf is swapped
+    # between lstat and open; regular-file reads retain their normal semantics.
+    flags = (os.O_RDONLY | getattr(os, 'O_CLOEXEC', 0)
+             | getattr(os, 'O_NONBLOCK', 0) | nofollow)
+    try:
+        before = os.lstat(path)
+    except FileNotFoundError:
+        if missing_ok:
+            return None, None
+        raise ConfigError('managed state file %s does not exist' % path)
+    except OSError as e:
+        raise ConfigError('cannot inspect managed state file %s: %s'
+                          % (path, e))
+    if stat.S_ISLNK(before.st_mode):
+        raise ConfigError('managed state file %s must not be a symlink' % path)
+    if not stat.S_ISREG(before.st_mode):
+        raise ConfigError('managed state file %s must be a regular file' % path)
+
+    descriptor = None
+    try:
+        descriptor = os.open(path, flags)
+        info = os.fstat(descriptor)
+        after = os.lstat(path)
+        if (stat.S_ISLNK(after.st_mode)
+                or (after.st_dev, after.st_ino) != (info.st_dev, info.st_ino)):
+            raise ConfigError('managed state file %s changed while opening it'
+                              % path)
+        if not stat.S_ISREG(info.st_mode):
+            raise ConfigError('managed state file %s must be a regular file'
+                              % path)
+        if info.st_nlink != 1:
+            raise ConfigError('managed state file %s must not have hard links'
+                              % path)
+        getuid = getattr(os, 'geteuid', None)
+        if getuid is not None and info.st_uid != getuid():
+            raise ConfigError(
+                'managed state file %s is owned by uid %d, not uid %d'
+                % (path, info.st_uid, getuid()))
+
+        handle = os.fdopen(descriptor, 'r', encoding='utf-8')
+        descriptor = None              # the file object owns it from here
+        with handle:
+            return handle.read(maximum + 1), info
+    except ConfigError:
+        raise
+    except FileNotFoundError:
+        if missing_ok:
+            return None, None
+        raise ConfigError('managed state file %s does not exist' % path)
+    except (OSError, UnicodeError) as e:
+        raise ConfigError('cannot read managed state file %s: %s' % (path, e))
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
+def _warn_connection_file_privacy(path, info):
+    """Warn, but do not reject, an explicitly supplied capability file."""
+    concerns = []
+    mode = stat.S_IMODE(info.st_mode)
+    if mode & 0o077:
+        concerns.append('readable by other users (mode %o; use chmod 600)'
+                        % mode)
+    getuid = getattr(os, 'geteuid', None)
+    if getuid is not None and info.st_uid != getuid():
+        concerns.append('owned by uid %d instead of uid %d'
+                        % (info.st_uid, getuid()))
+    if concerns:
+        fteproxy.warn(
+            '%s is not private: %s; protect it and rotate the connection '
+            'capability if it may have been exposed'
+            % (path, '; '.join(concerns)))
+
+
 def load_server_key(directory):
     """Read ``server.key``, or None if it is not there.
 
@@ -445,17 +637,11 @@ def load_server_key(directory):
     readable should be replaced, not silently used.
     """
     path = server_key_path(directory)
-    try:
-        with open(path) as handle:
-            text = handle.read().strip()
-    except FileNotFoundError:
+    text, info = _read_managed_text(path, 4096, missing_ok=True)
+    if text is None:
         return None
-    except OSError as e:
-        raise ConfigError('cannot read %s: %s' % (path, e))
-    try:
-        mode = stat.S_IMODE(os.stat(path).st_mode)
-    except OSError:
-        mode = 0
+    text = text.strip()
+    mode = stat.S_IMODE(info.st_mode)
     if mode & 0o077:
         fteproxy.warn('%s is readable by other users (mode %o); '
                       'fix it with chmod 600 and consider generating a new key'
@@ -479,13 +665,46 @@ def save_server_key(directory, private_bytes):
 
 
 def ensure_server_key(directory):
-    """Return ``(private, public, created)``, generating a key on first use."""
+    """Return ``(private, public, created)``, generating a key on first use.
+
+    The no-overwrite publication ensures concurrent first starts converge on
+    one identity instead of alternately replacing ``server.key``.
+    """
     private = load_server_key(directory)
     if private is not None:
         return private, fteproxy.server_id(private), False
-    private, public = fteproxy.generate_server_key()
-    save_server_key(directory, private)
-    return private, public, True
+    candidate, _public = fteproxy.generate_server_key()
+    return claim_server_key(directory, candidate)
+
+
+def claim_server_key(directory, candidate):
+    """Install ``candidate`` only if no identity exists, then return the winner.
+
+    This variant lets the server bind with an in-memory candidate before it
+    creates first-run state. If another command publishes a key meanwhile, the
+    caller sees that winner and can refuse to serve under a mismatched key.
+    """
+    private = load_server_key(directory)
+    if private is not None:
+        return private, fteproxy.server_id(private), False
+    try:
+        candidate = bytes(candidate)
+        public = fteproxy.server_id(candidate)
+        created = _write_private_if_absent(
+            server_key_path(directory), candidate.hex() + '\n')
+    except (TypeError, ValueError) as e:
+        raise ConfigError('invalid server key: %s' % e)
+    except OSError as e:
+        raise ConfigError('cannot create %s: %s'
+                          % (server_key_path(directory), e))
+    if created:
+        return candidate, public, True
+
+    private = load_server_key(directory)
+    if private is None:
+        raise ConfigError('server.key appeared concurrently but could not be '
+                          'read')
+    return private, fteproxy.server_id(private), False
 
 
 def write_connection_string(directory, uri):
@@ -498,40 +717,100 @@ def write_connection_string(directory, uri):
 
 
 def read_connection_string(directory):
-    """The connection string from ``connection.txt``, or None."""
+    """The connection string from trusted state ``connection.txt``, or None."""
     path = connection_path(directory)
+    text, info = _read_managed_text(
+        path, MAX_CONNECTION_STRING_BYTES, missing_ok=True)
+    if text is None:
+        return None
+    _warn_connection_file_privacy(path, info)
+    return _bounded_connection_text(text)
+
+
+def read_connection_file(path, missing_ok=False):
+    """Read one bounded connection string from ``path``.
+
+    The contents are never included in an exception because even malformed
+    connection strings are capabilities. ``missing_ok`` exists for the
+    implicit state-file fallback only; an explicitly requested file must
+    exist.
+    """
     try:
         with open(path) as handle:
-            text = handle.read().strip()
+            info = os.fstat(handle.fileno())
+            text = handle.read(MAX_CONNECTION_STRING_BYTES + 1)
     except FileNotFoundError:
-        return None
-    except OSError as e:
-        raise ConfigError('cannot read %s: %s' % (path, e))
-    return text or None
+        if missing_ok:
+            return None
+        raise ConfigError('connection file %s does not exist' % path)
+    except (OSError, UnicodeError) as e:
+        raise ConfigError('cannot read connection file %s: %s' % (path, e))
+    _warn_connection_file_privacy(path, info)
+    return _bounded_connection_text(text)
 
 
-def resolve_client_uri(argument=None, directory=None, environ=None):
-    """The client's URI, from the argument, the environment, or the file.
+def _bounded_connection_text(text):
+    """Return stripped connection text, rejecting an oversized source."""
+    if len(text.encode('utf-8', errors='replace')) \
+            > MAX_CONNECTION_STRING_BYTES:
+        raise ConfigError('connection string is too long')
+    return text.strip() or None
 
-    Returns ``(ConnectionString, source)``. A string that still carries the
-    ``<server-ip>`` placeholder can only have been written by a server on this
-    host, so it is pointed at loopback; that is what makes ``fteproxy server``
-    then ``fteproxy client`` work on one machine with no arguments at all.
+
+def resolve_client_uri(argument=None, directory=None, environ=None,
+                       connection_file=None, input_stream=None):
+    """Resolve the client's URI from one explicit source or a fallback.
+
+    Explicit sources are the positional argument, ``connection_file`` and
+    ``input_stream``; at most one may be present. With none, ``FTEPROXY_URI``
+    and then the state directory's ``connection.txt`` are tried. Returns
+    ``(ConnectionString, source)``.
+
+    Only a legacy placeholder read implicitly from this host's
+    ``connection.txt`` is pointed at loopback. A placeholder supplied through
+    argv, the environment, an explicit file or stdin is incomplete and must
+    not silently send the client to its own machine.
     """
     environ = os.environ if environ is None else environ
-    if argument:
+    explicit = sum(value is not None
+                   for value in (argument, connection_file, input_stream))
+    if explicit > 1:
+        raise ConfigError('choose only one explicit connection source')
+
+    from_implicit_file = False
+    if argument is not None:
         text, source = argument, 'the command line'
+    elif connection_file is not None:
+        text = read_connection_file(connection_file)
+        source = connection_file
+    elif input_stream is not None:
+        try:
+            text = input_stream.read(MAX_CONNECTION_STRING_BYTES + 1)
+        except (OSError, UnicodeError) as e:
+            raise ConfigError('cannot read connection string from standard '
+                              'input: %s' % e)
+        text = _bounded_connection_text(text)
+        source = 'standard input'
     elif environ.get(ENV_URI):
         text, source = environ[ENV_URI], ENV_URI
     elif directory is not None:
+        if not validate_state_dir(directory, missing_ok=True):
+            return None, None
         text = read_connection_string(directory)
         source = connection_path(directory)
+        from_implicit_file = True
         if not text:
             return None, None
     else:
         return None, None
 
+    if not text:
+        raise ConfigError('empty connection string')
     uri = ConnectionString.parse(text)
     if uri.host == HOST_PLACEHOLDER:
+        if not from_implicit_file:
+            raise ConfigError(
+                'connection string still contains <server-ip>; replace it '
+                'with the server\'s reachable address')
         uri = uri.with_host('127.0.0.1')
     return uri, source

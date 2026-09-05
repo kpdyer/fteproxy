@@ -108,7 +108,8 @@ contents, and the longest covertext is the one choice that always has room.
 A `hybrid`-mode header is a fixed-length frame too, but it goes at
 **`fteproxy.hybrid_header_length(spec)` — the shortest allowed length whose
 cipher has room for a header**, not at `max_length`. A header carries four
-bytes, the length of the raw body behind it, and nothing else
+bytes, the length of the authenticated body behind it (excluding any carrier
+framing), and nothing else
 (`record_layer.HYBRID_HEADER_BYTES`, 16 bytes of plaintext once the seal's
 length and sequence fields are counted). Ranking a covertext gets superlinearly
 more expensive as it gets longer — sealing `http`'s header at 200 bytes instead
@@ -124,11 +125,14 @@ length that can hold a header cannot run in hybrid mode at all: `defs-check`
 refuses it, and a session that asks for hybrid is refused with
 `fteproxy.HybridUnsupportedError` rather than quietly framed some other way.
 
-Those lengths are always lengths **on the wire**. For the two framings below
-that is the same as the cipher's covertext length; for `length-prefix` framing
-the cipher is built two bytes shorter and the prefix makes up the difference.
-`fteproxy._spec_cipher(spec, wire_length, key)` is the one place that
-subtraction happens, so every other caller just names a wire length.
+Those covertext lengths are always lengths **on the wire**. For `fixed` and
+`terminator` framing that is the same as the cipher's covertext length; for
+`length-prefix` framing the cipher is built two bytes shorter and the prefix
+makes up the difference. `hybrid_framing` is separate: it surrounds the
+authenticated body after the covertext header and does not change the header's
+declared length. `fteproxy._spec_cipher(spec, wire_length, key)` is the one
+place the length-prefix subtraction happens, so every other caller just names
+a wire length.
 
 Two rules make this work, and both are easy to get wrong.
 
@@ -175,12 +179,15 @@ pattern, with two conservative rules:
 the net for the one gap the static check leaves — a terminator spanning three or
 more copies of a repeated group.
 
-This is why `http-response` ends at the header block's `\r\n\r\n` with
-`Content-Length: 0` and has no body field: the body-absorbing
+This is why the base `http-response` regex ends at the header block's
+`\r\n\r\n` with `Content-Length: 0` and has no body field: the body-absorbing
 `[a-zA-Z0-9/+= \r\n-]*` it used to end with admitted CR and LF, so a covertext
 could carry `\r\n\r\n` inside it. A response with no body (`302`, `304`, or a
 `200` with `Content-Length: 0`) is valid HTTP, and the capacity the body carried
-moved into the `Server`, `Content-Type`, `ETag` and `Set-Cookie` values.
+moved into the `Server`, `Content-Type`, `ETag` and `Set-Cookie` values. The
+handshake and `format` mode use this base regex. HTTP hybrid data uses the
+separate `hybrid_regex` and `hybrid_framing` described below, so its header
+truthfully declares the body that follows.
 
 ### Framing kind 2: a length prefix, which is framing and not language
 
@@ -255,13 +262,25 @@ it fullmatches the regex, and that the wire length is one the format declared.
 The schema-v2 `mode_hint` records which record-layer mode a format is designed
 for. The client's `--mode` still overrides it.
 
-- **http → `hybrid`.** Hybrid framing formats only a fixed-length header per
-  record and sends the body as raw authenticated bytes. That reads as an HTTP
-  message with a body, which is exactly what HTTP looks like. Fast.
-- **line protocols (ftp, smtp, sip) and the binary dns format → `format`.** A pure line protocol has
-  no natural place for a raw high-entropy body, so every byte is transformed into
-  the target format (about 1 MB/s, fine for interactive circumvention). Document
-  that `hybrid` on a line protocol leaks a high-entropy tail.
+- **http → `hybrid`.** The base regex remains a complete zero-body message for
+  the handshake and `format` mode. A separate hybrid regex emits `POST`
+  requests and body-permitted responses with `Transfer-Encoding: chunked`.
+  The record layer writes one chunk containing the authenticated ciphertext,
+  then the terminal zero chunk. This retains the fast one-DFA-header design
+  while making every individual wire record syntactically complete HTTP.
+- **line protocols (ftp, smtp, sip) and the binary dns format → `format`.** A
+  pure line protocol has no natural place for a raw high-entropy body, so every
+  covertext byte is transformed into the target format (about 1 MB/s, fine for
+  interactive circumvention). Document that `hybrid` on a line protocol leaks
+  a high-entropy tail.
+
+Protocol framing is not protocol semantics. The HTTP carrier assumes a direct,
+byte-preserving TCP path to fteproxy, not an HTTP proxy: header normalization or
+dechunking/rechunking changes the bytes the decoder authenticates and closes
+the tunnel. The two directions also emit records independently according to
+tunneled traffic, so request and response counts, timing and fields need not
+form real transactions. A new carrier should document both limitations; making
+an HTTP response correspond to a request requires state above a regex.
 
 ## Schema v2 keys
 
@@ -270,6 +289,8 @@ every new key defaults so old files are unchanged). The optional keys:
 
 | key | type | default | meaning |
 |---|---|---|---|
+| `hybrid_regex` | str | `regex` | header grammar used for post-handshake hybrid records; the handshake and format mode continue to use `regex` |
+| `hybrid_framing` | `raw` \| `http-chunked` | `raw` | framing around the authenticated hybrid body after its covertext header; `http-chunked` emits one data chunk and a terminal zero chunk |
 | `min_length`, `max_length` | int / null | `null` | variable length: the ends of the covertext-length range, **on the wire** |
 | `terminator` | str / null | `null` | variable length: what every covertext ends with, and only ends with |
 | `framing` | `fixed` \| `terminator` \| `length-prefix` | inferred: `terminator` when a terminator is declared, else `fixed` | how one covertext is told from the next |
@@ -291,7 +312,9 @@ Example (one line in the JSON; wrapped here):
 
 ```json
 "http-request": {
-  "regex": "^(GET|POST) /...\r\n\r\n$",
+  "regex": "^(GET|POST|HEAD) /...\r\n\r\n$",
+  "hybrid_regex": "^POST /...\r\nTransfer-Encoding: chunked\r\n\r\n$",
+  "hybrid_framing": "http-chunked",
   "min_length": 200,
   "max_length": 700,
   "terminator": "\r\n\r\n",
@@ -299,9 +322,18 @@ Example (one line in the JSON; wrapped here):
   "role": "request",
   "mode_hint": "hybrid",
   "default": true,
-  "description": "HTTP/1.1 GET or POST request with common headers"
+  "description": "HTTP/1.1 request; hybrid records use POST plus a chunked body"
 }
 ```
+
+For `http-chunked`, `hybrid_regex` must literally advertise
+`Transfer-Encoding: chunked`. Do not also emit `Content-Length`. The response
+hybrid regex must exclude statuses such as `304` that cannot carry content.
+The deterministic wire body for a non-empty ciphertext of `B` bytes is
+`format(B, "x") + "\r\n" + body + "\r\n0\r\n\r\n"`; zero uses
+`"0\r\n\r\n"`.
+The decoder derives and checks those framing bytes from the authenticated body
+length rather than trusting a second length.
 
 The length-prefix counterpart, where the delimiter is a `framing` key rather
 than a terminator and the regex describes the message alone:
@@ -322,23 +354,31 @@ than a terminator and the regex describes the message alone:
 
 ## The verified HTTP starting point
 
-This compiles, holds 448 bytes of capacity at length 700 (50 at length 200),
-parses with Python's HTTP request parser, and satisfies the terminator rules
-above (one line in the JSON; shown wrapped):
+The base request regex compiles, holds 448 bytes of capacity at length 700 (63
+at length 200), parses with Python's HTTP request parser, and satisfies the
+terminator rules above (one line in the JSON; shown wrapped):
 
 ```
-^(GET|POST) /[a-zA-Z0-9/._?=&%-]* HTTP/1\.1\r\n
+^(GET|POST|HEAD) /[a-zA-Z0-9/._?=&%-]* HTTP/1\.1\r\n
 Host: [a-z0-9.-]+\r\n
-User-Agent: Mozilla/5\.0 \([a-zA-Z0-9;: .()]+\)\r\n
+User-Agent: Mozilla/5\.0 \([a-zA-Z0-9;: .()/_-]+\)\r\n
 Accept: [a-zA-Z0-9/*,;= .+-]+\r\n
 Accept-Language: [a-z,;=0-9. -]+\r\n
 \r\n$
 ```
 
-The matching response is `HTTP/1\.1 (200 OK|302 Found|304 Not Modified|404 Not
-Found)` with `Server`, `Content-Type`, `Content-Length: 0`, `ETag` and
+The matching base response is `HTTP/1\.1 (200 OK|302 Found|304 Not Modified|404
+Not Found)` with `Server`, `Content-Type`, `Content-Length: 0`, `ETag` and
 `Set-Cookie`, ending at the header block. It carried a body-absorbing field
 until F7; see the terminator rules for why that field had to go.
+
+The hybrid request regex fixes the method to `POST` and inserts
+`Transfer-Encoding: chunked` before the blank line. The hybrid response makes
+the same header substitution and permits `200`, `302` and `404`, but not `304`.
+At length 200 those grammars hold 40 and 45 bytes respectively, both above the
+16-byte sealed-header requirement. Validate the complete header, chunk-size,
+ciphertext chunk and terminal chunk with an independent HTTP parser; validating
+the regex header alone would recreate the original framing bug.
 
 ## The fragment-file convention (F1–F5)
 
@@ -380,7 +420,7 @@ with open('fteproxy/defs/20260903.json', 'w') as fh:
 
 ## Running the checks
 
-Validate a whole release (searches `fteproxy/defs/` and then `examples/defs/`):
+Validate a packaged release (`shapes-20260110` aliases `20260110`):
 
 ```
 uv run python -m fteproxy defs-check --defs 20260903
@@ -388,9 +428,10 @@ uv run python -m fteproxy defs-check --defs shapes-20260110
 ```
 
 It builds the cipher, checks the capacity floor, round-trips random payloads
-through the record layer in the format's mode (both modes when `hybrid`), and
-confirms every format-mode covertext matches the regex. Exit 0 on success with a
-per-format capacity summary, exit 1 with the failures otherwise.
+through the record layer in the format's mode (both modes when `hybrid`),
+confirms every format-mode covertext matches `regex`, and confirms hybrid
+headers match `hybrid_regex` with the declared body framing. Exit 0 on success
+with a per-format capacity summary, exit 1 with the failures otherwise.
 
 Run one protocol's tests:
 

@@ -119,10 +119,11 @@ def record_layer_pair(spec, hybrid=False, key=_KEY):
     The same wiring :func:`fteproxy._session_channel` does for a live
     connection, minus the handshake: in ``format`` mode a variable-length format
     also gets the ciphers for every length it may emit, and in ``hybrid`` mode
-    it does not, because a hybrid record is a fixed-length header plus a raw
-    body -- sealed at :func:`fteproxy.hybrid_header_length`, the shortest length
-    that holds one, not at ``max_length``. A protocol's test file uses this so
-    it exercises the framing the product actually uses rather than a hand-rolled
+    it does not, because a hybrid record is a fixed-length header plus an
+    authenticated body -- sealed at :func:`fteproxy.hybrid_header_length`, the
+    shortest length that holds one, not at ``max_length``. A definition may add
+    protocol framing around that body. A protocol's test file uses this so it
+    exercises the framing the product actually uses rather than a hand-rolled
     approximation of it.
     """
     length = (fteproxy.hybrid_header_length(spec) if hybrid
@@ -130,10 +131,18 @@ def record_layer_pair(spec, hybrid=False, key=_KEY):
     variable = (None if hybrid or not fteproxy.defs.spec_is_variable(spec)
                 else fteproxy._variable_lengths_for_spec(spec, key))
     body = fteproxy._make_body_cipher(key) if hybrid else None
-    return (rl.Encoder(cipher=fteproxy._spec_cipher(spec, length, key),
-                       body_cipher=body, variable=variable),
-            rl.Decoder(cipher=fteproxy._spec_cipher(spec, length, key),
-                       body_cipher=body, variable=variable))
+    def header_cipher():
+        if hybrid:
+            return fteproxy._framed_cipher(
+                fteproxy.defs.spec_hybrid_regex(spec), length, key,
+                fteproxy.defs.spec_framing(spec))
+        return fteproxy._spec_cipher(spec, length, key)
+    body_framing = (fteproxy.defs.spec_hybrid_framing(spec) if hybrid
+                    else fteproxy.defs.HYBRID_FRAMING_RAW)
+    return (rl.Encoder(cipher=header_cipher(), body_cipher=body,
+                       variable=variable, hybrid_framing=body_framing),
+            rl.Decoder(cipher=header_cipher(), body_cipher=body,
+                       variable=variable, hybrid_framing=body_framing))
 
 
 def allowed_lengths(spec):

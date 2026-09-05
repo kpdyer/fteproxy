@@ -28,6 +28,7 @@ import pytest
 
 import fteproxy
 import fteproxy.defs
+import fteproxy.record_layer
 import fteproxy.tests.realism as realism
 import fteproxy.tests.realism.http as http_realism
 
@@ -55,6 +56,16 @@ def test_cipher_builds_with_capacity_floor(name):
 
 
 @pytest.mark.parametrize('name', _NAMES)
+def test_hybrid_uses_a_chunked_header_without_changing_the_handshake(name):
+    spec = _spec(name)
+    assert fteproxy.defs.spec_hybrid_framing(spec) == \
+        fteproxy.defs.HYBRID_FRAMING_HTTP_CHUNKED
+    assert 'Transfer-Encoding: chunked\r\n' in \
+        fteproxy.defs.spec_hybrid_regex(spec)
+    assert 'Transfer-Encoding: chunked\r\n' not in spec['regex']
+
+
+@pytest.mark.parametrize('name', _NAMES)
 @pytest.mark.parametrize('hybrid', [False, True])
 def test_round_trip_through_record_layer(name, hybrid):
     encoder, decoder = realism.record_layer_pair(_spec(name), hybrid=hybrid,
@@ -65,6 +76,42 @@ def test_round_trip_through_record_layer(name, hybrid):
         wire = encoder.pop()
         decoder.push(wire)
         assert decoder.pop() == payload
+
+
+@pytest.mark.parametrize('name', _NAMES)
+def test_hybrid_record_is_one_complete_chunked_http_message(name):
+    """The parser sees the encrypted carrier as the declared HTTP body.
+
+    This is the regression for the old layout, where the request declared no
+    body and the response declared ``Content-Length: 0`` before the record
+    layer appended ciphertext anyway.  Exercise the real FTE header, body AEAD,
+    HTTP parser and record decoder together in both directions.
+    """
+    spec = _spec(name)
+    encoder, decoder = realism.record_layer_pair(spec, hybrid=True, key=_KEY)
+    payload = b'full HTTP message, then full fteproxy record'
+    wire = encoder.encode(fteproxy.record_layer.DATA, payload)
+
+    framed_ciphertext = http_realism.parse_hybrid_message(wire)
+    assert len(framed_ciphertext) > len(payload)
+    assert b'Transfer-Encoding: chunked\r\n' in \
+        wire[:fteproxy.hybrid_header_length(spec)]
+
+    decoder.push(wire)
+    assert decoder.pop_records() == [(fteproxy.record_layer.DATA, payload)]
+    assert not decoder.failed
+
+
+@pytest.mark.parametrize('name', _NAMES)
+def test_hybrid_decoder_rejects_broken_http_chunk_terminator(name):
+    spec = _spec(name)
+    encoder, decoder = realism.record_layer_pair(spec, hybrid=True, key=_KEY)
+    wire = encoder.encode(fteproxy.record_layer.DATA, b'payload')
+    assert wire.endswith(b'\r\n0\r\n\r\n')
+
+    decoder.push(wire[:-1] + b'X')
+    assert decoder.pop_records() == []
+    assert decoder.failed
 
 
 @pytest.mark.parametrize('name', _NAMES)
