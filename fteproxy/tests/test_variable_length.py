@@ -262,8 +262,9 @@ class TestFraming:
             out += decoder.pop()
         assert out == payload
 
-    def test_control_records_interleave_with_data(self):
-        encoder, decoder = _pair('http-request')
+    @pytest.mark.parametrize('name', ['http-request', 'dns-request'])
+    def test_control_records_interleave_with_data(self, name):
+        encoder, decoder = _pair(name)
         wire = encoder.encode(rl.OPEN, b'dest')
         encoder.push(b'payload')
         wire += encoder.pop()
@@ -275,24 +276,42 @@ class TestFraming:
             (rl.CLOSE, b''),
         ]
 
-    def test_a_reordered_record_is_rejected(self):
+    @pytest.mark.parametrize('name', ['ftp-request', 'dns-request'])
+    def test_a_reordered_record_is_rejected(self, name):
         """The seal still stamps the stream position, so the same record in the
         wrong place does not decode -- variable length changes framing, not the
         anti-replay guarantee."""
-        encoder, _ = _pair('ftp-request')
+        encoder, _ = _pair(name)
         encoder.push(b'first')
         first = encoder.pop()
         encoder.push(b'second')
         second = encoder.pop()
 
-        _e, ordered = _pair('ftp-request')
+        _e, ordered = _pair(name)
         ordered.push(first + second)
         assert ordered.pop() == b'firstsecond'
 
-        _e, swapped = _pair('ftp-request')
+        _e, swapped = _pair(name)
         swapped.push(second + first)
         assert swapped.pop() == b''
         assert swapped.failed
+
+    @pytest.mark.parametrize('name', ['ftp-request', 'dns-request'])
+    def test_record_limit_preserves_a_partial_next_frame(self, name):
+        encoder, decoder = _pair(name)
+        first = encoder.encode(rl.OPEN, b'dest')
+        second = encoder.encode(rl.DATA, b'payload')
+        decoder.push(first + second[:1])
+
+        assert decoder.pop_records(limit=0) == []
+        assert decoder.pop_records(limit=1) == [(rl.OPEN, b'dest')]
+        assert decoder.pop_records() == []
+        assert not decoder.failed
+
+        decoder.push(second[1:])
+        assert decoder.pop_records(limit=1) == [(rl.DATA, b'payload')]
+        assert decoder.pop_records() == []
+        assert not decoder.failed
 
 
 # --------------------------------------------------------------------------- #

@@ -39,13 +39,6 @@ def module_path():
 conf = {}
 
 
-"""The base path for the location of the fteproxy.* modules."""
-if we_are_frozen():
-    conf['general.base_dir'] = module_path()
-else:
-    conf['general.base_dir'] = os.path.join(module_path(), '..')
-
-
 """The path for fte *.json definition files."""
 if we_are_frozen():
     conf['general.defs_dir'] = os.path.join(module_path(), 'fteproxy', 'defs')

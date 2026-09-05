@@ -305,15 +305,18 @@ def _variable_lengths(name, spec):
     """
     import fteproxy
 
+    ciphers = {}
     for length in fteproxy.defs.spec_allowed_lengths(spec):
         try:
-            fteproxy._spec_cipher(spec, length, _KEY)
+            ciphers[length] = fteproxy._spec_cipher(spec, length, _KEY)
         except Exception as e:
             raise FormatValidationError(
                 '%s: unusable at length %d, one of the lengths it would emit: '
                 '%s' % (name, length, e))
     try:
-        return fteproxy._variable_lengths_for_spec(spec, _KEY)
+        return fteproxy.record_layer.VariableLength(
+            ciphers, fteproxy.defs.spec_terminator(spec),
+            framing=fteproxy.defs.spec_framing(spec))
     except ValueError as e:
         raise FormatValidationError('%s: %s' % (name, e))
 

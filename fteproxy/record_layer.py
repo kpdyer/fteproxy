@@ -621,8 +621,6 @@ class Decoder:
         if self._failed:
             return []
         if self._variable is not None:
-            if self._variable.framing == fteproxy.defs.FRAMING_LENGTH_PREFIX:
-                return self._pop_length_prefixed_records(limit)
             return self._pop_variable_records(limit)
         buffer = self._buffer
         records = []
@@ -731,89 +729,69 @@ class Decoder:
         self._buffer = b'' if self._failed else buffer[offset:]
         return records
 
-    def _pop_variable_records(self, limit=None):
-        """:meth:`pop_records` for a variable-length format: terminator framing.
+    def _terminated_frame_end(self, buffer, offset):
+        """Find one terminator-framed covertext, or return None to stop.
 
         A record runs to the end of the next terminator. Its length must be one
-        the format emits -- anything else is not a covertext this peer wrote, so
-        the stream fails closed exactly as a bad decrypt does, rather than
-        hunting for a later terminator that might line up.
-
-        Every other guarantee is the fixed-length path's: the seal must unseal
-        at the current sequence number, any authentication failure is fatal to
-        the stream, and the buffer is bounded -- here by refusing to hold more
-        than one longest covertext without a terminator, so a peer cannot grow
-        it by simply never sending one.
+        the format emits; an invalid length fails the stream rather than
+        hunting for a later terminator. Refusing more than one longest covertext
+        without a terminator bounds what a peer can make us buffer.
         """
-        buffer = self._buffer
         terminator = self._variable.terminator
-        records = []
-        offset = 0
-
-        while True:
-            if limit is not None and len(records) >= limit:
-                break
-            end = buffer.find(terminator, offset)
-            if end < 0:
-                if len(buffer) - offset > self._variable.max_length:
-                    fteproxy.info(
-                        "fteproxy.record_layer: %d bytes with no covertext "
-                        "terminator, more than the %d-byte maximum"
-                        % (len(buffer) - offset, self._variable.max_length))
-                    self._failed = True
-                # Otherwise: a partial covertext, still arriving. Wait.
-                break
-            end += len(terminator)
-            length = end - offset
-            if length not in self._variable.lengths:
-                fteproxy.debug(
-                    "fteproxy.record_layer: covertext of %d bytes is not a "
-                    "length this format emits" % length)
+        end = buffer.find(terminator, offset)
+        if end < 0:
+            if len(buffer) - offset > self._variable.max_length:
+                fteproxy.info(
+                    "fteproxy.record_layer: %d bytes with no covertext "
+                    "terminator, more than the %d-byte maximum"
+                    % (len(buffer) - offset, self._variable.max_length))
                 self._failed = True
-                break
-            plaintext = self._decrypt(self._variable.cipher(length),
-                                      buffer[offset:end])
-            if plaintext is None:
-                self._failed = True
-                break
-            message = _unseal(plaintext, self._seq)
-            if message is None:
-                fteproxy.debug(
-                    "fteproxy.record_layer: malformed or out-of-order sealed "
-                    "record at seq " + str(self._seq))
-                self._failed = True
-                break
-            self._seq += 1
-            offset = end
-            records.append(self._split_type(message))
+            # Otherwise: a partial covertext, still arriving. Wait.
+            return None
+        end += len(terminator)
+        length = end - offset
+        if length not in self._variable.lengths:
+            fteproxy.debug(
+                "fteproxy.record_layer: covertext of %d bytes is not a "
+                "length this format emits" % length)
+            self._failed = True
+            return None
+        return end
 
-        self._buffer = b'' if self._failed else buffer[offset:]
-        return records
-
-    def _pop_length_prefixed_records(self, limit=None):
-        """:meth:`pop_records` for a ``length-prefix`` format.
+    def _length_prefixed_frame_end(self, buffer, offset):
+        """Find one length-prefixed covertext, or return None to stop.
 
         A record is a two-byte big-endian message length followed by that many
-        bytes (RFC 1035 4.2.2). The prefix is not authenticated -- nothing on the
-        wire is until the covertext decrypts -- so the *only* thing it is
-        trusted for is which of the format's ciphers to try, and it is checked
-        against :attr:`VariableLength.lengths` before a single byte is waited
-        for. A prefix naming any other length is a peer that did not write this
-        stream, so it fails the stream closed **immediately** rather than
-        waiting: a 65535-byte prefix is a protocol violation, not a large record
-        still arriving, and treating it as the latter is how a decoder is talked
-        into buffering on a stranger's say-so.
-
-        That check is also the buffer bound this framing needs. The terminator
-        path has to impose one (a peer can simply never send a terminator);
-        here, every record announces its own size up front, so the buffer never
-        holds more than one longest covertext without either producing a record
-        or failing.
-
-        Every other guarantee is the fixed-length path's: the covertext must
-        decrypt, the seal must unseal at the current sequence number, and any
-        authentication failure is fatal to the stream.
+        bytes (RFC 1035 4.2.2). The unauthenticated prefix only selects which
+        cipher to try. Check it against the allowed lengths before waiting for
+        any body bytes: a 65535-byte prefix must fail immediately, never invite
+        an oversized buffer. An allowed but incomplete frame waits for more.
         """
+        if len(buffer) - offset < PREFIX_LEN:
+            return None                     # not even a prefix yet; wait
+        declared = _PREFIX.unpack_from(buffer, offset)[0]
+        length = declared + PREFIX_LEN
+        if length not in self._variable.lengths:
+            fteproxy.debug(
+                "fteproxy.record_layer: length prefix announces a %d-byte "
+                "covertext, which is not a length this format emits"
+                % length)
+            self._failed = True
+            return None
+        if len(buffer) - offset < length:
+            return None                     # message still arriving; wait
+        return offset + length
+
+    def _pop_variable_records(self, limit=None):
+        """Decode either variable-length framing with the same stream checks.
+
+        The boundary finder validates and bounds each frame. Decryption, stream
+        position and record types are checked here, leaving any partial frame
+        buffered and discarding the remainder after an authentication failure.
+        """
+        frame_end = (self._length_prefixed_frame_end
+                     if self._variable.framing == fteproxy.defs.FRAMING_LENGTH_PREFIX
+                     else self._terminated_frame_end)
         buffer = self._buffer
         records = []
         offset = 0
@@ -821,20 +799,10 @@ class Decoder:
         while True:
             if limit is not None and len(records) >= limit:
                 break
-            if len(buffer) - offset < PREFIX_LEN:
-                break                       # not even a prefix yet; wait
-            declared = _PREFIX.unpack_from(buffer, offset)[0]
-            length = declared + PREFIX_LEN
-            if length not in self._variable.lengths:
-                fteproxy.debug(
-                    "fteproxy.record_layer: length prefix announces a %d-byte "
-                    "covertext, which is not a length this format emits"
-                    % length)
-                self._failed = True
+            end = frame_end(buffer, offset)
+            if end is None:
                 break
-            if len(buffer) - offset < length:
-                break                       # message still arriving; wait
-            end = offset + length
+            length = end - offset
             plaintext = self._decrypt(self._variable.cipher(length),
                                       buffer[offset:end])
             if plaintext is None:

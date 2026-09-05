@@ -799,7 +799,6 @@ class TestFormats:
         escaped = tmp_path / 'outside.json'
         escaped.write_text('{}\n')
         fteproxy.conf.setValue('general.defs_dir', str(defs_dir))
-        fteproxy.conf.setValue('general.base_dir', str(tmp_path / 'base'))
 
         with pytest.raises(fteproxy.defs.DefinitionsError):
             fteproxy.defs._release_path('../outside')

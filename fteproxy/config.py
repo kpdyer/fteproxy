@@ -27,6 +27,7 @@ import os
 import re
 import stat
 import urllib.parse
+from contextlib import contextmanager
 
 import fteproxy
 import fteproxy.handshake
@@ -456,6 +457,32 @@ def ensure_state_dir(path):
     return path
 
 
+@contextmanager
+def _private_temporary(path, text):
+    """Yield a complete, synced mode-0600 sibling file and clean it up on exit."""
+    directory = os.path.dirname(path) or os.curdir
+    flags = (os.O_WRONLY | os.O_CREAT | os.O_EXCL
+             | getattr(os, 'O_NOFOLLOW', 0))
+    temporary = os.path.join(
+        directory, '.%s.%s.tmp' % (os.path.basename(path),
+                                   os.urandom(8).hex()))
+    descriptor = os.open(temporary, flags, FILE_MODE)
+    try:
+        try:
+            handle = os.fdopen(descriptor, 'w')
+        except BaseException:
+            # Until fdopen succeeds, the descriptor is still ours to close.
+            os.close(descriptor)
+            raise
+        with handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        yield temporary
+    finally:
+        _remove_quietly(temporary)
+
+
 def _write_private(path, text):
     """Write ``text`` to ``path`` at mode 0600, never through a symlink.
 
@@ -470,30 +497,8 @@ def _write_private(path, text):
     makes the write atomic, so a reader never sees a half-written key, and it
     keeps the overwrite that ``fteproxy server`` does on every start.
     """
-    directory = os.path.dirname(path) or os.curdir
-    flags = (os.O_WRONLY | os.O_CREAT | os.O_EXCL
-             | getattr(os, 'O_NOFOLLOW', 0))
-    temporary = os.path.join(
-        directory, '.%s.%s.tmp' % (os.path.basename(path),
-                                   os.urandom(8).hex()))
-    descriptor = os.open(temporary, flags, FILE_MODE)
-    try:
-        handle = os.fdopen(descriptor, 'w')
-    except BaseException:
-        # fdopen did not take the descriptor, so it is still ours to close;
-        # past this point the file object owns it and closes it exactly once.
-        os.close(descriptor)
-        _remove_quietly(temporary)
-        raise
-    try:
-        with handle:
-            handle.write(text)
-            handle.flush()
-            os.fsync(handle.fileno())
+    with _private_temporary(path, text) as temporary:
         os.replace(temporary, path)
-    except BaseException:
-        _remove_quietly(temporary)
-        raise
 
 
 def _write_private_if_absent(path, text):
@@ -504,29 +509,12 @@ def _write_private_if_absent(path, text):
     a concurrent reader can therefore never observe a half-written key.
     Returns ``True`` for the winner and ``False`` when another process won.
     """
-    directory = os.path.dirname(path) or os.curdir
-    flags = (os.O_WRONLY | os.O_CREAT | os.O_EXCL
-             | getattr(os, 'O_NOFOLLOW', 0))
-    temporary = os.path.join(
-        directory, '.%s.%s.tmp' % (os.path.basename(path),
-                                   os.urandom(8).hex()))
-    try:
-        descriptor = os.open(temporary, flags, FILE_MODE)
-        try:
-            with os.fdopen(descriptor, 'w') as handle:
-                handle.write(text)
-                handle.flush()
-                os.fsync(handle.fileno())
-        except BaseException:
-            _remove_quietly(temporary)
-            raise
+    with _private_temporary(path, text) as temporary:
         try:
             os.link(temporary, path, follow_symlinks=False)
         except FileExistsError:
             return False
-        return True
-    finally:
-        _remove_quietly(temporary)
+    return True
 
 
 def _remove_quietly(path):

@@ -483,13 +483,6 @@ class listener(threading.Thread):
             self._connections.clear()
             self._pending_sockets.clear()
         for sock in pending_sockets:
-            # close() in one thread does not reliably interrupt another
-            # thread's blocking recv() on every platform. Shutdown does, and
-            # also makes the peer observe teardown immediately.
-            try:
-                sock.shutdown(socket.SHUT_RDWR)
-            except OSError:
-                pass
             fteproxy.network_io.close_socket(sock)
         for connection in open_connections:
             connection.stop()
@@ -532,12 +525,6 @@ class ServerListener(listener):
                 'runtime.fteproxy.relay.max_active_per_source')
         self._active_admission = _SetupAdmission(
             max_active, max_active_per_source)
-
-    def _admit(self, addr):
-        return self._setup_admission.acquire(addr)
-
-    def _release_admission(self, admission):
-        self._setup_admission.release(admission)
 
     def serve(self, conn, addr):
         tunnel = fteproxy.wrap_socket(conn, server_key=self._server_key)
