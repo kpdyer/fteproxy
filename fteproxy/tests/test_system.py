@@ -7,7 +7,8 @@ key on first start and writes a connection string, a client that finds it and
 opens a SOCKS5 listener or a forwarded port, and a transfer through the
 result.
 
-The ports here are fixed, so no two sessions of this file may run at once.
+Every test gets fresh ephemeral ports, so concurrent suites and a recently
+closed listener cannot masquerade as the process that test just started.
 """
 
 import os
@@ -27,9 +28,6 @@ import fteproxy.stream
 
 
 BIND_IP = '127.0.0.1'
-SERVER_PORT = 18080
-SOCKS_PORT = 18079
-FORWARD_PORT = 18078
 STARTUP_TIMEOUT = 30
 DATA_TIMEOUT = 30
 
@@ -53,6 +51,20 @@ def wait_for_port(host, port, timeout=STARTUP_TIMEOUT):
         except (OSError, socket.timeout):
             time.sleep(0.25)
     return False
+
+
+def unused_ports(count):
+    """Ask the kernel for distinct, currently unused local TCP ports."""
+    held = []
+    try:
+        for _ in range(count):
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.bind((BIND_IP, 0))
+            held.append(sock)
+        return tuple(sock.getsockname()[1] for sock in held)
+    finally:
+        for sock in held:
+            sock.close()
 
 
 def get_fteproxy_cmd():
@@ -175,16 +187,27 @@ def state_dir(tmp_path):
 
 
 @pytest.fixture
-def server(destination, state_dir):
+def ports():
+    """Fresh server, SOCKS and forward ports for one test."""
+    server_port, socks_port, forward_port = unused_ports(3)
+    return {
+        'server': server_port,
+        'socks': socks_port,
+        'forward': forward_port,
+    }
+
+
+@pytest.fixture
+def server(destination, state_dir, ports):
     """``fteproxy server``: makes a key on first start, writes the string."""
     proc = start([
         'server',
-        '--listen', '%s:%d' % (BIND_IP, SERVER_PORT),
-        '--advertise', '%s:%d' % (BIND_IP, SERVER_PORT),
+        '--listen', '%s:%d' % (BIND_IP, ports['server']),
+        '--advertise', '%s:%d' % (BIND_IP, ports['server']),
         '--allow', '%s:%d' % (BIND_IP, destination.port),
         '--state-dir', state_dir,
     ])
-    if not wait_for_port(BIND_IP, SERVER_PORT):
+    if not wait_for_port(BIND_IP, ports['server']):
         terminate(proc)
         stdout, stderr = proc.communicate(timeout=5)
         pytest.fail('server failed to start. stdout: %s stderr: %s'
@@ -194,11 +217,11 @@ def server(destination, state_dir):
 
 
 @pytest.fixture
-def socks_client(server, state_dir):
+def socks_client(server, state_dir, ports):
     """``fteproxy client`` with no URI: it finds connection.txt."""
-    proc = start(['client', '-D', '%s:%d' % (BIND_IP, SOCKS_PORT),
+    proc = start(['client', '-D', '%s:%d' % (BIND_IP, ports['socks']),
                   '--state-dir', state_dir])
-    if not wait_for_port(BIND_IP, SOCKS_PORT):
+    if not wait_for_port(BIND_IP, ports['socks']):
         terminate(proc)
         stdout, stderr = proc.communicate(timeout=5)
         pytest.fail('client failed to start. stdout: %s stderr: %s'
@@ -210,25 +233,25 @@ def socks_client(server, state_dir):
 class TestServerStartup:
 
     def test_the_first_start_writes_a_key_and_a_connection_string(
-            self, server, state_dir):
+            self, server, state_dir, ports):
         assert os.path.exists(fteproxy.config.server_key_path(state_dir))
         text = fteproxy.config.read_connection_string(state_dir)
         uri = fteproxy.config.ConnectionString.parse(text)
-        assert uri.address == (BIND_IP, SERVER_PORT)
+        assert uri.address == (BIND_IP, ports['server'])
         private = fteproxy.config.load_server_key(state_dir)
         assert fteproxy.server_id(private) == uri.server_id
 
     def test_a_restart_keeps_the_same_identity(self, server, state_dir,
-                                               destination):
+                                               destination, ports):
         first = fteproxy.config.read_connection_string(state_dir)
         terminate(server)
         proc = start([
-            'server', '--listen', '%s:%d' % (BIND_IP, SERVER_PORT),
-            '--advertise', '%s:%d' % (BIND_IP, SERVER_PORT),
+            'server', '--listen', '%s:%d' % (BIND_IP, ports['server']),
+            '--advertise', '%s:%d' % (BIND_IP, ports['server']),
             '--allow', '%s:%d' % (BIND_IP, destination.port),
             '--state-dir', state_dir])
         try:
-            assert wait_for_port(BIND_IP, SERVER_PORT)
+            assert wait_for_port(BIND_IP, ports['server'])
             assert fteproxy.config.read_connection_string(state_dir) == first
         finally:
             terminate(proc)
@@ -236,8 +259,8 @@ class TestServerStartup:
 
 class TestEndToEnd:
 
-    def test_socks_transfer(self, socks_client, destination):
-        sock, status = socks_connect(SOCKS_PORT, BIND_IP, destination.port)
+    def test_socks_transfer(self, socks_client, destination, ports):
+        sock, status = socks_connect(ports['socks'], BIND_IP, destination.port)
         try:
             assert status == fteproxy.stream.SUCCEEDED
             payload = b'Hello, fteproxy!'
@@ -246,9 +269,9 @@ class TestEndToEnd:
         finally:
             sock.close()
 
-    def test_socks_large_transfer(self, socks_client, destination):
+    def test_socks_large_transfer(self, socks_client, destination, ports):
         payload = random_bytes(64 * 1024)
-        sock, status = socks_connect(SOCKS_PORT, BIND_IP, destination.port)
+        sock, status = socks_connect(ports['socks'], BIND_IP, destination.port)
         try:
             assert status == fteproxy.stream.SUCCEEDED
             sock.sendall(payload)
@@ -262,10 +285,11 @@ class TestEndToEnd:
             sock.close()
         assert received == payload
 
-    def test_several_socks_connections(self, socks_client, destination):
+    def test_several_socks_connections(self, socks_client, destination, ports):
         for index in range(3):
             payload = ('connection %d: ' % index).encode() + random_bytes(100)
-            sock, status = socks_connect(SOCKS_PORT, BIND_IP, destination.port)
+            sock, status = socks_connect(
+                ports['socks'], BIND_IP, destination.port)
             try:
                 assert status == fteproxy.stream.SUCCEEDED
                 sock.sendall(payload)
@@ -279,53 +303,56 @@ class TestEndToEnd:
             finally:
                 sock.close()
 
-    def test_the_allow_rules_are_enforced(self, socks_client, destination):
+    def test_the_allow_rules_are_enforced(self, socks_client, destination,
+                                          ports):
         """A destination outside --allow comes back as SOCKS5's 0x02."""
-        sock, status = socks_connect(SOCKS_PORT, BIND_IP, destination.port + 1)
+        sock, status = socks_connect(
+            ports['socks'], BIND_IP, destination.port + 1)
         sock.close()
         assert status == fteproxy.stream.NOT_ALLOWED
 
-    def test_forward_transfer(self, server, state_dir, destination):
+    def test_forward_transfer(self, server, state_dir, destination, ports):
         """The old fixed-destination topology, spelled -L."""
         proc = start(['client', '-L', '%s:%d:%s:%d'
-                      % (BIND_IP, FORWARD_PORT, BIND_IP, destination.port),
+                      % (BIND_IP, ports['forward'], BIND_IP, destination.port),
                       '--state-dir', state_dir])
         try:
-            assert wait_for_port(BIND_IP, FORWARD_PORT)
+            assert wait_for_port(BIND_IP, ports['forward'])
             payload = random_bytes(8 * 1024)
-            assert transfer((BIND_IP, FORWARD_PORT), payload) == payload
+            assert transfer((BIND_IP, ports['forward']), payload) == payload
         finally:
             terminate(proc)
 
     def test_the_uri_can_come_from_the_environment(self, server, state_dir,
-                                                   destination):
+                                                   destination, ports):
         env = dict(os.environ)
         env['FTEPROXY_URI'] = fteproxy.config.read_connection_string(state_dir)
         proc = start(['client', '-L', '%s:%d:%s:%d'
-                      % (BIND_IP, FORWARD_PORT, BIND_IP, destination.port),
+                      % (BIND_IP, ports['forward'], BIND_IP, destination.port),
                       '--state-dir', state_dir + '-empty'], env=env)
         try:
-            assert wait_for_port(BIND_IP, FORWARD_PORT)
-            assert transfer((BIND_IP, FORWARD_PORT),
+            assert wait_for_port(BIND_IP, ports['forward'])
+            assert transfer((BIND_IP, ports['forward']),
                             b'from the environment') == b'from the environment'
         finally:
             terminate(proc)
 
-    def test_format_mode_end_to_end(self, server, state_dir, destination):
+    def test_format_mode_end_to_end(self, server, state_dir, destination,
+                                    ports):
         """The client picks the record-layer mode; the server follows."""
         proc = start(['client', '--mode', 'format',
                       '-L', '%s:%d:%s:%d'
-                      % (BIND_IP, FORWARD_PORT, BIND_IP, destination.port),
+                      % (BIND_IP, ports['forward'], BIND_IP, destination.port),
                       '--state-dir', state_dir])
         try:
-            assert wait_for_port(BIND_IP, FORWARD_PORT)
+            assert wait_for_port(BIND_IP, ports['forward'])
             payload = b'every byte in the format' * 8
-            assert transfer((BIND_IP, FORWARD_PORT), payload) == payload
+            assert transfer((BIND_IP, ports['forward']), payload) == payload
         finally:
             terminate(proc)
 
     def test_a_line_protocol_in_format_mode_end_to_end(self, server, state_dir,
-                                                       destination):
+                                                       destination, ports):
         """A variable-length line protocol through the real relay.
 
         ``ftp`` in ``format`` mode is the demanding combination: every byte on
@@ -335,26 +362,26 @@ class TestEndToEnd:
         """
         proc = start(['client', '--format', 'ftp', '--mode', 'format',
                       '-L', '%s:%d:%s:%d'
-                      % (BIND_IP, FORWARD_PORT, BIND_IP, destination.port),
+                      % (BIND_IP, ports['forward'], BIND_IP, destination.port),
                       '--state-dir', state_dir])
         try:
-            assert wait_for_port(BIND_IP, FORWARD_PORT)
+            assert wait_for_port(BIND_IP, ports['forward'])
             payload = bytes(range(256)) * 12
-            assert transfer((BIND_IP, FORWARD_PORT), payload) == payload
+            assert transfer((BIND_IP, ports['forward']), payload) == payload
         finally:
             terminate(proc)
 
     def test_a_non_default_format_end_to_end(self, server, state_dir,
-                                             destination):
+                                             destination, ports):
         """The server is told no format; it learns it from the first record."""
         proc = start(['client', '--format', 'ftp',
                       '-L', '%s:%d:%s:%d'
-                      % (BIND_IP, FORWARD_PORT, BIND_IP, destination.port),
+                      % (BIND_IP, ports['forward'], BIND_IP, destination.port),
                       '--state-dir', state_dir])
         try:
-            assert wait_for_port(BIND_IP, FORWARD_PORT)
+            assert wait_for_port(BIND_IP, ports['forward'])
             payload = b'traffic that looks like words'
-            assert transfer((BIND_IP, FORWARD_PORT), payload) == payload
+            assert transfer((BIND_IP, ports['forward']), payload) == payload
         finally:
             terminate(proc)
 

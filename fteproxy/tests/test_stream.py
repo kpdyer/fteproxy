@@ -400,6 +400,39 @@ class TestConnect:
         assert status == stream.CONNECTION_REFUSED
         assert sock is None
 
+    def test_socket_is_closed_when_post_connect_setup_fails(self, monkeypatch):
+        class FakeSocket:
+            def __init__(self):
+                self.closed = False
+
+            def settimeout(self, timeout):
+                pass
+
+            def connect(self, address):
+                pass
+
+            def setsockopt(self, level, option, value):
+                raise OSError('TCP_NODELAY unavailable')
+
+            def close(self):
+                self.closed = True
+
+        candidate = FakeSocket()
+        monkeypatch.setattr(
+            stream.socket, 'getaddrinfo',
+            lambda host, port, proto: [
+                (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP,
+                 '', ('8.8.8.8', port))])
+        monkeypatch.setattr(stream.socket, 'socket',
+                            lambda family, socktype, proto: candidate)
+
+        status, sock = stream.connect(
+            '8.8.8.8', 443, stream.AllowRules(), 3)
+
+        assert status == stream.GENERAL_FAILURE
+        assert sock is None
+        assert candidate.closed
+
     def test_success(self):
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         listener.bind(('127.0.0.1', 0))
