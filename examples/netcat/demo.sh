@@ -71,7 +71,7 @@ python3 -m fteproxy server \
     > "$STATE_DIR/server.log" 2>&1 &
 SERVER_PID=$!
 PIDS+=($SERVER_PID)
-wait_for "$STATE_DIR/server.log" 'clients connect with' "$SERVER_PID"
+wait_for "$STATE_DIR/server.log" 'connection string written to' "$SERVER_PID"
 
 # Start fteproxy client. -L picks the destination -- the server has no forward
 # address of its own -- and the destination travels inside the tunnel.

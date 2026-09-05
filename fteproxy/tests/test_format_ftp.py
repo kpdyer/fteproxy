@@ -1,26 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Tests for the ``ftp`` control-channel format (phase F-ftp).
+"""Test FTP capacity and record round trips in format and hybrid modes.
 
-Exercises the two ``parts/ftp.json`` entries end to end: the cipher builds and
-clears the capacity floor, random payloads round-trip through the record layer
-in both ``format`` and ``hybrid`` modes, and every sealed format-mode covertext
-is a real FTP line -- it fullmatches the sampling regex, passes the independent
-realism grammar check, and the batch survives the statistical guard.
-
-Note on message-type variety: FTP puts its discriminating token (the verb or
-reply code) first, so uniform rank sampling of a fixed-length format lands every
-covertext in a single lexicographic branch (``CWD`` commands, ``150`` replies).
-This is the seal-padding limitation documented in ``docs/format-authoring.md``
-(realistic value content and length distribution are not reachable by uniform
-rank sampling); the regex and the realism check still model every command and
-reply the format supports.
-
-``ftp`` is variable length (phase F7): a format-mode record picks one of the
-lengths in ``[min_length, max_length]``, so these tests read the length from
-:func:`fteproxy.defs.spec_length` (the ``max_length`` the handshake seals at)
-and check a covertext's length against the allowed set rather than against one
-number. ``fteproxy/tests/test_variable_length.py`` covers the framing itself.
+Sample sealed format-mode covertexts and check regex membership, the modeled
+FTP line subset, and same-byte runs. Sampling does not prove realistic verb
+frequencies, reply ordering, or a complete FTP conversation.
 """
 
 import os

@@ -10,7 +10,7 @@
     "role": "request",
     "mode_hint": "hybrid",
     "default": true,
-    "description": "HTTP/1.1 GET, POST, or HEAD request with common browser headers; hybrid records use POST plus a complete chunked body; 200-700 bytes per covertext header"
+    "description": "HTTP request headers; format-mode records are 200-700 bytes. Hybrid uses a 200-byte POST header and a chunked encrypted body."
   },
   "http-response": {
     "regex": "^HTTP/1\\.1 (200 OK|302 Found|304 Not Modified|404 Not Found)\r\nServer: [a-zA-Z0-9/. ()_-]+\r\nContent-Type: [a-zA-Z0-9/;=. +-]+\r\nContent-Length: 0\r\nETag: \"[a-zA-Z0-9]+\"\r\nSet-Cookie: [a-zA-Z0-9]+=[a-zA-Z0-9%_-]+; Path=/\r\n\r\n$",
@@ -23,6 +23,6 @@
     "role": "response",
     "mode_hint": "hybrid",
     "default": true,
-    "description": "HTTP/1.1 200/302/304/404 zero-body response in format mode; hybrid records use 200/302/404 plus a complete chunked body; 200-700 bytes per covertext header"
+    "description": "HTTP response headers with an empty body in format mode (200-700 bytes). Hybrid uses a 200-byte header and a chunked encrypted body."
   }
 }

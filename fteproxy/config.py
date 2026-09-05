@@ -1,25 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""The connection string and the state directory.
+"""Connection capabilities, address syntax, and private state files.
 
-A 1.0 client needs one connection capability, supplied preferably through a
-file or stdin (with a positional argument retained for compatibility)::
+A URI carries a canonical base64url X25519 server ID, host/port, and optional
+format, mode, and dated definitions hints. Unknown query keys are ignored.
+CLI format/mode flags override those hints; the definitions hint selects the
+client's release. Treat the URI as a secret connection capability.
 
-    fte://<server-id>@<host>:<port>[?format=<base>&mode=<hybrid|format>&defs=<YYYYMMDD>]
-
-``server-id`` is the server's X25519 public key in base64url without padding,
-43 characters. The query parameters are hints the operator recommends; a flag
-on the command line beats them, and an unknown parameter is ignored so a later
-version can add one without breaking today's clients.
-
-Treat the whole string like a Tor bridge line: whoever holds it can connect,
-and its secrecy is what stops an active prober confirming the server. It does
-not let the holder impersonate the server or read another client's traffic --
-see :mod:`fteproxy.handshake`.
-
-The state directory is where a server keeps the private half and the string it
-hands out. Resolution order: ``--state-dir``, ``FTEPROXY_STATE_DIR``,
-``$XDG_STATE_HOME/fteproxy``, ``~/.local/state/fteproxy``.
+State directory precedence: explicit argument, FTEPROXY_STATE_DIR,
+XDG_STATE_HOME/fteproxy, then ~/.local/state/fteproxy.
 """
 
 import ipaddress
@@ -196,7 +185,7 @@ class ConnectionString:
     # -- rendering --------------------------------------------------------- #
 
     def format(self):
-        """The URI this object round-trips from."""
+        """Serialize recognized fields to a URI; unknown parameters are not retained."""
         host = '[%s]' % self.host if _is_ipv6_literal(self.host) else self.host
         query = [('format', self.format_name), ('mode', self.mode),
                  ('defs', self.defs)]
@@ -216,11 +205,7 @@ class ConnectionString:
         return (self.host, self.port)
 
     def with_host(self, host, port=None):
-        """A copy pointed at a different address.
-
-        Used for the placeholder a server writes before it knows what clients
-        should dial.
-        """
+        """Return a copy with a new host and optional port, preserving its hints."""
         return ConnectionString(self.server_id, host,
                                 self.port if port is None else port,
                                 self.format_name, self.mode, self.defs)
@@ -383,7 +368,7 @@ def _strip_brackets(text):
 # --------------------------------------------------------------------------- #
 
 def state_dir(explicit=None, environ=None):
-    """Where the server keeps its key, by the order in the plan's 1.3."""
+    """Resolve explicit, FTEPROXY_STATE_DIR, XDG_STATE_HOME, then home fallback."""
     environ = os.environ if environ is None else environ
     if explicit is not None:
         if not isinstance(explicit, str) or not explicit:
@@ -484,18 +469,10 @@ def _private_temporary(path, text):
 
 
 def _write_private(path, text):
-    """Write ``text`` to ``path`` at mode 0600, never through a symlink.
+    """Atomically replace path with complete mode-0600 text.
 
-    The bytes go to a fresh sibling file, created exclusively (and with
-    ``O_NOFOLLOW`` where the platform has it) so that it is this process's
-    file and no one else's, and that file is then renamed onto ``path``.
-
-    Opening ``path`` itself would follow a symlink another local user had
-    planted in the state directory: the private key would land wherever the
-    link pointed, and the ``chmod`` would be applied to their file rather than
-    to ours. Renaming replaces the link instead of writing through it. It also
-    makes the write atomic, so a reader never sees a half-written key, and it
-    keeps the overwrite that ``fteproxy server`` does on every start.
+    Renaming a fresh sibling replaces a target symlink rather than following it.
+    The caller must provide a trusted parent directory.
     """
     with _private_temporary(path, text) as temporary:
         os.replace(temporary, path)
@@ -518,7 +495,7 @@ def _write_private_if_absent(path, text):
 
 
 def _remove_quietly(path):
-    """Delete ``path``, ignoring a file that is already gone."""
+    """Try to unlink path, ignoring OSError during cleanup."""
     try:
         os.unlink(path)
     except OSError:
@@ -619,10 +596,9 @@ def _warn_connection_file_privacy(path, info):
 
 
 def load_server_key(directory):
-    """Read ``server.key``, or None if it is not there.
+    """Read a managed server.key, or None if absent.
 
-    Warns when the file is readable by anyone else: a key that has been world
-    readable should be replaced, not silently used.
+    Loose permissions warn but do not prevent loading an otherwise valid key.
     """
     path = server_key_path(directory)
     text, info = _read_managed_text(path, 4096, missing_ok=True)
@@ -716,12 +692,10 @@ def read_connection_string(directory):
 
 
 def read_connection_file(path, missing_ok=False):
-    """Read one bounded connection string from ``path``.
+    """Read a bounded explicit connection file and warn about loose privacy.
 
-    The contents are never included in an exception because even malformed
-    connection strings are capabilities. ``missing_ok`` exists for the
-    implicit state-file fallback only; an explicitly requested file must
-    exist.
+    Errors omit its contents. Return None for an empty file, or for a missing file
+    when missing_ok is True. Managed state uses read_connection_string instead.
     """
     try:
         with open(path) as handle:

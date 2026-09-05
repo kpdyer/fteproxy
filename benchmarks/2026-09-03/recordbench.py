@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Record-layer microbench for fteproxy 1.0 (HEAD). No sockets.
+"""Archived record-layer microbenchmarks; no sockets.
 
-Drives fteproxy._session_channel / record_layer directly with random session
-keys and reports medians. Prints JSON on stdout.
+Report JSON medians from session/record-layer calls. See README.md for the
+measured revision and local paths. hybrid_split still uses the base grammar,
+so it does not reproduce the current HTTP hybrid header path.
 """
 import json
 import os
@@ -60,7 +61,7 @@ def roundtrip(base, mode, nbytes, iters):
 
 
 def hybrid_split(base, nbytes, iters):
-    """Header seal/open cost and body AE cost, separately."""
+    """Time base-regex header sealing/opening and body encryption/decryption separately."""
     spec = D._spec(base + '-request')
     hlen = fteproxy.hybrid_header_length(spec)
     key = os.urandom(32)
@@ -123,7 +124,7 @@ def per_length(name, iters):
 
 
 def dfa_compile(name):
-    """Cold DFA compile per length, and the cached lookup."""
+    """Time uncached per-length compilation, cached lookup, and keyed-cipher setup."""
     spec = D._spec(name)
     pattern = spec['regex']
     framing = D.spec_framing(spec)

@@ -10,42 +10,42 @@
     "ssh-request": {
         "regex": "^SSH-2\\.0-[a-zA-Z0-9_]+$",
         "length": 232,
-        "description": "SSH protocol version banner (e.g., SSH-2.0-OpenSSH_8.4)"
+        "description": "SSH-2.0 identification shape without line termination."
     },
     "ssh-response": {
         "regex": "^SSH-2\\.0-[a-zA-Z0-9_]+$",
         "length": 232,
-        "description": "SSH protocol version banner"
+        "description": "SSH-2.0 identification shape without line termination."
     },
     "tls-sni-request": {
         "regex": "^[a-z0-9]+\\.[a-z0-9]+\\.[a-z]+$",
         "length": 256,
-        "description": "TLS Server Name Indication style (subdomain.domain.tld)"
+        "description": "Three-label domain-name shape; not a TLS ClientHello."
     },
     "tls-sni-response": {
         "regex": "^[a-z0-9]+\\.[a-z0-9]+\\.[a-z]+$",
         "length": 256,
-        "description": "TLS Server Name Indication style"
+        "description": "Three-label domain-name shape; not a TLS record."
     },
     "smtp-request": {
         "regex": "^EHLO [a-z0-9]+\\.[a-z]+$",
         "length": 264,
-        "description": "SMTP EHLO command (e.g., EHLO mail.example.com)"
+        "description": "SMTP EHLO shape without line termination."
     },
     "smtp-response": {
         "regex": "^250-[a-z0-9]+\\.[a-z]+ [A-Z]+$",
         "length": 264,
-        "description": "SMTP 250 response"
+        "description": "SMTP 250 continuation shape without line termination."
     },
     "ftp-request": {
         "regex": "^USER [a-z0-9]+$",
         "length": 264,
-        "description": "FTP USER command"
+        "description": "FTP USER shape without line termination."
     },
     "ftp-response": {
         "regex": "^220 [a-z]+\\.[a-z]+ ready$",
         "length": 296,
-        "description": "FTP welcome banner (e.g., 220 ftp.example.com ready)"
+        "description": "FTP 220 greeting shape without line termination."
     },
     "lowercase-request": {
         "regex": "^[a-z]+$",

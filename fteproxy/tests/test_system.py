@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""System tests that run real ``fteproxy`` processes.
+"""Run real CLI subprocesses for state creation, SOCKS5, forwarding, and transfer.
 
-These are the plan's section 1 transcript, executed: a server that generates a
-key on first start and writes a connection string, a client that finds it and
-opens a SOCKS5 listener or a forwarded port, and a transfer through the
-result.
-
-Every test gets fresh ephemeral ports, so concurrent suites and a recently
-closed listener cannot masquerade as the process that test just started.
+Allocate ephemeral local ports to reduce collisions. Port discovery and later
+binding remain separate operations, so allocation is not a reservation.
 """
 
 import os
@@ -171,7 +166,7 @@ def socks_connect(port, host, dest_port):
 
 
 # --------------------------------------------------------------------------- #
-# Fixtures: the transcript from section 1 of the plan
+# CLI process fixtures
 # --------------------------------------------------------------------------- #
 
 @pytest.fixture
@@ -468,11 +463,7 @@ class TestCLI:
 # --------------------------------------------------------------------------- #
 
 class TestLibraryEndToEnd:
-    """The same topology built with the library API.
-
-    The command line above is one way to reach it; a program embedding
-    fteproxy is the other, and both have to work.
-    """
+    """Exercise the same forwarding topology through the Python API."""
 
     @pytest.fixture
     def stack(self):

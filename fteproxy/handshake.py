@@ -1,35 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Protocol version 1: the fteproxy handshake and its key schedule.
+"""Protocol-v1 hello encoding, key derivation, and replay tracking.
 
-Two records, one in each direction, both libfte covertexts sealed under a key
-that anyone holding the connection string can compute:
+The client sends version, mode flags, definitions release, base format name,
+ephemeral public key, and epoch. The server replies with version, mode flags,
+ephemeral public key, and an authentication MAC. Both are sealed by the socket
+driver under a key derived from the server's public connection capability.
 
-===============  =========================================================
-client -> server  version, flags, definitions release, format base name,
-                  client ephemeral public key, epoch
-server -> client  version, flags, server ephemeral public key, MAC
-===============  =========================================================
-
-This is the Noise ``NK`` message pattern (``e, es`` then ``e, ee``) written
-out with ``cryptography``'s X25519, HKDF and HMAC. It authenticates the
-server, gives forward secrecy, and derives a distinct header key and body key
-for each direction, so no two connections and no two directions ever share a
-record key. It does not authenticate the client beyond possession of the
-connection string, which is the property obfs4 has.
-
-What the connection string authorises
--------------------------------------
-``K_cover`` is derived from the server's *public* key, so every holder of the
-connection string can seal and unseal handshake records. That is deliberate:
-holding the string is what authorises a connection attempt, and a prober that
-does not hold it gets no reply at all. It does not let the holder impersonate
-the server (the server hello's MAC requires the server's private key) nor read
-another client's session (the session keys come from two ephemeral keys).
-
-Nothing in this module does I/O or logging: it encodes, decodes, and derives.
-:mod:`fteproxy` drives it over a socket, and the reject path -- read and
-discard, never reply -- lives there.
+The exchanges follow Noise NK's e/es then e/ee structure, with an fteproxy-
+specific transcript and key schedule. They authenticate the server and derive
+header/body keys for each direction. This module does no socket I/O or logging;
+fteproxy.__init__ drives the exchange and rejection behavior. See SECURITY.md.
 """
 
 import functools
@@ -65,13 +46,12 @@ FLAG_RESERVED_MASK = 0xFE
 KEY_BYTES = 32
 MAC_BYTES = 16
 
-#: The epoch counts hours, so a client and server whose clocks differ by less
-#: than an hour usually agree, and ``EPOCH_WINDOW`` covers the rest.
+# Integer-hour epochs; accept the current hour and EPOCH_WINDOW on either side.
 EPOCH_SECONDS = 3600
 EPOCH_WINDOW = 1
 
-#: A ``c_pub`` is remembered for the whole accepted window. Past this many
-#: entries the fullest hour starts forgetting; see :class:`ReplayFilter`.
+# Maximum remembered client ephemeral keys across accepted epoch buckets.
+# Evict from the fullest bucket when the cap is exceeded.
 REPLAY_MAX_ENTRIES = 1 << 17
 
 _HASH_PREFIX = b'fteproxy/v1'
@@ -88,12 +68,9 @@ _SERVER_HELLO_HEAD = struct.Struct('>BB')     # version, flags
 
 
 class HandshakeError(Exception):
-    """A handshake that cannot continue.
+    """A rejected handshake, with a diagnostic reason but no key material.
 
-    The server answers every one of these the same way -- read and discard for
-    a random interval, then close, without replying -- so that a prober learns
-    nothing from which check failed. Instances carry a reason for the DEBUG
-    log, never any key material.
+    The socket driver handles server rejection without a protocol reply.
     """
 
 
@@ -127,29 +104,18 @@ def _hkdf_expand(prk, info, length):
 
 @functools.lru_cache(maxsize=8)
 def _static_private_key(private_bytes):
-    """The key object for a long-term private key, built once.
+    """Cache up to eight long-term X25519 key objects.
 
-    Turning 32 bytes into an OpenSSL key object costs about as much as the
-    scalar multiplication it is then used for, and a server drives every
-    connection from the same static key. The bytes are already resident -- the
-    process loaded them at startup and keeps them for its lifetime -- so the
-    cache holds nothing that was not already in memory, and it is small
-    because a process has one identity, not thousands. Ephemeral keys are
-    never cached: they are used once, by the object that generated them.
+    This retains private bytes in memory until eviction or cache clearing.
+    Ephemeral key objects are passed directly and are not cached here.
     """
     return X25519PrivateKey.from_private_bytes(private_bytes)
 
 
 def _x25519(private, peer_public_bytes):
-    """One X25519 exchange, refusing a degenerate result.
+    """Exchange with a peer public key, rejecting invalid or all-zero results.
 
-    ``private`` is either an ``X25519PrivateKey`` (an ephemeral, held by the
-    handshake that generated it) or its raw bytes.
-
-    A peer public key of small order drives the shared secret to all zeroes,
-    which would let anyone who can rewrite the hellos fix both sides' key
-    schedule. ``cryptography`` already rejects most such points; the explicit
-    check makes the guarantee ours and independent of the backend.
+    private is an X25519PrivateKey or raw private-key bytes.
     """
     try:
         if not isinstance(private, X25519PrivateKey):
@@ -164,10 +130,9 @@ def _x25519(private, peer_public_bytes):
 
 
 def generate_server_key():
-    """Return ``(private_bytes, public_bytes)`` for a new server identity.
+    """Return raw (private_bytes, public_bytes) for a new X25519 identity.
 
-    The public half is the server-id that goes in the connection string; the
-    private half belongs in ``server.key`` with mode 0600 and nowhere else.
+    Store the private key securely; distribute only the public connection capability.
     """
     private = X25519PrivateKey.generate()
     return (private.private_bytes_raw(),
@@ -182,11 +147,7 @@ def server_id(private_bytes):
 
 
 def cover_key(server_public):
-    """``K_cover``: the key both handshake records are sealed under.
-
-    Derived from the server's public key alone, so it is exactly as secret as
-    the connection string.
-    """
+    """Derive the handshake sealing key from the public connection capability."""
     _check_key_length(server_public, 'server public key')
     return HKDF(algorithm=hashes.SHA256(), length=KEY_BYTES, salt=b'',
                 info=_COVER_INFO).derive(server_public)
@@ -349,11 +310,10 @@ class SessionKeys:
 
 
 def transcript_hash(server_public, client_hello_bytes, server_ephemeral_public):
-    """``H = SHA-256("fteproxy/v1" || S_pub || client hello || s_pub)``.
+    """Hash the protocol label, server identity, client hello, and server ephemeral.
 
-    Binding every handshake byte into ``H``, and ``H`` into both the key
-    schedule's salt and the server's MAC, is what makes a tampered hello
-    produce different keys on the two ends instead of a session.
+    The key schedule uses this hash as salt, and the server MAC authenticates it.
+    Server version and mode fields are checked separately by ClientHandshake.finish.
     """
     digest = hashlib.sha256()
     digest.update(_HASH_PREFIX)
@@ -382,14 +342,10 @@ def server_mac(keys, transcript):
 # --------------------------------------------------------------------------- #
 
 class ReplayFilter:
-    """Remembers the ``c_pub`` of every accepted hello inside the epoch window.
+    """Track client ephemeral keys in epoch buckets with a bounded total size.
 
-    A hello is only valid for its epoch plus or minus ``EPOCH_WINDOW`` hours,
-    so a recorded hello can only be replayed inside that window, and refusing a
-    repeated ``c_pub`` closes it. Entries are bucketed by epoch, so expiry is a
-    dict delete rather than a scan of every key ever seen.
-
-    Shared by every connection on a server, hence the lock.
+    Shared connections use a lock. Expired entries and entries evicted from the
+    fullest bucket are forgotten; restarting the process also clears the filter.
     """
 
     def __init__(self, window=EPOCH_WINDOW, max_entries=REPLAY_MAX_ENTRIES):
@@ -399,10 +355,10 @@ class ReplayFilter:
         self._lock = threading.Lock()
 
     def observe(self, client_public, epoch, now_epoch=None):
-        """Record ``client_public``; return False if it was already seen.
+        """Record client_public and return False if it is already remembered.
 
-        Callers reject on False. Only call this once a hello has passed every
-        other check, so that a malformed hello cannot fill the filter.
+        The caller validates the epoch and hello metadata first. Later handshake
+        checks can still reject a hello after this method has recorded it.
         """
         if now_epoch is None:
             now_epoch = current_epoch()
@@ -422,20 +378,10 @@ class ReplayFilter:
             del self._buckets[epoch]
 
     def _enforce_cap(self):
-        """Bound memory under a flood of distinct ``c_pub`` values.
+        """Evict entries from the fullest epoch bucket until the total fits.
 
-        The epoch a hello is filed under is chosen by the client, so eviction
-        must not let one bucket push another out: dropping the *oldest* hour
-        would let a flood stamped an hour in the future clear the hour real
-        clients are using, and re-open replay for exactly the hellos the
-        filter exists to refuse. Entries go from whichever bucket holds the
-        most instead, so a flood can only displace itself, and refusing new
-        clients -- which would hand an attacker a way to deny service to
-        everyone else -- never happens.
-
-        Evicting entries rather than whole buckets also bounds the filter when
-        every hello names the same hour, where there is no other bucket to
-        drop.
+        This avoids evicting an entire older bucket because another fills up, but a
+        flood can still evict legitimate entries in the bucket it shares.
         """
         while self._total() > self._max_entries:
             epoch = max(self._buckets,
@@ -504,17 +450,12 @@ class ClientHandshake:
 def accept_client_hello(hello_bytes, server_private, server_public,
                         defs, formats, replay=None, now_epoch=None,
                         ephemeral_private=None):
-    """The server half: validate a hello and build the reply.
+    """Validate a client hello and return (hello, reply_bytes, session_keys).
 
-    Returns ``(hello, server_hello_bytes, keys)``. Every failure raises
-    :class:`InvalidHello`; the caller must answer all of them identically, by
-    reading and discarding rather than replying, so that a prober cannot tell
-    a wrong key from a wrong format from a stale clock.
-
-    ``formats`` is the set of base names this server serves, and ``defs`` the
-    definitions release it serves them from: a client that disagrees about
-    either would derive a different covertext length or regex, so the mismatch
-    is refused here rather than surfacing as a stuck stream.
+    formats contains the allowed base names; defs is the server's release.
+    InvalidHello, including ReplayedHello, reports a rejection. Replay tracking
+    runs after metadata checks and before the X25519 exchanges. The socket driver
+    checks covertext agreement and hybrid support before sending the reply.
     """
     _check_key_length(server_private, 'server private key')
     _check_key_length(server_public, 'server public key')
@@ -547,11 +488,10 @@ def accept_client_hello(hello_bytes, server_private, server_public,
 
 
 def reject_delay(rng=None):
-    """Seconds to keep reading and discarding before closing on a rejection.
+    """Return a random rejection delay from 1 to 5 seconds, inclusive.
 
-    obfs4's behaviour: a prober that guesses wrong sees a connection that
-    behaves like a service with nothing to say, and cannot time the difference
-    between a wrong key and a wrong format.
+    The socket driver adds it to the handshake timeout from socket wrapping time.
+    A supplied rng returns an integer and is intended for deterministic tests.
     """
     raw = int.from_bytes(os.urandom(4), 'big') if rng is None else rng()
     return 1.0 + (raw % 4001) / 1000.0

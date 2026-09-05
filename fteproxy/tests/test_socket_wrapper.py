@@ -1,16 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Tests for ``_FTESocketWrapper``: EOF semantics and the reject path.
+"""Test wrapper EOF, handshake rejection, framing, and resource bounds.
 
-The EOF cases exercise what ``recv()`` does when the peer closes the TCP
-connection while undecodable bytes remain buffered (the peer was cut off
-part-way through a covertext), and what the server does with a first record it
-cannot validate. Both are places where returning "not ready yet" instead of
-EOF used to leave a relay worker polling a dead socket forever.
-
-The reject-path cases go further than "no reply": they pin *when* the
-connection closes, because a rejection that is timed from the moment a check
-failed tells a prober which check that was.
+Truncated input followed by EOF must terminate instead of leaving a relay
+polling a closed socket. Rejection tests check silence and deadlines anchored
+to socket wrapping time, using deterministic clocks and real loopback sockets.
 """
 
 import collections
@@ -269,14 +263,7 @@ class TestDefinitionsReleaseIsolation:
 
 
 class TestServerHandshakeEOF:
-    """A server whose peer closes before a hello decodes reports EOF.
-
-    Regression test for a relay worker leak: a failed handshake that raised
-    ``socket.timeout`` ("not ready yet") after the peer had closed left the
-    worker re-polling a closed socket at the throttle rate forever. Every
-    mismatched peer -- a 0.3 client, a wrong connection string, a port
-    scanner -- takes this path.
-    """
+    """Peer closure before a valid hello produces EOF without an idle polling loop."""
 
     def test_close_without_data_returns_eof(self):
         fake = FakeSocket()
@@ -332,9 +319,7 @@ class TestServerRejectPath:
                                    previous)
 
     def test_reject_discards_for_a_while_before_closing(self, monkeypatch):
-        """obfs4's behaviour: the connection stays open, reading and
-        discarding, so a prober that stays connected cannot time the failure
-        or tell it from a service with nothing to say."""
+        """The server reads and discards until its rejection deadline without replying."""
         monkeypatch.setattr(fteproxy.handshake, 'reject_delay', lambda: 0.25)
         # The wait spans the handshake timeout as well, so shorten that too
         # rather than spending the default five seconds here.
@@ -474,13 +459,7 @@ class TestServerBuffersBeforeTheHandshake:
 
 
 class TestPreProtocolClient:
-    """A client speaking the pre-1.0 shared-key negotiation gets no reply.
-
-    On master the first record was a 64-byte cell sealed under a static shared
-    key, with no version, no keypair and no epoch. There is no compatibility
-    path (plan decision D1), so such a client must look exactly like any other
-    peer the server cannot validate: silence.
-    """
+    """Pre-1.0 shared-key negotiation is unsupported and receives no reply."""
 
     LEGACY_KEY = b'\xFF' * 16 + b'\x00' * 16
     LEGACY_CELL = b'\x00' * 32 + SHAPE_CATALOG.encode() + b'manual-http'
@@ -560,16 +539,10 @@ class TestFormatAgreement:
 
 
 class TestRejectDeadlineIsAnchoredToTheAccept:
-    """When a rejection closes must not say which check failed.
+    """Early and timeout-detected rejection use the same deadline origin.
 
-    A hello that unseals under this server's cover key but is refused -- a
-    replay, a stale epoch, the wrong definitions release -- is known to be bad
-    on the first read. A hello that does not unseal at all, or bytes that are
-    not this protocol, are only known to be bad when the handshake timeout
-    runs out. Timing the discard interval from the *detection* put those in
-    two disjoint buckets, so one captured hello, replayed, identified the
-    server for good: a stale hello is refused for ever, so the signal never
-    stops repeating. Both must be timed from the accept instead.
+    Otherwise a replayed hello and undecodable bytes occupy distinct close-time
+    ranges. This checks deadline construction, not universal probing resistance.
     """
 
     def test_the_deadline_does_not_move_with_the_detection(self, monkeypatch):
@@ -720,13 +693,7 @@ class TestRejectTimingOverLoopback:
 
 
 class TestFirstRecordScanIsBounded:
-    """A candidate format is tried once per connection, not once per read.
-
-    The scan re-runs whenever more bytes arrive, because a hello can be split
-    across reads. It used to re-decrypt every candidate that already fitted,
-    so a peer dribbling unauthenticated bytes one at a time bought a full scan
-    per byte -- server CPU for nothing, before anything had been authenticated.
-    """
+    """Try each eligible request candidate once even when input arrives in fragments."""
 
     def _request_names(self):
         return [name for name in fteproxy.defs.load_definitions()
@@ -773,12 +740,7 @@ class TestFirstRecordScanIsBounded:
 
 
 class TestControlQueueIsBounded:
-    """An authorised peer cannot spend this end's memory on control records.
-
-    Only the holder of the session keys can produce one, so this is not a
-    prober -- but a peer that keeps sending OPENs nobody reads is filling a
-    queue that had no limit at all.
-    """
+    """Unread authenticated control records cannot grow the queue indefinitely."""
 
     def _peer(self):
         keys = _session_keys()
@@ -852,12 +814,9 @@ class TestClientHandshakeFailure:
 
 
 class TestControlRecordSizeIsBounded:
-    """The control-queue cap bounds records; this bounds their bytes.
+    """Bound control payload bytes as well as the number of queued records.
 
-    In hybrid mode a record can carry a mebibyte, so a count cap alone would
-    still let an authorised peer park 16 MiB per connection. No real control
-    record is anywhere near the limit: an OPEN naming a 255-byte host is 259
-    bytes and an OPEN_RESULT is one.
+    OPEN needs at most 259 bytes and OPEN_RESULT one; hybrid bodies can be much larger.
     """
 
     def _peer(self):

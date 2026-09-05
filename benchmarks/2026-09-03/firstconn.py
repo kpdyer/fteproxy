@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-"""First tunnelled connection (server DFAs cold) vs steady state, end to end.
+"""Archive helper: first completed tunnel handshake versus later connections.
 
-Deliberately does NOT use benchmark.FteProxyTunnel.start(): that waits for the
-client's forward port by *connecting* to it, and that connection is enough to
-make the client build a tunnel and the server compile everything -- so the
-"first" connection measured afterwards is already warm. Here the client is
-given a fixed settle instead and the timed connection is genuinely the first
-one the server ever sees.
+Avoid probing the client forward, which would warm both endpoints. Probe only
+the raw server port, then use a fixed client settle delay. See README.md for
+the measured revision and the script's machine-specific paths.
 """
 import json
 import os

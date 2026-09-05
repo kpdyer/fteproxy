@@ -1,23 +1,16 @@
 #!/usr/bin/env python3
-"""
-FTE Chat Server
+"""Serve a scripted ten-round conversation using a published demo identity.
 
-A simple chat server that has a 10-round conversation with the client.
-All traffic is FTE-encoded to look like HTTP/1.1 requests and responses.
-
-The server is told nothing about the format: it learns it, and the
-record-layer mode, from the client's first record, and proves its identity
-with the private key below.
+The client selects format/mode from this server's definitions release.
+The companion client uses HTTP hybrid mode. See examples/chat/README.md.
 """
 
 import sys
 import socket
 import fteproxy
 
-# A fixed demo identity so the two scripts agree without exchanging anything.
-# The private key is published here on purpose: it is a demo. A real server
-# generates its own with `fteproxy keygen`, keeps server.key at mode 0600, and
-# hands out only the public half.
+# Published demo private key: use a new, private identity for actual deployments.
+# The matching public capability is all a client needs to connect.
 DEMO_SERVER_KEY = bytes.fromhex(
     "628e1b010509a623c31c54a443d996d10427f2e47ff11258d50e9f70c4b79651")
 
@@ -26,16 +19,16 @@ PORT = 50007
 
 # Server's responses for each round
 RESPONSES = [
-    b"Hello! Welcome to the FTE chat server.",
-    b"I'm doing great, thanks for asking!",
+    b"Hello! Ready to demonstrate the FTE tunnel.",
     b"FTE stands for Format-Transforming Encryption.",
-    b"It encodes data to match regular expressions.",
-    b"Right now, your messages look like: 010110101...",
-    b"And my messages look like: ABBAABABBA...",
-    b"Pretty cool for evading traffic analysis!",
-    b"The paper was published at CCS 2013.",
-    b"You can define custom formats too.",
-    b"Goodbye! Thanks for chatting with FTE!",
+    b"It encrypts data and encodes covertexts to match regular expressions.",
+    b"This demo uses HTTP POST headers and encrypted chunked bodies.",
+    b"My responses also use HTTP headers and encrypted chunked bodies.",
+    b"The message shape alone does not prevent traffic analysis.",
+    b"The repository README and format-authoring guide explain the details.",
+    b"Yes. Add matching request and response definitions on both peers.",
+    b"Try format mode to encode the payload into covertexts too.",
+    b"Goodbye! Thanks for trying the demo.",
 ]
 
 
@@ -43,7 +36,7 @@ def main():
     print("FTE Chat Server")
     print("=" * 50)
     print(f"Listening on port {PORT}")
-    print("Format and mode: whatever the client asks for")
+    print("Format and mode: selected by the client from this definitions release")
     print("=" * 50)
     print()
 

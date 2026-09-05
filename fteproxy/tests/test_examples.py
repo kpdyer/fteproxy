@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Tests that run all examples to verify they work correctly.
+"""Run standalone Python examples, echo/chat pairs, and file-transfer self-tests.
 
-These tests ensure that:
-1. Self-contained examples run without errors
-2. Client/server examples work together
-3. All examples properly demonstrate FTE functionality
+Interactive chat and shell wrappers are not exercised by this module.
 """
 
 import os

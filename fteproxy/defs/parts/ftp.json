@@ -8,7 +8,7 @@
     "role": "request",
     "mode_hint": "format",
     "default": false,
-    "description": "FTP control-channel command: a verb (USER/PASS/CWD/TYPE/PASV/RETR/STOR/LIST/QUIT) with a realistic argument, CRLF-terminated; 64-256 bytes per line"
+    "description": "FTP command shape with a CRLF terminator; 64-256 bytes per format-mode record."
   },
   "ftp-response": {
     "regex": "^(220|230|331|250|150|226|550) [a-zA-Z0-9 .,:()/-]+\r\n$",
@@ -19,6 +19,6 @@
     "role": "response",
     "mode_hint": "format",
     "default": false,
-    "description": "FTP control-channel reply: a 3-digit status code, a space, human-readable text, CRLF-terminated; 64-256 bytes per line"
+    "description": "FTP status code and generated reply text with a CRLF terminator; 64-256 bytes per format-mode record."
   }
 }

@@ -1,24 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Structural realism check for the ``smtp`` format (phase F5).
+"""Check the SMTP command/reply line subset modeled by the format.
 
-SMTP is a cleartext, line-oriented protocol: a client sends command lines
-(``EHLO host``, ``MAIL FROM:<addr>``, ``RCPT TO:<addr>``, ``DATA``, ``QUIT``,
-...) and a server answers with reply lines (``250 OK``, ``220 host ESMTP``,
-``354 ...``, ``550 ...``), every line terminated by CRLF (RFC 5321). One sealed
-covertext of the ``smtp-request``/``smtp-response`` formats is exactly one such
-line.
-
-:func:`check` judges a covertext with a hand-written grammar, independent of the
-format's own regex (the format regex must not be imported here), and accepts a
-line that is a valid client command *or* a valid server reply, since the batch a
-test feeds it mixes both roles. It raises on anything that is not a
-structurally valid SMTP line.
+Parse one CRLF-terminated line without importing the definitions regex.
+Check selected verbs, codes, separators, and character sets. Host checks are
+limited to allowed bytes and outer separators; they do not validate every
+label. Passing does not establish full address validity or SMTP session order.
 """
 
 
 class SMTPRealismError(Exception):
-    """A covertext is not a structurally valid SMTP command or reply line."""
+    """A covertext failed the modeled SMTP line checks."""
 
 
 # Character classes, spelled out as byte sets so the check owns its own grammar
@@ -27,7 +19,7 @@ _DIGITS = set(b'0123456789')
 _LOWER = set(b'abcdefghijklmnopqrstuvwxyz')
 _UPPER = set(b'ABCDEFGHIJKLMNOPQRSTUVWXYZ')
 _LETTERS = _LOWER | _UPPER
-# Host label bytes: lowercase letters, digits, dot and hyphen (RFC 1035 style).
+# Modeled host-field alphabet; individual label syntax is not checked here.
 _HOST = _LOWER | _DIGITS | set(b'.-')
 # Local-part bytes of an address: letters, digits and the common local
 # specials SMTP addresses use in practice.
@@ -66,7 +58,7 @@ def _check_address(addr):
 
 
 def _check_command(line):
-    """Raise unless ``line`` (no CRLF) is a valid client command."""
+    """Check a modeled client command without its trailing CRLF."""
     if line in _BARE_VERBS:
         return
     for verb in (b'EHLO ', b'HELO '):
@@ -89,7 +81,7 @@ def _check_command(line):
 
 
 def _check_reply(line):
-    """Raise unless ``line`` (no CRLF) is a valid server reply line."""
+    """Check a modeled server reply without its trailing CRLF."""
     if len(line) < 4:
         raise SMTPRealismError('reply line too short: %r' % (line,))
     code, sep, text = line[:3], line[3:4], line[4:]
@@ -103,11 +95,7 @@ def _check_reply(line):
 
 
 def check(covertext):
-    """Raise :class:`SMTPRealismError` unless ``covertext`` is a valid SMTP line.
-
-    A valid covertext is a single command or reply line terminated by exactly
-    one trailing CRLF, with no other CR or LF anywhere in the line.
-    """
+    """Accept one modeled CRLF-terminated SMTP line, or raise SMTPRealismError."""
     if not isinstance(covertext, (bytes, bytearray)):
         raise SMTPRealismError('covertext is not bytes: %r' % (type(covertext),))
     covertext = bytes(covertext)

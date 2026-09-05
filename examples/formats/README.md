@@ -1,13 +1,7 @@
-# FTE Output Format Examples
+# Direct libfte format examples
 
-Three self-contained scripts that call libfte directly (no sockets, no proxy)
-to show what the same data looks like in different covertext formats:
-
-| Script | What it shows |
-|--------|---------------|
-| `comparison_demo.py` | One message in nine formats side by side (lowercase, uppercase, digits, hex, words, binary, base64, URL path, CSV) |
-| `words_demo.py` | Messages as space-separated lowercase words |
-| `http_demo.py` | Messages as `GET /... HTTP/1.1` requests |
+These scripts use libfte locally, without sockets or fteproxy session records.
+Run them from `examples/formats` after installing the checkout:
 
 ```bash
 python3 comparison_demo.py
@@ -15,93 +9,35 @@ python3 words_demo.py
 python3 http_demo.py
 ```
 
-Each script builds a cipher with `fte.FTE(output_format=fte.RegexFormat(pattern, length=N), key=key)`,
-encrypts a message, checks that it decrypts, and prints the covertext.
+| Script | Output |
+| --- | --- |
+| `comparison_demo.py` | One message in nine 1024-byte shapes: letters, digits, hex, words, binary, base64 characters, URL paths, and CSV |
+| `words_demo.py` | 256 bytes of space-separated lowercase letter sequences |
+| `http_demo.py` | A 256-byte HTTP-like GET request shape |
+
+Each script generates a 32-byte key, builds an `fte.RegexFormat`, encrypts a
+message, and checks that decryption recovers it. The words are not natural
+language. The simplified GET shape omits the Host header required by HTTP/1.1;
+it is distinct from the proxy's current HTTP definitions.
 
 ## Reading the output
 
-A raw libfte covertext is always exactly `length` bytes, and a short message
-does not fill it, so the unused capacity comes out as a run of the format's
-lowest-ranked character: `aaaa...` for letters, `0000...` for digits, `a a a`
-for words, `GET /000...0<random tail> HTTP/1.1` for the HTTP format. That is
-what these scripts print. It is expected, and it is not what fteproxy puts on
-the wire: fteproxy's record layer random-pads every message to the format's
-capacity before encryption, so a proxied covertext reads as random format text
-end to end (`GET /0ECRjVCS...`).
+A fixed-length libfte covertext always has the requested byte length. With a
+short, unpadded plaintext, it can start with long runs of low-ranked symbols,
+such as `aaaa…` or `0000…`. The previews expose that unused capacity.
 
-To see a covertext without the run in a script like these, choose a `length`
-close to what the message needs (libfte's README does this), or pad the
-plaintext to `cipher.max_plaintext_bytes` yourself.
+fteproxy adds a length/sequence seal and random padding before FTE encryption,
+which removes that systematic prefix. Padding does not make generated text
+semantically natural or uniformly sample every string in the regex language.
 
-## Using a format with the proxy
+## Using formats in a tunnel
 
-The proxy names a format by its **base name**, such as `http` or `ftp` --
-never `http-request`. Each base covers both directions: fteproxy derives the
-`-request` covertext (client to server) and the `-response` covertext (server
-to client) from it. `fteproxy formats` lists the base names with each one's
-role, ports, mode, the length of one covertext and how many message bytes it
-carries:
+Run `fteproxy formats` for the installed default catalog, or
+`fteproxy formats --defs 20260110` for the older shape catalog. Direct examples
+define their own regexes; running one does not register it with the proxy.
 
-```console
-$ fteproxy formats
-name  role      port          mode      hdr  req len  req cap  resp len  resp cap
-dns   req/resp  53            format     90   90-272   22-154    90-272    17-148
-ftp   req/resp  21            format  91/64   64-256   15-161    64-256    16-163
-http  req/resp  80,8080,8000  hybrid    200  200-700   63-448   200-700    52-434  (default)
-sip   req/resp  5060          format    300  300-800   99-472   300-800   101-474
-smtp  req/resp  25,587        format     80   80-320   20-181    80-320    29-215
-```
-
-A range means the format varies its covertext length: in `--mode format` each
-record picks a length from across it, so a capture shows a spread of message
-sizes rather than one repeated size. Every shipped format has one; the
-`20260110` shape catalog is fixed-length throughout. `hdr` is where a
-`--mode hybrid` header goes -- the shortest covertext the format has room for
-one in, request and response after a slash when the two differ.
-
-Given neither `--format` nor a `?format=` hint in the connection string, the
-client picks the format whose protocol runs on the server's port -- `ftp` for a
-server on 21, `sip` on 5060 -- and `http` for anything else. The demo scripts
-in this directory illustrate the abstract *shape* formats (`words`, `base64`,
-`manual-http`, ...), which are still shipped as release `20260110`:
-`fteproxy formats --defs 20260110`.
-
-The format and the record-layer mode are the **client's** choice: both travel
-in the handshake and the server follows, so there is nothing to configure on
-the server and no way for the two ends to disagree.
-
-```bash
-# Port 8080: http is what the port implies, so no --format is needed.
-python3 -m fteproxy client 'fte://<server-id>@<server-ip>:8080'
-
-# A server parked on 5060 gets sip without being told; naming a format that
-# does not match the port is honoured, with a warning.
-python3 -m fteproxy client 'fte://<server-id>@<server-ip>:5060'
-```
-
-With the default `--mode hybrid` only a fixed-length header per record is in
-the chosen format and the rest of the record is raw authenticated ciphertext.
-`--mode format` puts every byte in the format, at much lower throughput, and is
-also the only mode in which a format varies its covertext length.
-
-The same two choices are arguments to `fteproxy.wrap_socket()` on the client
-side:
-
-```python
-sock = fteproxy.wrap_socket(sock, server_id=SERVER_ID,
-                            format="http", mode="hybrid")
-```
-
-## Why different formats?
-
-Different formats blend in with different traffic:
-
-- **Real cleartext protocols** (`http`, `ftp`, `smtp`, `sip`, `dns`): the
-  shipped release, one per port a DPI rule would expect
-- **HTTP-like shapes** (`http-simple`, `manual-http`): web traffic
-- **Words / sentences**: natural text
-- **Hex / base64**: encoded data, common in APIs
-- **Digits, IP addresses, timestamps**: numeric fields
-
-`fteproxy formats` is the authoritative list; there is a summary in
-[`../README.md`](../README.md#available-formats).
+Proxy formats use a base name such as `http`, with request and response entries
+for the two directions. Both peers need the same definitions; the client chooses
+the base and mode during the handshake. CLI mode hints and socket-API defaults
+are described in the [examples guide](../README.md#tunnel-behavior).
+See [format authoring](../../docs/format-authoring.md) to add a definition.

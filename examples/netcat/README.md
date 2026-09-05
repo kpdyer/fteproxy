@@ -1,55 +1,35 @@
-# Netcat Demo
+# Local netcat demo
 
-A simple demonstration of fteproxy using netcat.
-
-## Quick Start
+From `examples/netcat`, run:
 
 ```bash
-# Terminal 1: Start the demo
 ./demo.sh
-
-# Terminal 2: Send a message
-echo "Hello, FTE!" | nc 127.0.0.1 8079
 ```
 
-## What It Does
+Once it reports readiness, send from another terminal:
 
-```
-Traffic Flow:
-
-  Terminal 2          Terminal 1 (demo.sh)
-  +--------+    +------------+    +------------+    +---------+
-  |  You   |--->| FTE Client |===>| FTE Server |--->| netcat  |
-  |  (nc)  |    |   :8079    |    |   :8080    |    |  :8081  |
-  +--------+    +------------+    +------------+    +---------+
-                |            |    |            |
-                | plaintext  |    | FTE encoded|    plaintext
+```bash
+echo 'Hello, FTE!' | nc 127.0.0.1 8079
 ```
 
-The traffic between the FTE client and server is encoded to look like
-random characters matching a regex pattern, making it difficult to identify
-as proxy traffic.
-
-The server has no forward address. `-L 8079:127.0.0.1:8081` on the client is
-what names the destination, and it travels inside the tunnel; the server dials
-it because `--allow 127.0.0.1:8081` permits it. With no `--allow` rule at all a
-server refuses its own loopback addresses, so that rule is what publishes the
-netcat listener.
-
-The demo keeps its keypair in a throwaway `--state-dir`, generated on the first
-start along with the connection string. The client is given the same directory
-and reads the string back out of it, so neither side needs a shared secret or a
-URI on its command line.
-
-## Ports
+The message appears in the demo terminal. Install fteproxy and netcat first,
+and ensure ports 8079–8081 are free. Netcat options vary by implementation;
+the script tries a persistent listener and falls back to a single connection.
 
 | Port | Purpose |
-|------|---------|
-| 8079 | FTE client's `-L` forward (you connect here) |
-| 8080 | FTE server listens here (internal) |
-| 8081 | Final destination (netcat listener) |
+| --- | --- |
+| 8079 | Client forward on loopback |
+| 8080 | FTE server on loopback |
+| 8081 | Netcat destination; `nc` may bind all interfaces |
 
-## Cleanup
+```text
+sender -> client :8079 -> encrypted tunnel -> server :8080 -> netcat :8081
+```
 
-Press `Ctrl+C` to stop. The script kills every background process it started
-and removes the temporary state directory.
+The client requests `127.0.0.1:8081`; the server permits it through an explicit
+allow rule. With current defaults, the tunnel uses HTTP headers and encrypted
+chunked bodies. This demonstrates transport, not resistance to traffic analysis.
+
+The script uses a temporary state directory for its generated identity and
+connection file. Press Ctrl+C to stop its background processes and remove that
+directory. If the sending netcat stays open, stop it with Ctrl+C too.

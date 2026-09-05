@@ -152,13 +152,7 @@ class TestDecoderExceptionHandling:
     """Regression tests for Decoder.pop() exception semantics."""
 
     def test_unrecoverable_error_not_swallowed_in_onecell_mode(self):
-        """A fatal decryption error must not be silently swallowed.
-
-        A ``break`` in a ``finally`` block must not swallow the provider's
-        ``FormatContractError`` and silently discard a fatal condition. With
-        ``oneCell=True`` (the negotiation path) the error still propagates to
-        the embedding application rather than terminating its process.
-        """
+        """Provider contract errors propagate even when decoding is limited to one record."""
         decoder = fteproxy.record_layer.Decoder(
             cipher=_RaisingCipher(fte.FormatContractError("boom")))
         decoder.push(b'some-ciphertext-bytes')
@@ -227,7 +221,8 @@ class TestHybridRecordLayer:
     def test_partial_arrival_reassembles(self):
         """A record split across many small reads still reassembles."""
         encoder, decoder = self._pair()
-        payload = (b'the quick brown fox 0123456789 ' * 700)  # ~21 KiB, multi-record
+        # One hybrid record, delivered in fragments below.
+        payload = (b'the quick brown fox 0123456789 ' * 700)
         encoder.push(payload)
         wire = encoder.pop()
         out = b''
@@ -253,7 +248,7 @@ class TestHybridRecordLayer:
 
         decoder._cipher = Counting()
         encoder.push(b'Q' * 5000)
-        wire = encoder.pop()                     # 256-byte header + 5028-byte body
+        wire = encoder.pop()                     # 256-byte header + 5029-byte body
         decoder.push(wire[:300]); assert decoder.pop() == b''
         decoder.push(wire[300:600]); assert decoder.pop() == b''
         decoder.push(wire[600:]); assert decoder.pop() == b'Q' * 5000
@@ -288,8 +283,8 @@ class TestHybridRecordLayer:
         d.push(r0 + r1)
         assert d.pop() == b'firstsecond'
 
-        # Swapped: the record built at seq 1 arrives where seq 0 is expected, so
-        # its body AEAD (seq as associated data) fails and nothing decodes.
+        # The seq-1 record arrives where seq 0 is expected; the header seal fails
+        # before the body is decrypted.
         d2 = self._pair()[1]
         d2.push(r1 + r0)
         assert d2.pop() == b''
@@ -334,8 +329,7 @@ class TestFormatModeRecordLayer:
 
 
 def test_seal_fills_covertext_with_random_not_padding():
-    """A short message fills the covertext with random format text, so there is
-    no 'GET /0000...' low-rank padding run in either mode."""
+    """Random seal padding prevents a systematic long low-rank prefix in sampled records."""
     fteproxy.defs.load_definitions()
     key = conftest.TEST_KEY
     pattern = fteproxy.defs.getRegex('http-simple-request')
@@ -399,8 +393,7 @@ class TestRecordTypes:
 
     @pytest.mark.parametrize('hybrid', [True, False])
     def test_unknown_type_raises(self, hybrid):
-        """Only a peer with the session keys can produce one, so this is a
-        version mismatch: the caller closes rather than guessing."""
+        """An authenticated unknown type raises; the caller must close the connection."""
         encoder, decoder = self._pair(hybrid=hybrid)
         # Reach past encode()'s validation to build a record no version
         # defines.
@@ -452,13 +445,7 @@ class TestRecordTypes:
 
 
 class TestDecoderFailsClosed:
-    """A stream that fails to authenticate is closed, not buffered.
-
-    Ports the hardening from the pre-1.0 review (was PR #235 against the old
-    negotiation code) onto the 1.0 record layer: after a bad record the decoder
-    fails closed, drops its buffer, and refuses further input, so a peer that
-    holds the keys cannot grow the server's buffer without bound.
-    """
+    """After a terminal record failure, discard buffered input and refuse new data."""
 
     def _pair(self, hybrid):
         key = conftest.TEST_KEY

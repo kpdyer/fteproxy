@@ -1,85 +1,50 @@
-# Basic fteproxy Examples
+# Basic forwarding example
 
-This directory contains simple examples to get started with fteproxy.
+`start_server.sh` and `start_client.sh` pass all arguments to
+`python3 -m fteproxy server` and `python3 -m fteproxy client`.
+Install fteproxy, then run the following from `examples/basic` in four terminals.
+The ports must be free, and `nc` must be installed.
 
-`start_server.sh` and `start_client.sh` are one-line wrappers around
-`python3 -m fteproxy server` and `python3 -m fteproxy client`; every argument
-you give them is passed straight through.
+1. Start the server:
 
-## Quick Start
+   ```bash
+   ./start_server.sh --listen 127.0.0.1:8080 --advertise 127.0.0.1:8080 --allow 127.0.0.1:8081
+   ```
 
-Four terminals on one machine.
+   It saves `server.key` and `connection.txt` in the state directory and reports
+   their paths. The explicit allow rule permits the loopback destination.
 
-### 1. Start the server
+2. Start a destination that displays received bytes:
 
-In terminal 1:
-```bash
-./start_server.sh --listen 127.0.0.1:8080 --allow 127.0.0.1:8081
+   ```bash
+   nc -l 8081
+   ```
+
+3. Start the client:
+
+   ```bash
+   ./start_client.sh -L 8079:127.0.0.1:8081
+   ```
+
+   With no explicit connection source or `FTEPROXY_URI`, the client reads
+   `connection.txt` from the same state directory as the server.
+
+4. Send a message:
+
+   ```bash
+   echo 'Hello through FTE!' | nc 127.0.0.1 8079
+   ```
+
+The message appears in terminal 2. Netcat options and EOF behavior vary; stop it
+with Ctrl+C if it stays open. Stop the client and server when finished.
+
+```text
+nc -> client :8079 -> encrypted tunnel -> server :8080 -> nc :8081
 ```
 
-The first start generates the server's keypair and prints the connection
-string clients need, which it also writes to `connection.txt` in the state
-directory. `--allow 127.0.0.1:8081` is what lets the server dial the service
-in step 2: without any rule it refuses its own loopback addresses.
+The destination `127.0.0.1:8081` is relative to the server. This example selects
+HTTP and hybrid mode: FTE headers followed by encrypted, chunked bodies.
 
-### 2. Start a destination service
-
-In terminal 2:
-```bash
-# Simple echo server using netcat
-nc -l 8081
-```
-
-### 3. Start the client
-
-In terminal 3:
-```bash
-./start_client.sh -L 8079:127.0.0.1:8081
-```
-
-No connection string is needed here, because the client reads the
-`connection.txt` the server just wrote. From another machine you would pass
-the string the server printed as the first argument.
-
-### 4. Send data
-
-In terminal 4:
-```bash
-echo "Hello, World!" | nc localhost 8079
-```
-
-You should see "Hello, World!" appear in terminal 2!
-
-## What's Happening
-
-```
-Your Traffic Flow:
-
-  Terminal 4        Terminal 3           Terminal 1        Terminal 2
-  +---------+      +-----------+        +-----------+     +---------+
-  |  Your   |      | fteproxy  |        | fteproxy  |     | Actual  |
-  |  App    |----->|  client   |=======>|  server   |---->| Service |
-  |         |      |           |        |           |     |         |
-  +---------+      +-----------+        +-----------+     +---------+
-     :8079         -L 8079:127.0.0.1:8081   dials what      :8081
-                   names the destination    the client
-                   and encodes traffic      asked for
-```
-
-The server has no forward address of its own. The destination is chosen on the
-client -- by `-L` here, or by whatever a SOCKS5 application asks for when you
-use `-D` instead -- and travels inside the tunnel; the server dials it if
-`--allow` permits.
-
-Each record between the client and the server starts with a covertext shaped
-like an HTTP request (client to server) or an HTTP response (server to client).
-With the default `--mode hybrid` the rest of the record is raw authenticated
-ciphertext; with `--mode format` the whole stream is in the format, much more
-slowly. Both are the client's choice and travel in the handshake, so there is
-nothing to keep in step on the server.
-
-There is no shared secret to distribute. The server keeps an X25519 private key
-in `server.key`, and the connection string carries only its public half. Treat
-that string like a Tor bridge line: whoever holds it can connect, so keep it
-secret, but it does not let its holder impersonate the server or read another
-client's traffic.
+For a remote server, choose its reachable `--listen` and `--advertise` addresses,
+copy `connection.txt` privately, and use `--connection-file FILE` on the client.
+See [CLI setup and destination rules](../../README.md).

@@ -63,10 +63,10 @@ def main():
     
     print("""
 Observations:
-- All formats encode the same data differently
-- Simpler alphabets (like binary) need more characters
-- Larger alphabets (like base64) are more compact
-- Each format has its own use case for blending in
+- Every output here is 1024 bytes, regardless of alphabet
+- Alphabet and structure determine how much plaintext fits
+- Short unpadded messages can leave long repeated prefixes
+- Regex shape alone does not establish realistic traffic
 """)
 
     if errors > 0:

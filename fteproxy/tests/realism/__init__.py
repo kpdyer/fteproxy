@@ -1,32 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Realism harness: sample real covertexts and judge them like a DPI would.
+"""Sample sealed covertexts and check selected structural properties.
 
-Each of the five shipped protocols (phases F1-F5) adds a module here named for
-the protocol -- ``http.py``, ``ftp.py``, ``smtp.py``, ``sip.py``, ``dns.py`` --
-exposing one function::
+Each protocol module exposes check(covertext), which raises on a failed check.
+HTTP uses standard-library parsers; the other modules parse selected protocol
+shapes independently of the definitions regex. These are limited structural
+checks, not full conformance tests or models of a deployed traffic classifier.
 
-    check(covertext: bytes) -> None
-
-which raises (any exception) if ``covertext`` is not a structurally valid message
-of that protocol, and returns ``None`` if it is. ``http.py`` MUST judge with an
-independent parser (``http.server.BaseHTTPRequestHandler`` for a request line,
-``email.parser`` for the header block); the line protocols use a strict grammar
-check. A protocol's own test file feeds it a batch of sealed covertexts and
-calls ``check`` on each, plus :func:`statistical_guard` over the batch.
-
-The seal-padding rule (see ``docs/format-authoring.md``) is why this harness
-samples through :func:`format_covertexts`, which drives the real record-layer
-:class:`fteproxy.record_layer.Encoder` in **format** mode and cuts the wire back
-into individual sealed covertexts -- by length for a fixed-length format, on the
-terminator or on the length prefix for a variable-length one, exactly as the
-decoder frames it. What comes back is always what went on the *wire*, framing
-included, so ``dns.py`` sees the RFC 1035 length prefix its parser starts at. A bare
-``fte.FTE.encrypt`` of a short message ranks low and unranks into a degenerate
-covertext (one long run of the field's lowest character); a sealed covertext is
-padded to the format's full capacity first, so its variable fields are filled
-with high-entropy format bytes exactly as they are in production. Realism MUST
-be judged on sealed covertexts, never on raw ``encrypt`` output.
+format_covertexts samples real format-mode records, including random seal
+padding and external framing. Direct libfte encryption of short unpadded
+messages can produce systematic low-rank prefixes and is not representative
+of these session records. statistical_guard checks only long same-byte runs.
 """
 
 import json
@@ -47,33 +31,12 @@ _KEY = b'\x00' * 32
 
 
 def format_covertexts(spec_or_regex, length=None, n=2000):
-    """``n`` individual sealed covertexts of one format.
+    """Return n sampled, sealed format-mode covertexts, including wire framing.
 
-    Drives the record layer's format-mode :class:`~fteproxy.record_layer.Encoder`
-    (which seals: pads plaintext to the format's capacity with random bytes
-    before encrypting) over ``n`` records of random payload, then cuts the
-    resulting wire back into individual covertexts. This is the
-    seal-padding-correct sampler the module docstring describes; do not sample
-    with a bare ``fte.FTE.encrypt``.
-
-    Called either with a **definitions spec** (the dict from a ``parts/*.json``
-    fragment or a release) or, for a fixed-length format, with its
-    ``regex, length`` directly:
-
-    * a **fixed-length** format is chunked at its one capacity and the wire is
-      sliced at ``length``, exactly as the decoder frames it;
-    * a **variable-length** format picks a length per record, so the payloads
-      are varied to exercise the choice and the wire is framed the way that
-      format's decoder frames it -- on its terminator, or on the length prefix
-      each record carries. The covertexts come back at the mix of lengths a
-      real stream would carry.
-
-    Every covertext is returned exactly as it went on the wire. For a
-    ``length-prefix`` format that includes the framing prefix, which is what a
-    protocol parser reads first (and what ``realism.dns`` checks against the
-    bytes that follow it); a regex match, on the other hand, has to be taken on
-    the message behind the prefix, since the prefix is framing rather than
-    language.
+    Accept a definitions spec or a fixed regex/length pair. Fixed formats use full
+    payload capacity; variable formats cycle through payload sizes and split the
+    wire with the declared framing. This exercises length selection without
+    claiming to reproduce a particular application's traffic distribution.
     """
     if isinstance(spec_or_regex, dict):
         spec = spec_or_regex
@@ -95,9 +58,7 @@ def format_covertexts(spec_or_regex, length=None, n=2000):
                          variable=variable)
     wire = b''
     for i in range(n):
-        # One record each time, at a payload size that walks the whole range a
-        # real stream produces, so the sample carries the mix of covertext
-        # lengths the length choice is meant to produce.
+        # Cycle through payload sizes to exercise the length-selection heuristic.
         encoder.push(os.urandom(1 + (i * 37) % variable.capacity))
         wire += encoder.pop()
     return frame_wire(wire, spec)[:n]
@@ -114,17 +75,10 @@ def frame_wire(wire, spec):
 
 
 def record_layer_pair(spec, hybrid=False, key=_KEY):
-    """An ``(Encoder, Decoder)`` pair for one definitions entry, in one mode.
+    """Build an (Encoder, Decoder) pair for one spec without a handshake.
 
-    The same wiring :func:`fteproxy._session_channel` does for a live
-    connection, minus the handshake: in ``format`` mode a variable-length format
-    also gets the ciphers for every length it may emit, and in ``hybrid`` mode
-    it does not, because a hybrid record is a fixed-length header plus an
-    authenticated body -- sealed at :func:`fteproxy.hybrid_header_length`, the
-    shortest length that holds one, not at ``max_length``. A definition may add
-    protocol framing around that body. A protocol's test file uses this so it
-    exercises the framing the product actually uses rather than a hand-rolled
-    approximation of it.
+    Use the runtime's allowed lengths, hybrid-header selection, and body framing.
+    The supplied test key is reused; real sessions derive separate directional keys.
     """
     length = (fteproxy.hybrid_header_length(spec) if hybrid
               else fteproxy.defs.spec_length(spec))
@@ -151,13 +105,9 @@ def allowed_lengths(spec):
 
 
 def statistical_guard(covertexts, max_run_fraction=0.5):
-    """Raise :class:`RealismError` if any covertext is dominated by one byte.
+    """Reject a covertext with a same-byte run above max_run_fraction of its length.
 
-    A single character running for more than ``max_run_fraction`` of a
-    covertext's length is the signature of a badly shaped regex whose only
-    variable field is one long low-entropy run -- the degenerate covertext the
-    seal-padding rule exists to avoid. A healthy format fills its variable
-    fields with high-entropy bytes, so its longest run is short.
+    This catches a simple degeneracy; passing does not establish protocol realism.
     """
     for index, covertext in enumerate(covertexts):
         if not covertext:
@@ -202,9 +152,9 @@ REFERENCE_LENGTH = 512
 
 
 def self_test():
-    """Prove the sampler and the guard work on the inline reference format.
+    """Check the sampler and repetition guard with a small reference format.
 
-    Returns the sampled covertexts on success; raises on any failure.
+    Return the sampled covertexts, or raise on failure.
     """
     covertexts = format_covertexts(REFERENCE_REGEX, REFERENCE_LENGTH, n=64)
     pattern = re.compile(REFERENCE_REGEX.encode('latin-1'), re.DOTALL)

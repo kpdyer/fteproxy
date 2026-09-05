@@ -1,46 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Realism check for the ``sip`` format, judged by an independent parser.
+"""Check selected SIP/2.0 start-line and header properties.
 
-``check(covertext)`` raises unless ``covertext`` is a structurally valid SIP/2.0
-message (RFC 3261). SIP is an HTTP-like text protocol carried here over TCP, so
-a covertext is a start line, a block of CRLF-terminated headers, a blank line,
-and (for these formats) an empty body.
+Parse start lines directly and headers with email.parser, independently of the
+format regex. Check selected methods/statuses, required header presence,
+character sets, branch cookies, and declared body length when present.
 
-The judgement never re-applies the format's own regex -- grading a regex with a
-mirror of itself proves nothing. Instead:
-
-* the **start line** is taken apart by hand: a request line splits on SP into
-  ``METHOD``, a ``sip:user@host`` request-URI and the ``SIP/2.0`` version; a
-  status line splits into ``SIP/2.0``, a three-digit code and its reason phrase.
-* the **header block** is parsed by :mod:`email.parser`, the stdlib RFC 5322
-  header parser (the same machinery the ``http`` realism module leans on -- SIP
-  borrowed HTTP's header syntax, which borrowed 822's). A header block that the
-  parser reports defects for fails.
-* the mandatory SIP headers -- ``Via``, ``From``, ``To``, ``Call-ID``, ``CSeq``
-  -- must all be present, and each is then checked against its own grammar:
-  a ``Via`` names a transport and carries an RFC 3261 magic-cookie branch, a
-  ``From``/``To`` carries a bracketed ``sip:`` URI (``From`` with a tag), a
-  ``Call-ID`` is ``token@host``, and a ``CSeq`` is a sequence number followed by
-  a known method.
-
-Field *values* in a sealed covertext are random within their character class, so
-this module checks only what the protocol's grammar actually constrains: it does
-not, for instance, reject a host that begins or ends with ``.`` or ``-``, which
-the format's language legitimately produces.
+This is not a full SIP validator: hostname syntax, CSeq bounds and agreement
+with the request method, and transaction relationships are not enforced.
 """
 
 import email.parser
 
 
 class SIPRealismError(Exception):
-    """A covertext is not a structurally valid SIP message."""
+    """A covertext failed the selected SIP structure checks."""
 
 
 #: Methods the format models, in the request line and in ``CSeq``.
 _METHODS = ('INVITE', 'REGISTER', 'ACK', 'BYE', 'OPTIONS')
 
-#: Status codes the format models, mapped to their required reason phrase.
+# Modeled status/reason pairs; SIP allows other reason text.
 _STATUS = {'100': 'Trying', '180': 'Ringing', '200': 'OK', '404': 'Not Found'}
 
 #: RFC 3261 requires every compliant branch parameter to start with this cookie.
@@ -59,7 +39,7 @@ _ALNUM = set('abcdefghijklmnopqrstuvwxyz'
              '0123456789')
 #: The user part of a ``sip:`` URI.
 _USER = set('abcdefghijklmnopqrstuvwxyz0123456789._-')
-#: A host name: lowercase letters, digits, dot and hyphen.
+# Allowed host-field bytes; this check does not validate hostname syntax.
 _HOST = set('abcdefghijklmnopqrstuvwxyz0123456789.-')
 
 
@@ -208,7 +188,7 @@ def _check_headers(block):
 # --------------------------------------------------------------------------- #
 
 def check(covertext):
-    """Raise :class:`SIPRealismError` unless ``covertext`` is a valid SIP message."""
+    """Raise SIPRealismError if a covertext fails the selected SIP checks."""
     if not isinstance(covertext, (bytes, bytearray)):
         raise SIPRealismError('covertext is not bytes: %r' % (type(covertext),))
     covertext = bytes(covertext)

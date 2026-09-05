@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""
-HTTP Format Demo
+"""Encode local messages as a simplified HTTP-like GET shape with libfte.
 
-Shows data encoded to look like HTTP requests.
-Useful for blending in with normal web traffic.
+This example omits the HTTP/1.1 Host header. It does not use the proxy's
+current HTTP definitions or its padded session records.
 """
 
 import os
@@ -23,7 +22,7 @@ def main():
     
     print("=" * 60)
     print("HTTP FORMAT DEMO")
-    print("Traffic looks like HTTP GET requests")
+    print("Output uses a simplified HTTP-like GET shape")
     print("=" * 60)
     
     messages = [b"Hi", b"Test", b"Secret"]

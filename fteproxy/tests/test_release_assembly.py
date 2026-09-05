@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""The shipped 20260903 release is the assembly of the per-protocol parts.
+"""Keep the shipped 20260903 catalog equal to the union of its protocol parts.
 
-``fteproxy/defs/parts/<proto>.json`` is the source of truth for one protocol:
-phases F1-F5 each wrote one, and F6 merged them into the dated release the
-package ships. These tests keep the two from drifting -- an edit to a fragment
-that never reaches ``20260903.json`` fails here rather than shipping -- and
-pin what the release promises: the five cleartext protocols, both directions
-each, http the only default.
+Assert five request/response pairs, HTTP as the only default, and successful
+release validation. Update the assembled catalog whenever a fragment changes.
 """
 
 import glob
@@ -101,5 +97,5 @@ class TestReleaseContents:
             assert fteproxy.defs.spec_port(spec), name
 
     def test_the_release_is_the_shipped_default(self):
-        """What ``fteproxy client`` uses when no ``--defs`` is given."""
+        """The configured default catalog is 20260903."""
         assert fteproxy.conf.getValue('fteproxy.defs.release') == RELEASE

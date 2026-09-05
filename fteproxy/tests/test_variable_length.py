@@ -1,54 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Variable-length covertexts (phases F7 and F7b).
+"""Test variable covertext lengths, framing, and session integration.
 
-Until F7 every covertext of a format was exactly one length, which SECURITY.md
-called out as its own fingerprint: a length-distribution test separates a tunnel
-from real traffic without looking at a single byte. Every shipped format now
-picks a covertext length per format-mode record from a small set spanning
-``[min_length, max_length]``, and the decoder frames the wire on that format's
-delimiter instead of on a fixed slice.
+Cover terminator and external length-prefix framing across partial reads,
+invalid lengths, corrupt records, and oversized incomplete input. Truncated
+frames wait until more bytes or socket EOF establish the outcome.
 
-There are two delimiters, and both are exercised here:
-
-* the four text formats (``http``, ``ftp``, ``smtp``, ``sip``) end each
-  covertext with a **terminator** their language cannot produce anywhere else
-  (F7);
-* ``dns`` carries a two-byte big-endian **length prefix** in front of each
-  covertext (F7b). That prefix is what RFC 1035 section 4.2.2 says DNS over TCP
-  is, and until F7b it was a literal at the head of the regex -- which is
-  exactly why ``dns`` was the one format F7 had to leave fixed: a second
-  covertext length would have needed a second literal, hence a second regex.
-  Lifting it out of the pattern and into the record layer
-  (``fteproxy.defs.FRAMING_LENGTH_PREFIX``) is what let one pattern serve all
-  eight lengths.
-
-What these tests pin down:
-
-* the **length set** both ends derive from the definitions, without negotiating it;
-* **framing**, for both delimiters: a record delivered in fragments -- including
-  every split inside the terminator, and every split across a length prefix and
-  a message boundary -- reassembles; a length the format does not emit, a
-  corrupted covertext, a truncated message, and a peer that never sends a
-  terminator each fail the stream closed rather than being buffered or guessed
-  at;
-* the **spread**: a stream of small and large writes produces many distinct
-  covertext lengths and no dominant one, which is the point of the change, and
-  for ``dns`` every covertext in that spread is still a message its independent
-  realism parser accepts;
-* **terminator uniqueness**, the property terminator framing rests on, including
-  that the pre-F7 ``http-response`` regex (which absorbed a body and so could
-  carry a CRLF CRLF inside a covertext) is rejected by the check;
-* what did **not** change: the two handshake records are still one fixed
-  ``max_length`` covertext, the four text formats' fragments are byte for byte
-  what F7 shipped, and the shape catalog is still fixed length.
-
-A ``hybrid`` header is still a *fixed*-length covertext, but no longer at
-``max_length``. F7 pinned it there beside the hello; since a header carries only
-the 4-byte length of the body behind it, and ranking a covertext gets
-superlinearly more expensive with length, it now goes in the shortest allowed
-length that has room for one (``fteproxy.hybrid_header_length``) --
-:class:`TestHybridHeaderLength` is where that rule is pinned down.
+Check the payload-dependent length heuristic, whole-language terminator proof,
+and DNS structure. Handshakes retain maximum-length covertexts; hybrid headers
+use the shortest allowed capable length derived from matching definitions.
+Length variation alone does not establish a realistic traffic distribution.
 """
 
 import collections
@@ -181,8 +142,7 @@ class TestAllowedLengths:
         assert fteproxy.defs.getLength(name) == _spec(name)['max_length']
 
     def test_a_partial_declaration_is_refused_at_load(self):
-        """A range with no terminator would silently load as fixed length and
-        emit one length again, so it fails at load instead."""
+        """Incomplete range/framing declarations fail during loading."""
         for broken in ({'regex': r'^[a-z]+\r\n$', 'min_length': 64,
                         'max_length': 256},
                        {'regex': r'^[a-z]+\r\n$', 'terminator': '\r\n'},
@@ -390,7 +350,7 @@ class TestFailsClosed:
 
 
 # --------------------------------------------------------------------------- #
-# The spread: the fingerprint this phase exists to remove
+# Payload-dependent length distribution
 # --------------------------------------------------------------------------- #
 
 class TestLengthSpread:
@@ -416,9 +376,7 @@ class TestLengthSpread:
         assert max(histogram.values()) <= 0.5 * len(covertexts), histogram
 
     def test_small_writes_lean_short_and_bulk_leans_long(self):
-        """The bias is what makes the spread look like traffic rather than like
-        a random number generator: a chat session should not emit 700-byte
-        requests every time, and a download should not emit 200-byte ones."""
+        """Verify the heuristic biases selected lengths with pending payload size."""
         name = 'http-request'
         terminator = VARIABLE[name]
         lengths = fteproxy.defs.spec_allowed_lengths(_spec(name))
@@ -479,10 +437,7 @@ class TestTerminatorUniqueness:
         validate._check_sampled_terminators(name, covertexts, VARIABLE[name])
 
     def test_the_pre_f7_http_response_body_field_is_rejected(self):
-        """The regression this check exists for: a body-absorbing field. It
-        fails on the first condition -- a pattern whose last atom is a field
-        rather than the terminator cannot have the terminator as its suffix at
-        all, which is why F7 ended the response at the header block."""
+        """A trailing body field permits a terminator before the end of a covertext."""
         with pytest.raises(validate.FormatValidationError) as excinfo:
             validate.check_terminator_uniqueness(
                 'http-response', _PRE_F7_HTTP_RESPONSE, b'\r\n\r\n')
@@ -568,15 +523,7 @@ class TestTerminatorUniqueness:
 # --------------------------------------------------------------------------- #
 
 class TestLengthPrefixFraming:
-    """What terminator framing's tests above prove for the text formats, proved
-    for the delimiter ``dns`` uses instead.
-
-    A record is a two-byte big-endian message length followed by that many
-    bytes. The prefix is framing rather than language, so there is nothing here
-    to prove *about the pattern* -- the questions are all about the wire: does
-    the prefix say what follows it, does the decoder wait for a partial record
-    and refuse an impossible one, and is what comes out still DNS.
-    """
+    """Test prefix counts, partial reads, invalid lengths, and sampled DNS structure."""
 
     PREFIX = fteproxy.defs.LENGTH_PREFIX_BYTES
 
@@ -700,11 +647,7 @@ class TestLengthPrefixFraming:
 
     @pytest.mark.parametrize('name', PREFIXED)
     def test_the_spread_is_a_spread_and_every_covertext_is_still_dns(self, name):
-        """The point of F7b, and its constraint. A mixed stream produces a
-        histogram of wire lengths rather than one bar -- and every covertext in
-        it is still judged a structurally valid DNS-over-TCP message by the
-        independent parser in ``realism.dns``, which knows only RFC 1035 and
-        never sees the format's regex."""
+        """A mixed workload uses multiple lengths, each passing the DNS subset parser."""
         spec = _spec(name)
         encoder, _decoder = _pair(name)
         wire = b''
@@ -727,10 +670,7 @@ class TestLengthPrefixFraming:
 
     @pytest.mark.parametrize('name', PREFIXED)
     def test_the_question_name_is_what_the_length_buys(self, name):
-        """Why the spread is worth having here: the covertext length lands in
-        QNAME, so a histogram of lengths is a histogram of query-name sizes,
-        and the shortest is a name a resolver could plausibly be asked for
-        rather than the 254-octet pad a fixed length forced."""
+        """Shorter DNS covertexts have shorter encoded question names."""
         encoder, _decoder = _pair(name)
         wire = b''
         for _ in range(200):
@@ -861,16 +801,7 @@ class TestFixedFramingSurvives:
             server.close()
 
     def test_a_hybrid_header_is_fixed_at_the_shortest_length_that_holds_one(self):
-        """Still one fixed-length covertext per record, and still real HTTP --
-        but at 200 bytes, not at the 700 the handshake uses.
-
-        Until this change a hybrid header was sealed at ``max_length`` beside
-        the hello, which spent a full 700-byte ranking on every record to carry
-        four bytes. The expectation this test used to state (header
-        length == ``getLength``) is the thing that changed; everything around it
-        -- one covertext matching the hybrid regex, followed by an authenticated
-        body with the definition's protocol framing -- is as it was.
-        """
+        """HTTP session records use the 200-byte hybrid header and declared body framing."""
         client, server = self._handshaken('http', 'hybrid')
         try:
             assert client._encoder._variable is None
@@ -916,9 +847,7 @@ class TestFixedFramingSurvives:
             server.close()
 
     def test_the_four_text_formats_kept_their_terminator_framing(self):
-        """F7b touched the dns fragment and nothing else. The four formats F7
-        gave a terminator declare exactly what they declared then -- no
-        ``framing`` key, a terminator, and the same range."""
+        """Text formats declare ranges and unique terminators without explicit framing keys."""
         expected = {
             'http-request': (200, 700), 'http-response': (200, 700),
             'ftp-request': (64, 256), 'ftp-response': (64, 256),
@@ -958,19 +887,9 @@ class TestFixedFramingSurvives:
 # The hybrid header length
 # --------------------------------------------------------------------------- #
 
-#: What :func:`fteproxy.hybrid_header_length` works out for each shipped entry.
-#:
-#: Written down as well as derived (:meth:`TestHybridHeaderLength.
-#: test_the_length_is_the_shortest_that_holds_a_header` re-derives it from the
-#: ciphers) because these numbers are what goes on the wire: a release that
-#: moved one of them would change the covertext length of every hybrid record,
-#: which is a fingerprint change and should not pass silently.
-#:
-#: They are not symmetric, and there is no reason they should be: each direction
-#: is computed from its own entry, and a request pattern and a response pattern
-#: have different amounts of literal text, hence different rank space at the
-#: same covertext length. ``ftp`` is the case in point -- its response pattern
-#: has just enough room at 64 bytes and its request pattern has not.
+# Expected hybrid-header wire lengths for the shipped definitions.
+# Pin these alongside the capacity rule because changing them changes framing.
+# Request and response lengths can differ; each uses its own grammar.
 HYBRID_HEADER = {
     'http-request': 200, 'http-response': 200,
     'ftp-request': 91, 'ftp-response': 64,
@@ -999,20 +918,10 @@ def _channels(base, mode=fteproxy.handshake.MODE_HYBRID):
 
 
 class TestHybridHeaderLength:
-    """A hybrid header goes in the shortest covertext that holds one.
+    """Both peers choose the shortest allowed length that holds a sealed hybrid header.
 
-    A hybrid record is a sealed header carrying the 4-byte length of the raw
-    body behind it, and nothing else. Until this change the header was sealed at
-    the format's ``max_length``, alongside the client hello -- which the
-    handshake genuinely needs, because the server has to frame the hello before
-    it can decrypt anything. A data header does not: both ends already share the
-    keys and the definitions, so the length can be anything they both compute
-    the same way.
-
-    Sealing it at ``max_length`` was expensive, because ranking a covertext gets
-    superlinearly more costly as it gets longer -- an ``http`` covertext at 700
-    bytes costs seven to eight times what one at 200 does. Every hybrid record
-    paid that, for four bytes of payload.
+    Capacity needs 16 bytes before padding: a 12-byte seal and four-byte body length.
+    Handshakes independently retain the maximum length.
     """
 
     # -- the rule ---------------------------------------------------------- #
@@ -1041,16 +950,13 @@ class TestHybridHeaderLength:
                 assert fits, (name, length, capacity)
 
     def test_a_header_holds_exactly_what_it_carries(self):
-        """The 16 bytes are the 4-byte body length inside the 12-byte seal --
-        the whole sealed plaintext, since no payload rides in a header."""
+        """The header requires 16 bytes before _seal pads it to cipher capacity."""
         assert rl.HYBRID_HEADER_BYTES == 16
         assert rl.HYBRID_HEADER_BYTES == rl._OVERFLOW_LEN.size + rl._SEAL_OVERHEAD
 
     @pytest.mark.parametrize('name', sorted(HYBRID_HEADER))
     def test_the_length_is_one_the_format_emits(self, name):
-        """Not a length invented for headers: it comes out of the same set a
-        format-mode record picks from, so a hybrid header is indistinguishable
-        from a format-mode record of that length."""
+        """The header length belongs to the allowed set; the header regex may differ."""
         assert fteproxy.hybrid_header_length(_spec(name)) in \
             fteproxy.defs.spec_allowed_lengths(_spec(name))
 
@@ -1064,10 +970,7 @@ class TestHybridHeaderLength:
                 fteproxy.defs.spec_length(spec), name
 
     def test_a_format_with_no_room_cannot_run_hybrid(self):
-        """No shipped format is one -- the capacity floor is 128 bytes and a
-        header needs 16 -- so the refusal is exercised on a synthetic entry.
-        It has to be a refusal and not a fallback: quietly sealing at some other
-        length would leave the two ends framing the stream differently."""
+        """A synthetic undersized header grammar yields no hybrid length."""
         tiny = {'regex': r'^[a-z][a-z][a-z][a-z]\r\n$', 'length': 6}
         assert fteproxy.hybrid_header_length(tiny) is None
         with pytest.raises(validate.FormatValidationError) as excinfo:
@@ -1221,7 +1124,6 @@ class TestHybridHeaderLength:
 
     @pytest.mark.parametrize('base', BASES)
     def test_no_shipped_format_is_refused(self, base):
-        """The counterpart: the capacity floor makes the refusal unreachable for
-        every format in the release."""
+        """Every shipped entry has a capable hybrid-header length."""
         fteproxy._check_hybrid_supported(base, fteproxy.handshake.MODE_HYBRID)
         fteproxy._check_hybrid_supported(base, fteproxy.handshake.MODE_FORMAT)

@@ -1,136 +1,36 @@
-# FTE Chat Example
+# Scripted chat example
 
-A chat demo with a 10-round conversation between client and server.
-All traffic is FTE-encoded to look like HTTP/1.1 requests and responses.
-
-## Quick Start
+This socket demo exchanges ten predefined messages and replies. From
+`examples/chat`, run these in separate terminals:
 
 ```bash
-# Terminal 1: Start server
 python3 server.py
+```
 
-# Terminal 2: Run client
+```bash
 python3 client.py
 ```
 
-## Sample Output
+The server binds all IPv4 interfaces on port `50007`; the client connects to
+`127.0.0.1`. Both should finish with `[OK] All 10 rounds completed successfully`.
+They share a published demo identity; see [demo identity precautions](../README.md#demo-identities).
 
-**Server:**
-```
-FTE Chat Server
-==================================================
-Listening on port 50007
-Format and mode: whatever the client asks for
-==================================================
+## Configuration and wire format
 
-Waiting for client...
-Client connected from ('127.0.0.1', 52431)
+The client sets `format="http"` and inherits the socket API's `hybrid` mode.
+The server learns these choices from the handshake and uses its own matching
+definitions release.
 
-[Round 1/10]
-  Client: Hi there! How are you?
-  Server: Hello! Welcome to the FTE chat server.
+For the current `20260903` definitions, session records use a 200-byte POST
+request or HTTP response header followed by an authenticated encrypted body in
+HTTP chunk framing. Handshake covertexts use the 700-byte base HTTP format.
+These generated messages do not implement a browser or a full HTTP conversation.
 
-[Round 2/10]
-  Client: What does FTE stand for?
-  Server: I'm doing great, thanks for asking!
+To encode the payload into covertexts too, pass `mode="format"` in the client's
+`wrap_socket` call. To try another base name, use `fteproxy formats` to list it
+and pass the desired mode explicitly: the socket API does not use format hints.
+Legacy shapes such as `words` require `defs="20260110"` on both peers.
 
-...
-```
-
-**Client:**
-```
-FTE Chat Client
-==================================================
-Connecting to 127.0.0.1:50007
-Format: http (HTTP requests out, HTTP responses back)
-==================================================
-
-Connected!
-
-[Round 1/10]
-  Client: Hi there! How are you?
-  Server: Hello! Welcome to the FTE chat server.
-
-...
-```
-
-## How The Two Sides Are Configured
-
-The client makes every choice and the server follows. All the client holds is
-the server-id -- the public half of the server's keypair, which is what a
-connection string carries:
-
-```python
-# client.py
-sock = fteproxy.wrap_socket(sock, server_id=DEMO_SERVER_ID, format="http")
-
-# server.py -- no format, no mode, no shared key
-sock = fteproxy.wrap_socket(sock, server_key=DEMO_SERVER_KEY)
-```
-
-The server learns the format and the record-layer mode from the client's first
-record. A real server generates its keypair with `fteproxy keygen` and hands
-out only the public half; these scripts hardcode a demo keypair so they agree
-without exchanging anything.
-
-## What's On The Wire
-
-Even though the conversation looks normal, the actual network traffic is encoded:
-
-| Direction | What You See | What's On The Wire |
-|-----------|-------------|-------------------|
-| Client -> Server | "Hi there!" | `GET /Xq2p... HTTP/1.1` + headers (512 bytes) + raw ciphertext |
-| Server -> Client | "Hello!" | `HTTP/1.1 200 OK` + headers (512 bytes) + raw ciphertext |
-
-With fteproxy's default record-layer mode (`hybrid`), each record starts with a
-512-byte covertext in the `http` format and carries the message itself as raw
-authenticated ciphertext after it -- which is what an HTTP message with a body
-looks like. To put every byte in the format, ask for `format` mode when
-wrapping the client socket -- the server follows:
-
-```python
-sock = fteproxy.wrap_socket(sock, server_id=DEMO_SERVER_ID,
-                            format="http", mode="format")
-```
-
-## Traffic Flow
-
-```
-+------------+                      +------------+
-|   Client   |                      |   Server   |
-+------------+                      +------------+
-      |                                   |
-      |  "Hi there!" as an HTTP request   |
-      |  GET /Xq2pm9... HTTP/1.1 ...      |
-      |---------------------------------->|
-      |                                   |
-      |  "Hello!" as an HTTP response     |
-      |  HTTP/1.1 200 OK ...              |
-      |<----------------------------------|
-      |                                   |
-     ...         (10 rounds)             ...
-```
-
-## Customization
-
-Change `FORMAT` in `client.py` to any base name `fteproxy formats` lists, and
-the wire format changes in both directions:
-
-```python
-FORMAT = "http"   # GET /... HTTP/1.1 with browser headers (the default)
-FORMAT = "smtp"   # EHLO mail.example / 250-... command and reply lines
-FORMAT = "sip"    # INVITE sip:...@... SIP/2.0 with Via/From/To/Call-ID
-FORMAT = "dns"    # DNS over TCP: length prefix, header, question, A record
-```
-
-Pick the one whose port the traffic will be seen on -- that is what the command
-line does for you when no `--format` is given. The abstract shape formats
-(`words`, `hex`, `manual-http`, ...) live in release `20260110`; to use one,
-select that release before wrapping the socket, on both ends:
-
-```python
-import fteproxy.conf
-fteproxy.conf.setValue('fteproxy.defs.release', '20260110')
-```
-
-Only the client changes. The server is told nothing and follows.
+The scripts exchange small messages in turn. General applications must add
+message framing: `sendall` and `recv` boundaries need not match. See the
+[socket API notes](../programmatic/README.md#socket-api).

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""
-Words Format Demo
+"""Encode local messages as space-separated lowercase letter sequences.
 
-Shows data encoded as space-separated lowercase words.
-This is useful when you want traffic to look like natural text.
+The regex does not generate natural language. See README.md for the long
+prefixes produced by short, unpadded libfte plaintexts.
 """
 
 import os
@@ -30,7 +29,7 @@ def main():
     
     print("=" * 60)
     print("WORDS FORMAT DEMO")
-    print("Traffic looks like natural language words")
+    print("Output is space-separated lowercase letter sequences")
     print("=" * 60)
     
     for msg in messages:

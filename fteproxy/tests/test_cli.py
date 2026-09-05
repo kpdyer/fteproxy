@@ -534,9 +534,7 @@ class TestResolveClientUri:
         assert 'too long' in str(excinfo.value)
 
     def test_the_placeholder_becomes_loopback(self, tmp_path):
-        """A string still carrying <server-ip> can only have been written by a
-        server on this host, which is what makes `fteproxy server` then
-        `fteproxy client` work with no arguments at all."""
+        """Legacy placeholders in managed same-host state resolve to loopback."""
         directory = self._write(
             tmp_path, 'fte://%s@%s:9999'
             % (SERVER_ID, fteproxy.config.HOST_PLACEHOLDER))
@@ -812,7 +810,7 @@ class TestFormats:
         assert 'manual-http' in out
         # Base names only: the direction suffixes are columns, not rows.
         assert 'manual-http-request' not in out
-        # manual-http-response carries 192 bytes per covertext at length 256.
+        # The table reports cipher capacity, before the record seal and type byte.
         assert '192' in out
 
     def test_the_default_release_is_the_five_protocols(self, capsys):
@@ -1194,12 +1192,9 @@ class TestClientListenerExposure:
 
 
 class TestPortSelectsTheFormat:
-    """A client told no format picks the one whose protocol runs on the port.
+    """Format selection uses URI hints before port metadata and the fallback.
 
-    The whole point of an FTE format is that a DPI rule for the port it
-    arrives on matches it, so a server parked on 21 wants FTP-shaped
-    covertexts and one on 8080 wants HTTP-shaped ones. A ``--format`` flag and
-    the connection string's ``?format=`` hint both still win.
+    An explicit --format wins over both; a port mismatch produces a warning.
     """
 
     @pytest.fixture
@@ -1715,11 +1710,7 @@ class TestLogging:
 
 
 class TestLogRedaction:
-    """Secrets must not reach a log file, whatever a call site passes.
-
-    The filter lives on the package logger, so it applies to every handler an
-    embedding program attaches as well as to the CLI's own.
-    """
+    """Recognized secret forms are redacted through the package logger's handlers."""
 
     def test_a_connection_string_keeps_only_its_shape(self, caplog):
         with caplog.at_level(logging.INFO, logger='fteproxy'):
@@ -1758,13 +1749,7 @@ class TestLogRedaction:
 
 
 class TestModeFollowsTheFormat:
-    """A format's ``mode_hint`` is the client's default mode.
-
-    The line protocols and dns are designed for ``format`` mode -- a raw
-    hybrid body has no place inside them and leaks a high-entropy tail -- so a
-    client that took the port default must get the mode the format was made
-    for. ``--mode`` and the connection string's ``?mode=`` hint both still win.
-    """
+    """Mode precedence is CLI flag, URI hint, format hint, then built-in default."""
 
     @pytest.fixture
     def chosen_mode(self, monkeypatch, tmp_path):

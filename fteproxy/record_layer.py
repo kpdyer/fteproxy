@@ -1,70 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""The record layer: frames a byte stream as a sequence of libfte covertexts.
+"""Frame authenticated records over a TCP byte stream.
 
-libfte 0.4 encrypts one message into exactly one fixed-length covertext and
-has no stream framing of its own, so this module defines the wire layout.
-Every record starts with a *sealed* covertext: its plaintext is
-``len(4) || seq(8) || message || random pad`` filled to the format's capacity,
-so it reads as random format text and only unseals at stream position
-``seq``. The two modes differ in what the sealed covertext carries:
+Every FTE plaintext is message_length(4) || sequence(8) || message || random
+padding to cipher capacity. Format mode carries type(1) || payload in that
+seal. Hybrid mode seals a four-byte body length and follows it with an
+authenticated encrypted type/payload body, optionally in HTTP chunk framing.
 
-``format``
-    The message itself. The stream is a sequence of covertexts, all in the
-    target format.
+Variable format-mode records use either a unique terminator or an external
+two-byte message-length prefix. The regex excludes that prefix. Handshakes use
+maximum-length covertexts; hybrid headers use the shortest capable length.
 
-``hybrid`` (the default)
-    A 4-byte body length, followed on the wire by that many raw bytes:
-    ``nonce(12) || AES-128-CTR ciphertext || HMAC-SHA256 tag(16)`` from
-    :class:`fteproxy._AEADBody`, with ``seq`` bound into the tag. Only the
-    header blends in with the format; the body is high-entropy ciphertext.
-    A definition may give that body protocol-native framing.  HTTP uses one
-    complete chunked body per record, so its formatted header and ciphertext
-    are a syntactically complete HTTP/1.1 message instead of unframed bytes
-    after a header that declared no body.
-
-The message itself begins with a one-byte record type (:data:`DATA` and the
-other constants below), so one connection carries application bytes, stream
-control and future padding without a second framing layer. In ``format`` mode
-that byte is the first byte inside the sealed covertext; in ``hybrid`` mode it
-is the first byte encrypted into the body. Either way the sealed ``len`` and ``seq``
-fields are unchanged, so chunking, buffering and the body-length bound are the
-same as they were before types existed.
-
-``seq`` is the record's position in its stream, counted from 0 by each
-``Encoder``/``Decoder`` pair, so a record moved, replayed, or dropped within
-a stream is rejected. Since 1.0 each direction of a connection has its own
-header and body keys, derived per connection by :mod:`fteproxy.handshake`, so
-a record cannot be replayed into another stream or the other direction either.
-See SECURITY.md for what is not covered.
-
-**Framing.** A fixed-length format frames on its length: one record is one
-``length``-byte slice (plus, in hybrid mode, the authenticated body its header
-announces and any protocol framing around that body).
-A *variable-length* format (:class:`VariableLength`) picks one of the format's
-allowed lengths per record and seals at it, and is delimited one of two ways
-(``fteproxy.defs.spec_framing``):
-
-``terminator``
-    The covertext ends with a byte string its language can only produce as that
-    final suffix. The decoder reads up to the next terminator and checks that
-    what it found is a length this format emits.
-
-``length-prefix``
-    The covertext is preceded on the wire by a two-byte big-endian count of the
-    bytes that follow -- :class:`LengthPrefixed`. The prefix is framing, not
-    part of the format's language, which is precisely what DNS over TCP is
-    (RFC 1035 section 4.2.2). The decoder reads the prefix, requires the wire
-    length it implies to be one this format emits, and waits for that many
-    bytes.
-
-Either way the fixed-length fingerprint is gone from format-mode data records,
-while hybrid headers and the two handshake records stay fixed-length. The two
-handshake records are fixed at the format's ``max_length``, because the server
-frames the client hello before it can decrypt anything; a hybrid header is fixed
-at the *shortest* allowed length that holds :data:`HYBRID_HEADER_BYTES`, because
-that is all a header carries and covertext cost grows superlinearly with length.
-See ``docs/format-authoring.md``.
+Each session direction has its own keys and sequence counter. Framing, seal,
+or authentication failures are terminal; incomplete frames wait for more bytes.
+See docs/format-authoring.md and SECURITY.md for the wire and security model.
 """
 
 import os
@@ -93,10 +42,8 @@ RECORD_TYPES = frozenset((DATA, OPEN, OPEN_RESULT, PADDING, CLOSE))
 
 # Length prefix inside a sealed (random-padded) covertext plaintext.
 _LEN = struct.Struct('>I')
-# Sequence number inside a sealed covertext plaintext: the record's position in
-# its stream. A sealed covertext therefore only unseals at that position, so a
-# reordered, replayed, or dropped record is rejected in both modes (in hybrid
-# mode the body MAC binds the same number).
+# Sequence number binds a record to its stream position in both modes.
+# A gap is detected when a later record arrives; EOF alone cannot prove completeness.
 _SEQ = struct.Struct('>Q')
 _SEAL_OVERHEAD = _LEN.size + _SEQ.size
 # The record type byte that leads every message.
@@ -105,16 +52,8 @@ _TYPE_LEN = 1
 # it, excluding any protocol framing around that body.
 _OVERFLOW_LEN = struct.Struct('>I')
 
-#: Plaintext capacity a ``hybrid``-mode header cipher must have.
-#:
-#: A hybrid header carries one thing: the :data:`_OVERFLOW_LEN` count of the raw
-#: body behind it. :func:`_seal` wraps that in the length and sequence fields,
-#: so the whole sealed plaintext is exactly these 16 bytes and a covertext that
-#: holds 16 bytes of plaintext holds a header. That is *all* it has to hold --
-#: no payload rides in a hybrid header -- which is why a hybrid header does not
-#: have to be sealed at the format's longest covertext the way the handshake's
-#: two records are. :func:`fteproxy.hybrid_header_length` turns this number into
-#: the length one format's headers go out at.
+# Minimum hybrid-header capacity: 12-byte seal plus four-byte body length.
+# _seal pads this 16-byte structure to the chosen cipher's full capacity.
 HYBRID_HEADER_BYTES = _OVERFLOW_LEN.size + _SEAL_OVERHEAD
 
 #: The framing header of a ``length-prefix`` format: a big-endian count of the
@@ -154,11 +93,9 @@ def _hybrid_wire_body_len(framing, body_len):
 
 
 class UnknownRecordType(Exception):
-    """An authenticated record whose type this version does not define.
+    """An authenticated record has an empty or unknown type; callers must close.
 
-    Only a peer holding the session keys can produce one, so this is a version
-    mismatch rather than an attack, and the connection is closed: continuing
-    would mean guessing at the meaning of the bytes that follow.
+    This can indicate a version mismatch or a malformed record from a key holder.
     """
 
 
@@ -168,16 +105,10 @@ class StreamFailedError(Exception):
 
 
 def _seal(cipher, message, seq):
-    """Encrypt ``message`` into one covertext, random-padded to the format's
-    full plaintext capacity and stamped with its stream position ``seq``.
+    """Seal message length, sequence, and message, padding to cipher capacity.
 
-    A short message otherwise ranks low and unranks into a covertext with a long
-    run of the format's lowest character (the ``GET /0000...`` padding). Filling
-    the plaintext to capacity makes the covertext use its whole rank space, so it
-    reads as random format text and no longer leaks the message length through
-    its rank. The random pad sits inside the authenticated ciphertext, so it
-    costs nothing on the wire (the covertext is a fixed length either way) and
-    reveals nothing.
+    Padding avoids systematic low-rank prefixes from short unpadded messages.
+    It does not promise uniform sampling of the regex's entire language.
     """
     plaintext = _LEN.pack(len(message)) + _SEQ.pack(seq) + message
     pad = cipher.max_plaintext_bytes - len(plaintext)
@@ -214,29 +145,11 @@ class _PrefixedFormat:
 
 
 class LengthPrefixed:
-    """A libfte cipher whose covertext goes on the wire behind a length prefix.
+    """Wrap a fixed-length cipher with a two-byte big-endian message prefix.
 
-    The prefix is *framing*, not language. A format like ``dns`` is a two-byte
-    big-endian length followed by that many bytes of message (RFC 1035 section
-    4.2.2), and spelling that length as a literal inside the regex -- which is
-    what ``dns`` did until F7b -- pins the format to exactly one covertext
-    length, because a second length would need a second literal and therefore a
-    second regex. Lifting the prefix out of the regex and into this wrapper is
-    what lets one ``dns`` pattern serve every length in
-    ``fteproxy.defs.spec_allowed_lengths``.
-
-    So the regex describes the message alone, the wrapped cipher is built at the
-    *message* length ``W - PREFIX_LEN``, and this class adds and removes the
-    prefix. It presents the same surface a bare ``fte.FTE`` does --
-    ``max_plaintext_bytes``, ``output_format.max_length``, ``encrypt`` and
-    ``decrypt`` -- with lengths reported on the wire, so every path that already
-    handled a fixed-length cipher (``_seal``, the handshake, a hybrid header)
-    handles this one without knowing it exists.
-
-    ``decrypt`` refuses a frame whose prefix disagrees with the bytes it was
-    handed, raising the same :class:`fte.InvalidCovertextError` a failed tag
-    raises, so a wrong prefix fails the stream closed rather than being
-    reinterpreted.
+    The regex describes only the message. output_format.max_length reports message
+    plus prefix, while max_plaintext_bytes remains the underlying cipher capacity.
+    decrypt rejects a prefix that disagrees with the supplied frame length.
     """
 
     def __init__(self, cipher):
@@ -268,43 +181,16 @@ class LengthPrefixed:
         return self._cipher.decrypt(message)
 
 
-#: Where a record's covertext length comes from. ``os.urandom``-backed, so the
-#: length sequence is not predictable from earlier records and cannot be
-#: replayed out of a seeded PRNG.
+# System randomness for the payload-dependent length-selection heuristic.
 _LENGTHS = random.SystemRandom()
 
 
 class VariableLength:
-    """The lengths one variable-length format may emit, and the ciphers for them.
+    """Per-direction ciphers keyed by allowed wire length.
 
-    A format-mode record is sealed with a *fixed-length* cipher, as it always
-    was; what changes is that there is now more than one of them and the
-    encoder chooses per record. ``ciphers`` maps each allowed **wire** length to
-    the cipher that produces one covertext of that length --
-    :func:`fteproxy._spec_cipher` builds them, so a ``length-prefix`` format's
-    entries are :class:`LengthPrefixed` wrappers around a cipher two bytes
-    shorter and the arithmetic here does not change.
-
-    ``framing`` says how the decoder tells one covertext from the next:
-    ``fteproxy.defs.FRAMING_TERMINATOR``, in which case ``terminator`` is the
-    byte string every covertext ends with and that the format's language cannot
-    produce anywhere else (enforced by ``fteproxy.defs.validate``), or
-    ``FRAMING_LENGTH_PREFIX``, in which case the wire length is read off each
-    record's own prefix and no terminator is involved.
-
-    **Why the length is chosen here and not by libfte.** ``fte.RegexFormat``
-    accepts a ``min_length``/``max_length`` pair and ranks the whole range, but
-    a language's string count grows exponentially with length, so a uniformly
-    random rank lands in the longest length class almost every time: a 64..512
-    range would emit ~512-byte covertexts and the fingerprint would survive.
-    The record layer therefore picks the length itself, from a small discrete
-    set, and seals at exactly that length.
-
-    One instance serves one direction of one connection: the per-length ciphers
-    are built once here rather than per record, and the expensive half of each
-    (the DFA) comes from the process-wide cache in
-    :func:`fteproxy._regex_format`, so the ciphers themselves cost a few
-    microseconds each and hold nothing beyond this connection's key.
+    Format mode chooses a length before encrypting, rather than ranking across a
+    whole range that would favor its largest language classes. Framing uses a
+    terminator or a two-byte prefix; each length must carry at least one DATA byte.
     """
 
     def __init__(self, ciphers, terminator=None,
@@ -339,22 +225,11 @@ class VariableLength:
         return self._ciphers[length]
 
     def choose_length(self, pending):
-        """A covertext length for a record with ``pending`` payload bytes queued.
+        """Choose a wire length using quadratic weights based on pending payload.
 
-        Never shorter than the shortest length that holds ``pending`` bytes, so
-        a record is never split just to make it look short. Beyond that the
-        choice is random, weighted so that a stream's length histogram matches
-        what it is carrying: when more data is queued than the largest record
-        holds the weights favour the long lengths (a bulk transfer looks like
-        long messages), and when the payload fits in one record they favour the
-        short ones (interactive traffic looks like short messages). Throughput
-        is not what the weighting is for -- the byte rate is nearly flat across
-        a format's range, see PERFORMANCE.md -- realism is.
-
-        The weights are quadratic rather than flat so the bias is visible in a
-        histogram, and rather than exponential so no single length takes a
-        commanding share -- an all-shortest stream would be as much of a
-        fingerprint as an all-longest one.
+        If pending fits one record, use only capable lengths and favor shorter ones.
+        For larger queues, permit every length and favor longer ones; the caller chunks
+        to the chosen capacity. This is a heuristic, not a real-protocol distribution.
         """
         if pending > self.capacity:
             eligible = self.lengths
@@ -390,23 +265,15 @@ class Encoder:
             raise ValueError('hybrid mode frames a fixed-length header; it '
                              'cannot also carry variable-length covertexts')
         if body_cipher is None:
-            # 'format' mode: one sealed covertext per chunk. Reserve the length
-            # prefix, sequence number and record type; the rest of the covertext
-            # capacity is real payload, random-padded when the payload does not
-            # fill it. With a variable-length format the capacity depends on the
-            # length chosen for the record, and this is the largest of them: the
-            # most any one record can carry, which is what bounds a control
-            # record and what chunking measures itself against.
+            # Format mode reserves the seal and type byte from cipher capacity.
+            # Variable formats use this maximum to bound control records; DATA chunks
+            # use the capacity of each chosen length.
             self._capacity = (
                 variable.capacity if variable is not None
                 else cipher.max_plaintext_bytes - _SEAL_OVERHEAD - _TYPE_LEN)
         else:
-            # 'hybrid' mode: a sealed FTE header (carrying the body length)
-            # followed by the authenticated body and any carrier-native framing.
-            # Chunk by the body's capacity, far larger than a covertext's, so bulk
-            # data pays the DFA cost once per record instead of once per ~150
-            # bytes. The type byte rides on top of the body rather than coming out
-            # of the payload, so the chunk boundaries are unchanged.
+            # Hybrid mode chunks by body capacity. The type byte is additional to the
+            # payload limit, and carrier framing surrounds the encrypted body.
             self._capacity = body_cipher.max_plaintext_bytes
         if self._capacity < 1:
             raise ValueError('format is too small to carry a record')
@@ -461,9 +328,9 @@ class Encoder:
         self._buffer += data
 
     def pop(self):
-        """Pop the whole buffer, sliced into capacity-sized chunks and encrypted
-        into one :data:`DATA` record each with the ``cipher`` (and, in hybrid
-        mode, the ``body_cipher``) from ``__init__``.
+        """Drain buffered data into encrypted DATA records, chunked by capacity.
+
+        Variable formats choose a length and its corresponding capacity for each chunk.
         """
         buffer = self._buffer
         if not buffer:
@@ -525,12 +392,8 @@ class Decoder:
         # carrier framing around them. Either way a trailing partial record stays
         # buffered.
         self._frame_size = cipher.output_format.max_length
-        # The largest record this decoder is ever asked to hold: one header
-        # covertext plus, in hybrid mode, the largest framed body a header may
-        # announce; for a variable-length format, one covertext of its longest
-        # allowed length. After every pop the buffer is shorter than this, so a
-        # stream that fails to authenticate cannot grow the buffer without
-        # bound (see the fail-closed behavior below).
+        # Maximum size of an incomplete record retained after draining.
+        # push() can accept more; pop_records() checks bounds and fails bad frames.
         if variable is not None:
             self.max_record_bytes = variable.max_length
         else:
@@ -551,7 +414,7 @@ class Decoder:
 
     @property
     def failed(self):
-        """Whether a record failed to authenticate and the stream is dead."""
+        """Whether framing, seal, or authentication failure made the stream unusable."""
         return self._failed
 
     def push(self, data):
@@ -569,27 +432,19 @@ class Decoder:
         self._buffer += data
 
     def _decrypt(self, cipher, covertext):
-        """Decrypt one covertext, mapping libfte errors to fteproxy semantics.
+        """Return authenticated plaintext, or None for an invalid covertext.
 
-        Returns the plaintext, or ``None`` if the frame is not (yet) decodable
-        and the caller should stop draining and keep it buffered.
+        Callers treat None as terminal failure. FormatContractError propagates because
+        it indicates a provider contract violation rather than ordinary bad input.
         """
         try:
             return cipher.decrypt(covertext)
         except fte.FormatContractError:
-            # The format provider broke the RankedFormat contract: a bug in the
-            # format, not bad input, so no frame can be trusted. Keep libfte
-            # 0.3's UnrecoverableDecryptionError semantics by propagating it to
-            # the embedding application. Library code must never terminate its
-            # process; the CLI may translate the exception at its boundary.
-            # (In 0.4, decrypt never raises MessageTooLargeError; that is an
-            # encrypt-side limit. A corrupt or oversized covertext is the
-            # InvalidCovertextError below.)
+            # Provider contract violations propagate to the caller; they indicate a
+            # format implementation bug rather than an ordinary invalid covertext.
             raise
         except fte.InvalidCovertextError as e:
-            # A corrupt, wrong-format, or failed-MAC frame. The server's
-            # first-record scan relies on this to fall through to the next
-            # candidate format.
+            # A corrupt, wrong-format, or unauthenticated frame fails the stream.
             fteproxy.debug("fteproxy.record_layer.InvalidCovertextError: "+str(e))
             return None
         except fte.FTEError as e:
@@ -607,17 +462,14 @@ class Decoder:
         return record_type, message[1:]
 
     def pop_records(self, limit=None):
-        """Pop decoded records off the FIFO buffer as ``(type, payload)``.
+        """Return complete (type, payload) records, stopping after limit if supplied.
 
-        Stops at ``limit`` records, or when the next record is incomplete or
-        undecodable. Raises :class:`UnknownRecordType` for an authenticated
-        record this version does not define; the caller closes the connection.
+        Retain incomplete frames. Framing, seal, or authentication failure sets failed
+        and discards the remainder. UnknownRecordType requires the caller to close.
         """
 
-        # Consume whole records from a local buffer and collect the messages,
-        # writing ``self._buffer`` back once. The offset never advances past a
-        # record that cannot (yet) be decoded, so the undecodable remainder is
-        # preserved.
+        # Drain complete records using an offset, then update the buffer once.
+        # Preserve incomplete records; terminal failures discard the remainder.
         if self._failed:
             return []
         if self._variable is not None:
@@ -643,10 +495,7 @@ class Decoder:
                     break
                 head = _unseal(head, self._seq)
                 if head is None:
-                    # Authenticated but not a sealed record at this stream
-                    # position: a peer on a different mode, corruption, or a
-                    # record replayed, reordered, or dropped. Treat it as
-                    # undecodable.
+                    # The seal is invalid for this stream position; fail without resynchronizing.
                     fteproxy.debug(
                         "fteproxy.record_layer: malformed or out-of-order sealed "
                         "record at seq " + str(self._seq))
@@ -660,9 +509,8 @@ class Decoder:
                     records.append(self._split_type(head))
                     continue
 
-                # 'hybrid' mode: the header carries the authenticated body's
-                # length, excluding protocol framing. A successful header
-                # decrypt means we wrote it and the length is trustworthy.
+                # Hybrid headers authenticate the body length, excluding carrier framing.
+                # The peer may hold valid keys, so the length still needs a resource bound.
                 if len(head) != _OVERFLOW_LEN.size:
                     fteproxy.debug(
                         "fteproxy.record_layer: unexpected header width "
@@ -730,12 +578,10 @@ class Decoder:
         return records
 
     def _terminated_frame_end(self, buffer, offset):
-        """Find one terminator-framed covertext, or return None to stop.
+        """Return the end of the next terminator frame, or None to stop.
 
-        A record runs to the end of the next terminator. Its length must be one
-        the format emits; an invalid length fails the stream rather than
-        hunting for a later terminator. Refusing more than one longest covertext
-        without a terminator bounds what a peer can make us buffer.
+        An unlisted length or an unterminated remainder beyond max_length fails the
+        stream. The buffer bound is checked here, after push has accepted input.
         """
         terminator = self._variable.terminator
         end = buffer.find(terminator, offset)
@@ -759,13 +605,10 @@ class Decoder:
         return end
 
     def _length_prefixed_frame_end(self, buffer, offset):
-        """Find one length-prefixed covertext, or return None to stop.
+        """Return a complete prefixed frame's end, or None to wait/fail.
 
-        A record is a two-byte big-endian message length followed by that many
-        bytes (RFC 1035 4.2.2). The unauthenticated prefix only selects which
-        cipher to try. Check it against the allowed lengths before waiting for
-        any body bytes: a 65535-byte prefix must fail immediately, never invite
-        an oversized buffer. An allowed but incomplete frame waits for more.
+        Require declared length plus the prefix width to be allowed before waiting for
+        the body. The unauthenticated prefix selects a cipher, not trusted plaintext.
         """
         if len(buffer) - offset < PREFIX_LEN:
             return None                     # not even a prefix yet; wait

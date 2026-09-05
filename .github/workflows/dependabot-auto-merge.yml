@@ -25,11 +25,9 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Only patch and minor bumps are approved and merged unattended. A major
-      # bump can change a package's or an action's behaviour, a bump of the
-      # fte line is a wire-format change (see dependabot.yml), and
-      # pypa/gh-action-pypi-publish receives the PyPI trusted-publishing OIDC
-      # token and is never exercised by CI, so those need a human review.
+      # Auto-approve only patch/minor updates outside these exclusions.
+      # Review libfte for wire compatibility and the publishing action for its
+      # access to the trusted-publishing token; normal tests do not exercise it.
       - name: Approve pull request
         if: >-
           (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||

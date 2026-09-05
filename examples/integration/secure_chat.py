@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""
-Secure Chat Over FTE
+"""Interactive socket chat using HTTP hybrid mode and a published demo key.
 
-A simple encrypted chat application using fteproxy.
-Messages appear as random words on the network.
+The server binds all IPv4 interfaces on port 50009. Reads display byte-stream
+chunks, without application message framing. See examples/integration/README.md.
 """
 
 import socket
@@ -11,16 +10,13 @@ import sys
 import threading
 import fteproxy
 
-# A fixed demo identity so the two scripts agree without exchanging anything.
-# The private key is published here on purpose: it is a demo. A real server
-# generates its own with `fteproxy keygen`, keeps server.key at mode 0600, and
-# hands out only the public half.
+# Published demo private key: use a new, private identity for actual deployments.
+# The matching public capability is all a client needs to connect.
 DEMO_SERVER_KEY = bytes.fromhex(
     "628e1b010509a623c31c54a443d996d10427f2e47ff11258d50e9f70c4b79651")
 DEMO_SERVER_ID = fteproxy.server_id(DEMO_SERVER_KEY)
 
-# Chat traffic will look like HTTP/1.1 requests and responses: this demo runs
-# on a port no protocol claims, so it takes the shipped default.
+# Explicit HTTP format with the socket API's hybrid mode default.
 FORMAT = "http"
 
 PORT = 50009

@@ -1,25 +1,19 @@
 #!/usr/bin/env python3
-"""
-FTE Chat Client
+"""Run the ten-round conversation with the companion demo server.
 
-A simple chat client that has a 10-round conversation with the server.
-All traffic is FTE-encoded to look like HTTP/1.1 requests and responses.
-
-The client picks the format and the record-layer mode; the server follows.
-All it needs of the server is the server-id below.
+Use the published demo capability, explicit HTTP format, and API hybrid default.
+See examples/chat/README.md for wire format and message-framing limitations.
 """
 
 import sys
 import socket
 import fteproxy
 
-# The server-id: the public half of the demo server's keypair, which is all a
-# client ever needs. A real client reads this out of a connection string.
+# Public capability matching the server script's demo private key.
 DEMO_SERVER_ID = "g7RzVlLwycSzfHmHwo2LOdkvZ2rG_-J4lmsosmKPzQY"
 
-# A base name from the definitions file: the server derives the request and
-# response formats from it. `fteproxy formats` lists them all. The demo runs
-# on a port no protocol claims, so it takes the shipped default, http.
+# Explicit API format; the API does not infer it from the port.
+# Mode defaults to hybrid. See `fteproxy formats` for base names.
 FORMAT = "http"
 
 HOST = '127.0.0.1'

@@ -14,7 +14,7 @@
         "role": "request",
         "mode_hint": "hybrid",
         "default": true,
-        "description": "HTTP/1.1 GET, POST, or HEAD request with common browser headers; hybrid records use POST plus a complete chunked body; 200-700 bytes per covertext header"
+        "description": "HTTP request headers; format-mode records are 200-700 bytes. Hybrid uses a 200-byte POST header and a chunked encrypted body."
     },
     "http-response": {
         "regex": "^HTTP/1\\.1 (200 OK|302 Found|304 Not Modified|404 Not Found)\r\nServer: [a-zA-Z0-9/. ()_-]+\r\nContent-Type: [a-zA-Z0-9/;=. +-]+\r\nContent-Length: 0\r\nETag: \"[a-zA-Z0-9]+\"\r\nSet-Cookie: [a-zA-Z0-9]+=[a-zA-Z0-9%_-]+; Path=/\r\n\r\n$",
@@ -31,7 +31,7 @@
         "role": "response",
         "mode_hint": "hybrid",
         "default": true,
-        "description": "HTTP/1.1 200/302/304/404 zero-body response in format mode; hybrid records use 200/302/404 plus a complete chunked body; 200-700 bytes per covertext header"
+        "description": "HTTP response headers with an empty body in format mode (200-700 bytes). Hybrid uses a 200-byte header and a chunked encrypted body."
     },
     "ftp-request": {
         "regex": "^((USER|PASS|CWD|RETR|STOR|LIST) [a-zA-Z0-9._@/-]+|TYPE [AI]|PASV|QUIT)\r\n$",
@@ -44,7 +44,7 @@
         "role": "request",
         "mode_hint": "format",
         "default": false,
-        "description": "FTP control-channel command: a verb (USER/PASS/CWD/TYPE/PASV/RETR/STOR/LIST/QUIT) with a realistic argument, CRLF-terminated; 64-256 bytes per line"
+        "description": "FTP command shape with a CRLF terminator; 64-256 bytes per format-mode record."
     },
     "ftp-response": {
         "regex": "^(220|230|331|250|150|226|550) [a-zA-Z0-9 .,:()/-]+\r\n$",
@@ -57,7 +57,7 @@
         "role": "response",
         "mode_hint": "format",
         "default": false,
-        "description": "FTP control-channel reply: a 3-digit status code, a space, human-readable text, CRLF-terminated; 64-256 bytes per line"
+        "description": "FTP status code and generated reply text with a CRLF terminator; 64-256 bytes per format-mode record."
     },
     "smtp-request": {
         "regex": "^(EHLO [a-z0-9.-]+|HELO [a-z0-9.-]+|MAIL FROM:<[a-z0-9._%+-]+@[a-z0-9.-]+>|RCPT TO:<[a-z0-9._%+-]+@[a-z0-9.-]+>|VRFY [a-z0-9._%+-]+|DATA|RSET|NOOP|QUIT)\r\n$",
@@ -71,7 +71,7 @@
         "role": "request",
         "mode_hint": "format",
         "default": false,
-        "description": "SMTP client command line (EHLO/MAIL FROM/RCPT TO/DATA/QUIT), CRLF-terminated; 80-320 bytes per line"
+        "description": "SMTP command shape with a CRLF terminator; 80-320 bytes per format-mode record."
     },
     "smtp-response": {
         "regex": "^((220|250|354|421|550) |250-)[a-zA-Z0-9 .,;:()<>@_-]+\r\n$",
@@ -85,7 +85,7 @@
         "role": "response",
         "mode_hint": "format",
         "default": false,
-        "description": "SMTP server reply line (2xx/3xx/4xx/5xx status), with 250- continuation form; 80-320 bytes per line"
+        "description": "SMTP status/text shape, including 250- continuation lines; 80-320 bytes per format-mode record."
     },
     "sip-request": {
         "regex": "^(INVITE|REGISTER|ACK|BYE|OPTIONS) sip:[a-z0-9._-]+@[a-z0-9.-]+ SIP/2\\.0\r\nVia: SIP/2\\.0/TCP [a-z0-9.-]+;branch=z9hG4bK[a-zA-Z0-9]+\r\nFrom: <sip:[a-z0-9._-]+@[a-z0-9.-]+>;tag=[a-zA-Z0-9]+\r\nTo: <sip:[a-z0-9._-]+@[a-z0-9.-]+>\r\nCall-ID: [a-zA-Z0-9]+@[a-z0-9.-]+\r\nCSeq: [0-9]+ (INVITE|REGISTER|ACK|BYE|OPTIONS)\r\nContent-Length: 0\r\n\r\n$",
@@ -98,7 +98,7 @@
         "role": "request",
         "mode_hint": "format",
         "default": false,
-        "description": "SIP/2.0 request line (INVITE/REGISTER/ACK/BYE/OPTIONS) with the mandatory Via/From/To/Call-ID/CSeq headers; 300-800 bytes per message"
+        "description": "SIP request shape with Via, From, To, Call-ID, CSeq, and an empty body; 300-800 bytes per format-mode record."
     },
     "sip-response": {
         "regex": "^SIP/2\\.0 (100 Trying|180 Ringing|200 OK|404 Not Found)\r\nVia: SIP/2\\.0/TCP [a-z0-9.-]+;branch=z9hG4bK[a-zA-Z0-9]+\r\nFrom: <sip:[a-z0-9._-]+@[a-z0-9.-]+>;tag=[a-zA-Z0-9]+\r\nTo: <sip:[a-z0-9._-]+@[a-z0-9.-]+>\r\nCall-ID: [a-zA-Z0-9]+@[a-z0-9.-]+\r\nCSeq: [0-9]+ (INVITE|REGISTER|ACK|BYE|OPTIONS)\r\nContent-Length: 0\r\n\r\n$",
@@ -111,7 +111,7 @@
         "role": "response",
         "mode_hint": "format",
         "default": false,
-        "description": "SIP/2.0 status line (100/180/200/404) with the mandatory Via/From/To/Call-ID/CSeq headers; 300-800 bytes per message"
+        "description": "SIP response shape with Via, From, To, Call-ID, CSeq, and an empty body; 300-800 bytes per format-mode record."
     },
     "dns-request": {
         "regex": "^[\u0000-\u00ff][\u0000-\u00ff]\u0001\u0000\u0000\u0001\u0000\u0000\u0000\u0000\u0000\u0000(\u0002[a-zA-Z0-9][a-zA-Z0-9]|\u0003[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9]|\u0004[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0005[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0006[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0007[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\b[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\t[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\n[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000b[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\f[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\r[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000e[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000f[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9])+(\u0003[cC][oO][mM]|\u0003[nN][eE][tT]|\u0003[oO][rR][gG]|\u0003[eE][dD][uU]|\u0004[iI][nN][fF][oO]|\u0002[iI][oO]|\u0002[dD][eE]|\u0002[uU][kK])\u0000(\u0000\u0001|\u0000\u001c)\u0000\u0001$",
@@ -124,7 +124,7 @@
         "role": "request",
         "mode_hint": "format",
         "default": false,
-        "description": "DNS over TCP query (RFC 1035 4.2.2): a 2-byte big-endian length prefix frames a 12-byte header and one A/AAAA question. The prefix is framing rather than a literal in the regex, so one pattern serves every length: the covertext runs 90 to 272 wire bytes and QNAME with it, 72 to 254 octets, inside the 255-octet limit at every length"
+        "description": "DNS-over-TCP query shape: external two-byte prefix and one A/AAAA question; 90-272 wire bytes, with QNAME 72-254 bytes."
     },
     "dns-response": {
         "regex": "^[\u0000-\u00ff][\u0000-\u00ff]\u0081\u0080\u0000\u0001\u0000\u0001\u0000\u0000\u0000\u0000(\u0002[a-zA-Z0-9][a-zA-Z0-9]|\u0003[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9]|\u0004[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0005[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0006[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0007[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\b[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\t[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\n[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000b[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\f[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\r[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000e[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000f[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9])+(\u0003[cC][oO][mM]|\u0003[nN][eE][tT]|\u0003[oO][rR][gG]|\u0003[eE][dD][uU]|\u0004[iI][nN][fF][oO]|\u0002[iI][oO]|\u0002[dD][eE]|\u0002[uU][kK])\u0000\u0000\u0001\u0000\u0001\u00c0\f\u0000\u0001\u0000\u0001\u0000\u0000[\u0000-\u00ff][\u0000-\u00ff]\u0000\u0004[\u0001-~\u0080-\u00df][\u0000-\u00ff][\u0000-\u00ff][\u0000-\u00ff]$",
@@ -137,6 +137,6 @@
         "role": "response",
         "mode_hint": "format",
         "default": false,
-        "description": "DNS over TCP NOERROR response (RFC 1035 4.2.2): the question echoed plus one A record reached by a 0xc00c name pointer. Length-prefix framing varies the covertext from 90 to 272 wire bytes, so QNAME runs 56 to 238 octets instead of one padded size"
+        "description": "DNS-over-TCP reply shape: external two-byte prefix, one question, and one A answer pointing to that question; 90-272 wire bytes."
     }
 }

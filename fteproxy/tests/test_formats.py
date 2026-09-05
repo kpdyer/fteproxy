@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-Tests for all regex formats defined in the defs files.
-Verifies that each format can successfully encode and decode data.
+"""Encode/decode tests for the legacy 20260110 and 20131224 catalogs.
+
+The current protocol catalog has separate per-protocol tests.
 """
 
 import pytest
@@ -15,7 +15,7 @@ import fteproxy.defs
 import fteproxy.record_layer
 
 
-# libfte 0.4 requires an explicit key; use fteproxy's configured shared key.
+# Deterministic test key for direct libfte calls; runtime sessions derive their own.
 _KEY = conftest.TEST_KEY
 
 
@@ -65,7 +65,7 @@ class TestBuiltinFormats:
         test_data = b"Hello, World!"
         
         ciphertext = cipher.encrypt(test_data)
-        # Extract only the text portion (ciphertext may include binary padding)
+        # Decode this fixed-length covertext for the alphabet check.
         text_portion = ciphertext[:length].decode('ascii', errors='ignore')
         assert len(text_portion) > 0
         # Check at least the beginning matches the pattern
@@ -138,7 +138,7 @@ class TestBuiltinFormats:
         test_data = b"Hi"
         
         ciphertext = cipher.encrypt(test_data)
-        # Only decode the length portion (rest may be binary padding)
+        # Decode the fixed-length covertext.
         decoded = ciphertext[:length].decode('ascii', errors='ignore')
         
         # Should look like an IP address
@@ -231,7 +231,7 @@ class TestBuiltinFormats:
         test_data = b"X"
         
         ciphertext = cipher.encrypt(test_data)
-        # Only decode the length portion (rest may be binary padding)
+        # Decode the fixed-length covertext.
         decoded = ciphertext[:length].decode('ascii', errors='ignore')
         
         # Should look like a timestamp
@@ -413,7 +413,7 @@ class TestFormatPairs:
 
 
 class TestLegacyFormats:
-    """Test backward compatibility with legacy format definitions."""
+    """Load and use legacy definitions with the current wire protocol."""
 
     def test_legacy_20131224_formats(self):
         """Test that legacy 20131224 formats still work."""
@@ -507,7 +507,7 @@ class TestEdgeCases:
 
 
 class TestAllDefinedFormats:
-    """Exhaustively test all formats in all definition files."""
+    """Round-trip every entry in the 20260110 shape catalog."""
 
     def test_all_formats_in_20260110(self):
         """Test that all formats in 20260110.json work correctly."""

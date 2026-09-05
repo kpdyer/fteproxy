@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   analyze:
-    # Deterministic check name used as a required status check: "Analyze (Python)"
+    # Stable check name for use in repository rules.
     name: Analyze (Python)
     runs-on: ubuntu-latest
     permissions:

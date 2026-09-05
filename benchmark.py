@@ -1,41 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-benchmark.py - Performance & resilience benchmark for the fteproxy relay system.
+"""Measure TCP relay throughput, latency, setup, and connection-loss behavior.
 
-fteproxy tunnels a plaintext TCP stream through a Format-Transforming-Encryption
-(FTE) encoded channel:
+Start real fteproxy client/server subprocesses and local destinations. Compare
+with plain TCP relays of the same topology, optionally using a userspace shaper
+for delay, jitter, bandwidth limits, and deliberate connection closure.
 
-    [app] --plain--> [fteproxy client] ==FTE==> [fteproxy server] --plain--> [dest]
-
-This script spins up a real client+server pair (as subprocesses, exactly the way
-users run them), drives traffic through it, and measures:
-
-  * throughput   - bulk transfer rate for a range of payload sizes / directions
-  * latency      - small request/response round-trip time (interactive traffic)
-  * setup        - time to establish a new tunneled connection (FTE negotiation)
-  * resilience   - behaviour when the encoded link is torn down mid-transfer
-
-Every scenario can be run through an in-process "link shaper" that emulates a
-slow / high-latency / bandwidth-constrained link, and against a plain-TCP relay
-of identical topology so the *overhead of FTE itself* can be separated from the
-overhead of the network conditions.
-
-    A note on modelling unreliable networks
-    ----------------------------------------
-    fteproxy runs over TCP. Packet loss, reordering and duplication happen below
-    TCP and are *repaired* by TCP before fteproxy ever sees the bytes. What loss
-    and jitter actually look like to fteproxy is: extra latency (retransmits,
-    head-of-line blocking) and reduced goodput. The shaper therefore models the
-    network as {one-way delay, jitter, bandwidth cap} -- the effects that survive
-    to the application layer -- plus optional mid-stream disconnects for the
-    resilience tests. It deliberately does NOT drop or reorder bytes on the
-    established stream (that would corrupt it, which is not what a real network
-    does to a TCP flow). For true kernel-level loss/reorder see the note printed
-    by `--help-netem` (needs root + dnctl/dummynet on macOS, tc/netem on Linux).
-
-Stdlib only. Requires `fteproxy` (and its `fte` dependency) to be importable by
-the same interpreter that runs this script:  python3 benchmark.py
+The shaper schedules byte chunks; it does not emulate TCP congestion control,
+packet loss, or retransmission. See --help-netem for kernel-shaping examples.
+Run with an interpreter that can import fteproxy. Measurement boundaries and
+historical results are documented in PERFORMANCE.md.
 """
 
 import argparse
@@ -71,12 +45,10 @@ def free_port():
 
 
 def wait_listening(port, host='127.0.0.1', timeout=30.0):
-    """Block until *something* accepts a connection on host:port.
+    """Wait until a TCP connection to host:port succeeds.
 
-    Note: the fteproxy relay eagerly opens a downstream connection for every
-    inbound TCP connection, including this probe. All destinations in this file
-    accept in a loop and discard idle/probe connections, so a probe never
-    starves a real connection.
+    Probing a client forward can warm a tunnel. A bare server-port probe does not
+    complete an FTE handshake. This is a readiness check, not a cold-start measure.
     """
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -107,12 +79,9 @@ def recv_n(sock, n):
 # --------------------------------------------------------------------------- #
 
 class LoopServer(threading.Thread):
-    """Threaded TCP server that accepts many connections concurrently.
+    """Threaded destination: echo received bytes or discard them in sink mode.
 
-    mode='echo' : echo every byte back (measures a full client->dest->client
-                  round trip, exercising FTE encode AND decode in both relays).
-    mode='sink' : read and discard; after EOF (or `respond` bytes requested via
-                  the first 8 bytes) optionally stream back `respond` bytes.
+    Accept connections concurrently, including idle readiness probes.
     """
 
     def __init__(self, port, mode='echo'):
@@ -309,14 +278,10 @@ class Shaper(threading.Thread):
         wt.join()
 
     def stop(self):
-        """Stop accepting AND drop any established connections, so that stopping
-        the shaper faithfully emulates the link going away mid-transfer.
+        """Stop accepting and shut down active sockets, discarding queued bytes.
 
-        We only shutdown() the active sockets here (not close()): shutdown is
-        safe to call from this thread while the pump threads may be blocked in
-        recv/send on the same fd -- it unblocks them with a clean EOF, which
-        propagates to fteproxy as a normal close. The pump threads own the
-        close(). (close() from two threads races and can send a RST instead.)"""
+        Pump threads own close(); shutdown wakes their I/O without racing fd reuse.
+        """
         self._running = False
         with contextlib.suppress(OSError):
             self.srv.close()
@@ -332,9 +297,7 @@ class Shaper(threading.Thread):
 # --------------------------------------------------------------------------- #
 
 class TcpRelay(threading.Thread):
-    """A no-op forwarding relay: [in] --> [out]. Two of these chained give the
-    same two-hop topology as fteproxy client+server, but without FTE, so the
-    cost of FTE can be isolated from the cost of the extra hops + shaper."""
+    """Plain TCP relay used to build a baseline with the same socket topology."""
 
     def __init__(self, listen_port, target_port):
         super().__init__(daemon=True)
@@ -393,19 +356,11 @@ class TcpRelay(threading.Thread):
 # --------------------------------------------------------------------------- #
 
 class FteProxyTunnel:
-    """Starts a real fteproxy server and client as subprocesses.
+    """Run a real server/client pair with an optional shaper between them.
 
-    Topology (entry_port is where the application connects):
-
-        app -> client(entry_port) ==FTE==> [middle] ==> server -> dest(dest_port)
-
-    where [middle] is either the server's own port, or a Shaper in front of it.
-
-    Since 0.4 the client is the end that names the destination, so the client
-    runs one `-L entry_port:127.0.0.1:dest_port` forward and the server is
-    given exactly that destination as its allow rule. The server generates its
-    keypair into a throwaway state directory on first start and writes the
-    connection string there; the client reads it from the same directory.
+    The client forwards entry_port to the loopback destination; the server allows
+    that destination. Generate an identity in temporary state and share its
+    connection file with the client. Startup probes can warm tunnel setup.
     """
 
     def __init__(self, dest_port, format=None, mode=None,
@@ -548,13 +503,11 @@ class PlainTunnel:
 # --------------------------------------------------------------------------- #
 
 def workload_throughput(entry_port, nbytes, direction='echo', send_chunk=1 << 16):
-    """Push nbytes through the tunnel and time it.
+    """Measure sending nbytes, plus receipt of the echo in echo mode.
 
-    direction='echo'   : bytes are echoed by the destination -> full round trip
-                         (both FTE directions). Rate reported is goodput of the
-                         payload (sent == received == nbytes).
-    direction='upload' : destination is a sink; measure how fast we can push
-                         nbytes in. (Uses a sink destination -- see runner.)
+    Start timing after connecting to the local listener; tunnel setup may still be
+    in progress. Echo goodput counts nbytes once although data travels both ways.
+    Upload mode times local sends and half-close, without destination confirmation.
     """
     payload = os.urandom(nbytes) if nbytes <= (4 << 20) else (b'x' * nbytes)
     app = socket.create_connection(('127.0.0.1', entry_port), timeout=30)
@@ -626,9 +579,10 @@ def workload_latency(entry_port, count=50, msg_size=64, warmup=5):
 
 
 def workload_setup(entry_port, count=20):
-    """Measure per-connection setup cost: time from opening a new tunnel
-    connection until the first echoed byte comes back. This captures the FTE
-    in-band negotiation the server performs on every new connection."""
+    """Time a new local connection through receipt of its first echoed byte.
+
+    Includes tunnel handshake, OPEN/destination dial, and the byte's round trip.
+    """
     samples = []
     for _ in range(count):
         t0 = time.perf_counter()
@@ -658,18 +612,12 @@ def workload_setup(entry_port, count=20):
 
 
 def workload_resilience(entry_port, tunnel, drop_after=0.5, observe_s=12.0):
-    """Start a bidirectional transfer, tear the encoded link down mid-flight, and
-    see how quickly the application side finds out. Only meaningful when the
-    tunnel has a shaper we can stop (which drops the link, discarding in-flight
-    bytes -- as a real link failure would).
+    """Close the shaper during an echo transfer and observe application termination.
 
-    A real client reads and writes concurrently, so we do too: one thread streams
-    the payload up, another drains the echo. We classify by how the app is freed:
-
-      prompt : the receive side saw EOF / reset in < `observe_s`  (good)
-      hung   : still blocked at the end of the observation window (bad -- see
-               PERFORMANCE.md: the relay's select+throttle poll never lets the
-               30 s socket timeout fire, so a stalled/half-open peer can wedge)
+    Report prompt on EOF/reset and hung on a receive timeout. The timeout applies
+    to each recv, not to the entire observation loop. Detection time starts before
+    the scheduled drop, so it includes drop_after; this does not test a silent
+    network blackhole or prove an indefinitely stalled connection.
     """
     if not getattr(tunnel, 'shaper', None):
         return {'ok': None, 'note': 'no shaper/link to interrupt'}
@@ -849,22 +797,23 @@ def run_matrix(args):
 NETEM_HELP = """
 Real kernel-level loss / reordering / duplication
 ==================================================
-This benchmark shapes at the application layer (delay + bandwidth + jitter),
-which is what TCP loss/reorder actually manifests as by the time fteproxy sees
-the stream. To inject genuine packet loss/reordering below TCP, use the OS:
+The built-in shaper schedules byte chunks. It does not reproduce TCP packet
+loss, retransmission, or congestion control. Use OS tools for those experiments.
 
-macOS (dummynet, needs sudo):
-    sudo dnctl pipe 1 config bw 1Mbit/s delay 100ms plr 0.02
-    echo 'dummynet in  proto tcp from any to any port <server_port> pipe 1' | sudo pfctl -f -
-    echo 'dummynet out proto tcp from any to any port <server_port> pipe 1' | sudo pfctl -a com.apple/dummynet -f -
-    sudo pfctl -E
-    # ...run:  python3 benchmark.py --scenarios lan
-    sudo pfctl -d ; sudo dnctl -q flush
-
-Linux (netem, needs root, run the server in a netns or on a test box):
+Linux example, on an isolated test host or network namespace:
     sudo tc qdisc add dev lo root netem delay 100ms 25ms loss 2% reorder 5%
-    # ...run the benchmark...
+    # After a successful add, run: python3 benchmark.py --scenarios lan
+    # Remove the test qdisc afterward:
     sudo tc qdisc del dev lo root
+
+This shapes every loopback leg, including the application and destination
+connections. To isolate the encoded hop, place endpoints in separate network
+namespaces and shape only the interface between them.
+
+On macOS, use dummynet with a dedicated pipe and PF anchor referenced by the
+active ruleset. Match the encoded hop and remove only the test rules and pipe.
+Consult the installed dnctl, pfctl, and pf.conf manuals for platform syntax;
+do not replace the machine's entire firewall ruleset for this benchmark.
 """
 
 
@@ -887,15 +836,15 @@ def main():
     ap.add_argument('--latency-count', type=int, default=50)
     ap.add_argument('--latency-size', type=int, default=64)
     ap.add_argument('--no-setup', dest='setup', action='store_false',
-                    help="skip the connection-setup / negotiation test")
+                    help="skip the new-connection-to-first-echo test")
     ap.add_argument('--setup-count', type=int, default=20)
     ap.add_argument('--resilience', action='store_true',
                     help="run the mid-transfer link-drop resilience probe")
     ap.add_argument('--format', default=None, dest='format',
-                    help="fteproxy client --format, a base name (e.g. manual-http)")
+                    help="fteproxy client --format, a base name (e.g. http)")
     ap.add_argument('--mode', choices=['hybrid', 'format'], default=None,
-                    help="fteproxy client --mode; the server follows "
-                         "(default: fteproxy's own default, hybrid)")
+                    help="fteproxy client --mode; when omitted, the CLI uses "
+                         "URI and format hints, then its hybrid fallback")
     ap.add_argument('--json', default=None, metavar='PATH',
                     help="write raw results as JSON")
     ap.add_argument('--verbose', action='store_true',

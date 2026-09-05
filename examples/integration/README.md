@@ -1,127 +1,106 @@
-# Integration Examples
+# Integration examples
 
-These examples show how to use fteproxy with common tools and services.
+The client chooses destinations with `-L` or SOCKS5 `-D`; the server applies
+`--allow` before dialing. Install fteproxy on both machines first.
 
-The server never has a forward address of its own. It decides *what it is
-willing to dial* with `--allow`; the client decides *where to go*, with `-L`
-for one fixed destination or `-D` for a SOCKS5 listener that takes the
-destination from the application.
+## SSH
 
-## SSH Over FTE
-
-Tunnel SSH connections through fteproxy so they look like HTTP traffic.
-
-### Server Side
+On the server, replace `vpn.example.com` with its reachable hostname. Run sshd
+on port 22, then start fteproxy:
 
 ```bash
-# Publish the local sshd. Without an --allow rule the server refuses its own
-# loopback addresses, so this rule is what makes 127.0.0.1:22 reachable.
-python3 -m fteproxy server --allow 127.0.0.1:22
-
-# Make sure sshd is running on port 22
+python3 -m fteproxy server --advertise vpn.example.com:8080 --allow 127.0.0.1:22
 ```
 
-It prints a connection string. Copy that to the client.
-
-### Client Side
+The server reports the path to `connection.txt`. Copy that file privately to
+the client, then run:
 
 ```bash
-# Terminal 1: Start fteproxy client
-python3 -m fteproxy client 'fte://<server-id>@<server-ip>:8080' -L 2222:127.0.0.1:22
-
-# Terminal 2: Connect via SSH through fteproxy
-ssh -p 2222 user@localhost
+python3 -m fteproxy client --connection-file ./connection.txt -L 2222:127.0.0.1:22
 ```
 
-`127.0.0.1:22` in the `-L` is resolved by the *server*, so it means the
-server's own sshd.
-
-## Web Browsing Over FTE
-
-SOCKS5 is built in, so there is nothing to install on the server.
-
-### Server Side
+In another client terminal:
 
 ```bash
-# Reach the public internet, but not this host's loopback or link-local
-# addresses:
-python3 -m fteproxy server
-
-# Or reach everything, loopback included:
-python3 -m fteproxy server --allow any
+ssh -p 2222 user@127.0.0.1
 ```
 
-### Client Side
+The destination `127.0.0.1:22` means the server's loopback address. SSH still
+provides its own authentication and encryption through the FTE tunnel.
+
+## SOCKS5 browsing
+
+On the server:
 
 ```bash
-# Start fteproxy client with a SOCKS5 listener
-python3 -m fteproxy client 'fte://<server-id>@<server-ip>:8080' -D 1080
+python3 -m fteproxy server --advertise vpn.example.com:8080
+```
 
-# Use curl
+Copy its `connection.txt` privately. On the client:
+
+```bash
+python3 -m fteproxy client --connection-file ./connection.txt -D 1080
+```
+
+Use it from another terminal:
+
+```bash
 curl --socks5-hostname 127.0.0.1:1080 https://example.com/
 ```
 
-Or point a browser at a SOCKS5 proxy on `127.0.0.1:1080`. Use
-`--socks5-hostname` (and the browser's "proxy DNS when using SOCKS" setting)
-so names are resolved by the server rather than leaking around the tunnel.
+For a browser, select SOCKS5 at `127.0.0.1:1080` and enable proxy DNS resolution.
+This sends destination names through the tunnel for the server to resolve; it
+does not proxy every application or UDP traffic.
 
-## Netcat File Transfer
+With no allow rules, the server permits global unicast destinations.
+`--allow any` has the same address restriction. To reach a private or loopback
+service, add an explicit IP or CIDR rule. Once rules are supplied, unmatched
+destinations are denied. See [destination policy](../../README.md#destination-policy).
 
-Transfer files using netcat through FTE encoding.
+## Netcat transfer
 
-### Receiver Side
+On the receiving host, start a server allowing `127.0.0.1:9999`, with its reachable
+`--advertise` endpoint. In another terminal, receive into a new file:
 
 ```bash
-# Terminal 1: Start fteproxy server, publishing the port netcat will use
-python3 -m fteproxy server --allow 127.0.0.1:9999
-
-# Terminal 2: Wait for file with netcat
 nc -l 9999 > received_file.txt
 ```
 
-### Sender Side
+On the sender, use the copied connection file:
 
 ```bash
-# Terminal 1: Start fteproxy client
-python3 -m fteproxy client 'fte://<server-id>@<server-ip>:8080' -L 8079:127.0.0.1:9999
-
-# Terminal 2: Send file
-cat myfile.txt | nc localhost 8079
+python3 -m fteproxy client --connection-file ./connection.txt -L 8079:127.0.0.1:9999
 ```
 
-## Keys and the connection string
-
-There is no shared secret to distribute. On its first start the server
-generates an X25519 keypair in its state directory (`~/.local/state/fteproxy`
-by default): `server.key` holds the private half at mode 0600, and
-`connection.txt` holds the string clients need.
+In another terminal:
 
 ```bash
-# Provision a key and print the string without starting a server
-python3 -m fteproxy keygen --advertise vpn.example.com:8080
+nc 127.0.0.1 8079 < myfile.txt
 ```
 
-Without `--advertise` the string carries a literal `<server-ip>` placeholder
-for you to substitute.
+Netcat variants differ in how they close after stdin EOF; use your version's
+EOF option if needed. Compare the received file before treating the transfer
+as complete. For automatic local setup, see the [netcat demo](../netcat/README.md).
 
-The connection string carries only the public half, so treat it like a Tor
-bridge line: whoever holds it can connect, and its secrecy is what stops an
-active prober from confirming your server is running fteproxy. It does not let
-its holder impersonate the server or read another client's traffic.
+## Helper scripts and chat
 
-On a single host you can skip it entirely -- the client reads `connection.txt`
-from the same state directory:
+Run the shell helpers from `examples/integration` with no arguments to see
+usage. `ssh_tunnel.sh` wraps the SSH setup on port 2222; `web_proxy.sh` wraps
+SOCKS5 browsing. Their client wrappers accept a URI argument, which can be
+visible in command history and process listings. The commands above use files.
+To give the helpers a remote endpoint, provision it first with
+`fteproxy keygen --advertise HOST:8080`; the server preserves that endpoint.
+
+For an interactive Python socket demo, run these in separate terminals:
 
 ```bash
-python3 -m fteproxy server --allow 127.0.0.1:8081 &
-python3 -m fteproxy client -L 8079:127.0.0.1:8081
+python3 secure_chat.py server
 ```
-
-## Chaining with socat
-
-Use socat for more complex forwarding scenarios:
 
 ```bash
-# Forward from a Unix socket through fteproxy
-socat UNIX-LISTEN:/tmp/fte.sock,fork TCP:localhost:8079
+python3 secure_chat.py client 127.0.0.1
 ```
+
+It uses HTTP hybrid mode on port 50009 with a published demo key. The server
+binds all IPv4 interfaces, and text reads do not preserve message boundaries.
+See [demo identities](../README.md#demo-identities) before running it.

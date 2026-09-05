@@ -1,28 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""The relay: the two roles that move bytes between a socket and a tunnel.
+"""TCP relay listeners, admission limits, and bidirectional workers.
 
-Server
-    :class:`ServerListener` accepts fteproxy connections within global and
-    per-source setup limits. Each admitted connection gets a setup thread,
-    which completes the handshake, reads the client's OPEN, checks it against
-    the allow rules, dials the destination, answers with an OPEN_RESULT, and
-    only then starts the two workers. Nothing slow happens on the accept loop,
-    so one client dialling a distant or dead host no longer stalls every other
-    client's connect.
+Server setup performs handshake, OPEN, destination policy/dial, and OPEN_RESULT
+before starting two relay workers. Client SOCKS/forward setup opens one tunnel
+per local connection. Setup runs outside the accept loop under concurrency
+limits; established server relays have separate limits.
 
-Client
-    :class:`SocksListener` (``-D``) speaks SOCKS5 to local applications and
-    :class:`ForwardListener` (``-L``) sends every connection to one fixed
-    destination. Both do the same thing per accepted connection: dial the
-    fteproxy server, handshake, send OPEN, wait for OPEN_RESULT, then relay.
-
-The workers themselves are unchanged from 0.3: a ``select`` poll with a small
-throttle. That loop looks wasteful and is not -- the throttle is a GIL-yield
-that keeps the two workers of a connection from convoying, and removing it
-costs an order of magnitude in a real two-process deployment. See
-PERFORMANCE.md. What has changed is that the handshake no longer happens
-inside them, so neither worker touches a half-built encoder any more.
+Workers poll readiness and sleep after idle polls. Historical throttle
+experiments are recorded in PERFORMANCE.md; benchmark changes to this loop.
 """
 
 import ipaddress
@@ -38,7 +24,7 @@ import fteproxy.socks
 import fteproxy.stream
 
 
-#: How long to wait for a destination to accept our connection.
+# Per-candidate socket-connect timeout; DNS resolution has no deadline here.
 DIAL_TIMEOUT = 10
 
 
@@ -144,7 +130,7 @@ class worker(threading.Thread):
                 self._on_finish()
 
     def stop(self):
-        """Terminate the thread."""
+        """Request loop termination; Connection.stop also closes sockets to wake I/O."""
         self._stopped.set()
 
 
@@ -271,17 +257,10 @@ class listener(threading.Thread):
         return self._sock.getsockname()[:2]
 
     def bind(self):
-        """Reserve the local address, raising ``OSError`` on failure.
+        """Reserve the address without accepting connections yet.
 
-        Separate from :meth:`run` so a caller can claim the port on the main
-        thread, finish durable startup state, and report a bind failure with a
-        non-zero exit status before the port becomes externally ready. The
-        listener starts accepting only when :meth:`run` activates it.
-
-        An empty host means every interface, which is one socket on the usual
-        Unix system (``::`` with ``IPV6_V6ONLY`` off accepts IPv4 too) and two
-        families on one that will not allow that, so the fallback is a plain
-        IPv4 bind rather than an error.
+        run() activates the listener after durable startup state is ready. An empty
+        host tries dual-stack IPv6 first and falls back to an IPv4-only wildcard bind.
         """
         if not self._local_ip:
             try:
@@ -531,9 +510,7 @@ class ServerListener(listener):
         try:
             tunnel.handshake()
         except fteproxy.HandshakeFailedException:
-            # Never reply, never explain: reject_and_close reads and discards
-            # for a random interval first, so a prober cannot tell this from a
-            # service with nothing to say.
+            # Discard without replying until the rejection deadline, then close.
             tunnel.reject_and_close()
             return None
         except fteproxy._PeerClosed:
@@ -664,12 +641,10 @@ class _ClientListener(listener):
             raise
 
     def check(self):
-        """Dial the server once, handshake, and close.
+        """Dial, complete a handshake, report format/mode, and close.
 
-        The client's startup check: a wrong connection string fails here, in
-        about a round trip, with a reason, instead of as a timeout on the
-        first real connection. On the wire it is one short session, the same
-        shape as any other.
+        This startup check does not send OPEN or verify a destination. Failures can
+        wait for the handshake timeout.
         """
         tunnel = self.dial_tunnel()
         try:

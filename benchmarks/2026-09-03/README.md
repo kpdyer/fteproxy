@@ -1,37 +1,54 @@
-# Measurements behind PERFORMANCE.md (2026-09-03)
+# Measurements from 2026-09-03
 
-The raw results and the scripts that produced the numbers in `PERFORMANCE.md`
-for fteproxy 1.0.0 with hybrid headers sealed at the shortest capable length.
-Machine: Apple M3 Pro (12 cores, 36 GB), macOS 26.6, CPython 3.12.14, fte 0.4.0,
-definitions release 20260903, loopback only.
+This archive contains the raw runs and collection scripts behind
+[PERFORMANCE.md](../../PERFORMANCE.md), measured at `34b6def`.
+Environment: Apple M3 Pro (12 cores, 36 GB), macOS 26.6.2, CPython 3.12.14,
+fte 0.4.0, definitions `20260903`, loopback.
 
-## End to end (the tables' first section)
+**HTTP hybrid timings predate the chunked-header correction.**
+They used the base regex at 200 bytes followed by a raw body.
+Keep these files as historical evidence; save new results elsewhere.
 
-Run from the repository root, one process at a time, never alongside the test
-suite (both bind fixed ports):
+## End-to-end runs
+
+From the repository root with dependencies installed:
 
 ```bash
-uv run python benchmark.py --scenarios lan --sizes 64K 1M 8M --repeat 3 --baseline
-uv run python benchmark.py --scenarios lan --sizes 64K 1M 8M --repeat 3 --format smtp --mode format
-uv run python benchmark.py --scenarios lan --sizes 64K 1M 8M --repeat 3 --format dns --mode format
+python3 benchmark.py --scenarios lan --sizes 64K 1M 8M --repeat 3 --baseline
+python3 benchmark.py --scenarios lan --sizes 64K 1M 8M --repeat 3 --format smtp --mode format
+python3 benchmark.py --scenarios lan --sizes 64K 1M 8M --repeat 3 --format dns --mode format
 ```
 
-`raw/http_hybrid_*.json`, `raw/smtp_format_*.json` and `raw/dns_format_*.json`
-are three whole runs of each; the document reports the p50 across runs and the
-range. Note that `benchmark.py` warms the server before it measures (waiting for
-the client's forward port builds a tunnel), so its rows are steady state.
+`raw/http_hybrid_*.json`, `raw/smtp_format_*.json`, and
+`raw/dns_format_*.json` each contain three whole runs.
+Each throughput run retains the best repeated transfer; the report takes the
+median and range across runs. The forward-port probe warms a tunnel before
+measurement, but each transfer still opens a new connection.
 
-## Record layer, DFA compile, and cold start (the later sections)
+## Collection scripts
 
-| script | measures | output |
+| Script | Purpose | Archived output |
 |---|---|---|
-| `recordbench.py` | hybrid and format-mode record cost per size and per covertext length, header/body split | `raw/rec_*.json` |
-| `extra.py` | seal-padding cost, cost per covertext byte, capacities per length | `raw/extra_*.json` |
-| `firstconn.py` | cold first tunnelled connection versus steady state, timer-based (no warming connect) | `raw/first_*.json` |
-| `startup.py`, `startup_e2e.py`, `coldproc.py` | import and definitions-load time, first session channel cold versus warm, process start to listening | in `summary.txt` |
-| `agg.py` | aggregates the raw runs into the p50/range figures quoted in the document | `summary.txt` |
+| `recordbench.py` | Record costs, per-length rates, header/body split, cache costs | `raw/rec_*.json` |
+| `extra.py` | Padding cost and capacities | `raw/extra_*.json` |
+| `firstconn.py` | First tunneled connection versus warmed connections | `raw/first_*.json` |
+| `startup.py` | Import, definitions load, cold/warm session construction | `summary.txt` |
+| `startup_e2e.py` | Process start to listening | `summary.txt` |
+| `coldproc.py` | Compile two lengths in one process | `summary.txt` |
+| `agg.py` | Aggregate saved raw runs | `summary.txt` |
 
-The scripts were run from a session scratch directory and some write their
-output to that path; adjust the output path before re-running. They are kept
-as run, so the numbers in `PERFORMANCE.md` can be traced to exactly what
-produced them.
+The scripts retain historical assumptions and paths. Inspect `ROOT` and
+output paths before rerunning them. In particular, `recordbench.hybrid_split`
+measures the base regex, not the current separate hybrid regex, and
+`coldproc.py` loads the maximum-length DFA before its timer. They are not
+drop-in current-carrier benchmarks.
+
+To inspect the existing aggregate without overwriting it:
+
+```bash
+python3 benchmarks/2026-09-03/agg.py
+```
+
+Run benchmarks separately from tests and other workloads to avoid resource
+contention. Some examples use fixed ports; the main benchmark allocates
+temporary ports.

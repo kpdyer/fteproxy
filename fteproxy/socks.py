@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""The SOCKS5 server side of the client's ``-D`` listener (RFC 1928).
+"""SOCKS5 CONNECT handling for the client's local -D listener.
 
-Only what a tunnel needs: no authentication method, CONNECT only, and the
-three address types. BIND and UDP ASSOCIATE are answered with "command not
-supported" rather than ignored, so a client that asks for them gets a proper
-refusal instead of a hang.
-
-The address encoding here is the same one :mod:`fteproxy.stream` puts in an
-OPEN record, and the reply codes are the same ones an OPEN_RESULT carries, so
-a request crosses the tunnel without being re-encoded and the server's answer
-maps straight onto the SOCKS reply.
+Supports no authentication and IPv4, IPv6, or domain destinations. BIND and
+UDP ASSOCIATE return COMMAND_NOT_SUPPORTED. Addresses are decoded and then
+re-encoded by the tunnel using the same layout as OPEN; OPEN_RESULT uses the
+SOCKS5 reply status codes.
 """
 
 import fteproxy.stream
@@ -66,10 +61,9 @@ def negotiate_method(sock):
 
 
 def read_request(sock):
-    """Read one CONNECT request; return the ``(host, port)`` it names.
+    """Read a CONNECT request and return (host, port).
 
-    Raises :class:`SocksError` with the reply code to send for anything this
-    listener will not serve.
+    Raise SocksError on refusal; its reply code is None when no reply is appropriate.
     """
     header = _read_exactly(sock, 4)
     version, command, reserved, atyp = header
@@ -101,13 +95,11 @@ def read_request(sock):
 
 
 def send_reply(sock, status, bound=('0.0.0.0', 0)):
-    """Send a reply carrying ``status``.
+    """Send a SOCKS5 reply with status and the supplied bound address.
 
-    The bound address a CONNECT reply is supposed to report is the server's
-    local address on the outgoing connection, which lives at the far end of
-    the tunnel and is not worth a round trip to fetch: RFC 1928 lets it be
-    anything, and every client this listener serves ignores it. All-zero is
-    what shadowsocks and ssh report too.
+    The relay defaults to 0.0.0.0:0 because OPEN_RESULT carries only a status.
+    RFC 1928 specifies the actual outgoing bound address for CONNECT; this
+    placeholder is a limitation of the current relay, not a protocol guarantee.
     """
     host, port = bound
     sock.sendall(bytes((VERSION, status, RESERVED))

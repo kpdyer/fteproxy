@@ -1,39 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""The fteproxy command line.
+"""Command parsing, private-state startup, and foreground service lifecycle.
 
-Seven subcommands::
-
-    fteproxy server  [--listen [HOST]:PORT] [--allow RULE]... [--advertise HOST[:PORT]]
-                     [--state-dir DIR] [--defs RELEASE] [--print-connection]
-                     [--max-pending N] [--max-pending-per-source N]
-                     [--max-active N] [--max-active-per-source N]
-                     [-q | -v]
-    fteproxy client  [URI | --connection-file FILE | --connection-stdin]
-                     [-D [BIND:]PORT] [-L [BIND:]PORT:HOST:PORT]...
-                     [--format NAME] [--mode hybrid|format] [--no-check]
-                     [--expose-listeners] [--max-pending N]
-                     [--max-pending-per-source N] [--state-dir DIR] [-q | -v]
-    fteproxy keygen  [--state-dir DIR] [--advertise HOST[:PORT]] [--defs RELEASE]
-    fteproxy formats [--defs RELEASE]
-    fteproxy defs-check [--defs RELEASE]
-    fteproxy version
-    fteproxy help [COMMAND]
-
-Both ``python -m fteproxy`` and the ``fteproxy`` console script call
-:func:`main`, which returns a process exit status:
-
-===  ==========================================================
-  0  command completed or clean shutdown
-  1  runtime failure (bad format name, unusable key, bind refused,
-     a startup check that could not reach the server)
-  2  usage error
-===  ==========================================================
-
-Command output -- help, the version, a connection string, the format table --
-goes to stdout, so it can be piped. Everything else goes to stderr through the
-``fteproxy`` logger, which carries a redaction filter so that no key, server-id or
-connection string can reach a log file.
+Both the console script and python -m fteproxy call main(). Exit statuses are
+0 for success/clean shutdown, 1 for runtime failure, and 2 for usage errors.
+Command output goes to stdout; progress and CLI logging go to stderr.
+Parser diagnostics and the package logger redact recognized capability forms.
+Run fteproxy help COMMAND for option syntax.
 """
 
 import argparse
@@ -91,12 +64,7 @@ _UPGRADE_POINTER = (
 
 
 class _PrintVersion(argparse.Action):
-    """Compatibility ``--version`` alias for ``fteproxy version``.
-
-    argparse's own ``version`` action runs the text through the help
-    formatter, which reflows the notice into a paragraph. The notice used to
-    be a banner printed on every run; it is part of the version output now.
-    """
+    """Print the version notice without argparse reflowing its line breaks."""
 
     def __init__(self, option_strings, dest, **kwargs):
         kwargs.setdefault('nargs', 0)
@@ -151,11 +119,9 @@ class _ArgumentParser(argparse.ArgumentParser):
 # --------------------------------------------------------------------------- #
 
 def configure_logging(quiet=False, verbose=False):
-    """Point the ``fteproxy`` logger at stderr and set its level.
+    """Configure stderr logging at INFO, ERROR (-q), or DEBUG (-v).
 
-    Default INFO, ``-q`` ERROR, ``-v`` DEBUG. The package logger already
-    carries :class:`fteproxy.RedactingFilter`, so a key or a connection string
-    that reaches a message is stripped before any handler sees it.
+    The package's pattern-based redaction filter remains installed.
     """
     if quiet:
         level = logging.ERROR
@@ -339,14 +305,11 @@ def build_parser():
                              'whose protocol runs on the server\'s port, '
                              'else %s).' % DEFAULT_FORMAT)
     client.add_argument('--mode', choices=['hybrid', 'format'], default=None,
-                        help='Record framing. "hybrid" formats a header per '
-                             'record and carries an authenticated ciphertext '
-                             'body: fast, but the ciphertext stays visibly '
-                             'high-entropy (HTTP adds valid chunk framing). '
-                             '"format" transforms every '
-                             'byte for full-stream realism at much lower '
-                             'throughput (default: the URI\'s hint, else %s).'
-                             % DEFAULT_MODE)
+                        help='Record framing: "hybrid" uses FTE headers and '
+                             'encrypted bodies (HTTP adds chunk framing); '
+                             '"format" encodes payloads into covertexts at '
+                             'lower throughput. Default: URI hint, then format '
+                             'mode hint, then %s.' % DEFAULT_MODE)
     client.add_argument('--no-check', action='store_true',
                         help='Skip the startup check, which otherwise opens '
                              'one short session so a bad connection string '
@@ -374,7 +337,7 @@ def build_parser():
     formats.set_defaults(_parser=formats)
     formats.add_argument('--defs', metavar='RELEASE', type=_catalog_release,
                          default=fteproxy.conf.getValue('fteproxy.defs.release'),
-                         help='Definitions release to list, as YYYYMMDD.')
+                         help='Definitions release or legacy alias to list.')
     _verbosity(formats)
 
     defs_check = subparsers.add_parser(
@@ -607,15 +570,7 @@ def _span(low, high):
 
 
 def _hybrid_header_cell(directions, definitions):
-    """The ``hdr`` cell of a ``formats`` row: where a hybrid header goes.
-
-    ``200`` when both directions of the base put their headers in the same
-    covertext length, ``91/64`` (request/response) when the two differ -- which
-    they may, since each direction's length is computed from its own entry and a
-    request and a response pattern have different rank spaces at the same
-    length. ``-`` if either direction has no length that holds a header, since
-    then the base cannot run in hybrid mode.
-    """
+    """Render header wire lengths: one value, request/response, or '-' if unusable."""
     cells = []
     for direction in ('request', 'response'):
         name = directions.get(direction)
@@ -636,23 +591,10 @@ def _hybrid_header_cell(directions, definitions):
 
 
 def do_formats(args):
-    """Print each base format name with its schema-v2 metadata and capacity.
+    """List base names, direction metadata, wire lengths, and cipher capacities.
 
-    A base name is what the two directions share: ``manual-http`` covers
-    ``manual-http-request`` and ``manual-http-response``. Alongside the covertext
-    length and per-direction capacity (how many bytes of message one covertext
-    carries, which is what bounds a record) each row shows the schema-v2
-    ``role``, ``port``, ``mode_hint`` and ``description``, and the release
-    default base is marked.
-
-    A variable-length format shows both as a range -- ``200-700`` -- because in
-    ``format`` mode it picks a length per record from across that range. The top
-    of the range is the length the two handshake records seal at.
-
-    The ``hdr`` column is where a ``hybrid``-mode header goes instead: the
-    shortest length that holds one (:func:`fteproxy.hybrid_header_length`), for
-    the request direction and, when it differs, the response direction after a
-    slash. ``-`` means the format cannot run in hybrid mode at all.
+    Capacity includes the seal/type space used by session records. Variable formats
+    show min/max ranges; hdr shows each direction's hybrid-header wire length.
     """
     try:
         definitions = select_defs(args.defs)
@@ -721,7 +663,7 @@ def do_formats(args):
     left = {0, 1, 2, 3}  # name/role/port/mode left-justified; numbers right
     widths = [max(len(r[i]) for r in [header] + rows) for i in range(len(header))]
     print('definitions release %s' % args.defs)
-    print('role, port, mode, and covertext length / message capacity (bytes) '
+    print('role, port, mode, and wire length / cipher capacity (bytes) '
           'per direction')
     print('a length range means the format varies its covertext length per '
           'record in format mode')
@@ -747,12 +689,7 @@ def do_formats(args):
 
 
 def do_defs_check(args):
-    """Validate every format in a release and report the outcome.
-
-    Prints ``OK`` with a per-format capacity summary and exits 0 when every
-    format builds, clears the capacity floor, round-trips the record layer, and
-    matches its regex in format mode; prints the failures and exits 1 otherwise.
-    """
+    """Validate a release, print capacity/framing summaries, and return 0 or 1."""
     import fteproxy.defs.validate as validate
     try:
         summary = validate.validate_release(args.defs)
@@ -987,10 +924,7 @@ def do_client(args):
     from_port = fteproxy.config.format_for_port(uri.port)
     base = args.format or uri.format_name or from_port or DEFAULT_FORMAT
     check_format(base)
-    # --mode and the URI's hint beat the format's own mode_hint, which beats
-    # the built-in default. A line protocol or dns is designed for format
-    # mode, so a client that took the port default gets the mode the format
-    # was made for, not a high-entropy hybrid tail it never asked for.
+    # Mode precedence: CLI flag, URI hint, format hint, built-in default.
     mode = args.mode or uri.mode or mode_hint_for(base) or DEFAULT_MODE
     if args.format and from_port and args.format != from_port:
         fteproxy.warn('format %s does not match port %d, where %s is what an '
@@ -1050,16 +984,9 @@ def do_client(args):
 
 
 def run_startup_check(args, listener, uri):
-    """Open one short session so a bad connection string fails now.
+    """Report a handshake-only check on stderr and return whether it succeeded.
 
-    On the wire it is an ordinary session start, and it costs one round trip.
-    The alternative is a first connection that hangs until a timeout with
-    nothing to say about why. Returns False when the check failed, having said
-    so; the caller exits 1.
-
-    Reported here rather than raised, so that the outcome finishes the
-    "checking ..." line the operator is already looking at instead of arriving
-    as a separate log record.
+    A failure can take the handshake timeout. No destination is opened.
     """
     prefix = 'checking %s ... ' % _render_address(uri.host, uri.port)
     if not args.quiet:

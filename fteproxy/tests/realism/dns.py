@@ -1,52 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Structural realism check for the ``dns`` format, judged by an independent parser.
+"""Parse the DNS-over-TCP message subset modeled by the shipped format.
 
-``dns`` is the one binary format in the release: a covertext is one DNS message
-carried over TCP, which RFC 1035 section 4.2.2 frames as a two-byte big-endian
-length prefix followed by that many bytes of message. There is no stdlib DNS
-parser to borrow (unlike ``http``, which delegates to :mod:`http.server`) and a
-third-party one is out of bounds, so this module *is* the independent parser:
-a hand-written walk over the wire bytes that knows only RFC 1035, never the
-format's regex. It must not import the fragment or re-apply the pattern --
-grading a regex with a copy of itself proves nothing.
+Independently check the two-byte prefix, DNS header/counts, one uncompressed
+question, and optionally one A answer whose name points to that question.
+Enforce DNS label/name byte limits and consume the complete message.
 
-What :func:`check` walks, in order:
-
-* the 2-byte length prefix, which must equal the number of bytes that follow;
-* the 12-byte header -- ID (arbitrary), flags, and the QDCOUNT / ANCOUNT /
-  NSCOUNT / ARCOUNT section counts -- dispatching on the QR bit to the query or
-  the reply shape and requiring the counts that shape implies;
-* the QNAME, label by label: each length byte must be 1..63 (never a
-  compression pointer, which has no place in a question), must be followed by
-  exactly that many bytes still inside the message, and the whole encoded name
-  including the terminating root byte must be 255 octets or fewer (RFC 1035
-  section 2.3.4). Label bytes are checked against the preferred host-name
-  alphabet (letters, digits, hyphen; no leading or trailing hyphen), and the
-  last label must be all letters, since no real top-level domain is numeric;
-* QTYPE and QCLASS, which must be a type this format models (A, or AAAA on a
-  query) in class IN;
-* for a reply, the single answer record: the NAME must be the compression
-  pointer ``0xc0 0x0c``, whose 14-bit target (offset 12) is *followed* back
-  into the message and re-parsed, and must yield exactly the question's name;
-  then TYPE A, CLASS IN, a plausible TTL, ``RDLENGTH == 4``, and four address
-  bytes that are not 0.x, not 127.x loopback, and not in the 224+
-  multicast/reserved space;
-* nothing left over: the message must end exactly where the last field does.
-
-Case is not folded away. A query whose labels mix upper and lower case is not a
-defect: RFC 4343 makes DNS names case-insensitive but case-preserving on the
-wire, and resolvers deliberately randomise the case of a query name (the
-"DNS-0x20" anti-spoofing trick, draft-vixie-dnsext-dns0x20) and match the reply
-against the case they sent. The format draws its labels from the mixed-case
-host alphabet for exactly that reason, so this parser accepts either case.
+The harness also applies narrower policies: hostname-style labels, an all-letter
+last label, selected flags/types, TTL at most one week, and restricted first
+address octets. These are format checks, not universal DNS validity rules.
+Case is preserved. The parser neither imports the format regex nor checks
+whether separate request and response records form a real DNS transaction.
 """
 
 import collections
 
 
 class DNSRealismError(Exception):
-    """A covertext is not a structurally valid DNS-over-TCP message."""
+    """A covertext failed a modeled DNS structure or harness-policy check."""
 
 
 # Alphabets, spelled out as byte sets so this check owns its own grammar rather
@@ -79,12 +50,11 @@ _TYPE_AAAA = 28
 _CLASS_IN = 1
 _A_RDLENGTH = 4
 
-#: A week. Longer would parse, but no cache keeps an A record that long, so a
-#: TTL past it is a realism failure rather than a structural one.
+# Harness TTL policy: at most one week, narrower than DNS wire limits.
 _MAX_PLAUSIBLE_TTL = 604800
 
-#: First address octet: 0.x is "this network", 127.x is loopback and 224+ is
-#: multicast/reserved, so none of them answers a public A query.
+# This format excludes 0.x, 127.x, and 224+ addresses.
+# Other non-global addresses can still pass this limited check.
 _RESERVED_FIRST_OCTETS = {0, 127}
 _MULTICAST_FIRST_OCTET = 224
 
@@ -131,8 +101,7 @@ def _read_name(message, offset):
             offset += 1
             break
         if length & _LABEL_TYPE_MASK:
-            # 0xc0 is a compression pointer and 0x40/0x80 are reserved label
-            # types; neither belongs in a question name.
+            # This format requires an uncompressed question name.
             raise DNSRealismError('label length byte 0x%02x at offset %d is a '
                                   'pointer or a reserved label type'
                                   % (length, offset))
@@ -197,8 +166,8 @@ def _check_answer(message, offset, question_labels):
         raise DNSRealismError('truncated before the answer TTL')
     ttl = int.from_bytes(message[offset:offset + 4], 'big')
     if ttl > _MAX_PLAUSIBLE_TTL:
-        raise DNSRealismError('answer TTL %d exceeds the %d-second ceiling a '
-                              'real A record stays inside'
+        raise DNSRealismError('answer TTL %d exceeds the harness limit of '
+                              '%d seconds'
                               % (ttl, _MAX_PLAUSIBLE_TTL))
     offset += 4
 
@@ -223,13 +192,7 @@ def _check_answer(message, offset, question_labels):
 
 
 def parse(covertext):
-    """Parse one DNS-over-TCP covertext into a :class:`Message`.
-
-    Raises :class:`DNSRealismError` on anything that is not a structurally valid
-    message. :func:`check` is this function with the result thrown away; tests
-    that want to assert something about the parsed message (the encoded name
-    length, say) call this instead of writing a second parser.
-    """
+    """Parse the modeled DNS-over-TCP subset into a Message, or raise DNSRealismError."""
     if not isinstance(covertext, (bytes, bytearray)):
         raise TypeError('covertext must be bytes, got %r' % type(covertext))
     covertext = bytes(covertext)
@@ -297,5 +260,5 @@ def parse(covertext):
 
 
 def check(covertext):
-    """Raise if ``covertext`` is not a structurally valid DNS-over-TCP message."""
+    """Raise if a covertext fails this harness's DNS structure or policy checks."""
     parse(covertext)

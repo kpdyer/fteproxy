@@ -1,25 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Loading and validating the format definitions.
+"""Load release-scoped regex definitions and expose schema defaults.
 
-A definitions file maps a format name to the regex its covertexts are drawn
-from and the byte length of one covertext. Names come in pairs: a
-``-request`` for client-to-server and a ``-response`` for server-to-client,
-sharing a base name such as ``manual-http``. The base name is what a
-connection string and a client hello carry; the two directions are derived
-from it.
-
-A format is either **fixed length** (``length``: every covertext is exactly
-that many bytes) or **variable length** (``min_length``/``max_length`` plus a
-way to delimit one covertext from the next: each record picks one of a small
-set of allowed lengths and the decoder frames the wire on that delimiter).
-:func:`spec_framing` names the delimiter -- a ``terminator`` the language can
-only produce as a covertext's final suffix, or ``length-prefix`` framing, where
-the covertext is preceded by a two-byte big-endian length that is not part of
-the format's regex at all (this is what DNS-over-TCP is; see
-:data:`LENGTH_PREFIX_BYTES`). :func:`spec_allowed_lengths` is the single
-definition of the length set, so the two ends of a connection agree on it
-without negotiating it. See ``docs/format-authoring.md``.
+Tunnel formats are request/response pairs sharing a base name. Entries declare
+fixed or variable wire lengths; framing is fixed, terminator, or length-prefix.
+The external length prefix is not part of the regex. See docs/format-authoring.md
+for capacity rules, metadata, assembly, and validation.
 """
 
 
@@ -39,11 +25,8 @@ class DefinitionsError(Exception):
     """A definitions file that cannot be served as written."""
 
 
-#: Every format must hold a client hello, which is about 55 bytes of fields
-#: plus the record layer's 12-byte seal. 128 leaves room for a longer format
-#: name and for a field a later protocol version adds, and is checked at load
-#: so a format that cannot carry a handshake is caught here rather than as a
-#: client that hangs.
+# Minimum cipher capacity at the handshake length. A sealed client hello
+# needs 55 + len(base_name) bytes; unusually long names may require more.
 MIN_CAPACITY = 128
 
 # Definitions are cached by release rather than as one process-wide value. A
@@ -63,8 +46,7 @@ RESPONSE_SUFFIX = '-response'
 # documented default for a key it does not carry, so old releases load unchanged.
 # ------------------------------------------------------------------------- #
 
-#: ``role`` values. ``line`` is a symmetric protocol (one line grammar in both directions) that does not
-#: split into a request and a response direction.
+# Role metadata. Even a symmetric line grammar needs request/response entries.
 ROLE_REQUEST = 'request'
 ROLE_RESPONSE = 'response'
 ROLE_LINE = 'line'
@@ -96,38 +78,14 @@ _RELEASE_ID = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$')
 # Historical name retained without carrying a byte-identical second catalog.
 _RELEASE_ALIASES = {'shapes-20260110': '20260110'}
 
-#: How many covertext lengths a variable-length format may emit.
-#:
-#: The set is small and evenly spaced on purpose. A format-mode record picks one
-#: of these lengths and seals at it with a *fixed-length* cipher, so each allowed
-#: length costs one compiled DFA in :func:`fteproxy._regex_format`: a continuous
-#: range would cost one per byte. Small also keeps the decoder's "is this a
-#: length we emit?" test tight, which is what fails a wrong-length frame closed.
-#: Eight points span a protocol's plausible message sizes finely enough that a
-#: length histogram is a spread rather than a spike, which is the whole point of
-#: the exercise. It is *not* a security parameter: nothing secret is carried by
-#: the choice, and the record's contents are sealed either way.
+# Maximum number of evenly spaced wire lengths for a variable format.
+# Each length needs compiled ranking tables; a small set bounds that cost.
+# Length selection depends on queued payload and is not a privacy guarantee.
 LENGTH_STEPS = 8
 
-#: ``framing`` values: how one covertext is told from the next on the wire.
-#:
-#: ``fixed``
-#:     Every covertext is exactly ``length`` bytes, so the length itself frames
-#:     the stream. The default, and the only framing a fixed-length format has.
-#: ``terminator``
-#:     The covertext ends with a byte string its language cannot produce
-#:     anywhere else, and the decoder reads up to it. Implied by a
-#:     ``terminator`` key, which is how the four text formats declare it.
-#: ``length-prefix``
-#:     The covertext is preceded on the wire by a :data:`LENGTH_PREFIX_BYTES`
-#:     big-endian count of the bytes that follow. The prefix is *framing*, not
-#:     part of the format's language: the regex describes the message alone and
-#:     the record layer adds the prefix on send and frames on it on receive.
-#:     ``dns`` uses it, because that is exactly what RFC 1035 section 4.2.2
-#:     says DNS over TCP is -- and because spelling the prefix as a literal in
-#:     the regex, as ``dns`` did until F7b, pins the format to one covertext
-#:     length: a second length would need a second literal, hence a second
-#:     regex.
+# Wire framing: fixed length, a unique suffix, or an external length prefix.
+# Fixed-length formats may use fixed or length-prefix framing. Terminators
+# require a range and must occur only at the end of each covertext.
 FRAMING_FIXED = 'fixed'
 FRAMING_TERMINATOR = 'terminator'
 FRAMING_LENGTH_PREFIX = 'length-prefix'
@@ -220,23 +178,11 @@ def _catalog(definitions=None):
 
 
 def check_capacities(definitions, minimum=MIN_CAPACITY):
-    """Raise :class:`DefinitionsError` for any format too small for a hello.
+    """Validate framing declarations and the handshake capacity of each base regex.
 
-    Building the cipher also proves the regex compiles and that libfte can
-    drive it at the configured length, so this doubles as a load-time syntax
-    check. It costs one DFA compile per format, which the cache in
-    :func:`fteproxy._regex_format` then hands back to every connection.
-
-    The floor applies at :func:`spec_length` -- ``max_length`` for a
-    variable-length format -- because that is the length the handshake seals at.
-    A shorter allowed length only has to carry one data record, which
-    ``fteproxy.defs.validate`` checks; the cheap load-time pass does not compile
-    every allowed length.
-
-    ``length`` is always the length of one covertext *on the wire*, so for a
-    ``length-prefix`` format the cipher is built at ``length -
-    LENGTH_PREFIX_BYTES`` -- the message the regex describes -- and the framing
-    prefix makes up the difference.
+    The floor applies at spec_length (max_length for variable formats). This pass
+    does not prove terminator uniqueness or test every shorter length and hybrid
+    regex; use defs-check for those checks.
     """
     import fteproxy  # deferred: fteproxy imports this module at import time
 
@@ -261,23 +207,10 @@ def check_capacities(definitions, minimum=MIN_CAPACITY):
 
 
 def _check_variable_keys(name, spec):
-    """Raise :class:`DefinitionsError` on an incoherent length declaration.
+    """Reject conflicting or incomplete length, delimiter, and hybrid declarations.
 
-    A half-written variable-length entry is the dangerous case: a range with
-    nothing to frame on has no way to tell one covertext from the next, and a
-    delimiter with no range would be ignored, so either would load as a
-    fixed-length format and quietly emit one length again. Caught here, at
-    load, rather than as a fingerprint nobody notices.
-
-    A variable-length format therefore needs ``min_length``, ``max_length`` and
-    exactly one delimiter: a ``terminator``, or ``"framing": "length-prefix"``.
-
-    Framing is otherwise orthogonal to the length declaration: a *fixed*-length
-    format may carry ``length-prefix`` framing, since the prefix is framing
-    whether or not the length behind it varies. Terminator framing requires
-    both a terminator and a range, while fixed framing forbids either; accepting
-    those contradictory combinations makes the accessors disagree about
-    whether a format is variable.
+    Ranges require both endpoints and a terminator or length prefix. Fixed formats
+    may also carry a length prefix. Terminators require a range.
     """
     low, high = spec_min_length(spec), spec_max_length(spec)
     terminator = spec_terminator(spec)
@@ -376,13 +309,7 @@ def getRegex(format_name, definitions=None):
 
 
 def getLength(format_name, definitions=None):
-    """The fixed-frame covertext length of a format.
-
-    For a variable-length format this is its ``max_length``: see
-    :func:`spec_length` for why the handshake and the server's first-record scan
-    use the longest covertext. A hybrid-mode header does not -- it is a
-    fixed-length frame too, but at :func:`fteproxy.hybrid_header_length`.
-    """
+    """Return the handshake wire length, or the default length for an unknown name."""
     definitions = _catalog(definitions)
     try:
         spec = definitions[format_name]
@@ -411,25 +338,9 @@ def _infer_role(format_name):
 
 
 def spec_length(spec):
-    """The wire length of the *single* covertext the fixed frames are built at.
+    """Return fixed length or max_length, including any external prefix.
 
-    For a fixed-length format that is its ``length`` (or the configured
-    default). For a variable-length one it is ``max_length``, which is what the
-    two handshake records and the server's first-record scan seal at: the server
-    has to frame a client hello before it can decrypt anything, so the hello's
-    length cannot depend on the format's contents, and the longest covertext is
-    the one choice that always has room.
-
-    A hybrid-mode header is a fixed-length frame too, but *not* this one: it
-    carries four bytes and is sealed at the shortest allowed length that holds
-    them (:func:`fteproxy.hybrid_header_length`). Only post-handshake
-    *format*-mode data records vary per record (see
-    :func:`spec_allowed_lengths`).
-
-    Always a length *on the wire*. For a ``length-prefix`` format the cipher
-    behind it is built at ``length - LENGTH_PREFIX_BYTES``, since the prefix is
-    framing rather than covertext; :func:`fteproxy._spec_cipher` is the one
-    place that does that subtraction.
+    Handshakes use this length; hybrid headers use hybrid_header_length instead.
     """
     maximum = spec_max_length(spec)
     if maximum is not None:
@@ -448,13 +359,9 @@ def spec_max_length(spec):
 
 
 def spec_terminator(spec):
-    """The byte string every covertext of a variable-length format ends with.
+    """Return the declared terminator as bytes, or None when absent.
 
-    It is what the decoder frames on, so the format's regex must be unable to
-    produce it anywhere but as that final suffix -- checked by
-    ``fteproxy.defs.validate``. ``None`` for a fixed-length format, which is
-    framed by its length instead. Returned as ``bytes``; the JSON carries it as
-    a string (``"\\r\\n"``).
+    Length-prefixed formats, including variable ones, have no terminator.
     """
     terminator = spec.get('terminator', None)
     if terminator is None:
@@ -465,17 +372,7 @@ def spec_terminator(spec):
 
 
 def spec_framing(spec):
-    """How one covertext of this format is told from the next on the wire.
-
-    One of :data:`FRAMINGS`. ``length-prefix`` is declared outright, with the
-    ``framing`` key; ``terminator`` is implied by a ``terminator`` key, so the
-    formats written before length-prefix framing existed keep their entries
-    unchanged; everything else is ``fixed``, framed by its own length.
-
-    Note what this does *not* mean for a ``length-prefix`` format: the prefix is
-    framing, so it is not in the regex and not in the capacity. A covertext of
-    ``W`` wire bytes is a message of ``W - LENGTH_PREFIX_BYTES``.
-    """
+    """Return explicit framing, or infer terminator/fixed from the declaration."""
     framing = spec.get('framing', None)
     if framing is not None:
         return framing
@@ -485,13 +382,10 @@ def spec_framing(spec):
 
 
 def spec_is_variable(spec):
-    """Whether this format emits covertexts of more than one length.
+    """Whether both range endpoints and non-fixed framing are declared.
 
-    True only when ``min_length``, ``max_length`` and a delimiter (a
-    ``terminator``, or ``length-prefix`` framing) are all present: a length
-    range with nothing to frame on could not be decoded, so a partial
-    declaration is not a variable format (and
-    :func:`fteproxy.defs.validate.validate_format` rejects it outright).
+    Equal endpoints are allowed and yield one actual length. Schema validation
+    rejects incomplete or conflicting declarations.
     """
     return (spec_min_length(spec) is not None
             and spec_max_length(spec) is not None
@@ -499,18 +393,9 @@ def spec_is_variable(spec):
 
 
 def spec_allowed_lengths(spec):
-    """The covertext lengths this format may emit on the wire, ascending.
+    """Return sorted wire lengths: one fixed value or up to LENGTH_STEPS range points.
 
-    One length for a fixed-length format; for a variable-length one,
-    :data:`LENGTH_STEPS` points spread evenly across
-    ``[min_length, max_length]`` and including both ends. Both ends of a
-    connection derive the set from the same definitions entry, so the sender
-    picks a length out of it and the receiver checks a frame's length against
-    it without either being negotiated.
-
-    Deliberately *not* a continuous range: see :data:`LENGTH_STEPS`, and
-    ``docs/format-authoring.md`` for why the length is chosen per record rather
-    than left to libfte's ranking over a ``min_length``/``max_length`` format.
+    Include both endpoints and derive the same set on both peers.
     """
     low, high = spec_min_length(spec), spec_max_length(spec)
     if low is None or high is None:

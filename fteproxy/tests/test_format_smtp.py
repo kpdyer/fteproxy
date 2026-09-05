@@ -1,19 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Format tests for the ``smtp`` covertext format (phase F5).
+"""Test SMTP capacity, both record modes, and the modeled command/reply lines.
 
-Exercises both ``smtp-request`` and ``smtp-response`` end to end: the libfte
-cipher builds and clears the capacity floor, random payloads round-trip through
-the record layer in both ``format`` and ``hybrid`` modes, and a batch of sealed
-format-mode covertexts is drawn through the real record layer and judged for
-realism (regex fullmatch, the SMTP grammar :func:`~fteproxy.tests.realism.smtp.check`,
-and the statistical guard against degenerate single-byte runs).
-
-``smtp`` is variable length (phase F7): a format-mode record picks one of the
-lengths in ``[min_length, max_length]``, so these tests read the length from
-:func:`fteproxy.defs.spec_length` (the ``max_length`` the handshake seals at)
-and check a covertext's length against the allowed set rather than against one
-number. ``fteproxy/tests/test_variable_length.py`` covers the framing itself.
+Sample format-mode covertexts for regex membership, independent line checks,
+and repeated bytes. These checks do not establish SMTP session behavior.
 """
 
 import os

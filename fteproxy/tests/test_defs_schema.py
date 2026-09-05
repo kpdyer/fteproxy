@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Tests for the schema-v2 loader, the validator, and the realism harness (F0)."""
+"""Tests for schema defaults, framing validation, and covertext sampling."""
 
 import re
 
@@ -187,9 +187,7 @@ class TestFraming:
             cipher.decrypt(bytes(record))
 
     def test_a_fixed_length_format_may_be_length_prefixed(self):
-        """Framing is orthogonal to whether the length varies: the prefix is
-        framing either way. Only a *terminator* makes no sense without a range,
-        because a fixed-length format is already framed by its length."""
+        """Fixed lengths may use an external prefix; terminators require a range in this schema."""
         spec = {'regex': self._MESSAGE, 'length': 320,
                 'framing': 'length-prefix'}
         fteproxy.defs.check_capacities({'prefixed-request': spec})

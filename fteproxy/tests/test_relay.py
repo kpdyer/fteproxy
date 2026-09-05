@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""End-to-end relay tests: SOCKS5 and ``-L`` forwards through a real tunnel.
+"""Exercise SOCKS5, forwarding, admission, and shutdown through real listeners.
 
-These build the listeners with the library API rather than the command line;
-``test_system.py`` covers the command line. Everything runs in one process on
-ephemeral ports, so this file can run alongside anything else.
+Use the library API on ephemeral local ports. test_system.py covers CLI
+subprocesses; these tests also share process-level configuration and caches.
 """
 
 import socket
@@ -283,8 +282,7 @@ class TestSocksListener:
             sock.close()
 
     def test_round_trip_by_name(self, echo, tunnel_factory):
-        """The name is resolved at the far end, so the client's DNS never
-        leaves the tunnel. The address rule explicitly opts loopback in."""
+        """The server resolves the requested name; its address rule permits loopback."""
         tunnel = tunnel_factory(
             rules=fteproxy.stream.AllowRules([
                 'localhost:%d' % echo.port,
@@ -496,7 +494,7 @@ class TestServerAdmission:
 
 
 class TestServerActiveAdmission:
-    """Established destination sockets and relay workers have a hard cap."""
+    """Established sessions and their workers are capped after destination dial."""
 
     class _Tunnel:
         def __init__(self, fail_result=False):

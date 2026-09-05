@@ -1,25 +1,18 @@
 #!/usr/bin/env python3
-"""
-FTE-Powered Echo Client
+"""Send a small message to the demo echo server using HTTP hybrid mode.
 
-Connects to the FTE echo server and sends a message.
-The transmitted data looks like space-separated words to any observer.
-
-The client picks the format; the server follows. All it needs of the server
-is the server-id below.
+The published server capability matches echo_server.py's private demo key.
 """
 
 import sys
 import socket
 import fteproxy
 
-# The server-id: the public half of the demo server's keypair, which is all a
-# client ever needs. A real client reads this out of a connection string.
+# Public capability matching the server script's demo private key.
 DEMO_SERVER_ID = "g7RzVlLwycSzfHmHwo2LOdkvZ2rG_-J4lmsosmKPzQY"
 
-# A base name from the definitions file. `fteproxy formats` lists them all.
-# The echo server runs on a port no protocol claims, so this is the shipped
-# default: traffic that looks like HTTP/1.1 requests and responses.
+# Explicit API format; the API does not infer it from the port.
+# Mode defaults to hybrid. See `fteproxy formats` for base names.
 FORMAT = "http"
 
 HOST = "127.0.0.1"

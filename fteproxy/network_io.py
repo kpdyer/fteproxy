@@ -8,12 +8,11 @@ import socket
 def recvall_from_socket(sock,
                         bufsize=2 ** 18,
                         select_timeout=0.1):
-    """Give ``sock``, does a best effort to pull data from ``sock``.
-    By default, fails quickly if ``sock`` is closed or has no data ready.
-    The return value ``is_alive`` reports if ``sock`` is still alive.
-    The return value ``retval`` is the data extracted from the socket.
-    Unlike normal raw sockets, it may be the case that ``retval`` is b'', and
-    ``is_alive`` is ``true``.
+    """Poll once and return [is_alive, data].
+
+    An idle socket or read timeout returns [True, b'']; EOF or OSError returns
+    [False, b'']. Check a wrapper's buffered DATA/logical EOF before select.
+    Despite the legacy name, this does not drain all available socket data.
     """
 
     try:

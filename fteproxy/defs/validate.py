@@ -1,47 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Validate that a format definition is actually usable as written.
+"""Validate definitions beyond the loader's maximum-length capacity check.
 
-Loading a release (:func:`fteproxy.defs.check_capacities`) already proves every
-regex compiles and holds a handshake. This module goes further and exercises a
-format the way a live connection does, so a definition that compiles but cannot
-carry traffic is caught before it ships:
+Build every allowed base cipher, require data capacity, prove terminator
+uniqueness, and find a capable hybrid-header length. Round-trip sampled payloads
+in format mode, and also hybrid when mode_hint is hybrid. Check emitted framing
+and regex membership; protocol-specific realism parsers run separately in tests.
 
-* build the libfte cipher at every length the format may emit and require
-  ``max_plaintext_bytes >=`` the capacity floor
-  (:data:`fteproxy.defs.MIN_CAPACITY`) at the length the handshake seals at;
-* require at least one allowed length to have room for a hybrid header
-  (:data:`fteproxy.record_layer.HYBRID_HEADER_BYTES`), since a format with none
-  cannot run in ``hybrid`` mode and a session asking for it is refused rather
-  than framed some other way. ``defs-check`` reports the length that is used;
-* round-trip a batch of random payloads through
-  :class:`fteproxy.record_layer.Encoder`/:class:`~fteproxy.record_layer.Decoder`
-  in the format's ``mode_hint`` -- and in *both* modes when the hint is
-  ``hybrid``, since the client's ``--mode`` may override it either way. The
-  hybrid pass frames at the header length a live session uses, not at
-  ``max_length``;
-* assert every sealed **format-mode** covertext fully matches the regex, so the
-  bytes on the wire really are drawn from the format's language -- for a
-  ``length-prefix`` format, after taking the framing prefix off, since the
-  prefix is not part of the language the regex describes;
-* for a **terminator**-framed format, prove its terminator can only ever be the
-  final suffix of a covertext -- statically, from the pattern, and again over
-  sampled covertexts. Framing depends on that, so it is checked here rather
-  than assumed of whoever wrote the regex. A ``length-prefix`` format has no
-  terminator to prove anything about; what is checked instead is that every
-  emitted prefix announces exactly the bytes that follow it and that the wire
-  length it implies is one the format declared.
-
-The covertexts checked here come out of the record layer's sealing path (see the
-seal-padding note in ``docs/format-authoring.md``), never a bare
-``fte.FTE.encrypt`` of a short message, so a variable field is filled to capacity
-with random format bytes exactly as it is in production.
-
-:func:`validate_release` validates every format in a named release,
-:func:`validate_fragment` validates a ``parts/<proto>.json`` fragment in
-isolation, and :func:`validate_format` validates one entry. Each raises
-:class:`FormatValidationError` naming the offending format(s); a pass returns a
-summary list of ``(name, length, capacity, mode_hint)`` tuples.
+validate_format returns one (name, length, capacity, mode_hint) tuple.
+validate_release and validate_fragment return lists of those tuples or raise
+FormatValidationError with per-format failures.
 """
 
 from collections import deque
@@ -56,10 +24,10 @@ import fteproxy.defs
 
 
 class FormatValidationError(Exception):
-    """A format definition that compiles but cannot carry traffic as written."""
+    """A malformed or unusable format definition."""
 
 
-#: Number of random payloads round-tripped per mode. The plan's floor is 32.
+# Random payload samples per mode, in addition to structural validation.
 _SAMPLES = 32
 
 _KEY = b'\x00' * 32
@@ -180,15 +148,7 @@ def check_terminator_uniqueness(name, regex, terminator):
 
 
 def _check_sampled_prefixes(name, covertexts, lengths):
-    """The length-prefix counterpart of :func:`_check_sampled_terminators`.
-
-    Framing here is not a property of the language to be proven from the
-    pattern -- the prefix is not in the pattern at all -- it is a property of
-    what the record layer emits. So it is checked on the wire: every covertext
-    carries a prefix announcing exactly the bytes that follow it, and the wire
-    length that implies is one the format declared, which is the only thing the
-    decoder will accept.
-    """
+    """Check sampled prefix counts and allowed wire lengths."""
     prefix_len = fteproxy.defs.LENGTH_PREFIX_BYTES
     for covertext in covertexts:
         if len(covertext) < prefix_len:
@@ -243,15 +203,7 @@ def frame_covertexts(wire, terminator):
 
 
 def frame_length_prefixed(wire):
-    """Split a format-mode wire into covertexts on their length prefixes.
-
-    The decoder's framing for a ``length-prefix`` format, without the keys: each
-    record is a :data:`fteproxy.defs.LENGTH_PREFIX_BYTES` big-endian count
-    followed by that many bytes, and the prefix is kept on the covertext because
-    it is part of what went on the wire. A trailing fragment too short for the
-    length its prefix announces is returned as the last element, so a caller can
-    tell a complete wire from a truncated one.
-    """
+    """Split prefixed records, retaining prefixes and any incomplete final fragment."""
     prefix_len = fteproxy.defs.LENGTH_PREFIX_BYTES
     covertexts = []
     offset = 0
@@ -268,12 +220,7 @@ def frame_length_prefixed(wire):
 
 
 def frame_spec_covertexts(wire, spec):
-    """Split a format-mode wire the way *this* format's decoder frames it.
-
-    One dispatch point for the three framings, so a caller that holds a
-    definitions entry never has to ask which one it is: fixed-length slices,
-    terminator framing, or length prefixes.
-    """
+    """Split wire bytes using fixed, terminator, or length-prefix framing."""
     framing = fteproxy.defs.spec_framing(spec)
     if framing == fteproxy.defs.FRAMING_LENGTH_PREFIX:
         return frame_length_prefixed(wire)
@@ -285,12 +232,7 @@ def frame_spec_covertexts(wire, spec):
 
 
 def _modes_for(mode_hint):
-    """Which record-layer modes to exercise for a given ``mode_hint``.
-
-    ``format`` is always exercised (it is where the regex is checked); a
-    ``hybrid`` format is exercised in both modes because either end's ``--mode``
-    can select the other one.
-    """
+    """Always test format mode; also test hybrid when the hint selects it."""
     if mode_hint == fteproxy.defs.MODE_HYBRID:
         return (fteproxy.defs.MODE_FORMAT, fteproxy.defs.MODE_HYBRID)
     return (fteproxy.defs.MODE_FORMAT,)
@@ -377,15 +319,8 @@ def validate_format(name, spec, samples=_SAMPLES):
         if not prefixed:
             check_terminator_uniqueness(name, regex, terminator)
 
-    # A format has to have somewhere to put a hybrid header, or it cannot run in
-    # hybrid mode at all -- and a session that asked for hybrid would be refused
-    # outright (:class:`fteproxy.HybridUnsupportedError`) rather than quietly
-    # framed some other way. Checked after the per-length build above, so a
-    # format with an unusable length is reported as that rather than as this.
-    # The capacity floor already guarantees a header fits for anything that gets
-    # this far -- the length it is measured at is one of the allowed lengths and
-    # MIN_CAPACITY dwarfs a header -- so this states the requirement rather than
-    # leaving it standing on a coincidence between two unrelated constants.
+    # Require a capable hybrid header after checking each base-regex length.
+    # A separate hybrid_regex must satisfy this independently of the base capacity.
     header_length = fteproxy.hybrid_header_length(spec)
     if header_length is None:
         raise FormatValidationError(
@@ -497,11 +432,7 @@ def validate_release(release, samples=_SAMPLES):
 
 
 def validate_fragment(path, samples=_SAMPLES):
-    """Validate a ``parts/<proto>.json`` fragment in isolation.
-
-    A fragment is the disjoint set of entries one protocol phase (F1-F5) writes
-    before F6 assembles them, so it is validated as its own object of formats.
-    """
+    """Validate one standalone JSON object of format entries from path."""
     with open(path) as fh:
         definitions = json.load(fh)
     return _validate_definitions(definitions,

@@ -1,22 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Stream messages and destination policy.
+"""OPEN address encoding, SOCKS5-style results, and destination policy.
 
-A 1.0 tunnel carries the destination in band: the client sends an
-:data:`~fteproxy.record_layer.OPEN` record naming where it wants to go, and the
-server answers with an :data:`~fteproxy.record_layer.OPEN_RESULT` carrying a
-status. The server therefore needs no forward address of its own, and the
-client can offer SOCKS5 or a port forward without either end being
-reconfigured.
-
-The address encoding is SOCKS5's (RFC 1928 section 4), so a SOCKS request can
-be passed through without being re-encoded, and the status codes are SOCKS5's
-reply codes, so the client can map an OPEN_RESULT straight onto its reply.
-
-:class:`AllowRules` is the server's answer to "who may I dial for you". Its
-default is the one thing a shared-key tunnel never had: a policy that does not
-hand every holder of the connection string a route to the server's own
-localhost.
+The client requests a destination; the server applies AllowRules before and
+after resolution, connects to an allowed numeric address, and returns a status.
+Addresses use the SOCKS5 wire layout and are decoded/re-encoded at relay edges.
 """
 
 import fnmatch
@@ -106,11 +94,10 @@ def _encode_domain_name(host):
 
 
 def encode_address(host, port):
-    """Encode ``(host, port)`` as ``atyp || addr || port``.
+    """Encode (host, port) using the SOCKS5 address layout.
 
-    A host that parses as an IP address is sent as one; anything else is sent
-    as a name, so the server does the resolving and the client's DNS never
-    leaves the tunnel.
+    Literal IPs are packed directly. Other hosts are validated and encoded as
+    names for the server to resolve.
     """
     if not 0 <= port <= 0xFFFF:
         raise InvalidAddress('port %r is out of range' % (port,))
@@ -441,12 +428,11 @@ def status_for_error(error):
 
 
 def connect(host, port, rules, timeout):
-    """Resolve and dial ``host:port`` under ``rules``.
+    """Resolve and dial host:port under rules; return (status, socket).
 
-    Returns ``(status, socket)``: on anything but :data:`SUCCEEDED` the socket
-    is None and the status is what the OPEN_RESULT should carry. Every
-    candidate address is checked against the policy, so a name that resolves
-    to a restricted address is refused rather than dialled.
+    The socket is None on failure. Check each resolved address before dialing and
+    skip forbidden candidates. timeout applies to each socket connect, not DNS
+    resolution or the total time across candidates.
     """
     # This function is also part of the Python API, so do not rely only on the
     # wire decoder having validated a domain.  In particular, libc resolvers

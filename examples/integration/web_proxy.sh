@@ -1,13 +1,6 @@
 #!/bin/bash
-# Web Browsing Over FTE
-#
-# Use fteproxy to tunnel web traffic. This is useful when:
-# - You need to access blocked websites
-# - You want to hide your browsing patterns
-# - You're on a network that inspects traffic
-#
-# No proxy software is needed on the server: the client speaks SOCKS5 to your
-# browser and the server dials whatever the browser asks for.
+# SOCKS5 browsing through fteproxy. The server dials allowed destinations.
+# This proxies applications configured to use the local SOCKS5 listener.
 
 MODE="${1:-help}"
 URI="$2"
@@ -16,22 +9,19 @@ SOCKS_PORT="${3:-1080}"
 case "$MODE" in
     server)
         echo "Starting FTE server for web proxying..."
-        echo "  FTE listening on: 0.0.0.0:8080"
-        echo "  Clients may reach: any destination"
+        echo "  FTE listening on wildcard port 8080"
+        echo "  Clients may reach: global unicast destinations"
         echo ""
-        echo "'--allow any' means exactly that: whoever holds the connection"
-        echo "string can have this server dial any address and port, including"
-        echo "its own loopback and private networks. Plain 'fteproxy server'"
-        echo "with no rule reaches the whole public internet but refuses this"
-        echo "host's own loopback and link-local addresses; prefer it unless"
-        echo "you really need loopback reachable."
+        echo "'--allow any' uses the same address restrictions as no allow rules."
+        echo "Private and loopback destinations need an explicit IP or CIDR rule."
+        echo "Copy the reported connection.txt file privately to the client."
         echo ""
         python3 -m fteproxy server --allow any
         ;;
 
     client)
         if [ -z "$URI" ]; then
-            echo "Error: pass the connection string the server printed, e.g."
+            echo "Error: pass the URI from the server's connection.txt, e.g."
             echo "  $0 client 'fte://<server-id>@192.168.1.100:8080'"
             exit 2
         fi
@@ -45,8 +35,8 @@ case "$MODE" in
         echo "  curl --socks5-hostname 127.0.0.1:$SOCKS_PORT https://example.com/"
         echo ""
         echo "--socks5-hostname (and a browser's 'proxy DNS' setting) sends the"
-        echo "name through the tunnel for the server to resolve, so lookups do"
-        echo "not leak around the proxy."
+        echo "destination name through the tunnel for the server to resolve."
+        echo "Other application traffic is unaffected by this proxy setting."
         echo ""
         python3 -m fteproxy client "$URI" -D "$SOCKS_PORT"
         ;;
@@ -62,7 +52,7 @@ case "$MODE" in
         echo "Example:"
         echo "  # On server:"
         echo "  $0 server"
-        echo "  # It prints a connection string; copy it to the client."
+        echo "  # Copy connection.txt privately; set a reachable endpoint with keygen --advertise."
         echo ""
         echo "  # On client:"
         echo "  $0 client 'fte://<server-id>@192.168.1.100:8080'"

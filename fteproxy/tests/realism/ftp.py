@@ -1,25 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Realism check for the ``ftp`` control-channel format (phase F-ftp).
+"""Check the FTP control-line subset modeled by the format.
 
-FTP's control channel (RFC 959) is a cleartext line protocol: the client sends
-a command -- an uppercase verb, optionally a space and an argument, terminated
-by CRLF -- and the server answers with a three-digit reply code, a space, some
-human-readable text, and CRLF. :func:`check` judges a single sealed covertext
-the way a DPI box scanning port 21 would: it insists on exactly one CRLF-ended
-line whose shape is a known FTP command *or* a known reply, rejecting anything
-else.
-
-This is a strict, self-contained grammar check. It shares no code with the
-other protocol realism modules and does not import the ``parts/ftp.json`` regex
--- it re-derives the structure by hand so a covertext that only *happens* to
-match the sampling regex still has to stand on its own as a well-formed FTP
-message.
+Parse one CRLF-terminated command or reply without importing the format regex.
+Restrict verbs, codes, and argument/text alphabets to the modeled subset.
+This does not validate command/reply ordering or a complete FTP session.
 """
 
 
 class FTPRealismError(Exception):
-    """A covertext is not a structurally valid FTP control-channel message."""
+    """A covertext failed the modeled FTP control-line checks."""
 
 
 # Commands that take a (non-empty) argument on the control channel.
@@ -32,9 +22,8 @@ _BARE_VERBS = frozenset((b'PASV', b'QUIT'))
 _REPLY_CODES = frozenset((b'220', b'230', b'331', b'250',
                           b'150', b'226', b'550'))
 
-# Characters allowed in a command argument (usernames, paths, filenames):
-# ASCII letters and digits plus a small set of path/name punctuation. No space
-# -- an FTP argument is a single token.
+# Modeled argument alphabet. This subset excludes spaces, though FTP paths
+# can contain them.
 _ARG_CHARS = frozenset(
     b'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._@/-')
 
@@ -49,11 +38,7 @@ def _fail(reason, covertext):
 
 
 def check(covertext):
-    """Raise :class:`FTPRealismError` unless ``covertext`` is a valid FTP line.
-
-    Accepts either a client command or a server reply; returns ``None`` on a
-    structurally valid message.
-    """
+    """Accept one modeled FTP command/reply line, or raise FTPRealismError."""
     if not isinstance(covertext, (bytes, bytearray)):
         _fail('covertext is not bytes', covertext)
     covertext = bytes(covertext)
@@ -77,11 +62,11 @@ def check(covertext):
 
 
 def _check_command(line, covertext):
-    """A client command: a bare verb, or a verb SP non-empty-token argument."""
+    """Check a modeled bare verb or verb with a single-token argument."""
     if b' ' in line:
         verb, _, arg = line.partition(b' ')
         if verb == b'TYPE':
-            # TYPE takes exactly one representation code.
+            # This subset models the A and I TYPE forms.
             if arg not in (b'A', b'I'):
                 _fail('TYPE argument is not A or I', covertext)
             return

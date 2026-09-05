@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""RFC 1928 conformance for the client listener's SOCKS5 server side.
+"""Test supported SOCKS5 exchanges over a socket pair, without a tunnel.
 
-These drive :mod:`fteproxy.socks` over a socket pair, so they exercise the
-byte-level exchange without a tunnel. ``test_relay.py`` covers the same
-requests end to end.
+Cover no-auth CONNECT and refusal paths. test_relay.py exercises destination
+relaying. The current relay's placeholder BND address is not full RFC conformance.
 """
 
 import socket

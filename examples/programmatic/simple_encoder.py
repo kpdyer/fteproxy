@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""
-Simple FTE Encoder Example
+"""Demonstrate direct libfte encryption and decryption without sockets.
 
-This demonstrates direct use of the FTE cipher without network sockets.
-Great for understanding how Format-Transforming Encryption works.
+The proxy adds record sealing and padding around these cipher operations.
 """
 
 import os
@@ -16,11 +14,9 @@ def main():
     # This one produces lowercase letters only
     regex = "^[a-z]+$"
 
-    # Every covertext is exactly `length` bytes. How many plaintext bytes it can
-    # carry (cipher.max_plaintext_bytes) follows from the pattern's alphabet
-    # and this length; a short message leaves the format's spare capacity as a
-    # run of its lowest character ('a'). fteproxy's record layer random-pads
-    # to capacity so that run never appears on the wire.
+    # Fixed wire length; max_plaintext_bytes reports usable cipher capacity.
+    # Short unpadded messages can leave long low-ranked prefixes. fteproxy adds
+    # random padding to avoid that systematic pattern.
     length = 256
 
     # libfte 0.4 requires an explicit 32-byte key (there is no random-key path)
@@ -37,7 +33,7 @@ def main():
     
     # Encode the message
     ciphertext = cipher.encrypt(plaintext)
-    print(f"Encoded (looks like random letters):")
+    print(f"Encoded as lowercase letters:")
     print(f"  {ciphertext[:100].decode('ascii', errors='ignore')}...")
     print(f"Encoded length: {len(ciphertext)} bytes")
     print()

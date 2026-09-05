@@ -1,22 +1,16 @@
 #!/usr/bin/env python3
-"""
-FTE-Powered Echo Server
+"""Echo bytes through a wrapped TCP socket using a published demo identity.
 
-Listens for FTE-encoded connections and echoes back any received data.
-The transmitted data looks like space-separated words to any observer.
-
-The server is told no format at all: it learns the format and the
-record-layer mode from the client's first record.
+Accept the client's format/mode from the configured definitions release.
+The companion client uses HTTP hybrid mode on port 50007.
 """
 
 import sys
 import socket
 import fteproxy
 
-# A fixed demo identity so the two scripts agree without exchanging anything.
-# The private key is published here on purpose: it is a demo. A real server
-# generates its own with `fteproxy keygen`, keeps server.key at mode 0600, and
-# hands out only the public half.
+# Published demo private key: use a new, private identity for actual deployments.
+# The matching public capability is all a client needs to connect.
 DEMO_SERVER_KEY = bytes.fromhex(
     "628e1b010509a623c31c54a443d996d10427f2e47ff11258d50e9f70c4b79651")
 
@@ -28,7 +22,7 @@ def main():
     print("FTE Echo Server")
     print("===============")
     print(f"Listening on port {PORT}")
-    print("Format and mode: whatever the client asks for")
+    print("Format and mode: selected by the client from this definitions release")
     print()
     
     try:

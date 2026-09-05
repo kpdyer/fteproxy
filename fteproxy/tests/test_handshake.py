@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Tests for the protocol v1 handshake: vectors, tampering, replay, epoch.
+"""Pin protocol-v1 hello encoding and key derivation with fixed vectors.
 
-The vectors in ``vectors/handshake_v1.json`` pin the wire format and the key
-schedule. They were generated once from fixed seeds; if a change to
-:mod:`fteproxy.handshake` breaks them, that change breaks interoperation with
-every deployed 1.0 peer, and the version must move rather than the vectors.
+Exercise tampering, replay tracking, and epoch validation. Changing vector
+outputs requires a deliberate wire-compatibility review; they are not a proof
+of cryptographic security.
 """
 
 import json
@@ -421,13 +420,7 @@ class TestReplayFilter:
         assert len(replay) <= 64
 
     def test_a_flood_at_a_future_epoch_cannot_evict_the_current_hour(self):
-        """The epoch a hello is filed under is chosen by the client.
-
-        Evicting the *oldest* bucket let a flood stamped an hour ahead clear
-        the hour real clients are using, and re-open replay for exactly the
-        hellos already captured -- for a whole hour, from anywhere, with no
-        key. Eviction has to come out of the bucket doing the flooding.
-        """
+        """A flood in a larger future bucket must not evict the smaller current bucket."""
         replay = hs.ReplayFilter(max_entries=64)
         now = 100
         legitimate = b'\x09' * 32
@@ -441,8 +434,7 @@ class TestReplayFilter:
         assert len(replay) <= 64
 
     def test_a_rejected_hello_does_not_enter_the_filter(self):
-        """observe() runs last, so a hello refused for its epoch or format
-        cannot be used to fill the filter and lock out a real client."""
+        """Epoch and format validation precede replay observation; later checks may still reject."""
         replay = hs.ReplayFilter()
         now = self.CASE['epoch']
         stale = hs.ClientHello(

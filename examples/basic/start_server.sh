@@ -1,9 +1,7 @@
 #!/bin/bash
-# Start an fteproxy server. Every argument is passed straight through, e.g.
-#   ./start_server.sh --listen :8080 --allow 127.0.0.1:8081
-#
-# The first start generates the server's keypair in the state directory
-# (~/.local/state/fteproxy by default) and prints the connection string
-# clients need, which it also writes to connection.txt beside the key.
+# Pass all arguments to the server, for example:
+#   ./start_server.sh --listen 127.0.0.1:8080 --allow 127.0.0.1:8081
+# First startup saves server.key and connection.txt in the state directory;
+# server reports their paths without printing the connection capability.
 
 exec python3 -m fteproxy server "$@"

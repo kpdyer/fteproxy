@@ -11,7 +11,7 @@
     "role": "request",
     "mode_hint": "format",
     "default": false,
-    "description": "SMTP client command line (EHLO/MAIL FROM/RCPT TO/DATA/QUIT), CRLF-terminated; 80-320 bytes per line"
+    "description": "SMTP command shape with a CRLF terminator; 80-320 bytes per format-mode record."
   },
   "smtp-response": {
     "regex": "^((220|250|354|421|550) |250-)[a-zA-Z0-9 .,;:()<>@_-]+\r\n$",
@@ -25,6 +25,6 @@
     "role": "response",
     "mode_hint": "format",
     "default": false,
-    "description": "SMTP server reply line (2xx/3xx/4xx/5xx status), with 250- continuation form; 80-320 bytes per line"
+    "description": "SMTP status/text shape, including 250- continuation lines; 80-320 bytes per format-mode record."
   }
 }

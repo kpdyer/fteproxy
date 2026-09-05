@@ -11,7 +11,7 @@ import fteproxy.stream as stream
 
 
 class TestAddressEncoding:
-    """SOCKS5's encoding, so a request crosses the tunnel unaltered."""
+    """OPEN uses the SOCKS5 address layout; relay edges decode and re-encode it."""
 
     @pytest.mark.parametrize('host,port,atyp', [
         ('192.0.2.1', 443, stream.ATYP_IPV4),
@@ -136,8 +136,7 @@ class TestRestrictedAddresses:
 
 
 class TestAllowRules:
-    """The table the plan asks for: what each rule shape does and does not
-    permit."""
+    """Destination-policy cases for each allow-rule form."""
 
     def rules(self, *specs):
         return stream.AllowRules(specs)

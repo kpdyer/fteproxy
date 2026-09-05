@@ -9,7 +9,7 @@ import os
 import sys
 import fte
 
-# Available formats with their regex patterns
+# Local demo patterns, independent of the proxy definitions catalog.
 FORMATS = {
     "lowercase": ("^[a-z]+$", "Random lowercase letters"),
     "uppercase": ("^[A-Z]+$", "Random UPPERCASE letters"),

@@ -1,7 +1,5 @@
 [build-system]
-# >=77 for PEP 639 license metadata (license = "MIT" + license-files). That
-# floor also clears >=64, the release where PEP 660 editable installs stopped
-# needing a setup.py shim -- which is why this repo no longer has one.
+# Setuptools 77 supports the PEP 639 license fields used below.
 requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
@@ -41,10 +39,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Everything needed to run the test suite against a checkout:
-#     pip install -e ".[test]"
-# These live here rather than in a requirements.txt so there is one dependency
-# list to keep current, and so Dependabot's pip ecosystem sees them.
+# Install test dependencies with: python3 -m pip install -e ".[test]"
 test = [
     "pytest>=9.1.1",
     "pytest-timeout>=2.4.0",

@@ -40,7 +40,7 @@ def main():
         print(f"    [ERROR] {e}")
         errors += 1
     
-    # Example 2: Emoji-like (using simple chars that look like patterns)
+    # Example 2: a two-symbol alphabet.
     print("\n[2] Simple Pattern Format")
     print("    Regex: ^[ox]+$")
     pattern_regex = "^[ox]+$"
@@ -80,8 +80,8 @@ def main():
         print(f"    [ERROR] {e}")
         errors += 1
     
-    # Example 4: MAC address-like
-    print("\n[4] Hex Pairs Format")
+    # Example 4: a hex string of at least two characters.
+    print("\n[4] Hex String Format")
     print("    Regex: ^[0-9a-f][0-9a-f]+$")
     mac_regex = "^[0-9a-f][0-9a-f]+$"
     try:

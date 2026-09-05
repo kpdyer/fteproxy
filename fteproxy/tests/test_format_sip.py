@@ -1,25 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Format tests for the ``sip`` protocol.
+"""Test SIP capacity, both record modes, and selected message properties.
 
-For both ``sip-request`` and ``sip-response``:
-
-* the libfte cipher builds and holds at least :data:`fteproxy.defs.MIN_CAPACITY`
-  bytes of capacity;
-* random payloads round-trip through the record layer in both ``format`` and
-  ``hybrid`` modes -- ``sip`` is a ``format`` protocol (a SIP body is SDP text,
-  which a raw high-entropy ``hybrid`` tail would not resemble), but the client's
-  ``--mode`` can still select ``hybrid``, so both must carry traffic;
-* a batch of sealed **format-mode** covertexts each fully match the regex, pass
-  the independent-parser realism :func:`~fteproxy.tests.realism.sip.check`, and
-  clear :func:`~fteproxy.tests.realism.statistical_guard`;
-* the base name ``sip`` is exposed by :func:`fteproxy.defs.base_names`.
-
-``sip`` is variable length (phase F7): a format-mode record picks one of the
-lengths in ``[min_length, max_length]``, so these tests read the length from
-:func:`fteproxy.defs.spec_length` (the ``max_length`` the handshake seals at)
-and check a covertext's length against the allowed set rather than against one
-number. ``fteproxy/tests/test_variable_length.py`` covers the framing itself.
+Sample format-mode covertexts for regex membership, header checks, and repeated
+bytes. Hybrid mode round-trips, but its raw tail contradicts these definitions'
+zero-length SIP body. The harness does not validate a full SIP transaction.
 """
 
 import os
@@ -96,7 +81,7 @@ def test_sealed_covertexts_are_realistic(name):
 
 
 def test_realism_check_rejects_a_non_sip_covertext():
-    """The check is a real filter, not a rubber stamp."""
+    """Malformed sample messages fail the selected SIP checks."""
     valid = (b'INVITE sip:alice@example.com SIP/2.0\r\n'
              b'Via: SIP/2.0/TCP proxy.example.com;branch=z9hG4bKnashds8\r\n'
              b'From: <sip:bob@example.com>;tag=1928301774\r\n'

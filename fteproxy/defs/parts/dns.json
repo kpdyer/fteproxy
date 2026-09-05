@@ -10,7 +10,7 @@
     "role": "request",
     "mode_hint": "format",
     "default": false,
-    "description": "DNS over TCP query (RFC 1035 4.2.2): a 2-byte big-endian length prefix frames a 12-byte header and one A/AAAA question. The prefix is framing rather than a literal in the regex, so one pattern serves every length: the covertext runs 90 to 272 wire bytes and QNAME with it, 72 to 254 octets, inside the 255-octet limit at every length"
+    "description": "DNS-over-TCP query shape: external two-byte prefix and one A/AAAA question; 90-272 wire bytes, with QNAME 72-254 bytes."
   },
   "dns-response": {
     "regex": "^[\u0000-\u00ff][\u0000-\u00ff]\u0081\u0080\u0000\u0001\u0000\u0001\u0000\u0000\u0000\u0000(\u0002[a-zA-Z0-9][a-zA-Z0-9]|\u0003[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9]|\u0004[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0005[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0006[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u0007[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\b[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\t[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\n[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000b[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\f[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\r[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000e[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9]|\u000f[a-zA-Z0-9][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9-][a-zA-Z0-9])+(\u0003[cC][oO][mM]|\u0003[nN][eE][tT]|\u0003[oO][rR][gG]|\u0003[eE][dD][uU]|\u0004[iI][nN][fF][oO]|\u0002[iI][oO]|\u0002[dD][eE]|\u0002[uU][kK])\u0000\u0000\u0001\u0000\u0001\u00c0\f\u0000\u0001\u0000\u0001\u0000\u0000[\u0000-\u00ff][\u0000-\u00ff]\u0000\u0004[\u0001-~\u0080-\u00df][\u0000-\u00ff][\u0000-\u00ff][\u0000-\u00ff]$",
@@ -23,6 +23,6 @@
     "role": "response",
     "mode_hint": "format",
     "default": false,
-    "description": "DNS over TCP NOERROR response (RFC 1035 4.2.2): the question echoed plus one A record reached by a 0xc00c name pointer. Length-prefix framing varies the covertext from 90 to 272 wire bytes, so QNAME runs 56 to 238 octets instead of one padded size"
+    "description": "DNS-over-TCP reply shape: external two-byte prefix, one question, and one A answer pointing to that question; 90-272 wire bytes."
   }
 }

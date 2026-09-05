@@ -1,22 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Realism check for the ``http`` format, judged by an independent parser.
+"""Check selected HTTP message properties with independent stdlib parsers.
 
-``check(covertext)`` raises if ``covertext`` is not a structurally valid HTTP/1.1
-message. To avoid grading fteproxy's own regex with a mirror of itself, the
-judgement is delegated to the standard library's HTTP machinery -- the same code
-a real client or DPI stack would lean on:
-
-* a **request** covertext has its request line parsed by
-  :class:`http.server.BaseHTTPRequestHandler` (the ``parse_request`` state
-  machine) and its header block parsed by :mod:`email.parser`;
-* a **response** covertext is parsed by :class:`http.client.HTTPResponse` driven
-  over a fake in-memory socket -- the exact class ``http.client`` uses to read a
-  real server's reply.
-
-A message that these parsers reject, or that parses into a shape outside the
-format's design (an unexpected method, version, status, or a missing mandatory
-header), fails the check.
+check validates request lines/header presence or response status/headers.
+parse_hybrid_message also consumes a complete chunked body. Requests use
+http.server and email.parser plus a local chunk decoder; responses use
+http.client.HTTPResponse. These checks do not validate all field semantics
+or correlate requests with responses.
 """
 
 import email.parser
@@ -26,8 +16,7 @@ import io
 
 
 _METHODS = ('GET', 'POST', 'HEAD')
-#: 304 joined the format when the response dropped its body: a response whose
-#: status says "no body" is the honest shape for a header-block-only covertext.
+# Status/reason pairs accepted by the base-header checks.
 _STATUS = {200: 'OK', 302: 'Found', 304: 'Not Modified', 404: 'Not Found'}
 _REQUEST_HEADERS = ('Host', 'User-Agent', 'Accept', 'Accept-Language')
 _RESPONSE_HEADERS = ('Content-Type', 'Content-Length', 'Server')
@@ -133,7 +122,7 @@ def _check_response(covertext):
 
 
 def check(covertext):
-    """Raise if ``covertext`` is not a structurally valid HTTP/1.1 message."""
+    """Raise if a covertext fails the selected HTTP line and header checks."""
     if not isinstance(covertext, (bytes, bytearray)):
         raise TypeError('covertext must be bytes, got %r' % type(covertext))
     covertext = bytes(covertext)
@@ -144,13 +133,10 @@ def check(covertext):
 
 
 def _chunked_request_body(wire_body):
-    """Decode the RFC 9112 chunk syntax emitted after a request header.
+    """Decode chunked request data and require an empty trailer section.
 
-    The standard library parses request lines and fields but deliberately does
-    not implement a server-side chunk decoder.  This small independent parser
-    accepts general chunk sizes and trailers, then requires the message to end
-    at the terminal chunk so bytes from the next request cannot be hidden in
-    this one.
+    Allow multiple chunks and ignore chunk extensions. Require the terminal chunk
+    to end this message; this helper is not a complete RFC 9112 syntax validator.
     """
     body = bytearray()
     offset = 0
@@ -180,12 +166,10 @@ def _chunked_request_body(wire_body):
 
 
 def parse_hybrid_message(message):
-    """Parse one complete chunk-framed hybrid HTTP message and return its body.
+    """Parse a complete hybrid HTTP message and return its encrypted body.
 
-    Requests use the standard library request/header parsers plus the strict
-    chunk decoder above.  Responses are parsed and de-chunked entirely by
-    :class:`http.client.HTTPResponse`.  This judges the complete wire message,
-    not merely the regex-generated header block.
+    Requests use the line/header checks and local chunk decoder. Responses use
+    HTTPResponse for framing and dechunking. Require the whole input to be consumed.
     """
     if not isinstance(message, (bytes, bytearray)):
         raise TypeError('message must be bytes, got %r' % type(message))

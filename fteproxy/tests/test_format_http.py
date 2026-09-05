@@ -1,24 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Format tests for the ``http`` protocol (phase F1).
+"""Test HTTP capacity, both record modes, and sampled message structure.
 
-For both ``http-request`` and ``http-response``:
-
-* the libfte cipher builds and holds at least :data:`fteproxy.defs.MIN_CAPACITY`
-  bytes of capacity;
-* random payloads round-trip through the record layer in both ``format`` and
-  ``hybrid`` modes (``http`` is a ``hybrid`` format, so either mode may be
-  selected at connection time);
-* a batch of sealed **format-mode** covertexts each fully match the regex, pass
-  the independent-parser realism :func:`~fteproxy.tests.realism.http.check`, and
-  clear :func:`~fteproxy.tests.realism.statistical_guard`;
-* the base name ``http`` is exposed by :func:`fteproxy.defs.base_names`.
-
-``http`` is variable length (phase F7): a format-mode record picks one of the
-lengths in ``[min_length, max_length]``, so these tests read the length from
-:func:`fteproxy.defs.spec_length` (the ``max_length`` the handshake seals at)
-and check a covertext's length against the allowed set rather than against one
-number. ``fteproxy/tests/test_variable_length.py`` covers the framing itself.
+Check format-mode covertexts against the regex and independent header parsers.
+Hybrid tests also parse complete chunked bodies and round-trip their records.
+Variable-length stream framing is covered in test_variable_length.py.
 """
 
 import os
