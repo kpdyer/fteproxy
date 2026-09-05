@@ -29,3 +29,9 @@ updates:
       github-actions:
         patterns:
           - "*"
+        update-types: ["minor", "patch"]
+        # Release-only actions need manual review; keep their PRs separate.
+        exclude-patterns:
+          - "pypa/gh-action-pypi-publish"
+          - "actions/upload-artifact"
+          - "actions/download-artifact"
