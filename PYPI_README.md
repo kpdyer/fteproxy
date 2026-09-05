@@ -19,6 +19,9 @@ pip install fteproxy
 
 ## Quick Start
 
+Run `fteproxy help` to list commands, or `fteproxy help client` to see a
+command's options. `fteproxy version` prints the version and licence.
+
 ### Server
 
 Once per host. The first start generates the server's keypair and a mode-0600

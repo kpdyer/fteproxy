@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """The fteproxy command line.
 
-Five subcommands::
+Seven subcommands::
 
     fteproxy server  [--listen [HOST]:PORT] [--allow RULE]... [--advertise HOST[:PORT]]
                      [--state-dir DIR] [--defs RELEASE] [--print-connection]
@@ -17,20 +17,22 @@ Five subcommands::
     fteproxy keygen  [--state-dir DIR] [--advertise HOST[:PORT]] [--defs RELEASE]
     fteproxy formats [--defs RELEASE]
     fteproxy defs-check [--defs RELEASE]
+    fteproxy version
+    fteproxy help [COMMAND]
 
 Both ``python -m fteproxy`` and the ``fteproxy`` console script call
 :func:`main`, which returns a process exit status:
 
 ===  ==========================================================
-  0  clean shutdown
+  0  command completed or clean shutdown
   1  runtime failure (bad format name, unusable key, bind refused,
      a startup check that could not reach the server)
   2  usage error
 ===  ==========================================================
 
-Command output -- a connection string, the format table -- goes to stdout, so
-it can be piped. Everything else goes to stderr through the ``fteproxy``
-logger, which carries a redaction filter so that no key, server-id or
+Command output -- help, the version, a connection string, the format table --
+goes to stdout, so it can be piped. Everything else goes to stderr through the
+``fteproxy`` logger, which carries a redaction filter so that no key, server-id or
 connection string can reach a log file.
 """
 
@@ -61,7 +63,8 @@ DEFAULT_SOCKS = '127.0.0.1:1080'
 DEFAULT_FORMAT = 'http'
 DEFAULT_MODE = 'hybrid'
 
-SUBCOMMANDS = ('server', 'client', 'keygen', 'formats', 'defs-check')
+SUBCOMMANDS = ('server', 'client', 'keygen', 'formats', 'defs-check',
+               'version', 'help')
 
 #: Flags from the pre-1.0 command line. They are recognised only so that a
 #: script carrying one gets a pointer instead of "unrecognized arguments", and
@@ -88,11 +91,11 @@ _UPGRADE_POINTER = (
 
 
 class _PrintVersion(argparse.Action):
-    """``--version``: the version and the licence notice, unwrapped.
+    """Compatibility ``--version`` alias for ``fteproxy version``.
 
     argparse's own ``version`` action runs the text through the help
     formatter, which reflows the notice into a paragraph. The notice used to
-    be a banner printed on every run; it lives here now.
+    be a banner printed on every run; it is part of the version output now.
     """
 
     def __init__(self, option_strings, dest, **kwargs):
@@ -231,10 +234,15 @@ def _catalog_release(value):
 def build_parser():
     parser = _ArgumentParser(
         prog='fteproxy',
-        description='A format-transforming-encryption tunnel.')
+        add_help=False,
+        description='A format-transforming-encryption tunnel.',
+        epilog='Run "fteproxy help COMMAND" for help with a command.')
+    # Keep conventional aliases working while presenting actions as commands.
+    parser.add_argument('-h', '--help', action='help', help=argparse.SUPPRESS)
     parser.add_argument('--version', action=_PrintVersion,
-                        help='Print the version and licence, then quit.')
-    subparsers = parser.add_subparsers(dest='command', metavar='COMMAND')
+                        help=argparse.SUPPRESS)
+    subparsers = parser.add_subparsers(
+        dest='command', metavar='COMMAND', title='commands')
 
     server = subparsers.add_parser(
         'server', help='Accept tunnelled connections and dial where they ask.')
@@ -381,6 +389,20 @@ def build_parser():
                             help='Definitions release or legacy alias to '
                                  'validate.')
     _verbosity(defs_check)
+
+    version = subparsers.add_parser(
+        'version', help='Print the version and licence, then quit.',
+        description='Print the version and licence, then quit.')
+    version.set_defaults(_parser=version)
+
+    help_parser = subparsers.add_parser(
+        'help', help='Show general help or help for a command.')
+    help_parser.add_argument(
+        'topic', nargs='?', choices=SUBCOMMANDS, metavar='COMMAND',
+        help='Command to describe; omit to show general help.')
+    help_parser.set_defaults(
+        _parser=help_parser,
+        _help_parsers={None: parser, **subparsers.choices})
 
     return parser
 
@@ -1172,6 +1194,14 @@ def main(argv=None):
     if args.command is None:
         parser.print_help(sys.stderr)
         return EXIT_USAGE
+
+    if args.command == 'help':
+        args._help_parsers[args.topic].print_help()
+        return EXIT_OK
+
+    if args.command == 'version':
+        print(_LICENSE_BANNER)
+        return EXIT_OK
 
     configure_logging(quiet=args.quiet, verbose=args.verbose)
 

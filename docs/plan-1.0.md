@@ -93,11 +93,14 @@ fteproxy client  [URI] [-D [BIND:]PORT] [-L [BIND:]PORT:HOST:PORT]...
                  [--state-dir DIR] [-q | -v]
 fteproxy keygen  [--state-dir DIR] [--advertise HOST[:PORT]]
 fteproxy formats [--defs RELEASE]
-fteproxy --version
+fteproxy version
+fteproxy help [COMMAND]
 ```
 
 Rules:
 
+- Actions use plain command names. `fteproxy help COMMAND` shows a command's
+  options; `fteproxy version` prints the version and licence.
 - All long flags use hyphens. Ports are integers, validated at parse time.
 - `HOST:PORT` everywhere. `:PORT` means all interfaces. IPv6 in brackets.
   `--listen :8080` binds `::` dual-stack where the OS allows it and falls back

@@ -107,14 +107,16 @@ exits on SIGINT or SIGTERM.
   server-id or a connection string out of any log line. The connection URI
   reaches stdout only for `keygen` or explicit `server --print-connection`;
   ordinary output such as the format table remains pipeable.
-- **A strict five-command CLI.** `server`, `client`, `keygen`, `formats`, and
+- **A strict CLI.** `server`, `client`, `keygen`, `formats`, and
   `defs-check` reject abbreviated long options and unsafe definitions
   identifiers. Address, rule and definitions validation happens before a key
   or state file is created or a peer is contacted. An existing state directory
   with permissions broader than 0700 is refused rather than silently changed;
   fix an intended directory explicitly with `chmod 700`. Managed key and
   invitation reads reject symlinks, hard links, non-regular files, and foreign
-  ownership.
+  ownership. Actions use plain commands: `fteproxy help` lists commands,
+  `fteproxy help COMMAND` shows their options, and `fteproxy version` prints
+  the version and licence.
 
 ## Upgrade steps
 

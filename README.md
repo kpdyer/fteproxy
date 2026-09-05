@@ -52,6 +52,10 @@ declared in `pyproject.toml` -- there is no `requirements.txt`.
 
 ## Usage
 
+Use `fteproxy server` to accept connections and `fteproxy client` to connect.
+Run `fteproxy help` for the command list, `fteproxy help client` for a
+command's options, or `fteproxy version` for the version and licence.
+
 ### Start the server
 
 Once per host. The first start generates the server's keypair and a client
@@ -271,8 +275,8 @@ classifier can use that even though a parser accepts each individual message.
 
 ### Command line
 
-There are five subcommands: `server`, `client`, `keygen`, `formats`, and
-`defs-check`.
+Commands are plain words: `server`, `client`, `keygen`, `formats`,
+`defs-check`, `version`, and `help`. Options follow the command they configure.
 
 ```
 fteproxy server  [--listen [HOST]:PORT] [--allow RULE]... [--advertise HOST[:PORT]]
@@ -288,7 +292,8 @@ fteproxy client  [URI | --connection-file FILE | --connection-stdin]
 fteproxy keygen  [--state-dir DIR] [--advertise HOST[:PORT]] [--defs RELEASE]
 fteproxy formats [--defs RELEASE]
 fteproxy defs-check [--defs RELEASE]
-fteproxy --version
+fteproxy version
+fteproxy help [COMMAND]
 ```
 
 | Option | Command | Description | Default |
@@ -312,12 +317,11 @@ fteproxy --version
 | `--max-active` | server | Bound established relay sessions | 128 |
 | `--max-active-per-source` | server | Bound established relay sessions per source IP | 64 |
 | `--state-dir` | server, client, keygen | Where `server.key` and `connection.txt` live | `$FTEPROXY_STATE_DIR`, `$XDG_STATE_HOME/fteproxy`, `~/.local/state/fteproxy` |
-| `-q` / `-v` | all | Errors only / per-connection detail | INFO |
-| `--version` | | Version and licence, then quit | |
+| `-q` / `-v` | server, client, keygen, formats, defs-check | Errors only / per-connection detail | INFO |
 
-Exit status is 0 on a clean shutdown, 1 on a runtime failure, 2 on a usage
-error. The process runs in the foreground and stops on SIGINT or SIGTERM;
-there is no daemon mode and no PID file.
+Exit status is 0 after completing a command or on a clean shutdown, 1 on a
+runtime failure, 2 on a usage error. The process runs in the foreground and
+stops on SIGINT or SIGTERM; there is no daemon mode and no PID file.
 
 Long options are not abbreviated. The CLI validates addresses, rules and
 definition identifiers before it creates keys, changes state or contacts a
