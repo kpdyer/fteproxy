@@ -486,11 +486,11 @@ def connect(host, port, rules, timeout):
         try:
             sock.settimeout(timeout)
             sock.connect(sockaddr)
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         except OSError as e:
             sock.close()
             last = status_for_error(e)
             continue
-        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         return SUCCEEDED, sock
 
     if refused_by_policy and last == GENERAL_FAILURE:
