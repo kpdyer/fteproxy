@@ -38,3 +38,19 @@ python format_demo.py
 # Create custom formats
 python custom_format.py
 ```
+
+## Runtime regex negotiation
+
+[`permutation_bootstrap.py`](permutation_bootstrap.py) runs a complete local
+echo session with client-selected regexes and a server configured with only
+the shared key. It exercises the experimental permutation handshake and both
+record-layer modes:
+
+```bash
+python permutation_bootstrap.py
+python permutation_bootstrap.py --mode hybrid
+```
+
+Install the checkout first with `python -m pip install -e ".[test]"` from the
+repository root. Read the [protocol guide](../../docs/permutation-bootstrap.md)
+for the 80 KiB bootstrap cost and the source-distribution assumptions.

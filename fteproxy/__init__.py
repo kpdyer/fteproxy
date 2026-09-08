@@ -522,7 +522,8 @@ def wrap_socket(sock,
                 outgoing_regex=None, outgoing_length=-1,
                 incoming_regex=None, incoming_length=-1,
                 K1=None, K2=None,
-                negotiate=True):
+                negotiate=True, *, negotiation='definitions', key=None,
+                record_layer_mode=None):
     """``fteproxy.wrap_socket`` turns an existing socket into an fteproxy socket.
 
     The input parameter ``sock`` is the socket to wrap.
@@ -549,7 +550,39 @@ def wrap_socket(sock,
     cell to establish the format. Set to ``False`` when both sides already know
     the formats (e.g., in symmetric client/server examples). Default is ``True``
     for backwards compatibility with the relay use case.
+
+    Experimental ``negotiation='permutation'`` sends both regex descriptions
+    without a server-side definitions catalog. Supply both formats on the
+    client and neither on the server. ``key`` is a 32-byte shared secret and
+    is an alternative to ``K1``/``K2``. This method defaults to formatted data;
+    ``record_layer_mode`` selects the client's mode or constrains the server's
+    accepted mode. See ``docs/permutation-bootstrap.md`` for its batch cost,
+    trusted-pattern requirement, and blocking handshake semantics.
     """
+
+    if negotiation not in ('definitions', 'permutation'):
+        raise ValueError('negotiation must be definitions or permutation')
+    if key is not None:
+        if K1 is not None or K2 is not None:
+            raise ValueError('supply key or K1/K2, not both')
+        if not isinstance(key, bytes) or len(key) != 32:
+            raise ValueError('key must be exactly 32 bytes')
+        K1, K2 = key[:16], key[16:]
+    if negotiation == 'permutation':
+        if not negotiate:
+            raise ValueError('permutation negotiation requires negotiate=True')
+        if (K1 is None) != (K2 is None):
+            raise ValueError('supply both K1 and K2')
+        if K1 is not None and (not isinstance(K1, bytes) or len(K1) != 16 or
+                               not isinstance(K2, bytes) or len(K2) != 16):
+            raise ValueError('K1 and K2 must each be 16 bytes')
+        from fteproxy.permutation import Socket
+        shared_key = K1 + K2 if K1 is not None else fteproxy.conf.getValue(
+            'runtime.fteproxy.encrypter.key')
+        return Socket(sock, shared_key, outgoing_regex, outgoing_length,
+                      incoming_regex, incoming_length, record_layer_mode)
+    if record_layer_mode is not None:
+        raise ValueError('per-socket record_layer_mode requires permutation negotiation')
 
     assert K1 == None or len(K1) == 16
     assert K2 == None or len(K2) == 16

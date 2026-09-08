@@ -144,6 +144,30 @@ ignored). `--key` and `--key-file` cannot be used together.
 turns any TCP socket into an FTE socket. The [`examples/`](examples/README.md)
 directory has programmatic, chat, file-transfer and integration examples.
 
+### Experimental: negotiate regexes at runtime
+
+With `negotiation="permutation"`, the client supplies both regexes and the
+server learns them through an authenticated bootstrap. The endpoints share a
+key and the negotiation method; the server needs no matching definitions file.
+The bootstrap encodes its offer in the order of 320 complete, regex-valid
+covertexts, costing 80 KiB at a 256-byte covertext length. A fresh server
+challenge and client confirmation establish separate session keys before
+application data is accepted.
+
+Read the [illustrated guide](docs/permutation-bootstrap.md) for a worked
+example, API usage, wire format, and limits. This is an opt-in Python API;
+the existing CLI and definitions negotiation keep their current behavior.
+
+```bash
+python -m pip install -e ".[test]"
+python examples/programmatic/permutation_bootstrap.py
+```
+
+The example runs an echo session over local sockets, with client-only regexes.
+Each bootstrap covertext matches the selected regex; the batch as a whole
+belongs to its 320-fold concatenation. The distribution argument requires
+independent covertexts and does not establish realistic protocol behavior.
+
 ## Upgrading to 0.4.0
 
 fteproxy 0.4.0 moves to libfte 0.4 (`fte.FTE`) and its wire format is **not

@@ -32,6 +32,8 @@ classifiers = [
 ]
 dependencies = [
     "fte>=0.4.0,<0.5.0",
+    # Exact-domain FF1 for the optional permutation bootstrap codec.
+    "libffx>=2.0.1,<3",
     # The hybrid record body (AES-CTR + HMAC-SHA256). libfte 0.4 needs >=42
     # transitively, so that is the effective floor.
     "cryptography>=42.0",

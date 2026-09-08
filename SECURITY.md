@@ -14,7 +14,8 @@ supported version before reporting an issue.
 
 fteproxy 0.4 is built on libfte 0.4; read
 [libfte's security model](https://github.com/kpdyer/libfte/blob/master/SECURITY.md)
-first. This section covers what fteproxy adds on top of it.
+first. The bullets below describe the default definitions negotiation.
+The experimental permutation method has the differences described afterward.
 
 - **Threat model.** Format-Transforming Encryption is designed to get past an
   on-path observer that classifies traffic with protocol signatures (regular
@@ -75,6 +76,44 @@ first. This section covers what fteproxy adds on top of it.
   configured `--upstream-format` first). A failed attempt is rejected before
   the tag check when the bytes are not in the format, as in libfte; a full scan
   over the built-in formats costs a few milliseconds of CPU.
+
+### Experimental permutation negotiation
+
+The Python API can opt into `negotiation="permutation"`; both peers must select
+it explicitly. See the [protocol guide](docs/permutation-bootstrap.md).
+
+- **Client-provided patterns.** The server authenticates the complete offer
+  before compiling either regex. Every holder of the PSK is therefore trusted
+  to provide patterns. The 220-byte combined regex limit and 512-byte covertext
+  limit do not bound DFA construction cost; this mode provides no compilation
+  sandbox. Do not share its key with untrusted clients.
+- **Bootstrap protection.** A 256-byte ChaCha20-Poly1305 envelope is carried by
+  an exact-domain FF1 permutation of 320 complete covertexts. Independent
+  HMAC-derived keys separate these operations from handshake and data keys.
+  The context binds the multiset, selected word length, batch count, and wire
+  version. The bootstrap uses fresh random 96-bit nonces under the PSK-derived
+  AEAD key; nonce uniqueness remains a cryptographic requirement.
+- **Session binding.** The server returns a fresh 128-bit challenge in an
+  authenticated FTE record bound to the bootstrap digest. The client confirms
+  possession of the resulting upstream session key before the server releases
+  application data. Data keys bind the challenge, transcript, and direction,
+  preventing captured records from authenticating in a fresh session except
+  with negligible cryptographic probability. Replaying an initial batch can
+  still cause authentication work, compilation, and a fresh response; there is
+  no bootstrap replay cache or active-probing resistance claim. PSK compromise
+  exposes recorded sessions; the handshake provides no forward secrecy.
+- **Bounds and failures.** The receiver tries at most 512 candidate lengths
+  while buffering at most 160 KiB of bootstrap data. The blocking handshake
+  has a five-second network deadline, or the caller's shorter socket timeout;
+  it cannot preempt native regex compilation. Failed handshakes close the
+  connection. Application records retain position authentication and fail
+  closed on invalid or truncated records.
+- **Cover distribution.** The permutation argument applies to exchangeable
+  batches; the socket API samples independent uniform words from a regex's
+  fixed-length slice. It does not preserve arbitrary stateful conversations,
+  hide volume or timing, or prove full active steganographic security. Every
+  bootstrap word matches the upstream regex, while the complete batch is a
+  concatenation of 320 such words. Later `hybrid` bodies remain unformatted.
 
 ## Reporting a Vulnerability
 

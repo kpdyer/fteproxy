@@ -35,7 +35,10 @@ jobs:
 
     - name: Run unit tests
       run: |
-        python -m pytest fteproxy/tests/test_python3.py fteproxy/tests/test_record_layer.py -v --tb=short
+        python -m pytest \
+          fteproxy/tests/test_python3.py fteproxy/tests/test_record_layer.py \
+          fteproxy/tests/test_socket_wrapper.py fteproxy/tests/test_bootstrap.py \
+          fteproxy/tests/test_permutation_socket.py -v --tb=short --timeout=60
 
     - name: Run basic import test
       run: |
